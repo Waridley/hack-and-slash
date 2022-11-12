@@ -8,7 +8,7 @@ use bevy::{
 	DefaultPlugins,
 };
 use bevy_rapier3d::prelude::*;
-use input::InputVel;
+use input::CtrlVel;
 use particles::ParticlesPlugin;
 use std::{
 	f32::consts::*,
@@ -29,13 +29,11 @@ pub fn main() {
 	let mut app = App::new();
 	app.add_plugins(DefaultPlugins.set(WindowPlugin {
 		window: WindowDescriptor {
-					title: "Sonday Hack-and-Slash Game".to_string(),
-					resizable: true,
-					fit_canvas_to_parent: true,
-					#[cfg(target_arch = "wasm32")] // FIXME: Getting bugs on Linux without this, find better solution
-					scale_factor_override: Some(0.5),
-					..default()
-				},
+			title: "Sonday Hack-and-Slash Game".to_string(),
+			resizable: true,
+			fit_canvas_to_parent: true,
+			..default()
+		},
 		..default()
 	}))
 	.insert_resource(RapierConfiguration {
@@ -297,7 +295,7 @@ fn despawn_dead(mut cmds: Commands, mut q: Query<(Entity, &mut Despawner)>) {
 	}
 }
 
-fn terminal_velocity(mut q: Query<(&mut InputVel, &TerminalVelocity)>) {
+fn terminal_velocity(mut q: Query<(&mut CtrlVel, &TerminalVelocity)>) {
 	for (mut vel, term_vel) in q.iter_mut() {
 		// Don't trigger vel.deref_mut if not necessary
 		let term = term_vel.linvel;

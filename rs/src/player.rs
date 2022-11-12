@@ -1,4 +1,4 @@
-use crate::input::{InputVel, PlayerAction};
+use crate::input::{CtrlVel, PlayerAction};
 use crate::{input, terminal_velocity, Despawner, TerminalVelocity, E};
 use bevy::core_pipeline::bloom::BloomSettings;
 use bevy::{
@@ -22,12 +22,15 @@ use particles::{
 };
 use rapier3d::{
 	control::{CharacterAutostep, CharacterLength},
-	prelude::{Isometry, JointAxesMask},
+	prelude::JointAxesMask,
 };
 use std::{f32::consts::*, num::NonZeroU8, sync::Arc, time::Duration};
 
+pub mod camera;
+
 pub const MAX_SPEED: f32 = 32.0;
-pub const ACCEL: f32 = 64.0;
+pub const ACCEL: f32 = 3.0;
+pub const PLAYER_GRAVITY: f32 = 64.0;
 pub const MAX_JUMPS: f32 = 3.0;
 pub const CLIMB_ANGLE: f32 = FRAC_PI_3 - E;
 pub const SLIDE_ANGLE: f32 = FRAC_PI_3 - E;
@@ -43,7 +46,7 @@ impl Plugin for PlayerControllerPlugin {
 			.add_system(input::movement_input.before(terminal_velocity))
 			.add_system(input::look_input.before(terminal_velocity))
 			.add_system(position_camera_target.after(input::look_input))
-			// .add_system(follow_camera_target.after(position_camera_target))
+			.add_system(follow_camera_target.after(position_camera_target))
 			.add_system(move_player.after(terminal_velocity))
 			.add_system(idle);
 	}
@@ -90,6 +93,22 @@ fn setup(
 	cmds.spawn_player(id, vis, vis_collider, particle_mesh);
 }
 
+#[derive(EnumComponent)]
+pub enum PlayerEntity {
+	Root,
+	Controller,
+	Vis,
+	VisCollider,
+	CamPivot,
+	Cam,
+	HoverParticle,
+	OrbitalParticle,
+}
+use crate::player::camera::{
+	follow_camera_target, position_camera_target, CamTarget, CameraVertSlider,
+};
+use player_entity::*;
+
 pub type PlayerId = NonZeroU8;
 
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
@@ -118,19 +137,6 @@ pub trait SpawnPlayer<'c, 'w: 'c, 's: 'c> {
 		particle_mesh: MaterialMeshBundle<StandardMaterial>,
 	) -> EntityCommands<'w, 's, 'c>;
 }
-
-#[derive(EnumComponent)]
-pub enum PlayerEntity {
-	Root,
-	Controller,
-	Vis,
-	VisCollider,
-	CamTarget,
-	CamPivot,
-	Cam,
-	HoverParticle { start_xform: Vec3 },
-}
-use player_entity::*;
 
 const G1: rapier3d::geometry::Group = rapier3d::geometry::Group::GROUP_1;
 
@@ -198,45 +204,52 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 			.id();
 		let camera = (
 			owner,
-			Camera3dBundle {
-				camera: Camera {
-					// // TODO: This causes crashes in debug, default settings are way too exaggerated in release,
-					// //   it causes performance hits, and results don't look quite right even when it does work
-					// #[cfg(all(not(debug_assertions), not(target_arch = "wasm32")))]hdr: true,
-					..default()
-				},
-				transform: Transform {
-					rotation: Quat::from_rotation_x(FRAC_PI_2),
-					..default()
-				},
-				camera_3d: Camera3d {
-					clear_color: ClearColorConfig::Custom(Color::rgb(0.1, 0.0, 0.15)),
-					..default()
-				},
-				..default()
-			},
-			BloomSettings {
-				intensity: 0.003,
-				..default()
-			},
+			TransformBundle::default(),
 			Despawner::new(|_| {
 				// Don't want camera disappearing. Maybe try to reset whole player to origin?
 			}),
-			Pivot(pivot),
-		);
-		let camera = root
-			.commands()
-			.spawn(camera)
-			.set_enum(PlayerEntity::Cam)
-			.id();
-		let mut cam_target = root.commands().spawn((
-			owner,
-			TransformBundle::default(),
 			Collider::ball(0.72),
 			CollisionGroups::new(Group::empty(), Group::empty()),
-		));
-		cam_target.set_enum(PlayerEntity::CamTarget);
-		cam_target.add_child(camera);
+			CamTarget::default(),
+		);
+		root.commands()
+			.spawn(camera)
+			.set_enum(PlayerEntity::Cam)
+			.with_children(|builder| {
+				// Adjusting transform of Camera entity causes weird visual glitches,
+				// but parenting handles it properly
+				builder.spawn((
+					Camera3dBundle {
+						camera: Camera {
+							// TODO: This causes crashes in debug, default settings are way too exaggerated in release,
+							//   it causes performance hits, and results don't look quite right even when it does work
+							// #[cfg(all(not(debug_assertions), not(target_arch = "wasm32")))]hdr: true,
+							..default()
+						},
+						transform: Transform {
+							rotation: Quat::from_rotation_x(FRAC_PI_2),
+							..default()
+						},
+						camera_3d: Camera3d {
+							clear_color: ClearColorConfig::Custom(Color::rgb(0.1, 0.0, 0.15)),
+							..default()
+						},
+						..default()
+					},
+					BloomSettings {
+						intensity: 0.003,
+						..default()
+					},
+				));
+			});
+		// let mut cam_target = root.commands().spawn((
+		// 	owner,
+		// 	TransformBundle::default(),
+		// 	Collider::ball(0.72),
+		// 	CollisionGroups::new(Group::empty(), Group::empty()),
+		// ));
+		// cam_target.set_enum(PlayerEntity::CamTarget);
+		// cam_target.add_child(camera);
 
 		root.with_children(|builder| {
 			builder
@@ -248,7 +261,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 						rotation: Quat::from_rotation_x(rot),
 						..default()
 					}),
-					InputVel::default(),
+					CtrlVel::default(),
 					CollisionGroups::new(Group::empty(), Group::empty()),
 					KinematicCharacterController {
 						up: Vect::Z,
@@ -399,10 +412,10 @@ pub fn reset_jump_on_ground(
 	}
 }
 
-pub fn gravity(mut q: Query<(&mut InputVel, &KinematicCharacterControllerOutput)>, t: Res<Time>) {
-	for (mut input_vel, out) in q.iter_mut() {
+pub fn gravity(mut q: Query<(&mut CtrlVel, &KinematicCharacterControllerOutput)>, t: Res<Time>) {
+	for (mut ctrl_vel, out) in q.iter_mut() {
 		if out.grounded {
-			input_vel.linvel.z = 0.0
+			ctrl_vel.linvel.z = 0.0
 		}
 
 		let mut info = vec![(TOIStatus::Converged, Vect::NAN, Vect::NAN); 4];
@@ -412,123 +425,48 @@ pub fn gravity(mut q: Query<(&mut InputVel, &KinematicCharacterControllerOutput)
 			}
 		}
 
-		let decr = ACCEL * t.delta_seconds();
+		let decr = PLAYER_GRAVITY * t.delta_seconds();
 
-		input_vel.linvel.z -= decr;
+		ctrl_vel.linvel.z -= decr;
 	}
 }
 
 pub fn move_player(
-	mut body_q: Query<&mut Transform, ReadPlayerEntity<Root>>,
-	mut vis_q: Query<&mut Transform, ReadPlayerEntity<Vis>>,
-	mut ctrl_q: Query<(&InputVel, &mut KinematicCharacterController)>,
+	mut body_q: Query<(&mut Transform, &BelongsToPlayer), ReadPlayerEntity<Root>>,
+	mut vis_q: Query<(&mut Transform, &BelongsToPlayer), ReadPlayerEntity<Vis>>,
+	mut ctrl_q: Query<
+		(
+			&CtrlVel,
+			&mut KinematicCharacterController,
+			&BelongsToPlayer,
+		),
+		ReadPlayerEntity<Controller>,
+	>,
 	t: Res<Time>,
 ) {
-	let mut xform = body_q.single_mut();
-	let (input_vel, mut ctrl) = ctrl_q.single_mut();
+	for (ctrl_vel, mut ctrl, ctrl_owner) in &mut ctrl_q {
+		let mut body_xform = body_q
+			.iter_mut()
+			.find_map(|(xform, owner)| (owner == ctrl_owner).then_some(xform))
+			.unwrap();
+		let mut vis_xform = vis_q
+			.iter_mut()
+			.find_map(|(xform, owner)| (owner == ctrl_owner).then_some(xform))
+			.unwrap();
 
-	let dt = t.delta_seconds();
+		let dt = t.delta_seconds();
 
-	let Vec3 { x, y, z } = input_vel.angvel * dt;
-	let rot = Quat::from_euler(EulerRot::ZXY, z, x, y);
-	xform.rotate_local(rot);
+		let Vec3 { x, y, z } = ctrl_vel.angvel * dt;
+		let rot = Quat::from_euler(EulerRot::ZXY, z, x, y);
+		body_xform.rotate_local(rot);
 
-	let slide = xform.rotation * (input_vel.linvel * dt);
-	let mut vis_xform = vis_q.single_mut();
-	let target_tilt = Vec3::new(
-		input_vel.linvel.x * -0.016,
-		-1.0,
-		input_vel.linvel.y * 0.016,
-	)
-	.normalize();
-	vis_xform.rotation = Quat::from_rotation_arc(Vec3::NEG_Y, target_tilt);
-	ctrl.translation = Some(slide);
-}
-
-#[derive(Component, Debug, Default, Copy, Clone, Deref, DerefMut)]
-pub struct TargetIso(Isometry<Real>);
-
-#[derive(Component, Debug, Copy, Clone, Deref, DerefMut, Reflect)]
-pub struct Pivot(Entity);
-
-#[derive(Component, Debug, Default, Copy, Clone, Reflect)]
-pub struct CameraVertSlider(pub f32);
-
-const MAX_CAM_DIST: f32 = 20.0;
-const MIN_CAM_DIST: f32 = 3.2;
-
-fn position_camera_target(
-	ctx: Res<RapierContext>,
-	cam_pivot_q: Query<(&GlobalTransform, &BelongsToPlayer), ReadPlayerEntity<CamPivot>>,
-	mut cam_target_q: Query<
-		(&mut Transform, &Collider, &BelongsToPlayer),
-		ReadPlayerEntity<CamTarget>,
-	>,
-	mut cam_q: Query<(&Pivot, &BelongsToPlayer), ReadPlayerEntity<Cam>>,
-) {
-	let Ok((mut target_xform, col, _target_owner)) = cam_target_q.get_single_mut() else {
-		return;
-	};
-	for (pivot, _cam_owner) in &mut cam_q {
-		let (pivot_xform, _pivot_owner) = cam_pivot_q.get(**pivot).unwrap();
-		let filter = QueryFilter::from(InteractionGroups::new(G1, !G1));
-		let (_, rot, tr) = pivot_xform.to_scale_rotation_translation();
-		let dir = rot * Vect::NEG_Y;
-		let pos = tr + (dir * MIN_CAM_DIST); // start at minimum distance, not player origin
-		let result = ctx.cast_shape(pos, -rot, dir, col, MAX_CAM_DIST - MIN_CAM_DIST, filter);
-		let toi = if let Some(result) = result {
-			// screen_print!("{result:#?}");
-			let toi = result.1.toi;
-			if toi == 0.0 {
-				if ctx
-					.cast_shape(
-						tr + dir * MAX_CAM_DIST,
-						-rot,
-						-dir,
-						col,
-						(MAX_CAM_DIST - MIN_CAM_DIST) * 0.4, // Don't want enormous object right in front of camera
-						filter,
-					)
-					.is_some()
-				{
-					// Max distance is still inside something, just let it be close
-					toi
-				} else {
-					// Something is in-between character and camera, but better than camera being inside it
-					MAX_CAM_DIST
-				}
-			} else {
-				toi
-			}
-		} else {
-			MAX_CAM_DIST
-		};
-		target_xform.translation = tr + dir * (toi + MIN_CAM_DIST);
-		target_xform.rotation = -rot;
+		let slide = body_xform.rotation * (ctrl_vel.linvel * dt);
+		let target_tilt =
+			Vec3::new(ctrl_vel.linvel.x * -0.016, -1.0, ctrl_vel.linvel.y * 0.016).normalize();
+		vis_xform.rotation = Quat::from_rotation_arc(Vec3::NEG_Y, target_tilt);
+		ctrl.translation = Some(slide);
 	}
 }
-
-// fn follow_camera_target(
-// 	mut cam_q: Query<(&mut Transform, &BelongsToPlayer), ReadPlayerEntity<Cam>>,
-// 	pivot_q: Query<(&GlobalTransform, &BelongsToPlayer), ReadPlayerEntity<CamPivot>>,
-// 	target_q: Query<(&GlobalTransform, &BelongsToPlayer), ReadPlayerEntity<CamTarget>>,
-// ) {
-// 	for (mut cam_xform, cam_owner) in &mut cam_q {
-// 		let pivot_xform = pivot_q
-// 			.iter()
-// 			.find_map(|(xform, owner)| (owner == cam_owner).then_some(*xform))
-// 			.unwrap();
-// 		let target_xform = target_q
-// 			.iter()
-// 			.find_map(|(xform, owner)| (owner == cam_owner).then_some(*xform))
-// 			.unwrap();
-// 		cam_xform.rotate_towards(pivot_xform.compute_transform(), None);
-// 		cam_xform.rotation = cam_xform.rotation + Quat::from_rotation_x(FRAC_PI_2); // TODO: Better solution
-//
-// 		// TODO: Let Cam have collider and travel towards target
-// 		cam_xform.translation = target_xform.translation;
-// 	}
-// }
 
 pub fn idle(mut q: Query<&mut Transform, ReadPlayerEntity<Vis>>, t: Res<Time>) {
 	for mut xform in &mut q {

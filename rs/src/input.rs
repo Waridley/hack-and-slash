@@ -1,6 +1,12 @@
-use crate::player::player_entity::{CamPivot, ReadPlayerEntity};
-use crate::player::{CameraVertSlider, ACCEL, MAX_SPEED};
-use crate::terminal_velocity;
+use crate::{
+	player::{
+		camera::CameraVertSlider,
+		player_entity::{CamPivot, ReadPlayerEntity},
+		ACCEL, MAX_SPEED,
+	},
+	terminal_velocity,
+};
+use bevy::math::Vec3Swizzles;
 use bevy::prelude::*;
 use bevy_rapier3d::control::KinematicCharacterControllerOutput;
 use bevy_rapier3d::math::Vect;
@@ -91,7 +97,7 @@ struct InputStorageTime(Timer);
 fn jump(
 	mut q: Query<(
 		AbilityState<PlayerAction>,
-		&mut InputVel,
+		&mut CtrlVel,
 		&mut InputStorageTime,
 	)>,
 	t: Res<Time>,
@@ -120,7 +126,7 @@ fn jump(
 }
 
 pub fn look_input(
-	mut player_q: Query<(&mut InputVel, Option<&KinematicCharacterControllerOutput>)>,
+	mut player_q: Query<(&mut CtrlVel, Option<&KinematicCharacterControllerOutput>)>,
 	mut camera_pivot_q: Query<(&mut Transform, &mut CameraVertSlider), ReadPlayerEntity<CamPivot>>,
 	kb: Res<Input<KeyCode>>,
 	t: Res<Time>,
@@ -154,62 +160,41 @@ pub fn look_input(
 }
 
 #[derive(Component, Debug, Default, Copy, Clone, Reflect)]
-pub struct InputVel {
+pub struct CtrlVel {
 	pub linvel: Vect,
 	pub angvel: Vect,
 }
 
-pub fn movement_input(
-	mut q: Query<(&mut InputVel, Option<&KinematicCharacterControllerOutput>)>,
-	kb: Res<Input<KeyCode>>,
-	t: Res<Time>,
-) {
-	let (mut input_vel, _out) = q.single_mut();
-	// screen_print!("{:#?}", &*input_vel);
+pub fn movement_input(mut q: Query<&mut CtrlVel>, kb: Res<Input<KeyCode>>, t: Res<Time>) {
+	for mut ctrl_vel in &mut q {
+		let (mut x, mut y) = (0.0, 0.0);
 
-	let mut x_input = false;
-	let mut y_input = false;
-	let Vect { mut x, mut y, .. } = input_vel.linvel; // Not mutably reborrowing to avoid change detection
+		let dt = t.delta_seconds();
 
-	let dt = t.delta_seconds();
-
-	if kb.pressed(KeyCode::W) {
-		y = MAX_SPEED.min(y + ACCEL * dt);
-		y_input = true
-	}
-	if kb.pressed(KeyCode::A) {
-		x = (-MAX_SPEED).max(x - ACCEL * dt);
-		x_input = true
-	}
-	if kb.pressed(KeyCode::S) {
-		y = (-MAX_SPEED).max(y - ACCEL * dt);
-		y_input = true
-	}
-	if kb.pressed(KeyCode::D) {
-		x = MAX_SPEED.min(x + ACCEL * dt);
-		x_input = true
-	}
-
-	let decel = |v: &mut f32| {
-		if *v > 0.0 {
-			*v = f32::max(*v - (ACCEL * dt), 0.0)
-		} else if *v < 0.0 {
-			*v = f32::min(*v + (ACCEL * dt), 0.0)
+		if kb.pressed(KeyCode::W) {
+			y += 1.0;
 		}
-	};
+		if kb.pressed(KeyCode::A) {
+			x -= 1.0;
+		}
+		if kb.pressed(KeyCode::S) {
+			y -= 1.0;
+		}
+		if kb.pressed(KeyCode::D) {
+			x += 1.0;
+		}
 
-	if !x_input {
-		decel(&mut x)
-	}
-	if !y_input {
-		decel(&mut y)
-	}
+		let Vec2 { x, y } = ctrl_vel
+			.linvel
+			.xy()
+			.lerp(Vec2 { x, y }.normalize_or_zero() * MAX_SPEED, ACCEL * dt);
 
-	// Only trigger change detection if actually changed
-	if input_vel.linvel.x != x {
-		input_vel.linvel.x = x
-	}
-	if input_vel.linvel.y != y {
-		input_vel.linvel.y = y
+		// Only trigger change detection if actually changed
+		if ctrl_vel.linvel.x != x {
+			ctrl_vel.linvel.x = x
+		}
+		if ctrl_vel.linvel.y != y {
+			ctrl_vel.linvel.y = y
+		}
 	}
 }
