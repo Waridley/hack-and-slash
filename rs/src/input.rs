@@ -1,13 +1,13 @@
+use crate::player::player_entity::{CamPivot, ReadPlayerEntity};
+use crate::player::{CameraVertSlider, ACCEL, MAX_SPEED};
 use crate::terminal_velocity;
 use bevy::prelude::*;
-use leafwing_abilities::{AbilitiesBundle, Abilitylike, cooldown::Cooldown, prelude::*};
-use leafwing_input_manager::prelude::*;
-use std::time::Duration;
 use bevy_rapier3d::control::KinematicCharacterControllerOutput;
-use std::f32::consts::{PI, TAU};
 use bevy_rapier3d::math::Vect;
-use crate::player::{ACCEL, CameraVertSlider, MAX_SPEED};
-use crate::player::player_entity::{CamPivot, ReadPlayerEntity};
+use leafwing_abilities::{cooldown::Cooldown, prelude::*, AbilitiesBundle, Abilitylike};
+use leafwing_input_manager::prelude::*;
+use std::f32::consts::{PI, TAU};
+use std::time::Duration;
 
 pub struct InputPlugin;
 
@@ -75,7 +75,6 @@ impl PlayerAction {
 		AbilitiesBundle {
 			cooldowns: Self::cooldowns(),
 			charges: Self::charges(),
-			..default()
 		}
 	}
 }
@@ -173,7 +172,7 @@ pub fn movement_input(
 	let Vect { mut x, mut y, .. } = input_vel.linvel; // Not mutably reborrowing to avoid change detection
 
 	let dt = t.delta_seconds();
-	
+
 	if kb.pressed(KeyCode::W) {
 		y = MAX_SPEED.min(y + ACCEL * dt);
 		y_input = true
@@ -191,19 +190,21 @@ pub fn movement_input(
 		x_input = true
 	}
 
-	let decel = |v: &mut f32| if *v > 0.0 {
-		*v = f32::max(*v - (ACCEL * dt), 0.0)
-	} else if *v < 0.0 {
-		*v = f32::min(*v + (ACCEL * dt), 0.0)
+	let decel = |v: &mut f32| {
+		if *v > 0.0 {
+			*v = f32::max(*v - (ACCEL * dt), 0.0)
+		} else if *v < 0.0 {
+			*v = f32::min(*v + (ACCEL * dt), 0.0)
+		}
 	};
-	
+
 	if !x_input {
 		decel(&mut x)
 	}
 	if !y_input {
 		decel(&mut y)
 	}
-	
+
 	// Only trigger change detection if actually changed
 	if input_vel.linvel.x != x {
 		input_vel.linvel.x = x

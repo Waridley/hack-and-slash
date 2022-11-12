@@ -8,8 +8,8 @@ use bevy::{
 	DefaultPlugins,
 };
 use bevy_rapier3d::prelude::*;
-use particles::ParticlesPlugin;
 use input::InputVel;
+use particles::ParticlesPlugin;
 use std::{
 	f32::consts::*,
 	fmt::{Debug, Formatter},
@@ -27,9 +27,8 @@ pub const DT: f32 = 1.0 / 64.0;
 #[bevy_main]
 pub fn main() {
 	let mut app = App::new();
-	app
-		.add_plugins(DefaultPlugins.set(WindowPlugin {
-			window: WindowDescriptor {
+	app.add_plugins(DefaultPlugins.set(WindowPlugin {
+		window: WindowDescriptor {
 					title: "Sonday Hack-and-Slash Game".to_string(),
 					resizable: true,
 					fit_canvas_to_parent: true,
@@ -37,37 +36,32 @@ pub fn main() {
 					scale_factor_override: Some(0.5),
 					..default()
 				},
-			..default()
-		}))
-		.insert_resource(RapierConfiguration {
-			gravity: Vect::new(0.0, 0.0, -9.81),
-			// timestep_mode: TimestepMode::Fixed {
-			// 	dt: DT,
-			// 	substeps: 1,
-			// },
-			..default()
-		})
-		.add_plugin(
-			RapierPhysicsPlugin::<()>::default(), // .with_physics_scale(1.0 / 64.0)
-		)
-		.add_plugin(FrameTimeDiagnosticsPlugin::default())
-		.add_plugin(PlayerControllerPlugin)
-		.add_plugin(InputPlugin)
-		.add_plugin(ParticlesPlugin)
-		.add_startup_system(startup)
-	//  .add_system(gravity.before(jump))
-	//  .add_system(charge_jumps.before(jump))
-		.add_system(terminal_velocity)
-		.add_system(fullscreen)
-		.add_system_to_stage(PostUpdate, kill_oob)
-		.add_system_to_stage(Last, despawn_dead);
-	//  .add_system_to_stage(Last, dbg_info)
-	
+		..default()
+	}))
+	.insert_resource(RapierConfiguration {
+		gravity: Vect::new(0.0, 0.0, -9.81),
+		// timestep_mode: TimestepMode::Fixed {
+		// 	dt: DT,
+		// 	substeps: 1,
+		// },
+		..default()
+	})
+	.add_plugin(RapierPhysicsPlugin::<()>::default())
+	.add_plugin(FrameTimeDiagnosticsPlugin::default())
+	.add_plugin(PlayerControllerPlugin)
+	.add_plugin(InputPlugin)
+	.add_plugin(ParticlesPlugin)
+	.add_startup_system(startup)
+	.add_system(terminal_velocity)
+	.add_system(fullscreen)
+	.add_system_to_stage(PostUpdate, kill_oob)
+	.add_system_to_stage(Last, despawn_dead);
+
 	#[cfg(not(target_arch = "wasm32"))]
 	{
 		app.add_system_to_stage(Last, close_on_esc);
 	}
-	
+
 	#[cfg(debug_assertions)]
 	{
 		app
@@ -110,7 +104,7 @@ impl<A: Ability> Cooldown<A> {
 	}
 }
 
-fn tick_cooldown<A: Ability>(
+pub fn tick_cooldown<A: Ability>(
 	mut cmds: Commands,
 	mut q: Query<(Entity, &mut Cooldown<A>)>,
 	t: Res<Time>,
@@ -199,7 +193,6 @@ impl<'c, 'w: 'c, 's: 'c> TerrainFactory<'c, 'w, 's> {
 				transform,
 				..default()
 			},
-			// transform: TransformBundle::from_transform(transform),
 			collider: self.collider.clone(),
 			..default()
 		})
