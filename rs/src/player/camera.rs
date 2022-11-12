@@ -9,7 +9,7 @@ use bevy::{
 use bevy_rapier3d::{geometry::Collider, math::Vect, pipeline::QueryFilter, plugin::RapierContext};
 use rapier3d::geometry::InteractionGroups;
 
-pub const CAM_ACCEL: f32 = 18.0;
+pub const CAM_ACCEL: f32 = 16.0;
 const MAX_CAM_DIST: f32 = 24.0;
 const MIN_CAM_DIST: f32 = 3.2;
 

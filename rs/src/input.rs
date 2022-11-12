@@ -1,3 +1,4 @@
+use crate::player::BelongsToPlayer;
 use crate::{
 	player::{
 		camera::CameraVertSlider,
@@ -8,7 +9,6 @@ use crate::{
 };
 use bevy::math::Vec3Swizzles;
 use bevy::prelude::*;
-use bevy_rapier3d::control::KinematicCharacterControllerOutput;
 use bevy_rapier3d::math::Vect;
 use leafwing_abilities::{cooldown::Cooldown, prelude::*, AbilitiesBundle, Abilitylike};
 use leafwing_input_manager::prelude::*;
@@ -126,12 +126,15 @@ fn jump(
 }
 
 pub fn look_input(
-	mut player_q: Query<(&mut CtrlVel, Option<&KinematicCharacterControllerOutput>)>,
-	mut camera_pivot_q: Query<(&mut Transform, &mut CameraVertSlider), ReadPlayerEntity<CamPivot>>,
+	mut player_q: Query<(&mut CtrlVel, &BelongsToPlayer)>,
+	mut camera_pivot_q: Query<
+		(&mut Transform, &mut CameraVertSlider, &BelongsToPlayer),
+		ReadPlayerEntity<CamPivot>,
+	>,
 	kb: Res<Input<KeyCode>>,
 	t: Res<Time>,
 ) {
-	let (mut vel, _out) = player_q.single_mut();
+	let (mut vel, player_id) = player_q.single_mut();
 	let delta = (TAU / 0.5/* seconds to max angvel */) * t.delta_seconds();
 
 	let mut x_input = false;
@@ -147,7 +150,10 @@ pub fn look_input(
 		vel.angvel.z *= 0.8
 	}
 
-	let (mut xform, mut slider) = camera_pivot_q.single_mut();
+	let (mut xform, mut slider) = camera_pivot_q
+		.iter_mut()
+		.find_map(|(xform, slider, owner)| (owner == player_id).then_some((xform, slider)))
+		.unwrap();
 	if kb.pressed(KeyCode::Up) {
 		slider.0 = (slider.0 - delta * 0.1).max(0.0);
 	}

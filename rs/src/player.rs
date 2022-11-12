@@ -58,6 +58,48 @@ fn setup(
 	mut meshes: ResMut<Assets<Mesh>>,
 	asset_server: Res<AssetServer>,
 ) {
+	let id = unsafe { PlayerId::new_unchecked(1) };
+	let camera = (
+		BelongsToPlayer::with_id(id),
+		TransformBundle::default(),
+		Despawner::new(|_| {
+			// Don't want camera disappearing. Maybe try to reset whole player to origin?
+		}),
+		Collider::ball(0.72),
+		CollisionGroups::new(Group::empty(), Group::empty()),
+		CamTarget::default(),
+	);
+	cmds.spawn(camera)
+		.set_enum(PlayerEntity::Cam)
+		.with_children(|builder| {
+			// Adjusting transform of Camera entity causes weird visual glitches,
+			// but parenting handles it properly
+			builder.spawn((
+				Camera3dBundle {
+					camera: Camera {
+						// TODO: This causes crashes in debug, default settings are way too exaggerated in release,
+						//   it causes performance hits, and results don't look quite right even when it does work
+						// #[cfg(all(not(debug_assertions), not(target_arch = "wasm32")))]hdr: true,
+						..default()
+					},
+					transform: Transform {
+						rotation: Quat::from_rotation_x(FRAC_PI_2),
+						..default()
+					},
+					camera_3d: Camera3d {
+						clear_color: ClearColorConfig::Custom(Color::rgb(0.1, 0.0, 0.15)),
+						..default()
+					},
+					..default()
+				},
+				BloomSettings {
+					intensity: 0.003,
+					..default()
+				},
+				Despawner::new(|_| {}),
+			));
+		});
+
 	let ship = asset_server.load("ships/rocket_baseA.glb#Scene0");
 	let vis = SceneBundle {
 		scene: ship,
@@ -89,7 +131,6 @@ fn setup(
 		material: particle_material,
 		..default()
 	};
-	let id = unsafe { PlayerId::new_unchecked(1) };
 	cmds.spawn_player(id, vis, vis_collider, particle_mesh);
 }
 
@@ -202,46 +243,6 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 			))
 			.set_enum(PlayerEntity::CamPivot)
 			.id();
-		let camera = (
-			owner,
-			TransformBundle::default(),
-			Despawner::new(|_| {
-				// Don't want camera disappearing. Maybe try to reset whole player to origin?
-			}),
-			Collider::ball(0.72),
-			CollisionGroups::new(Group::empty(), Group::empty()),
-			CamTarget::default(),
-		);
-		root.commands()
-			.spawn(camera)
-			.set_enum(PlayerEntity::Cam)
-			.with_children(|builder| {
-				// Adjusting transform of Camera entity causes weird visual glitches,
-				// but parenting handles it properly
-				builder.spawn((
-					Camera3dBundle {
-						camera: Camera {
-							// TODO: This causes crashes in debug, default settings are way too exaggerated in release,
-							//   it causes performance hits, and results don't look quite right even when it does work
-							// #[cfg(all(not(debug_assertions), not(target_arch = "wasm32")))]hdr: true,
-							..default()
-						},
-						transform: Transform {
-							rotation: Quat::from_rotation_x(FRAC_PI_2),
-							..default()
-						},
-						camera_3d: Camera3d {
-							clear_color: ClearColorConfig::Custom(Color::rgb(0.1, 0.0, 0.15)),
-							..default()
-						},
-						..default()
-					},
-					BloomSettings {
-						intensity: 0.003,
-						..default()
-					},
-				));
-			});
 		// let mut cam_target = root.commands().spawn((
 		// 	owner,
 		// 	TransformBundle::default(),

@@ -62,12 +62,7 @@ pub fn main() {
 
 	#[cfg(debug_assertions)]
 	{
-		app
-			// .add_plugin(OverlayPlugin {
-			// 	font_size: 20.0,
-			// 	..default()
-			// })
-			.add_plugin(RapierDebugRenderPlugin::default())
+		app.add_plugin(RapierDebugRenderPlugin::default())
 			.add_system(toggle_debug_rendering);
 	}
 
