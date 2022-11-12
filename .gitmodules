@@ -1,0 +1,21 @@
+[submodule "bevy"]
+	path = bevy
+	url = git@github.com:Waridley/bevy.git
+[submodule "bevy_rapier"]
+	path = bevy_rapier
+	url = git@github.com:Waridley/bevy_rapier
+[submodule "rapier"]
+	path = rapier
+	url = git@github.com:dimforge/rapier.git
+[submodule "leafwing_abilities"]
+	path = leafwing_abilities
+	url = git@github.com:Waridley/leafwing_abilities.git
+[submodule "sond-bevy-enum-components"]
+	path = sond-bevy-enum-components
+	url = git@github.com:Waridley/bevy-enum-components.git
+[submodule "leafwing-input-manager"]
+	path = leafwing-input-manager
+	url = git@github.com:Waridley/leafwing-input-manager.git
+[submodule "sond-bevy-particles"]
+	path = sond-bevy-particles
+	url = git@github.com:Waridley/bevy-particles.git

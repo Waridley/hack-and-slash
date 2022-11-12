@@ -1,0 +1,43 @@
+[package]
+name = "sond-has"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+resolver = "2"
+members = []
+
+[patch.crates-io]
+bevy = { version = "0.9.0-dev", path = "../bevy" }
+bevy_ecs = { version = "0.9.0-dev", path = "../bevy/crates/bevy_ecs" }
+
+bevy_rapier3d = { version = "0.17.0", path = "../bevy_rapier/bevy_rapier3d" }
+rapier3d = { version = "0.15", path = "../rapier/crates/rapier3d" }
+leafwing-input-manager = { version = "0.6", path = "../leafwing-input-manager" }
+
+[dependencies]
+enum_components = { package = "sond-bevy-enum-components", path = "../sond-bevy-enum-components" }
+particles = { package = "sond-bevy-particles", path = "../sond-bevy-particles" }
+
+rand = "0.8.5"
+bevy = { version = "0.9.0-dev", features = [] }
+bevy_rapier3d = { version = "0.17.0", features = ["debug-render"] }
+rapier3d = { version = "0.15", features = ["wasm-bindgen"] }
+leafwing-input-manager = { version = "0.6", path = "../leafwing-input-manager" }
+leafwing_abilities = { path = "../leafwing_abilities" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2.83"
+tracing-wasm = "0.2.1"
+console_error_panic_hook = "0.1.7"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.wasm-release]
+inherits = "release"
+opt-level = "z"
+lto = "thin"
