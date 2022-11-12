@@ -6,7 +6,7 @@
 	url = git@github.com:Waridley/bevy_rapier
 [submodule "rapier"]
 	path = rapier
-	url = git@github.com:dimforge/rapier.git
+	url = git@github.com:Waridley/rapier.git
 [submodule "leafwing_abilities"]
 	path = leafwing_abilities
 	url = git@github.com:Waridley/leafwing_abilities.git
