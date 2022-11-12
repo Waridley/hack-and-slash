@@ -32,6 +32,7 @@ pub const MAX_SPEED: f32 = 32.0;
 pub const ACCEL: f32 = 3.0;
 pub const PLAYER_GRAVITY: f32 = 64.0;
 pub const MAX_JUMPS: f32 = 3.0;
+pub const JUMP_VEL: f32 = 32.0;
 pub const CLIMB_ANGLE: f32 = FRAC_PI_3 - E;
 pub const SLIDE_ANGLE: f32 = FRAC_PI_3 - E;
 
@@ -282,6 +283,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 						..default()
 					},
 					PlayerAction::abilities_bundle(),
+					Despawner::new(|_| {}), // handled by root
 				))
 				.set_enum(PlayerEntity::Controller);
 		});
@@ -336,10 +338,11 @@ fn player_vis(
 					owner,
 					TransformBundle::default(),
 					VisibilityBundle::default(),
+					Despawner::new(|_| {}), // handled by root
 				))
 				.set_enum(PlayerEntity::Vis)
 				.with_children(|builder| {
-					builder.spawn((owner, vis));
+					builder.spawn((owner, vis, Despawner::new(|_| {})));
 					let transform = Transform {
 						rotation: Quat::from_rotation_x(FRAC_PI_2),
 						scale: Vec3::new(1.0, 0.0, 1.0),
@@ -393,6 +396,7 @@ fn player_vis(
 							}),
 							..default()
 						},
+						Despawner::new(|_| {}), // handled by root
 					));
 				});
 		})

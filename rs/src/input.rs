@@ -1,4 +1,4 @@
-use crate::player::BelongsToPlayer;
+use crate::player::{BelongsToPlayer, JUMP_VEL};
 use crate::{
 	player::{
 		camera::CameraVertSlider,
@@ -120,7 +120,7 @@ fn jump(
 		};
 
 		if triggered {
-			vel.linvel.z = 32.0
+			vel.linvel.z = JUMP_VEL
 		}
 	}
 }

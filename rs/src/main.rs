@@ -51,13 +51,13 @@ pub fn main() {
 	.add_plugin(ParticlesPlugin)
 	.add_startup_system(startup)
 	.add_system(terminal_velocity)
-	.add_system(fullscreen)
 	.add_system_to_stage(PostUpdate, kill_oob)
 	.add_system_to_stage(Last, despawn_dead);
 
 	#[cfg(not(target_arch = "wasm32"))]
 	{
-		app.add_system_to_stage(Last, close_on_esc);
+		app.add_system(fullscreen)
+			.add_system_to_stage(Last, close_on_esc);
 	}
 
 	#[cfg(debug_assertions)]
