@@ -134,35 +134,36 @@ pub fn look_input(
 	kb: Res<Input<KeyCode>>,
 	t: Res<Time>,
 ) {
-	let (mut vel, player_id) = player_q.single_mut();
-	let delta = (TAU / 0.5/* seconds to max angvel */) * t.delta_seconds();
+	for (mut vel, player_id) in player_q.iter_mut() {
+		let delta = (TAU / 0.5/* seconds to max angvel */) * t.delta_seconds();
 
-	let mut x_input = false;
-	if kb.pressed(KeyCode::Left) {
-		x_input = true;
-		vel.angvel.z = (-TAU).max(vel.angvel.z - delta);
-	}
-	if kb.pressed(KeyCode::Right) {
-		x_input = true;
-		vel.angvel.z = TAU.min(vel.angvel.z + delta);
-	}
-	if !x_input {
-		vel.angvel.z *= 0.8
-	}
+		let mut x_input = false;
+		if kb.pressed(KeyCode::Left) {
+			x_input = true;
+			vel.angvel.z = (-TAU).max(vel.angvel.z - delta);
+		}
+		if kb.pressed(KeyCode::Right) {
+			x_input = true;
+			vel.angvel.z = TAU.min(vel.angvel.z + delta);
+		}
+		if !x_input {
+			vel.angvel.z *= 0.8
+		}
 
-	let (mut xform, mut slider) = camera_pivot_q
-		.iter_mut()
-		.find_map(|(xform, slider, owner)| (owner == player_id).then_some((xform, slider)))
-		.unwrap();
-	if kb.pressed(KeyCode::Up) {
-		slider.0 = (slider.0 - delta * 0.1).max(0.0);
-	}
-	if kb.pressed(KeyCode::Down) {
-		slider.0 = (slider.0 + delta * 0.1).min(1.0);
-	}
+		let (mut xform, mut slider) = camera_pivot_q
+			.iter_mut()
+			.find_map(|(xform, slider, owner)| (owner == player_id).then_some((xform, slider)))
+			.unwrap();
+		if kb.pressed(KeyCode::Up) {
+			slider.0 = (slider.0 - delta * 0.1).max(0.0);
+		}
+		if kb.pressed(KeyCode::Down) {
+			slider.0 = (slider.0 + delta * 0.1).min(1.0);
+		}
 
-	let angle = (-PI) + ((PI * 0.9) * slider.0);
-	xform.rotation = xform.rotation.slerp(Quat::from_rotation_x(angle), delta);
+		let angle = (-PI) + ((PI * 0.9) * slider.0);
+		xform.rotation = xform.rotation.slerp(Quat::from_rotation_x(angle), delta);
+	}
 }
 
 #[derive(Component, Debug, Default, Copy, Clone, Reflect)]

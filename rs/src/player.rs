@@ -1,5 +1,5 @@
 use crate::input::{CtrlVel, PlayerAction};
-use crate::{input, terminal_velocity, Despawner, TerminalVelocity, E};
+use crate::{input, terminal_velocity, AbsoluteBounds, TerminalVelocity, E};
 use bevy::core_pipeline::bloom::BloomSettings;
 use bevy::{
 	core_pipeline::clear_color::ClearColorConfig,
@@ -35,6 +35,7 @@ pub const MAX_JUMPS: f32 = 3.0;
 pub const JUMP_VEL: f32 = 32.0;
 pub const CLIMB_ANGLE: f32 = FRAC_PI_3 - E;
 pub const SLIDE_ANGLE: f32 = FRAC_PI_3 - E;
+const G1: rapier3d::geometry::Group = rapier3d::geometry::Group::GROUP_1;
 
 pub struct PlayerControllerPlugin;
 
@@ -49,7 +50,8 @@ impl Plugin for PlayerControllerPlugin {
 			.add_system(position_camera_target.after(input::look_input))
 			.add_system(follow_camera_target.after(position_camera_target))
 			.add_system(move_player.after(terminal_velocity))
-			.add_system(idle);
+			.add_system(idle)
+			.add_system_to_stage(CoreStage::Last, reset_oob);
 	}
 }
 
@@ -63,9 +65,9 @@ fn setup(
 	let camera = (
 		BelongsToPlayer::with_id(id),
 		TransformBundle::default(),
-		Despawner::new(|_| {
-			// Don't want camera disappearing. Maybe try to reset whole player to origin?
-		}),
+		// Despawner::new(|_| {
+		// 	// Don't want camera disappearing. Maybe try to reset whole player to origin?
+		// }),
 		Collider::ball(0.72),
 		CollisionGroups::new(Group::empty(), Group::empty()),
 		CamTarget::default(),
@@ -97,7 +99,6 @@ fn setup(
 					intensity: 0.003,
 					..default()
 				},
-				Despawner::new(|_| {}),
 			));
 		});
 
@@ -180,8 +181,6 @@ pub trait SpawnPlayer<'c, 'w: 'c, 's: 'c> {
 	) -> EntityCommands<'w, 's, 'c>;
 }
 
-const G1: rapier3d::geometry::Group = rapier3d::geometry::Group::GROUP_1;
-
 impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 	fn spawn_player(
 		&'c mut self,
@@ -191,15 +190,15 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 		particle_mesh: MaterialMeshBundle<StandardMaterial>,
 	) -> EntityCommands<'w, 's, 'c> {
 		let owner = BelongsToPlayer::with_id(id);
-		let vis_clone = SceneBundle {
-			scene: vis.scene.clone(),
-			transform: vis.transform,
-			global_transform: vis.global_transform,
-			visibility: vis.visibility.clone(),
-			computed_visibility: vis.computed_visibility.clone(),
-		};
-		let vis_col_clone = vis_collider.clone();
-		let particle_mesh_clone = particle_mesh.clone();
+		// let vis_clone = SceneBundle {
+		// 	scene: vis.scene.clone(),
+		// 	transform: vis.transform,
+		// 	global_transform: vis.global_transform,
+		// 	visibility: vis.visibility.clone(),
+		// 	computed_visibility: vis.computed_visibility.clone(),
+		// };
+		// let vis_col_clone = vis_collider.clone();
+		// let particle_mesh_clone = particle_mesh.clone();
 		let (char_collider, rot, z_pos) =
 			(Collider::round_cone(0.640, 0.48, 0.256), -FRAC_PI_2, 0.640);
 		let mut root = self.spawn((
@@ -208,21 +207,21 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 				linvel: Vect::splat(80.0),
 				angvel: Vect::new(0.0, 0.0, TAU * 60.0), // one rotation per frame at 60 fps
 			}),
-			Despawner::new(move |mut cmds: EntityCommands| {
-				cmds.commands().spawn_player(
-					id,
-					SceneBundle {
-						scene: vis_clone.scene.clone(),
-						transform: vis_clone.transform,
-						global_transform: vis_clone.global_transform,
-						visibility: vis_clone.visibility.clone(),
-						computed_visibility: vis_clone.computed_visibility.clone(),
-					},
-					vis_col_clone.clone(),
-					particle_mesh_clone.clone(),
-				);
-				cmds.despawn_recursive();
-			}),
+			// Despawner::new(move |mut cmds: EntityCommands| {
+			// 	cmds.commands().spawn_player(
+			// 		id,
+			// 		SceneBundle {
+			// 			scene: vis_clone.scene.clone(),
+			// 			transform: vis_clone.transform,
+			// 			global_transform: vis_clone.global_transform,
+			// 			visibility: vis_clone.visibility.clone(),
+			// 			computed_visibility: vis_clone.computed_visibility.clone(),
+			// 		},
+			// 		vis_col_clone.clone(),
+			// 		particle_mesh_clone.clone(),
+			// 	);
+			// 	cmds.despawn_recursive();
+			// }),
 			RigidBody::KinematicPositionBased,
 			TransformBundle::default(),
 			Velocity::default(),
@@ -338,14 +337,12 @@ fn player_vis(
 					owner,
 					TransformBundle::default(),
 					VisibilityBundle::default(),
-					Despawner::new(|_| {}), // handled by root
 				))
 				.set_enum(PlayerEntity::Vis)
 				.with_children(|builder| {
-					builder.spawn((owner, vis, Despawner::new(|_| {})));
+					builder.spawn((owner, vis));
 					let transform = Transform {
 						rotation: Quat::from_rotation_x(FRAC_PI_2),
-						scale: Vec3::new(1.0, 0.0, 1.0),
 						..default()
 					};
 					let particle_mesh = MaterialMeshBundle {
@@ -396,7 +393,6 @@ fn player_vis(
 							}),
 							..default()
 						},
-						Despawner::new(|_| {}), // handled by root
 					));
 				});
 		})
@@ -470,6 +466,30 @@ pub fn move_player(
 			Vec3::new(ctrl_vel.linvel.x * -0.016, -1.0, ctrl_vel.linvel.y * 0.016).normalize();
 		vis_xform.rotation = Quat::from_rotation_arc(Vec3::NEG_Y, target_tilt);
 		ctrl.translation = Some(slide);
+	}
+}
+
+pub fn reset_oob(
+	mut cmds: Commands,
+	q: Query<(Entity, &GlobalTransform, PlayerEntity, &BelongsToPlayer)>,
+	bounds: Res<AbsoluteBounds>,
+) {
+	let mut to_respawn = vec![];
+	for (_id, xform, which, owner) in &q {
+		if let PlayerEntityItem::Root(..) = which {
+			if xform.translation().x.abs() > bounds.extents
+				|| xform.translation().y.abs() > bounds.extents
+				|| xform.translation().z.abs() > bounds.extents
+			{
+				to_respawn.push(owner)
+			}
+		}
+	}
+	for (id, _, _, owner) in &q {
+		if to_respawn.contains(&owner) {
+			cmds.entity(id).despawn_recursive();
+			// cmds.spawn_player(**owner, ) // TODO
+		}
 	}
 }
 
