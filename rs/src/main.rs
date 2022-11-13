@@ -1,5 +1,7 @@
 use crate::input::InputPlugin;
 use crate::player::PlayerControllerPlugin;
+use bevy::render::mesh::PrimitiveTopology;
+use bevy::render::mesh::VertexAttributeValues::Float32x3;
 use bevy::{
 	diagnostic::FrameTimeDiagnosticsPlugin,
 	ecs::system::EntityCommands,
@@ -7,14 +9,14 @@ use bevy::{
 	window::close_on_esc,
 	DefaultPlugins,
 };
+use bevy_rapier3d::parry::shape::SharedShape;
 use bevy_rapier3d::prelude::*;
 use input::CtrlVel;
 use particles::ParticlesPlugin;
-use std::{
-	f32::consts::*,
-	fmt::{Debug, Formatter},
-	time::Duration,
-};
+use rapier3d::geometry::HeightField;
+use rapier3d::na::{DMatrix, Vector3};
+use std::sync::Arc;
+use std::{f32::consts::*, fmt::Debug, time::Duration};
 
 pub mod input;
 pub mod player;
@@ -71,7 +73,7 @@ pub fn main() {
 }
 
 #[derive(Resource)]
-struct AbsoluteBounds {
+pub struct AbsoluteBounds {
 	extents: f32,
 }
 
@@ -122,9 +124,13 @@ fn startup(
 	mut materials: ResMut<Assets<StandardMaterial>>,
 	mut meshes: ResMut<Assets<Mesh>>,
 ) {
-	cmds.insert_resource(AbsoluteBounds { extents: 1024.0 });
+	cmds.insert_resource(AbsoluteBounds { extents: 512.0 });
 
 	cmds.spawn(DirectionalLightBundle {
+		directional_light: DirectionalLight {
+			// illuminance: 10000.0,
+			..default()
+		},
 		transform: Transform::from_rotation(Quat::from_rotation_arc(
 			Vec3::NEG_Z,
 			Vec3::new(-1.0, 0.5, -1.0).normalize(),
@@ -136,11 +142,65 @@ fn startup(
 		// brightness: 0.2,
 		..default()
 	});
+	let material = materials.add(StandardMaterial {
+		base_color: Color::rgb(0.024, 0.0, 0.064),
+		reflectance: 0.032,
+		..default()
+	});
+
+	let (rows, columns) = (32, 32);
+
+	let mut heights = Vec::with_capacity(rows * columns);
+	let buf = heights.spare_capacity_mut();
+	use noises_and_patterns::{noise::Noise, FP};
+	let noise = noises_and_patterns::value::Value::new();
+	for r in 0..rows {
+		for c in 0..columns {
+			buf[r * columns + c].write(noise.fbm_2d((r as FP * 0.5, c as FP * 0.5), 3) * 2.0 - 1.0);
+			// heights[r * columns + c] = rand::random()
+		}
+	}
+	unsafe { heights.set_len(rows * columns) };
+
+	// let heights = std::iter::repeat_with(|| rand::random()).take(rows * columns).collect::<Vec<_>>();
+	let heightfield = HeightField::new(
+		DMatrix::from_vec(rows, columns, heights),
+		Vector3::new(256.0, 8.0, 256.0),
+	);
+	let tris = heightfield.triangles();
+
+	let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
+	let vertices = tris
+		.flat_map(|pos| {
+			[
+				[pos.a.x, pos.a.y, pos.a.z],
+				[pos.b.x, pos.b.y, pos.b.z],
+				[pos.c.x, pos.c.y, pos.c.z],
+			]
+		})
+		.collect::<Vec<_>>();
+	mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, Float32x3(vertices));
+	mesh.compute_flat_normals();
+	let mesh = meshes.add(mesh);
+
+	cmds.spawn((
+		RigidBody::Fixed,
+		Collider::from(SharedShape(Arc::new(heightfield))),
+		MaterialMeshBundle::<StandardMaterial> {
+			mesh,
+			transform: Transform {
+				translation: Vec3::new(0.0, 0.0, -24.0),
+				rotation: Quat::from_rotation_x(FRAC_PI_2),
+				..default()
+			},
+			material: material.clone(),
+			..default()
+		},
+	));
 
 	let mesh = Mesh::from(shape::Cube { size: 64.0 });
 	let collider = Collider::cuboid(32.0, 32.0, 32.0);
 	let mesh = meshes.add(mesh);
-	let material = materials.add(Color::rgb(0.1, 0.0, 0.2).into());
 
 	let mut factory = TerrainFactory {
 		cmds: &mut cmds,

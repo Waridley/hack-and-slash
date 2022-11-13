@@ -90,7 +90,7 @@ fn setup(
 						..default()
 					},
 					camera_3d: Camera3d {
-						clear_color: ClearColorConfig::Custom(Color::rgb(0.1, 0.0, 0.15)),
+						clear_color: ClearColorConfig::Custom(Color::rgb(0.024, 0.0, 0.036)),
 						..default()
 					},
 					..default()
@@ -237,7 +237,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 				owner,
 				CameraVertSlider(0.4),
 				TransformBundle::from_transform(Transform {
-					translation: Vect::new(0.0, 3.2, 0.384),
+					translation: Vect::new(0.0, 5.12, 0.384),
 					..default()
 				}),
 			))
@@ -282,7 +282,6 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 						..default()
 					},
 					PlayerAction::abilities_bundle(),
-					Despawner::new(|_| {}), // handled by root
 				))
 				.set_enum(PlayerEntity::Controller);
 		});
@@ -325,6 +324,7 @@ fn player_vis(
 				sleeping: false,
 			},
 			Mass(0.01),
+			Ccd::enabled(),
 			// Restitution::new(1.0),
 			TransformBundle::default(),
 			VisibilityBundle::default(), // for children ComputedVisibility

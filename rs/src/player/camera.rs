@@ -9,7 +9,7 @@ use bevy::{
 use bevy_rapier3d::{geometry::Collider, math::Vect, pipeline::QueryFilter, plugin::RapierContext};
 use rapier3d::geometry::InteractionGroups;
 
-pub const CAM_ACCEL: f32 = 16.0;
+pub const CAM_ACCEL: f32 = 12.0;
 const MAX_CAM_DIST: f32 = 24.0;
 const MIN_CAM_DIST: f32 = 3.2;
 
@@ -47,7 +47,7 @@ pub fn position_camera_target(
 						-rot,
 						-dir,
 						col,
-						(MAX_CAM_DIST - MIN_CAM_DIST) * 0.4, // Don't want enormous object right in front of camera
+						(MAX_CAM_DIST - MIN_CAM_DIST) * 0.3, // Don't want enormous object right in front of camera if possible
 						filter,
 					)
 					.is_some()

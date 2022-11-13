@@ -2059,6 +2059,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nalgebra-glm"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a8e68654c920c582d34a4180c527ce2acf9ec8c695363681ff42acde46239d43"
+dependencies = [
+ "approx",
+ "nalgebra",
+ "num-traits",
+ "simba",
+]
+
+[[package]]
 name = "nalgebra-macros"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2186,6 +2198,16 @@ dependencies = [
  "libc",
  "memoffset",
  "pin-utils",
+]
+
+[[package]]
+name = "noises-and-patterns"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bafc9842b2986623917680b72ed5fa62d0472e7883bf744247b02bd1ba9a165a"
+dependencies = [
+ "nalgebra",
+ "nalgebra-glm",
 ]
 
 [[package]]
@@ -2931,6 +2953,7 @@ dependencies = [
  "console_error_panic_hook",
  "leafwing-input-manager",
  "leafwing_abilities",
+ "noises-and-patterns",
  "rand",
  "rapier3d",
  "sond-bevy-enum-components",
