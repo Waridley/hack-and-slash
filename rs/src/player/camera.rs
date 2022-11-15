@@ -1,7 +1,6 @@
 use super::player_entity::{Cam, CamPivot, ReadPlayerEntity};
 use super::{BelongsToPlayer, G1};
 use bevy::{
-	ecs::entity::Entity,
 	ecs::system::Res,
 	prelude::*,
 	transform::components::{GlobalTransform, Transform},
@@ -11,10 +10,7 @@ use rapier3d::geometry::InteractionGroups;
 
 pub const CAM_ACCEL: f32 = 12.0;
 const MAX_CAM_DIST: f32 = 24.0;
-const MIN_CAM_DIST: f32 = 3.2;
-
-#[derive(Component, Debug, Copy, Clone, Deref, DerefMut, Reflect)]
-pub struct Pivot(pub Entity);
+const MIN_CAM_DIST: f32 = 6.4;
 
 #[derive(Component, Debug, Default, Copy, Clone, Reflect)]
 pub struct CameraVertSlider(pub f32);

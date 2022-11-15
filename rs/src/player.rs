@@ -28,11 +28,11 @@ use std::{f32::consts::*, num::NonZeroU8, sync::Arc, time::Duration};
 
 pub mod camera;
 
-pub const MAX_SPEED: f32 = 32.0;
+pub const MAX_SPEED: f32 = 64.0;
 pub const ACCEL: f32 = 3.0;
 pub const PLAYER_GRAVITY: f32 = 64.0;
-pub const MAX_JUMPS: f32 = 3.0;
-pub const JUMP_VEL: f32 = 32.0;
+pub const MAX_JUMPS: f32 = 2.0;
+pub const JUMP_VEL: f32 = 48.0;
 pub const CLIMB_ANGLE: f32 = FRAC_PI_3 - E;
 pub const SLIDE_ANGLE: f32 = FRAC_PI_3 - E;
 const G1: rapier3d::geometry::Group = rapier3d::geometry::Group::GROUP_1;
@@ -44,7 +44,7 @@ impl Plugin for PlayerControllerPlugin {
 		app.add_startup_system(setup)
 			.add_system_to_stage(PreUpdate, gravity)
 			// .add_system(tick_cooldown::<Jump>)
-			.add_system(reset_jump_on_ground.before(terminal_velocity))
+			.add_system_to_stage(CoreStage::PreUpdate, reset_jump_on_ground)
 			.add_system(input::movement_input.before(terminal_velocity))
 			.add_system(input::look_input.before(terminal_velocity))
 			.add_system(position_camera_target.after(input::look_input))
@@ -68,7 +68,7 @@ fn setup(
 		// Despawner::new(|_| {
 		// 	// Don't want camera disappearing. Maybe try to reset whole player to origin?
 		// }),
-		Collider::ball(0.72),
+		Collider::ball(2.0),
 		CollisionGroups::new(Group::empty(), Group::empty()),
 		CamTarget::default(),
 	);
@@ -80,9 +80,9 @@ fn setup(
 			builder.spawn((
 				Camera3dBundle {
 					camera: Camera {
-						// TODO: This causes crashes in debug, default settings are way too exaggerated in release,
-						//   it causes performance hits, and results don't look quite right even when it does work
-						// #[cfg(all(not(debug_assertions), not(target_arch = "wasm32")))]hdr: true,
+						// TODO: This causes crashes in debug and web. Might be fixed on 0.9 release build
+						#[cfg(all(not(debug_assertions), not(target_arch = "wasm32")))]
+						hdr: true,
 						..default()
 					},
 					transform: Transform {
@@ -96,7 +96,7 @@ fn setup(
 					..default()
 				},
 				BloomSettings {
-					intensity: 0.003,
+					intensity: 0.05,
 					..default()
 				},
 			));
@@ -125,6 +125,7 @@ fn setup(
 		// base_color: Color::rgba(0.0, 1.0, 0.5, 0.3),
 		base_color: Color::NONE,
 		emissive: Color::rgb(0.0, 1.0, 0.6),
+		reflectance: 0.0,
 		..default()
 	});
 
@@ -204,7 +205,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 		let mut root = self.spawn((
 			owner,
 			TerminalVelocity(Velocity {
-				linvel: Vect::splat(80.0),
+				linvel: Vect::splat(128.0),
 				angvel: Vect::new(0.0, 0.0, TAU * 60.0), // one rotation per frame at 60 fps
 			}),
 			// Despawner::new(move |mut cmds: EntityCommands| {
@@ -237,7 +238,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 				owner,
 				CameraVertSlider(0.4),
 				TransformBundle::from_transform(Transform {
-					translation: Vect::new(0.0, 5.12, 0.384),
+					translation: Vect::new(0.0, 7.68, 0.0),
 					..default()
 				}),
 			))
@@ -462,8 +463,8 @@ pub fn move_player(
 		body_xform.rotate_local(rot);
 
 		let slide = body_xform.rotation * (ctrl_vel.linvel * dt);
-		let target_tilt =
-			Vec3::new(ctrl_vel.linvel.x * -0.016, -1.0, ctrl_vel.linvel.y * 0.016).normalize();
+		let target_tilt = Vec3::new(ctrl_vel.linvel.x * -0.016, -1.0, ctrl_vel.linvel.y * 0.016)
+			.normalize_or_zero();
 		vis_xform.rotation = Quat::from_rotation_arc(Vec3::NEG_Y, target_tilt);
 		ctrl.translation = Some(slide);
 	}

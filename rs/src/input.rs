@@ -1,4 +1,4 @@
-use crate::player::{BelongsToPlayer, JUMP_VEL};
+use crate::player::{BelongsToPlayer, JUMP_VEL, MAX_JUMPS};
 use crate::{
 	player::{
 		camera::CameraVertSlider,
@@ -74,7 +74,9 @@ impl PlayerAction {
 	fn charges() -> ChargeState<Self> {
 		use PlayerAction::*;
 
-		ChargeState::default().set(Jump, Charges::simple(2)).build()
+		ChargeState::default()
+			.set(Jump, Charges::simple(MAX_JUMPS as _))
+			.build()
 	}
 
 	pub fn abilities_bundle() -> AbilitiesBundle<Self> {

@@ -53,14 +53,14 @@ pub fn main() {
 	.add_plugin(ParticlesPlugin)
 	.add_startup_system(startup)
 	.add_system(terminal_velocity)
+	.add_system(fullscreen)
 	// .add_system_to_stage(PostUpdate, kill_oob)
 	// .add_system_to_stage(Last, despawn_dead)
 	;
 
 	#[cfg(not(target_arch = "wasm32"))]
 	{
-		app.add_system(fullscreen)
-			.add_system_to_stage(Last, close_on_esc);
+		app.add_system_to_stage(Last, close_on_esc);
 	}
 
 	#[cfg(debug_assertions)]
@@ -148,24 +148,31 @@ fn startup(
 		..default()
 	});
 
-	let (rows, columns) = (32, 32);
-
-	let mut heights = Vec::with_capacity(rows * columns);
-	let buf = heights.spare_capacity_mut();
 	use noises_and_patterns::{noise::Noise, FP};
 	let noise = noises_and_patterns::value::Value::new();
-	for r in 0..rows {
-		for c in 0..columns {
-			buf[r * columns + c].write(noise.fbm_2d((r as FP * 0.5, c as FP * 0.5), 3) * 2.0 - 1.0);
-			// heights[r * columns + c] = rand::random()
-		}
-	}
-	unsafe { heights.set_len(rows * columns) };
+	let r = 64;
+	let d = r * 2;
+	let (columns, rows) = (d, d);
 
-	// let heights = std::iter::repeat_with(|| rand::random()).take(rows * columns).collect::<Vec<_>>();
+	let heights = (0..(rows * columns))
+		.map(|i: usize| {
+			let col = i % d;
+			let row = i / d;
+
+			let r = r as f32 - 2.0;
+			let x = (col as f32 - 1.0) - r;
+			let y = (row as f32 - 1.0) - r;
+
+			let bowl = ((r * r) - (x * x) - (y * y)).sqrt() / r;
+			let bowl = if bowl.is_finite() { bowl } else { 0.0 };
+
+			noise.fbm_2d((row as FP * 0.3, (i % rows) as FP * 0.3), 3) - (bowl * 20.0)
+		}) // scale to -1.0..=1.0
+		.collect();
+
 	let heightfield = HeightField::new(
 		DMatrix::from_vec(rows, columns, heights),
-		Vector3::new(256.0, 8.0, 256.0),
+		Vector3::new(1024.0, 16.0, 1024.0),
 	);
 	let tris = heightfield.triangles();
 
@@ -189,7 +196,7 @@ fn startup(
 		MaterialMeshBundle::<StandardMaterial> {
 			mesh,
 			transform: Transform {
-				translation: Vec3::new(0.0, 0.0, -24.0),
+				translation: Vec3::new(0.0, 0.0, 256.0),
 				rotation: Quat::from_rotation_x(FRAC_PI_2),
 				..default()
 			},
