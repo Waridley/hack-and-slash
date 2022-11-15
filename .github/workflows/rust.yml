@@ -47,4 +47,14 @@ jobs:
       uses: jetli/trunk-action@v0.1.0
     - name: Trunk build
       working-directory: ./rs
-      run: trunk build
+      run: trunk build --release
+
+    - name: Setup pages
+      uses: actions/configure-pages@v2
+    - name: Upload pages artifact
+      uses: actions/upload-pages-artifact@v1
+      with:
+        path: ./rs/dist
+    - name: Deploy Github Pages
+      id: deployment
+      uses: actions/deploy-pages@v1
