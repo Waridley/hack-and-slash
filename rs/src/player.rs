@@ -65,9 +65,6 @@ fn setup(
 	let camera = (
 		BelongsToPlayer::with_id(id),
 		TransformBundle::default(),
-		// Despawner::new(|_| {
-		// 	// Don't want camera disappearing. Maybe try to reset whole player to origin?
-		// }),
 		Collider::ball(2.0),
 		CollisionGroups::new(Group::empty(), Group::empty()),
 		CamTarget::default(),
@@ -208,21 +205,6 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 				linvel: Vect::splat(128.0),
 				angvel: Vect::new(0.0, 0.0, TAU * 60.0), // one rotation per frame at 60 fps
 			}),
-			// Despawner::new(move |mut cmds: EntityCommands| {
-			// 	cmds.commands().spawn_player(
-			// 		id,
-			// 		SceneBundle {
-			// 			scene: vis_clone.scene.clone(),
-			// 			transform: vis_clone.transform,
-			// 			global_transform: vis_clone.global_transform,
-			// 			visibility: vis_clone.visibility.clone(),
-			// 			computed_visibility: vis_clone.computed_visibility.clone(),
-			// 		},
-			// 		vis_col_clone.clone(),
-			// 		particle_mesh_clone.clone(),
-			// 	);
-			// 	cmds.despawn_recursive();
-			// }),
 			RigidBody::KinematicPositionBased,
 			TransformBundle::default(),
 			Velocity::default(),
@@ -489,7 +471,7 @@ pub fn reset_oob(
 	for (id, _, _, owner) in &q {
 		if to_respawn.contains(&owner) {
 			cmds.entity(id).despawn_recursive();
-			// cmds.spawn_player(**owner, ) // TODO
+			todo!("respawn player")
 		}
 	}
 }

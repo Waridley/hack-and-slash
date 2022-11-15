@@ -53,10 +53,7 @@ pub fn main() {
 	.add_plugin(ParticlesPlugin)
 	.add_startup_system(startup)
 	.add_system(terminal_velocity)
-	.add_system(fullscreen)
-	// .add_system_to_stage(PostUpdate, kill_oob)
-	// .add_system_to_stage(Last, despawn_dead)
-	;
+	.add_system(fullscreen);
 
 	#[cfg(not(target_arch = "wasm32"))]
 	{
@@ -282,81 +279,6 @@ impl Default for TerrainObject {
 		}
 	}
 }
-
-// #[derive(Component)]
-// pub struct Despawner {
-// 	dead: bool,
-// 	despawn: Box<dyn for<'w, 's, 'a> FnMut(EntityCommands<'w, 's, 'a>) + Send + Sync + 'static>,
-// }
-//
-// impl Despawner {
-// 	pub fn new(
-// 		despawn: impl for<'w, 's, 'a> FnMut(EntityCommands<'w, 's, 'a>) + Send + Sync + 'static,
-// 	) -> Self {
-// 		Self {
-// 			dead: false,
-// 			despawn: Box::new(despawn),
-// 		}
-// 	}
-//
-// 	pub fn run_if_dead(&mut self, cmds: EntityCommands) {
-// 		if self.dead {
-// 			(self.despawn)(cmds);
-// 		}
-// 	}
-//
-// 	pub fn kill(&mut self) {
-// 		self.dead = true;
-// 	}
-//
-// 	pub fn kill_now(&mut self, cmds: EntityCommands) {
-// 		self.dead = true;
-// 		(self.despawn)(cmds);
-// 	}
-//
-// 	pub fn is_dead(&self) -> bool {
-// 		self.dead
-// 	}
-// }
-//
-// impl Debug for Despawner {
-// 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-// 		f.debug_struct(std::any::type_name::<Self>())
-// 			.field("dead", &self.dead)
-// 			.finish()
-// 	}
-// }
-//
-// impl Default for Despawner {
-// 	fn default() -> Self {
-// 		Self::new(|cmds: EntityCommands| cmds.despawn_recursive())
-// 	}
-// }
-
-// fn kill_oob(
-// 	mut cmds: Commands,
-// 	mut q: Query<(Entity, &GlobalTransform, Option<&mut Despawner>, Option<&Parent>)>,
-// 	bounds: Res<AbsoluteBounds>,
-// ) {
-// 	for (id, xform, mut death_handler, parent) in &mut q {
-// 		if xform.translation().x.abs() > bounds.extents
-// 			|| xform.translation().y.abs() > bounds.extents
-// 			|| xform.translation().z.abs() > bounds.extents
-// 		{
-// 			if let Some(mut death_handler) = death_handler {
-// 				death_handler.kill()
-// 			} else if parent.is_none() {
-// 				cmds.entity(id).despawn()
-// 			}
-// 		}
-// 	}
-// }
-
-// fn despawn_dead(mut cmds: Commands, mut q: Query<(Entity, &mut Despawner)>) {
-// 	for (id, mut handler) in q.iter_mut() {
-// 		handler.run_if_dead(cmds.entity(id))
-// 	}
-// }
 
 fn terminal_velocity(mut q: Query<(&mut CtrlVel, &TerminalVelocity)>) {
 	for (mut vel, term_vel) in q.iter_mut() {
