@@ -22,7 +22,7 @@ pub mod input;
 pub mod player;
 
 /// Epsilon
-pub const E: f32 = 1.0e-4;
+pub const E: f32 = 1.0e-5;
 /// Fixed delta time
 pub const DT: f32 = 1.0 / 64.0;
 

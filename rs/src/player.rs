@@ -1,8 +1,6 @@
 use crate::input::{CtrlVel, PlayerAction};
 use crate::{input, terminal_velocity, AbsoluteBounds, TerminalVelocity, E};
-use bevy::core_pipeline::bloom::BloomSettings;
 use bevy::{
-	core_pipeline::clear_color::ClearColorConfig,
 	ecs::system::EntityCommands,
 	prelude::{CoreStage::PreUpdate, *},
 };
@@ -13,6 +11,7 @@ use bevy_rapier3d::{
 	math::{Rot, Vect},
 	prelude::{ColliderMassProperties::Mass, *},
 };
+use camera::spawn_camera;
 use enum_components::{EntityEnumCommands, EnumComponent};
 use leafwing_abilities::prelude::*;
 use leafwing_input_manager::prelude::*;
@@ -27,6 +26,7 @@ use rapier3d::{
 use std::{f32::consts::*, num::NonZeroU8, sync::Arc, time::Duration};
 
 pub mod camera;
+use camera::{follow_camera_target, position_camera_target, spawn_pivot};
 
 pub const MAX_SPEED: f32 = 64.0;
 pub const ACCEL: f32 = 3.0;
@@ -62,42 +62,7 @@ fn setup(
 	asset_server: Res<AssetServer>,
 ) {
 	let id = unsafe { PlayerId::new_unchecked(1) };
-	let camera = (
-		BelongsToPlayer::with_id(id),
-		TransformBundle::default(),
-		Collider::ball(2.0),
-		CollisionGroups::new(Group::empty(), Group::empty()),
-		CamTarget::default(),
-	);
-	cmds.spawn(camera)
-		.set_enum(PlayerEntity::Cam)
-		.with_children(|builder| {
-			// Adjusting transform of Camera entity causes weird visual glitches,
-			// but parenting handles it properly
-			builder.spawn((
-				Camera3dBundle {
-					camera: Camera {
-						// TODO: This causes crashes in debug and web, but I really want bloom to work!
-						#[cfg(all(not(debug_assertions), not(target_arch = "wasm32")))]
-						hdr: true,
-						..default()
-					},
-					transform: Transform {
-						rotation: Quat::from_rotation_x(FRAC_PI_2),
-						..default()
-					},
-					camera_3d: Camera3d {
-						clear_color: ClearColorConfig::Custom(Color::rgb(0.024, 0.0, 0.036)),
-						..default()
-					},
-					..default()
-				},
-				BloomSettings {
-					intensity: 0.05,
-					..default()
-				},
-			));
-		});
+	spawn_camera(&mut cmds, id);
 
 	let ship = asset_server.load("ships/rocket_baseA.glb#Scene0");
 	let vis = SceneBundle {
@@ -145,9 +110,6 @@ pub enum PlayerEntity {
 	HoverParticle,
 	OrbitalParticle,
 }
-use crate::player::camera::{
-	follow_camera_target, position_camera_target, CamTarget, CameraVertSlider,
-};
 use player_entity::*;
 
 pub type PlayerId = NonZeroU8;
@@ -188,15 +150,6 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 		particle_mesh: MaterialMeshBundle<StandardMaterial>,
 	) -> EntityCommands<'w, 's, 'c> {
 		let owner = BelongsToPlayer::with_id(id);
-		// let vis_clone = SceneBundle {
-		// 	scene: vis.scene.clone(),
-		// 	transform: vis.transform,
-		// 	global_transform: vis.global_transform,
-		// 	visibility: vis.visibility.clone(),
-		// 	computed_visibility: vis.computed_visibility.clone(),
-		// };
-		// let vis_col_clone = vis_collider.clone();
-		// let particle_mesh_clone = particle_mesh.clone();
 		let (char_collider, rot, z_pos) =
 			(Collider::round_cone(0.640, 0.48, 0.256), -FRAC_PI_2, 0.640);
 		let mut root = self.spawn((
@@ -214,26 +167,6 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 			},
 		));
 		root.set_enum(PlayerEntity::Root);
-		let pivot = root
-			.commands()
-			.spawn((
-				owner,
-				CameraVertSlider(0.4),
-				TransformBundle::from_transform(Transform {
-					translation: Vect::new(0.0, 7.68, 0.0),
-					..default()
-				}),
-			))
-			.set_enum(PlayerEntity::CamPivot)
-			.id();
-		// let mut cam_target = root.commands().spawn((
-		// 	owner,
-		// 	TransformBundle::default(),
-		// 	Collider::ball(0.72),
-		// 	CollisionGroups::new(Group::empty(), Group::empty()),
-		// ));
-		// cam_target.set_enum(PlayerEntity::CamTarget);
-		// cam_target.add_child(camera);
 
 		root.with_children(|builder| {
 			builder
@@ -249,7 +182,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 					CollisionGroups::new(Group::empty(), Group::empty()),
 					KinematicCharacterController {
 						up: Vect::Z,
-						snap_to_ground: Some(CharacterLength::Relative(0.5)),
+						snap_to_ground: None,
 						autostep: Some(CharacterAutostep {
 							max_height: CharacterLength::Relative(1.15),
 							min_width: CharacterLength::Relative(0.5),
@@ -268,7 +201,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 				))
 				.set_enum(PlayerEntity::Controller);
 		});
-		player_vis(&mut root, owner, vis, vis_collider, particle_mesh, pivot);
+		player_vis(&mut root, owner, vis, vis_collider, particle_mesh);
 		root
 	}
 }
@@ -279,7 +212,6 @@ fn player_vis(
 	vis: SceneBundle,
 	vis_collider: Collider,
 	particle_mesh: MaterialMeshBundle<StandardMaterial>,
-	cam_pivot: Entity,
 ) {
 	use rapier3d::prelude::{JointAxis::*, MotorModel::ForceBased};
 	let anchor = cmds.id();
@@ -294,6 +226,7 @@ fn player_vis(
 		.set_motor(Y, 0.0, 0.0, 5.12, 0.096)
 		.set_motor(Z, 0.0, 0.0, 2.56, 0.032);
 
+	let pivot = spawn_pivot(cmds.commands(), owner).id();
 	cmds.commands()
 		.spawn((
 			owner,
@@ -379,7 +312,7 @@ fn player_vis(
 					));
 				});
 		})
-		.add_child(cam_pivot);
+		.add_child(pivot);
 }
 
 pub fn reset_jump_on_ground(

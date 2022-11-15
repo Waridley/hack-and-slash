@@ -1,16 +1,84 @@
-use super::player_entity::{Cam, CamPivot, ReadPlayerEntity};
-use super::{BelongsToPlayer, G1};
+use super::{
+	player_entity::{Cam, CamPivot, ReadPlayerEntity},
+	BelongsToPlayer, G1,
+};
+use crate::player::{PlayerEntity, PlayerId};
 use bevy::{
-	ecs::system::Res,
+	core_pipeline::{bloom::BloomSettings, clear_color::ClearColorConfig},
+	ecs::{system::EntityCommands, system::Res},
 	prelude::*,
 	transform::components::{GlobalTransform, Transform},
 };
-use bevy_rapier3d::{geometry::Collider, math::Vect, pipeline::QueryFilter, plugin::RapierContext};
+use bevy_rapier3d::{
+	geometry::{Collider, CollisionGroups, Group},
+	math::Vect,
+	pipeline::QueryFilter,
+	plugin::RapierContext,
+};
+use enum_components::EntityEnumCommands;
 use rapier3d::geometry::InteractionGroups;
+use std::f32::consts::FRAC_PI_2;
 
 pub const CAM_ACCEL: f32 = 12.0;
 const MAX_CAM_DIST: f32 = 24.0;
 const MIN_CAM_DIST: f32 = 6.4;
+
+pub fn spawn_camera<'w, 's, 'a>(
+	cmds: &'a mut Commands<'w, 's>,
+	player_id: PlayerId,
+) -> EntityCommands<'w, 's, 'a> {
+	let mut cmds = cmds.spawn((
+		BelongsToPlayer::with_id(player_id),
+		TransformBundle::default(),
+		Collider::ball(2.0),
+		CollisionGroups::new(Group::empty(), Group::empty()),
+		CamTarget::default(),
+	));
+	cmds.set_enum(PlayerEntity::Cam).with_children(|builder| {
+		// Adjusting transform of Camera entity causes weird visual glitches,
+		// but parenting handles it properly
+		builder.spawn((
+			Camera3dBundle {
+				camera: Camera {
+					// TODO: This causes crashes in debug and web, but I really want bloom to work!
+					#[cfg(all(not(debug_assertions), not(target_arch = "wasm32")))]
+					hdr: true,
+					..default()
+				},
+				transform: Transform {
+					rotation: Quat::from_rotation_x(FRAC_PI_2),
+					..default()
+				},
+				camera_3d: Camera3d {
+					clear_color: ClearColorConfig::Custom(Color::rgb(0.024, 0.0, 0.036)),
+					..default()
+				},
+				..default()
+			},
+			BloomSettings {
+				intensity: 0.05,
+				..default()
+			},
+		));
+	});
+	cmds
+}
+
+pub fn spawn_pivot<'w, 's, 'a>(
+	cmds: &'a mut Commands<'w, 's>,
+	owner: BelongsToPlayer,
+) -> EntityCommands<'w, 's, 'a> {
+	let mut cmds = cmds.spawn((
+		owner,
+		CameraVertSlider(0.4),
+		TransformBundle::from_transform(Transform {
+			translation: Vect::new(0.0, 7.68, 0.0),
+			..default()
+		}),
+	));
+	cmds.set_enum(PlayerEntity::CamPivot);
+	cmds
+}
 
 #[derive(Component, Debug, Default, Copy, Clone, Reflect)]
 pub struct CameraVertSlider(pub f32);
