@@ -80,7 +80,7 @@ fn setup(
 			builder.spawn((
 				Camera3dBundle {
 					camera: Camera {
-						// TODO: This causes crashes in debug and web. Might be fixed on 0.9 release build
+						// TODO: This causes crashes in debug and web, but I really want bloom to work!
 						#[cfg(all(not(debug_assertions), not(target_arch = "wasm32")))]
 						hdr: true,
 						..default()

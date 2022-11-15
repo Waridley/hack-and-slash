@@ -8,12 +8,12 @@ resolver = "2"
 members = []
 
 [patch.crates-io]
-bevy = { version = "0.9.0-dev", path = "../bevy" }
-bevy_ecs = { version = "0.9.0-dev", path = "../bevy/crates/bevy_ecs" }
+bevy = { version = "0.9.0", path = "../bevy" }
+bevy_ecs = { version = "0.9.0", path = "../bevy/crates/bevy_ecs" }
 
-bevy_rapier3d = { version = "0.17.0", path = "../bevy_rapier/bevy_rapier3d" }
-rapier3d = { version = "0.15", path = "../rapier/crates/rapier3d" }
-leafwing-input-manager = { version = "0.6", path = "../leafwing-input-manager" }
+bevy_rapier3d = { version = "0.18.0", path = "../bevy_rapier/bevy_rapier3d" }
+rapier3d = { version = "0.16", path = "../rapier/crates/rapier3d" }
+leafwing-input-manager = { version = "0.7", path = "../leafwing-input-manager" }
 
 [dependencies]
 enum_components = { package = "sond-bevy-enum-components", path = "../sond-bevy-enum-components" }
@@ -21,10 +21,10 @@ particles = { package = "sond-bevy-particles", path = "../sond-bevy-particles" }
 
 rand = "0.8.5"
 noises-and-patterns = "0.1.0"
-bevy = { version = "0.9.0-dev", features = [] }
-bevy_rapier3d = { version = "0.17.0", features = ["debug-render"] }
-rapier3d = { version = "0.15", features = ["wasm-bindgen"] }
-leafwing-input-manager = { version = "0.6", path = "../leafwing-input-manager" }
+bevy = { version = "0.9.0", features = [] }
+bevy_rapier3d = { version = "0.18", features = ["debug-render"] }
+rapier3d = { version = "0.16", features = ["wasm-bindgen"] }
+leafwing-input-manager = { version = "0.7", path = "../leafwing-input-manager" }
 leafwing_abilities = { path = "../leafwing_abilities" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

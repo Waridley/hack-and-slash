@@ -174,14 +174,14 @@ checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
 
 [[package]]
 name = "bevy"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "bevy_internal",
 ]
 
 [[package]]
 name = "bevy_animation"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -197,7 +197,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_app"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "bevy_derive",
  "bevy_ecs",
@@ -210,7 +210,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_asset"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "bevy_app",
@@ -236,7 +236,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_audio"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "bevy_app",
@@ -250,7 +250,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_core"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -264,7 +264,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_core_pipeline"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -282,7 +282,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_derive"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "bevy_macro_utils",
  "quote",
@@ -291,7 +291,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_diagnostic"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "bevy_app",
  "bevy_core",
@@ -303,7 +303,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_ecs"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "async-channel",
  "bevy_ecs_macros",
@@ -321,7 +321,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_ecs_macros"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "bevy_macro_utils",
  "proc-macro2",
@@ -331,7 +331,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_encase_derive"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "bevy_macro_utils",
  "encase_derive_impl",
@@ -339,7 +339,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_gilrs"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -350,7 +350,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_gltf"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "base64",
@@ -377,7 +377,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_hierarchy"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "bevy_app",
  "bevy_core",
@@ -390,7 +390,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_input"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -403,7 +403,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_internal"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "bevy_animation",
  "bevy_app",
@@ -439,7 +439,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_log"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "android_log-sys",
  "bevy_app",
@@ -453,7 +453,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_macro_utils"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "quote",
  "syn",
@@ -462,7 +462,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_math"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "glam",
  "serde",
@@ -470,14 +470,14 @@ dependencies = [
 
 [[package]]
 name = "bevy_mikktspace"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "glam",
 ]
 
 [[package]]
 name = "bevy_pbr"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -497,11 +497,11 @@ dependencies = [
 
 [[package]]
 name = "bevy_ptr"
-version = "0.9.0-dev"
+version = "0.9.0"
 
 [[package]]
 name = "bevy_rapier3d"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "bevy",
  "bitflags",
@@ -512,7 +512,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_reflect"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "bevy_math",
  "bevy_ptr",
@@ -530,7 +530,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_reflect_derive"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "bevy_macro_utils",
  "bit-set",
@@ -542,7 +542,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_render"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "bevy_app",
@@ -582,7 +582,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_render_macros"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "bevy_macro_utils",
  "proc-macro2",
@@ -592,7 +592,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_scene"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "bevy_app",
@@ -612,7 +612,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_sprite"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -635,10 +635,11 @@ dependencies = [
 
 [[package]]
 name = "bevy_tasks"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "async-channel",
  "async-executor",
+ "async-task",
  "concurrent-queue",
  "futures-lite",
  "once_cell",
@@ -647,7 +648,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_text"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "ab_glyph",
  "anyhow",
@@ -668,7 +669,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_time"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -680,7 +681,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_transform"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -692,7 +693,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_ui"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -719,7 +720,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_utils"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "ahash",
  "getrandom",
@@ -731,7 +732,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_window"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -745,7 +746,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_winit"
-version = "0.9.0-dev"
+version = "0.9.0"
 dependencies = [
  "approx",
  "bevy_app",
@@ -1248,9 +1249,9 @@ checksum = "90e5c1c8368803113bf0c9584fc495a58b86dc8a29edbf8fe877d21d9507e797"
 
 [[package]]
 name = "encase"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a516181e9a36e8982cb37933c5e7dba638c42938cacde46ee4e5b4156f881b9"
+checksum = "c6bdd416eb91cd6fb73a22fbc9fa1ea013641cce1a58905c31623ff9c562e811"
 dependencies = [
  "const_panic",
  "encase_derive",
@@ -1260,18 +1261,18 @@ dependencies = [
 
 [[package]]
 name = "encase_derive"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5b802412eea315f29f2bb2da3a5963cd6121f56eaa06aebcdc0c54eea578f22"
+checksum = "df06cd7ea02426c2a0a164656bf116813584b461b8a7bb059b7941ab981105d3"
 dependencies = [
  "encase_derive_impl",
 ]
 
 [[package]]
 name = "encase_derive_impl"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f2f4de457d974f548d2c2a16f709ebd81013579e543bd1a9b19ced88132c2cf"
+checksum = "b299aab48b9a897ddd730dde2b5550af7c90ec6779c78e3c70f4c28d9337663f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1464,9 +1465,9 @@ dependencies = [
 
 [[package]]
 name = "glam"
-version = "0.21.3"
+version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "518faa5064866338b013ff9b2350dc318e14cc4fcd6cb8206d7e7c9886c98815"
+checksum = "12f597d56c1bd55a811a1be189459e8fad2bbc272616375602443bdfb37fa774"
 dependencies = [
  "bytemuck",
  "serde",
@@ -1623,9 +1624,9 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hexasphere"
-version = "7.2.1"
+version = "8.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aaadafd1beb6ad34cff5521987017ece5848f9ad5401fdb039bff896a643add4"
+checksum = "619ce654558681d7d0a7809e1b20249c7032ff13ee6baa7bb7ff64f7f28a906a"
 dependencies = [
  "glam",
  "once_cell",
@@ -1814,7 +1815,7 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "leafwing-input-manager"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "bevy",
  "derive_more",
@@ -1826,7 +1827,7 @@ dependencies = [
 
 [[package]]
 name = "leafwing_abilities"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "bevy",
  "derive_more",
@@ -1838,7 +1839,7 @@ dependencies = [
 
 [[package]]
 name = "leafwing_abilities_macros"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -1848,7 +1849,7 @@ dependencies = [
 
 [[package]]
 name = "leafwing_input_manager_macros"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -2043,9 +2044,9 @@ dependencies = [
 
 [[package]]
 name = "nalgebra"
-version = "0.31.3"
+version = "0.31.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0eef2ccf9aefdae3334ad5911b5414724b9047bfe145b3353d5878732cc7b86b"
+checksum = "20bd243ab3dbb395b39ee730402d2e5405e448c75133ec49cc977762c4cba3d1"
 dependencies = [
  "approx",
  "glam",
@@ -2429,9 +2430,9 @@ dependencies = [
 
 [[package]]
 name = "parry3d"
-version = "0.10.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2420ecc938f3acf004ca7f5059aca5145324a88525879745e18ba6ea785d793"
+checksum = "ee763b47e68f62d578bcfc3f83cf75d9d970aed5df20b6d90287ca9b3195155d"
 dependencies = [
  "approx",
  "arrayvec",
@@ -2609,7 +2610,7 @@ checksum = "63e935c45e09cc6dcf00d2f0b2d630a58f4095320223d47fc68918722f0538b6"
 
 [[package]]
 name = "rapier3d"
-version = "0.15.0"
+version = "0.16.1"
 dependencies = [
  "approx",
  "arrayvec",
