@@ -3,14 +3,20 @@ name: Rust
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   build:
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: #{{ steps.deployment.outputs.page_url }}
 
     runs-on: ubuntu-latest
 
@@ -29,7 +35,7 @@ jobs:
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
-          target/
+          rs/target/
         key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.toml') }}
 
     - uses: dtolnay/rust-toolchain@nightly
