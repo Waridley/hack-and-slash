@@ -3,34 +3,33 @@ name = "sond-has"
 version = "0.1.0"
 edition = "2021"
 
+
 [workspace]
 resolver = "2"
 members = []
 
-[patch.crates-io]
-bevy = { version = "0.9.0", path = "../bevy" }
-bevy_ecs = { version = "0.9.0", path = "../bevy/crates/bevy_ecs" }
 
-bevy_rapier3d = { version = "0.18.0", path = "../bevy_rapier/bevy_rapier3d" }
+[patch.crates-io]
 rapier3d = { version = "0.16", path = "../rapier/crates/rapier3d" }
-leafwing-input-manager = { version = "0.7", path = "../leafwing-input-manager" }
+bevy_rapier3d = { version = "0.18.0", path = "../bevy_rapier/bevy_rapier3d" }
+
 
 [dependencies]
+# Mine
 enum_components = { package = "sond-bevy-enum-components", path = "../sond-bevy-enum-components" }
 particles = { package = "sond-bevy-particles", path = "../sond-bevy-particles" }
 
-rand = "0.8.5"
-noises-and-patterns = "0.1.0"
+# Engine
 bevy = { version = "0.9.0", features = [] }
 bevy_rapier3d = { version = "0.18", features = ["debug-render"] }
 rapier3d = { version = "0.16", features = ["wasm-bindgen"] }
-leafwing-input-manager = { version = "0.7", path = "../leafwing-input-manager" }
-leafwing_abilities = { path = "../leafwing_abilities" }
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen = "0.2.83"
-tracing-wasm = "0.2.1"
-console_error_panic_hook = "0.1.7"
+# Other
+rand = "0.8.5"
+noises-and-patterns = "0.1.0"
+leafwing-input-manager = "0.7"
+leafwing_abilities = "0.3"
+
 
 [profile.dev]
 opt-level = 1
