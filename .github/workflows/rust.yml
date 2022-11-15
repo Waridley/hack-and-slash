@@ -53,7 +53,7 @@ jobs:
       uses: jetli/trunk-action@v0.1.0
     - name: Trunk build
       working-directory: ./rs
-      run: trunk build --release --public-url "http://waridley.github.io/hack-and-slash/"
+      run: trunk build --release --public-url "/hack-and-slash/"
 
     - name: Setup pages
       uses: actions/configure-pages@v2
