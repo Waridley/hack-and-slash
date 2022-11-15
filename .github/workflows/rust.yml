@@ -15,12 +15,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout repo and submodules
+      uses: actions/checkout@v3
       with:
         submodules: recursive
+    - name: Install alsa and udev
+      run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
     - name: Build
+      working-directory: ./rs
       run: cargo build --verbose
-      working-directory: ./rs
     - name: Run tests
-      run: cargo test --verbose
       working-directory: ./rs
+      run: cargo test --verbose
+    - name: Install Trunk
+      uses: jetli/trunk-action@v0.1.0
+    - name: Trunk build
+      working-directory: ./rs
+      run: trunk build
