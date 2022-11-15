@@ -6,12 +6,11 @@ use bevy::{
 	diagnostic::FrameTimeDiagnosticsPlugin,
 	ecs::system::EntityCommands,
 	prelude::{CoreStage::*, *},
-	window::close_on_esc,
 	DefaultPlugins,
 };
 use bevy_rapier3d::parry::shape::SharedShape;
 use bevy_rapier3d::prelude::*;
-use input::CtrlVel;
+use player::ctrl::CtrlVel;
 use particles::ParticlesPlugin;
 use rapier3d::geometry::HeightField;
 use rapier3d::na::{DMatrix, Vector3};
@@ -25,6 +24,8 @@ pub mod player;
 pub const E: f32 = 1.0e-5;
 /// Fixed delta time
 pub const DT: f32 = 1.0 / 64.0;
+/// Up vector
+pub const UP: Vect = Vect::Z;
 
 #[bevy_main]
 pub fn main() {
@@ -57,7 +58,7 @@ pub fn main() {
 
 	#[cfg(not(target_arch = "wasm32"))]
 	{
-		app.add_system_to_stage(Last, close_on_esc);
+		app.add_system_to_stage(Last, bevy::window::close_on_esc);
 	}
 
 	#[cfg(debug_assertions)]

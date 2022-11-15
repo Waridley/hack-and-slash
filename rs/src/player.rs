@@ -1,32 +1,34 @@
-use crate::input::{CtrlVel, PlayerAction};
-use crate::{input, terminal_velocity, AbsoluteBounds, TerminalVelocity, E};
+use crate::input::PlayerAction;
+use crate::{AbsoluteBounds, E, input, terminal_velocity, TerminalVelocity};
 use bevy::{
 	ecs::system::EntityCommands,
-	prelude::{CoreStage::PreUpdate, *},
+	prelude::{*, CoreStage::PreUpdate},
 };
 use bevy_rapier3d::{
 	control::{KinematicCharacterController, KinematicCharacterControllerOutput},
 	dynamics::{CoefficientCombineRule::Min, RigidBody, Velocity},
 	geometry::{Collider, Friction},
 	math::{Rot, Vect},
-	prelude::{ColliderMassProperties::Mass, *},
+	prelude::{*, ColliderMassProperties::Mass},
 };
 use camera::spawn_camera;
 use enum_components::{EntityEnumCommands, EnumComponent};
 use leafwing_abilities::prelude::*;
 use leafwing_input_manager::prelude::*;
 use particles::{
-	update::{Linear, TargetScale},
-	InitialTransform, Lifetime, ParticleBundle, Spewer, SpewerBundle,
+	InitialTransform,
+	Lifetime, ParticleBundle, Spewer, SpewerBundle, update::{Linear, TargetScale},
 };
 use rapier3d::{
 	control::{CharacterAutostep, CharacterLength},
 	prelude::JointAxesMask,
 };
 use std::{f32::consts::*, num::NonZeroU8, sync::Arc, time::Duration};
+use bevy_rapier3d::plugin::systems::update_character_controls;
+use ctrl::CtrlVel;
 
 pub mod camera;
-use camera::{follow_camera_target, position_camera_target, spawn_pivot};
+pub mod ctrl;
 
 pub const MAX_SPEED: f32 = 64.0;
 pub const ACCEL: f32 = 3.0;
@@ -35,6 +37,7 @@ pub const MAX_JUMPS: f32 = 2.0;
 pub const JUMP_VEL: f32 = 48.0;
 pub const CLIMB_ANGLE: f32 = FRAC_PI_3 - E;
 pub const SLIDE_ANGLE: f32 = FRAC_PI_3 - E;
+pub const HOVER_HEIGHT: f32 = 2.0;
 const G1: rapier3d::geometry::Group = rapier3d::geometry::Group::GROUP_1;
 
 pub struct PlayerControllerPlugin;
@@ -47,9 +50,10 @@ impl Plugin for PlayerControllerPlugin {
 			.add_system_to_stage(CoreStage::PreUpdate, reset_jump_on_ground)
 			.add_system(input::movement_input.before(terminal_velocity))
 			.add_system(input::look_input.before(terminal_velocity))
-			.add_system(position_camera_target.after(input::look_input))
-			.add_system(follow_camera_target.after(position_camera_target))
+			.add_system(camera::position_target.after(input::look_input))
+			.add_system(camera::follow_target.after(camera::position_target))
 			.add_system(move_player.after(terminal_velocity))
+			.add_system(ctrl::repel_ground.before(gravity).after(update_character_controls))
 			.add_system(idle)
 			.add_system_to_stage(CoreStage::Last, reset_oob);
 	}
@@ -226,7 +230,7 @@ fn player_vis(
 		.set_motor(Y, 0.0, 0.0, 5.12, 0.096)
 		.set_motor(Z, 0.0, 0.0, 2.56, 0.032);
 
-	let pivot = spawn_pivot(cmds.commands(), owner).id();
+	let pivot = camera::spawn_pivot(cmds.commands(), owner).id();
 	cmds.commands()
 		.spawn((
 			owner,

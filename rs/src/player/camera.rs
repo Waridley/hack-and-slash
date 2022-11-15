@@ -86,7 +86,7 @@ pub struct CameraVertSlider(pub f32);
 #[derive(Debug, Default, Component, Deref, DerefMut)]
 pub struct CamTarget(Transform);
 
-pub fn position_camera_target(
+pub fn position_target(
 	ctx: Res<RapierContext>,
 	cam_pivot_q: Query<(&GlobalTransform, &BelongsToPlayer), ReadPlayerEntity<CamPivot>>,
 	mut cam_q: Query<(&mut CamTarget, &Collider, &BelongsToPlayer), ReadPlayerEntity<Cam>>,
@@ -133,7 +133,7 @@ pub fn position_camera_target(
 	}
 }
 
-pub fn follow_camera_target(
+pub fn follow_target(
 	mut cam_q: Query<(&mut Transform, &CamTarget), ReadPlayerEntity<Cam>>,
 	t: Res<Time>,
 ) {
