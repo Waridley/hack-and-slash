@@ -1,31 +1,28 @@
 use crate::input::PlayerAction;
-use crate::{AbsoluteBounds, E, input, terminal_velocity, TerminalVelocity};
+use crate::{input, terminal_velocity, AbsoluteBounds, TerminalVelocity, R_E};
 use bevy::{
 	ecs::system::EntityCommands,
-	prelude::{*, CoreStage::PreUpdate},
+	prelude::{CoreStage::PreUpdate, *},
 };
+use bevy_rapier3d::plugin::systems::update_character_controls;
 use bevy_rapier3d::{
 	control::{KinematicCharacterController, KinematicCharacterControllerOutput},
 	dynamics::{CoefficientCombineRule::Min, RigidBody, Velocity},
 	geometry::{Collider, Friction},
-	math::{Rot, Vect},
-	prelude::{*, ColliderMassProperties::Mass},
+	math::Vect,
+	prelude::*,
 };
 use camera::spawn_camera;
+use ctrl::CtrlVel;
 use enum_components::{EntityEnumCommands, EnumComponent};
 use leafwing_abilities::prelude::*;
 use leafwing_input_manager::prelude::*;
 use particles::{
-	InitialTransform,
-	Lifetime, ParticleBundle, Spewer, SpewerBundle, update::{Linear, TargetScale},
+	update::{Linear, TargetScale},
+	InitialTransform, Lifetime, ParticleBundle, Spewer, SpewerBundle,
 };
-use rapier3d::{
-	control::{CharacterAutostep, CharacterLength},
-	prelude::JointAxesMask,
-};
+use rapier3d::control::{CharacterAutostep, CharacterLength};
 use std::{f32::consts::*, num::NonZeroU8, sync::Arc, time::Duration};
-use bevy_rapier3d::plugin::systems::update_character_controls;
-use ctrl::CtrlVel;
 
 pub mod camera;
 pub mod ctrl;
@@ -34,9 +31,9 @@ pub const MAX_SPEED: f32 = 64.0;
 pub const ACCEL: f32 = 3.0;
 pub const PLAYER_GRAVITY: f32 = 64.0;
 pub const MAX_JUMPS: f32 = 2.0;
-pub const JUMP_VEL: f32 = 48.0;
-pub const CLIMB_ANGLE: f32 = FRAC_PI_3 - E;
-pub const SLIDE_ANGLE: f32 = FRAC_PI_3 - E;
+pub const JUMP_VEL: f32 = 64.0;
+pub const CLIMB_ANGLE: f32 = FRAC_PI_3 - R_E;
+pub const SLIDE_ANGLE: f32 = FRAC_PI_3 - R_E;
 pub const HOVER_HEIGHT: f32 = 2.0;
 const G1: rapier3d::geometry::Group = rapier3d::geometry::Group::GROUP_1;
 
@@ -53,7 +50,11 @@ impl Plugin for PlayerControllerPlugin {
 			.add_system(camera::position_target.after(input::look_input))
 			.add_system(camera::follow_target.after(camera::position_target))
 			.add_system(move_player.after(terminal_velocity))
-			.add_system(ctrl::repel_ground.before(gravity).after(update_character_controls))
+			.add_system(
+				ctrl::repel_ground
+					.before(gravity)
+					.after(update_character_controls),
+			)
 			.add_system(idle)
 			.add_system_to_stage(CoreStage::Last, reset_oob);
 	}
@@ -78,7 +79,6 @@ fn setup(
 		},
 		..default()
 	};
-	let vis_collider = Collider::ball(0.96);
 
 	let particle_mesh = Mesh::from(shape::Torus {
 		radius: 0.640,
@@ -100,7 +100,7 @@ fn setup(
 		material: particle_material,
 		..default()
 	};
-	cmds.spawn_player(id, vis, vis_collider, particle_mesh);
+	cmds.spawn_player(id, vis, particle_mesh);
 }
 
 #[derive(EnumComponent)]
@@ -108,7 +108,7 @@ pub enum PlayerEntity {
 	Root,
 	Controller,
 	Vis,
-	VisCollider,
+	VisNode,
 	CamPivot,
 	Cam,
 	HoverParticle,
@@ -140,7 +140,6 @@ pub trait SpawnPlayer<'c, 'w: 'c, 's: 'c> {
 		&'c mut self,
 		id: PlayerId,
 		scene: SceneBundle,
-		vis_collider: Collider,
 		particle_mesh: MaterialMeshBundle<StandardMaterial>,
 	) -> EntityCommands<'w, 's, 'c>;
 }
@@ -150,12 +149,10 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 		&'c mut self,
 		id: PlayerId,
 		vis: SceneBundle,
-		vis_collider: Collider,
 		particle_mesh: MaterialMeshBundle<StandardMaterial>,
 	) -> EntityCommands<'w, 's, 'c> {
 		let owner = BelongsToPlayer::with_id(id);
-		let (char_collider, rot, z_pos) =
-			(Collider::round_cone(0.640, 0.48, 0.256), -FRAC_PI_2, 0.640);
+		let char_collider = Collider::ball(0.8);
 		let mut root = self.spawn((
 			owner,
 			TerminalVelocity(Velocity {
@@ -169,6 +166,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 				coefficient: 0.0,
 				combine_rule: Min,
 			},
+			VisibilityBundle::default(),
 		));
 		root.set_enum(PlayerEntity::Root);
 
@@ -177,11 +175,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 				.spawn((
 					owner,
 					char_collider,
-					TransformBundle::from(Transform {
-						translation: Vec3::Z * z_pos,
-						rotation: Quat::from_rotation_x(rot),
-						..default()
-					}),
+					TransformBundle::default(),
 					CtrlVel::default(),
 					CollisionGroups::new(Group::empty(), Group::empty()),
 					KinematicCharacterController {
@@ -205,7 +199,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 				))
 				.set_enum(PlayerEntity::Controller);
 		});
-		player_vis(&mut root, owner, vis, vis_collider, particle_mesh);
+		player_vis(&mut root, owner, vis, particle_mesh);
 		root
 	}
 }
@@ -214,42 +208,19 @@ fn player_vis(
 	cmds: &mut EntityCommands,
 	owner: BelongsToPlayer,
 	vis: SceneBundle,
-	vis_collider: Collider,
 	particle_mesh: MaterialMeshBundle<StandardMaterial>,
 ) {
-	use rapier3d::prelude::{JointAxis::*, MotorModel::ForceBased};
-	let anchor = cmds.id();
-	let mut joint = GenericJoint::new(JointAxesMask::FREE_SPHERICAL_AXES);
-	joint
-		.set_local_anchor2(Vect::new(0.0, -1.536, 0.0))
-		.set_local_basis2(Rot::from_rotation_x(-FRAC_PI_2))
-		.set_motor_model(X, ForceBased)
-		.set_motor_model(Y, ForceBased)
-		.set_motor_model(Z, ForceBased)
-		.set_motor(X, 0.0, 0.0, 5.12, 0.096)
-		.set_motor(Y, 0.0, 0.0, 5.12, 0.096)
-		.set_motor(Z, 0.0, 0.0, 2.56, 0.032);
-
 	let pivot = camera::spawn_pivot(cmds.commands(), owner).id();
-	cmds.commands()
+	let vis_node = cmds
+		.commands()
 		.spawn((
 			owner,
-			RigidBody::Dynamic,
-			CollisionGroups::new(Group::GROUP_1, !Group::GROUP_1),
-			vis_collider,
-			ImpulseJoint::new(anchor, joint),
-			Sleeping {
-				linear_threshold: -1.0,
-				angular_threshold: -1.0,
-				sleeping: false,
-			},
-			Mass(0.01),
-			Ccd::enabled(),
-			// Restitution::new(1.0),
-			TransformBundle::default(),
+			TransformBundle::from_transform(Transform::from_rotation(Quat::from_rotation_x(
+				FRAC_PI_2,
+			))),
 			VisibilityBundle::default(), // for children ComputedVisibility
 		))
-		.set_enum(PlayerEntity::VisCollider)
+		.set_enum(PlayerEntity::VisNode)
 		.with_children(move |builder| {
 			// Mesh is a child so we can apply transform independent of collider to align them
 			builder
@@ -262,7 +233,7 @@ fn player_vis(
 				.with_children(|builder| {
 					builder.spawn((owner, vis));
 					let transform = Transform {
-						rotation: Quat::from_rotation_x(FRAC_PI_2),
+						// rotation: Quat::from_rotation_x(FRAC_PI_2),
 						..default()
 					};
 					let particle_mesh = MaterialMeshBundle {
@@ -316,7 +287,9 @@ fn player_vis(
 					));
 				});
 		})
-		.add_child(pivot);
+		.add_child(pivot)
+		.id();
+	cmds.add_child(vis_node);
 }
 
 pub fn reset_jump_on_ground(

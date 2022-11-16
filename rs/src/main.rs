@@ -10,8 +10,8 @@ use bevy::{
 };
 use bevy_rapier3d::parry::shape::SharedShape;
 use bevy_rapier3d::prelude::*;
-use player::ctrl::CtrlVel;
 use particles::ParticlesPlugin;
+use player::ctrl::CtrlVel;
 use rapier3d::geometry::HeightField;
 use rapier3d::na::{DMatrix, Vector3};
 use std::sync::Arc;
@@ -22,6 +22,8 @@ pub mod player;
 
 /// Epsilon
 pub const E: f32 = 1.0e-5;
+/// Rotational epsilon in radians
+pub const R_E: f32 = TAU / (360.0 * 4.0);
 /// Fixed delta time
 pub const DT: f32 = 1.0 / 64.0;
 /// Up vector
@@ -122,7 +124,7 @@ fn startup(
 	mut materials: ResMut<Assets<StandardMaterial>>,
 	mut meshes: ResMut<Assets<Mesh>>,
 ) {
-	cmds.insert_resource(AbsoluteBounds { extents: 512.0 });
+	cmds.insert_resource(AbsoluteBounds { extents: 2048.0 });
 
 	cmds.spawn(DirectionalLightBundle {
 		directional_light: DirectionalLight {
@@ -148,7 +150,7 @@ fn startup(
 
 	use noises_and_patterns::{noise::Noise, FP};
 	let noise = noises_and_patterns::value::Value::new();
-	let r = 64;
+	let r = 48;
 	let d = r * 2;
 	let (columns, rows) = (d, d);
 
@@ -161,7 +163,12 @@ fn startup(
 			let x = (col as f32 - 1.0) - r;
 			let y = (row as f32 - 1.0) - r;
 
+			// sphere
 			let bowl = ((r * r) - (x * x) - (y * y)).sqrt() / r;
+
+			// rounded cube might as well add real walls, looks too obvious that it's a heightfield
+			// let bowl = ((r * r * r * r) - (x * x * x * x) - (y * y * y * y)).sqrt().sqrt() / r;
+
 			let bowl = if bowl.is_finite() { bowl } else { 0.0 };
 
 			noise.fbm_2d((row as FP * 0.3, (i % rows) as FP * 0.3), 3) - (bowl * 20.0)
@@ -170,7 +177,7 @@ fn startup(
 
 	let heightfield = HeightField::new(
 		DMatrix::from_vec(rows, columns, heights),
-		Vector3::new(1024.0, 16.0, 1024.0),
+		Vector3::new(1024.0, 24.0, 1024.0),
 	);
 	let tris = heightfield.triangles();
 

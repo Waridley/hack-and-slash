@@ -72,7 +72,7 @@ pub fn spawn_pivot<'w, 's, 'a>(
 		owner,
 		CameraVertSlider(0.4),
 		TransformBundle::from_transform(Transform {
-			translation: Vect::new(0.0, 7.68, 0.0),
+			translation: Vect::new(0.0, 6.4, 0.0),
 			..default()
 		}),
 	));
