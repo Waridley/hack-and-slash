@@ -2,9 +2,7 @@ name: Rust
 
 on:
   push:
-    branches:
-      - main
-      - release
+    branches: [main]
   pull_request:
 
 env:
@@ -21,6 +19,7 @@ jobs:
       with:
         submodules: recursive
         lfs: true
+
     - name: Install alsa and udev
       run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
 
@@ -37,10 +36,13 @@ jobs:
     - uses: dtolnay/rust-toolchain@stable
       with:
         components: rustfmt, clippy
+
     - run: rm ./rs/.cargo/config.toml # disable nightly-only flags
+
     - name: Build
       working-directory: ./rs
       run: cargo build --verbose
+
     - name: Run tests
       working-directory: ./rs
       run: cargo test --verbose
