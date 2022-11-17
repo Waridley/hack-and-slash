@@ -3,6 +3,7 @@ use crate::player::{G1, HOVER_HEIGHT, SLIDE_ANGLE};
 use crate::UP;
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
+use crate::util::quantize;
 
 #[derive(Component)]
 pub struct CtrlState {
@@ -36,7 +37,7 @@ pub fn repel_ground(
 				.groups(InteractionGroups::new(G1, !G1)),
 		);
 		if let Some((_, toi)) = result {
-			let angle = toi.normal1.angle_between(UP);
+			let angle = quantize::<16>(toi.normal1.angle_between(UP));
 			if angle < SLIDE_ANGLE {
 				state.grounded = true;
 				let dist = HOVER_HEIGHT - toi.toi;

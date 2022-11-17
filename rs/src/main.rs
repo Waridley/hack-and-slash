@@ -19,6 +19,7 @@ use std::{f32::consts::*, fmt::Debug, time::Duration};
 
 pub mod input;
 pub mod player;
+pub mod util;
 
 /// Epsilon
 pub const E: f32 = 1.0e-5;
