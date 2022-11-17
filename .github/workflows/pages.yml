@@ -1,19 +1,17 @@
 name: Pages
 
 on:
-#  workflow_run:
-#    workflows: [Rust]
-#    branches: [release]
-#    types: [completed]
-  push:
+  workflow_run:
+    workflows: [Rust]
     branches: [release]
+    types: [completed]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   deploy:
-#    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     permissions:
       pages: write
