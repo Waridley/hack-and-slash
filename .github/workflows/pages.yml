@@ -42,11 +42,10 @@ jobs:
             ./rs/target/
           key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.toml') }}
 
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
           targets: wasm32-unknown-unknown
-
+      - run: rm ./rs/.cargo/config.toml # disable nightly-only flags
       - name: Install Trunk
         uses: jetli/trunk-action@v0.1.0
       - name: Trunk build

@@ -13,10 +13,6 @@ env:
 jobs:
   build:
 
-    environment:
-      name: github-pages
-      url: #{{ steps.deployment.outputs.page_url }}
-
     runs-on: ubuntu-latest
 
     steps:
@@ -38,10 +34,10 @@ jobs:
           ./rs/target/
         key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.toml') }}
 
-    - uses: dtolnay/rust-toolchain@nightly
+    - uses: dtolnay/rust-toolchain@stable
       with:
         components: rustfmt, clippy
-        targets: wasm32-unknown-unknown
+    - run: rm ./rs/.cargo/config.toml # disable nightly-only flags
     - name: Build
       working-directory: ./rs
       run: cargo build --verbose
