@@ -43,7 +43,7 @@ pub fn repel_ground(
 				let dist = HOVER_HEIGHT - toi.toi;
 				let repel_accel = dist * dist * 64.0;
 				let z = ctrl_vel.linvel.z;
-				ctrl_vel.linvel.z = z + ((repel_accel - z) * t.delta_seconds() * 4.0)
+				ctrl_vel.linvel.z = z + ((repel_accel - z) * f32::min(t.delta_seconds() * 4.0, 1.0))
 			}
 		}
 	}

@@ -25,18 +25,40 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Install Trunk
-      uses: jetli/trunk-action@v0.1.0
-    - name: Trunk build
-      working-directory: ./rs
-      run: trunk build --release --public-url "/hack-and-slash/"
+      - name: Checkout repo and submodules
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+          lfs: true
+      - name: Install alsa and udev
+        run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
 
-    - name: Setup pages
-      uses: actions/configure-pages@v2
-    - name: Upload pages artifact
-      uses: actions/upload-pages-artifact@v1
-      with:
-        path: ./rs/dist
-    - name: Deploy Github Pages
-      id: deployment
-      uses: actions/deploy-pages@v1
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            rs/target/
+          key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.toml') }}
+
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+      - name: Install Trunk
+        uses: jetli/trunk-action@v0.1.0
+      - name: Trunk build
+        working-directory: ./rs
+        run: trunk build --release --public-url "/hack-and-slash/"
+
+      - name: Setup pages
+        uses: actions/configure-pages@v2
+      - name: Upload pages artifact
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: ./rs/dist
+      - name: Deploy Github Pages
+        id: deployment
+        uses: actions/deploy-pages@v1
