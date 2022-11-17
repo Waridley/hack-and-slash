@@ -1,18 +1,19 @@
 name: Pages
 
 on:
-  workflow_run:
-    workflows: ["Rust"]
-    branches: ["release"]
-    types:
-      - completed
+#  workflow_run:
+#    workflows: [Rust]
+#    branches: [release]
+#    types: [completed]
+  push:
+    branches: [release]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   deploy:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+#    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     permissions:
       pages: write
@@ -40,13 +41,14 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            rs/target/
+            ./rs/target/
           key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.toml') }}
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt, clippy
           targets: wasm32-unknown-unknown
+
       - name: Install Trunk
         uses: jetli/trunk-action@v0.1.0
       - name: Trunk build

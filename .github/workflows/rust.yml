@@ -35,7 +35,7 @@ jobs:
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
-          rs/target/
+          ./rs/target/
         key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.toml') }}
 
     - uses: dtolnay/rust-toolchain@nightly
