@@ -1,0 +1,43 @@
+name: Pages
+
+on:
+  workflow-run:
+    workflows: ["Rust"]
+    branches:
+      - release
+    types:
+      - completed
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: #{{ steps.deployment.outputs.page_url }}
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Install Trunk
+      uses: jetli/trunk-action@v0.1.0
+    - name: Trunk build
+      working-directory: ./rs
+      run: trunk build --release --public-url "/hack-and-slash/"
+
+    - name: Setup pages
+      uses: actions/configure-pages@v2
+    - name: Upload pages artifact
+      uses: actions/upload-pages-artifact@v1
+      with:
+        path: ./rs/dist
+    - name: Deploy Github Pages
+      id: deployment
+      uses: actions/deploy-pages@v1
