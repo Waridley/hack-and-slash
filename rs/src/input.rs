@@ -1,19 +1,19 @@
-use crate::player::ctrl::CtrlVel;
-use crate::player::{BelongsToPlayer, JUMP_VEL, MAX_JUMPS};
 use crate::{
 	player::{
 		camera::CameraVertSlider,
+		ctrl::CtrlVel,
 		player_entity::{CamPivot, ReadPlayerEntity},
-		ACCEL, MAX_SPEED,
+		BelongsToPlayer, ACCEL, JUMP_VEL, MAX_JUMPS, MAX_SPEED,
 	},
 	terminal_velocity,
 };
-use bevy::math::Vec3Swizzles;
-use bevy::prelude::*;
+use bevy::{math::Vec3Swizzles, prelude::*};
 use leafwing_abilities::{cooldown::Cooldown, prelude::*, AbilitiesBundle, Abilitylike};
 use leafwing_input_manager::prelude::*;
-use std::f32::consts::{PI, TAU};
-use std::time::Duration;
+use std::{
+	f32::consts::{PI, TAU},
+	time::Duration,
+};
 
 pub struct InputPlugin;
 

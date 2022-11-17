@@ -5,7 +5,7 @@ use super::{
 use crate::player::{PlayerEntity, PlayerId};
 use bevy::{
 	core_pipeline::{bloom::BloomSettings, clear_color::ClearColorConfig},
-	ecs::{system::EntityCommands, system::Res},
+	ecs::system::{EntityCommands, Res},
 	prelude::*,
 	transform::components::{GlobalTransform, Transform},
 };

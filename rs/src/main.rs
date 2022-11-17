@@ -1,21 +1,19 @@
-use crate::input::InputPlugin;
-use crate::player::PlayerControllerPlugin;
-use bevy::render::mesh::PrimitiveTopology;
-use bevy::render::mesh::VertexAttributeValues::Float32x3;
+use crate::{input::InputPlugin, player::PlayerControllerPlugin};
 use bevy::{
 	diagnostic::FrameTimeDiagnosticsPlugin,
 	ecs::system::EntityCommands,
 	prelude::{CoreStage::*, *},
+	render::mesh::{PrimitiveTopology, VertexAttributeValues::Float32x3},
 	DefaultPlugins,
 };
-use bevy_rapier3d::parry::shape::SharedShape;
-use bevy_rapier3d::prelude::*;
+use bevy_rapier3d::{parry::shape::SharedShape, prelude::*};
 use particles::ParticlesPlugin;
 use player::ctrl::CtrlVel;
-use rapier3d::geometry::HeightField;
-use rapier3d::na::{DMatrix, Vector3};
-use std::sync::Arc;
-use std::{f32::consts::*, fmt::Debug, time::Duration};
+use rapier3d::{
+	geometry::HeightField,
+	na::{DMatrix, Vector3},
+};
+use std::{f32::consts::*, fmt::Debug, sync::Arc, time::Duration};
 
 pub mod input;
 pub mod player;
