@@ -43,6 +43,7 @@ impl Plugin for PlayerControllerPlugin {
 	fn build(&self, app: &mut App) {
 		app.add_startup_system(setup)
 			.add_system_to_stage(PreUpdate, gravity)
+			.add_system_to_stage(PreUpdate, ctrl::repel_ground.after(gravity))
 			// .add_system(tick_cooldown::<Jump>)
 			.add_system_to_stage(CoreStage::PreUpdate, reset_jump_on_ground)
 			.add_system(input::movement_input.before(terminal_velocity))
@@ -50,11 +51,6 @@ impl Plugin for PlayerControllerPlugin {
 			.add_system(camera::position_target.after(input::look_input))
 			.add_system(camera::follow_target.after(camera::position_target))
 			.add_system(move_player.after(terminal_velocity))
-			.add_system(
-				ctrl::repel_ground
-					.before(gravity)
-					.after(update_character_controls),
-			)
 			.add_system(idle)
 			.add_system_to_stage(CoreStage::Last, reset_oob);
 	}
