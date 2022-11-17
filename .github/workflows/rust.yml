@@ -14,35 +14,38 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repo and submodules
-      uses: actions/checkout@v3
-      with:
-        submodules: recursive
-        lfs: true
+      - name: Checkout repo and submodules
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+          lfs: true
 
-    - name: Install alsa and udev
-      run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
+      - name: Install alsa and udev
+        run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
 
-    - uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-          ./rs/target/
-        key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.toml') }}
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            ./rs/target/
+          key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.toml') }}
 
-    - uses: dtolnay/rust-toolchain@stable
-      with:
-        components: rustfmt, clippy
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
-    - run: rm ./rs/.cargo/config.toml # disable nightly-only flags
+      - name: Prepare crate for stable toolchain
+        run: |
+          rm ./rs/.cargo/config.toml
+          rm ./rs/rust-toolchain.toml
 
-    - name: Build
-      working-directory: ./rs
-      run: cargo build --verbose
+      - name: Build
+        working-directory: ./rs
+        run: cargo build --verbose
 
-    - name: Run tests
-      working-directory: ./rs
-      run: cargo test --verbose
+      - name: Run tests
+        working-directory: ./rs
+        run: cargo test --verbose

@@ -44,7 +44,10 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
 
-      - run: rm ./rs/.cargo/config.toml # disable nightly-only flags
+      - name: Prepare crate for stable toolchain
+        run: |
+          rm ./rs/.cargo/config.toml
+          rm ./rs/rust-toolchain.toml
 
       - name: Run tests
         working-directory: ./rs
