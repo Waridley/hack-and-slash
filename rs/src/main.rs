@@ -2,7 +2,7 @@ use crate::{input::InputPlugin, player::PlayerControllerPlugin};
 use bevy::{
 	diagnostic::FrameTimeDiagnosticsPlugin,
 	ecs::system::EntityCommands,
-	prelude::{CoreStage::*, *},
+	prelude::*,
 	render::mesh::{PrimitiveTopology, VertexAttributeValues::Float32x3},
 	DefaultPlugins,
 };
@@ -67,7 +67,7 @@ pub fn main() {
 
 	#[cfg(not(target_arch = "wasm32"))]
 	{
-		app.add_system_to_stage(Last, bevy::window::close_on_esc);
+		app.add_system(bevy::window::close_on_esc);
 	}
 
 	#[cfg(debug_assertions)]
