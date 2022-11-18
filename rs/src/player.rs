@@ -22,7 +22,8 @@ use particles::{
 	update::{Linear, TargetScale},
 	InitialGlobalTransform, InitialTransform, Lifetime, ParticleBundle, Spewer, SpewerBundle,
 };
-use std::{f32::consts::*, num::NonZeroU8, sync::Arc, time::Duration};
+use std::{f32::consts::*, num::NonZeroU8, time::Duration};
+use nanorand::Rng;
 
 pub mod camera;
 pub mod ctrl;
@@ -171,7 +172,6 @@ pub enum PlayerEntity {
 	OrbitalParticle,
 }
 use player_entity::*;
-use crate::util::Noise;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum PlayerArm {
@@ -309,16 +309,16 @@ fn player_vis(
 						..particle_mesh
 					};
 
-					let noise = Noise::<f32>::new(64);
+					let mut rng = nanorand::WyRand::new();
 					builder.spawn((
 						owner,
 						SpewerBundle {
 							spewer: Spewer {
-								factory: Arc::new(move |cmds, xform, time_created| {
+								factory: Box::new(move |cmds, xform, time_created| {
 									let xform = xform.compute_transform();
 									let xform = Transform {
 										translation: Vec3 {
-											z: xform.translation.z - noise.next() * 0.2,
+											z: xform.translation.z - rng.generate::<f32>() * 0.2,
 											..xform.translation
 										},
 										..xform
@@ -371,19 +371,19 @@ fn player_arms(
 		for (arm, which) in meshes {
 			let particle_mesh = particle_mesh.clone();
 			let particle_mat = arm.material.clone();
-			let noise = Noise::<f32>::new(256);
+			let mut rng = nanorand::WyRand::new();
 			let spewer = Spewer {
-				factory: Arc::new(move |cmds, xform: &GlobalTransform, time_created| {
+				factory: Box::new(move |cmds, xform: &GlobalTransform, time_created| {
 					let mut xform = xform.compute_transform();
-					xform.translation.x += noise.next() * 0.7 - 0.35;
-					xform.translation.y += noise.next() * 0.7 - 0.35;
-					xform.translation.z += noise.next() * 0.7 - 0.35;
+					xform.translation.x += rng.generate::<f32>() * 0.7 - 0.35;
+					xform.translation.y += rng.generate::<f32>() * 0.7 - 0.35;
+					xform.translation.z += rng.generate::<f32>() * 0.7 - 0.35;
 
 					// // not working ?:/
 					// xform.rotation = Quat::from_scaled_axis(Vec3::new(
-					// 	rand::random::<f32>() * TAU,
-					// 	rand::random::<f32>() * TAU,
-					// 	rand::random::<f32>() * TAU,
+					// 	rng.f32() * TAU,
+					// 	rng.f32() * TAU,
+					// 	rng.f32() * TAU,
 					// ));
 
 					cmds.spawn((
