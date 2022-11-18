@@ -171,6 +171,7 @@ pub enum PlayerEntity {
 	OrbitalParticle,
 }
 use player_entity::*;
+use crate::util::Noise;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum PlayerArm {
@@ -308,6 +309,7 @@ fn player_vis(
 						..particle_mesh
 					};
 
+					let noise = Noise::<f32>::new(64);
 					builder.spawn((
 						owner,
 						SpewerBundle {
@@ -316,7 +318,7 @@ fn player_vis(
 									let xform = xform.compute_transform();
 									let xform = Transform {
 										translation: Vec3 {
-											z: xform.translation.z - rand::random::<f32>() * 0.2,
+											z: xform.translation.z - noise.next() * 0.2,
 											..xform.translation
 										},
 										..xform
@@ -369,12 +371,13 @@ fn player_arms(
 		for (arm, which) in meshes {
 			let particle_mesh = particle_mesh.clone();
 			let particle_mat = arm.material.clone();
+			let noise = Noise::<f32>::new(256);
 			let spewer = Spewer {
 				factory: Arc::new(move |cmds, xform: &GlobalTransform, time_created| {
 					let mut xform = xform.compute_transform();
-					xform.translation.x += rand::random::<f32>() * 0.7 - 0.35;
-					xform.translation.y += rand::random::<f32>() * 0.7 - 0.35;
-					xform.translation.z += rand::random::<f32>() * 0.7 - 0.35;
+					xform.translation.x += noise.next() * 0.7 - 0.35;
+					xform.translation.y += noise.next() * 0.7 - 0.35;
+					xform.translation.z += noise.next() * 0.7 - 0.35;
 
 					// // not working ?:/
 					// xform.rotation = Quat::from_scaled_axis(Vec3::new(
