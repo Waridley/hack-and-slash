@@ -105,7 +105,7 @@ pub fn abilities(
 				println!("Boom!");
 				for mut arm in &mut arm_q {
 					// TODO: Filter by player
-					arm.translation *= 3.0;
+					arm.translation *= 4.0;
 				}
 			}
 			Err(CannotUseAbility::OnCooldown) => {
