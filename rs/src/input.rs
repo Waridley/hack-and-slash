@@ -2,7 +2,7 @@ use crate::{
 	player::{
 		camera::CameraVertSlider,
 		ctrl::CtrlVel,
-		player_entity::{CamPivot, ReadPlayerEntity},
+		player_entity::{Arm, CamPivot, ReadPlayerEntity},
 		BelongsToPlayer, ACCEL, JUMP_VEL, MAX_JUMPS, MAX_SPEED,
 	},
 	terminal_velocity,
@@ -42,13 +42,18 @@ fn setup(
 #[derive(Actionlike, Abilitylike, Copy, Clone, Debug, Reflect, FromReflect)]
 pub enum PlayerAction {
 	Jump,
+	AoE,
 }
 
 impl PlayerAction {
 	pub fn input_map() -> InputMap<Self> {
 		use PlayerAction::*;
 
-		InputMap::new([(KeyCode::Back, Jump), (KeyCode::Space, Jump)])
+		InputMap::new([
+			(KeyCode::Back, Jump),
+			(KeyCode::Space, Jump),
+			(KeyCode::E, AoE),
+		])
 	}
 
 	pub fn cooldown(&self) -> Cooldown {
@@ -56,6 +61,7 @@ impl PlayerAction {
 
 		let secs = match *self {
 			Jump => 2.0,
+			AoE => 5.0,
 		};
 
 		Cooldown::from_secs(secs)
@@ -87,8 +93,33 @@ impl PlayerAction {
 	}
 }
 
-pub fn abilities(q: Query<AbilityState<PlayerAction>>) {
-	for _state in q.iter() {
+pub fn abilities(
+	mut action_q: Query<AbilityState<PlayerAction>>,
+	mut arm_q: Query<&mut Transform, ReadPlayerEntity<Arm>>,
+	t: Res<Time>,
+) {
+	use PlayerAction::*;
+	for mut state in action_q.iter_mut() {
+		match state.trigger_if_just_pressed(AoE) {
+			Ok(()) => {
+				println!("Boom!");
+				for mut arm in &mut arm_q {
+					// TODO: Filter by player
+					arm.translation *= 3.0;
+				}
+			}
+			Err(CannotUseAbility::OnCooldown) => {
+				let cd = state.cooldowns.get(AoE).as_ref().unwrap().remaining();
+				println!("{cd:?}");
+			}
+			_ => {}
+		}
+		for mut arm in &mut arm_q {
+			// TODO: Filter by player
+			arm.translation = arm
+				.translation
+				.lerp(arm.translation.normalize() * 2.0, t.delta_seconds() * 2.0);
+		}
 		// screen_print!("{:#?}", (&state.action_state, &state.charges, &state.cooldowns))
 	}
 }

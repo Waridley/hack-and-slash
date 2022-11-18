@@ -1,7 +1,11 @@
 use crate::{input, input::PlayerAction, terminal_velocity, AbsoluteBounds, TerminalVelocity, R_E};
 use bevy::{
 	ecs::system::EntityCommands,
-	prelude::{CoreStage::PreUpdate, *},
+	prelude::{
+		shape::{Icosphere, RegularPolygon},
+		CoreStage::PreUpdate,
+		*,
+	},
 };
 use bevy_rapier3d::{
 	control::KinematicCharacterController,
@@ -16,9 +20,8 @@ use enum_components::{EntityEnumCommands, EnumComponent};
 use leafwing_input_manager::prelude::*;
 use particles::{
 	update::{Linear, TargetScale},
-	InitialTransform, Lifetime, ParticleBundle, Spewer, SpewerBundle,
+	InitialGlobalTransform, InitialTransform, Lifetime, ParticleBundle, Spewer, SpewerBundle,
 };
-use rapier3d::control::{CharacterAutostep, CharacterLength};
 use std::{f32::consts::*, num::NonZeroU8, sync::Arc, time::Duration};
 
 pub mod camera;
@@ -93,7 +96,66 @@ fn setup(
 		material: particle_material,
 		..default()
 	};
-	cmds.spawn_player(id, vis, particle_mesh);
+
+	let arm = Mesh::from(Icosphere {
+		radius: 0.3,
+		subdivisions: 2,
+	});
+	let arm_mesh = meshes.add(arm);
+	let arm1 = MaterialMeshBundle::<StandardMaterial> {
+		mesh: arm_mesh.clone(),
+		material: materials.add(StandardMaterial {
+			base_color: Color::NONE,
+			emissive: Color::GREEN,
+			reflectance: 0.0,
+			double_sided: true,
+			cull_mode: None,
+			..default()
+		}),
+		transform: Transform::from_translation(Vec3::X * 2.0),
+		..default()
+	};
+	let arm2 = MaterialMeshBundle::<StandardMaterial> {
+		mesh: arm_mesh.clone(),
+		material: materials.add(StandardMaterial {
+			base_color: Color::NONE,
+			emissive: Color::WHITE,
+			reflectance: 0.0,
+			double_sided: true,
+			cull_mode: None,
+			..default()
+		}),
+		transform: Transform::from_translation(
+			Quat::from_rotation_z(FRAC_PI_3 * 2.0) * Vec3::X * 2.0,
+		),
+		..default()
+	};
+	let arm3 = MaterialMeshBundle::<StandardMaterial> {
+		mesh: arm_mesh,
+		material: materials.add(StandardMaterial {
+			base_color: Color::NONE,
+			emissive: Color::CYAN,
+			reflectance: 0.0,
+			double_sided: true,
+			cull_mode: None,
+			..default()
+		}),
+		transform: Transform::from_translation(
+			Quat::from_rotation_z(FRAC_PI_3 * 4.0) * Vec3::X * 2.0,
+		),
+		..default()
+	};
+
+	let arm_particle_mesh = meshes.add(Mesh::from(RegularPolygon::new(0.05, 3)));
+
+	use PlayerArm::*;
+	cmds.spawn_player(
+		id,
+		vis,
+		particle_mesh,
+		[(arm1, A), (arm2, B), (arm3, C)],
+		arm_particle_mesh,
+	);
 }
 
 #[derive(EnumComponent)]
@@ -105,9 +167,17 @@ pub enum PlayerEntity {
 	CamPivot,
 	Cam,
 	HoverParticle,
+	Arm(PlayerArm),
 	OrbitalParticle,
 }
 use player_entity::*;
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum PlayerArm {
+	A,
+	B,
+	C,
+}
 
 pub type PlayerId = NonZeroU8;
 
@@ -134,6 +204,8 @@ pub trait SpawnPlayer<'c, 'w: 'c, 's: 'c> {
 		id: PlayerId,
 		scene: SceneBundle,
 		particle_mesh: MaterialMeshBundle<StandardMaterial>,
+		arm_meshes: [(MaterialMeshBundle<StandardMaterial>, PlayerArm); 3],
+		arm_particle_mesh: Handle<Mesh>,
 	) -> EntityCommands<'w, 's, 'c>;
 }
 
@@ -143,9 +215,11 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 		id: PlayerId,
 		vis: SceneBundle,
 		particle_mesh: MaterialMeshBundle<StandardMaterial>,
+		arm_meshes: [(MaterialMeshBundle<StandardMaterial>, PlayerArm); 3],
+		arm_particle_mesh: Handle<Mesh>,
 	) -> EntityCommands<'w, 's, 'c> {
 		let owner = BelongsToPlayer::with_id(id);
-		let char_collider = Collider::ball(1.2);
+		let char_collider = Collider::ball(1.4);
 		let mut root = self.spawn((
 			owner,
 			TerminalVelocity(Velocity {
@@ -174,11 +248,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 					KinematicCharacterController {
 						up: Vect::Z,
 						snap_to_ground: None,
-						autostep: Some(CharacterAutostep {
-							max_height: CharacterLength::Relative(1.15),
-							min_width: CharacterLength::Relative(0.5),
-							..default()
-						}),
+						autostep: None,
 						max_slope_climb_angle: CLIMB_ANGLE,
 						min_slope_slide_angle: SLIDE_ANGLE,
 						filter_groups: Some(InteractionGroups::new(G1, !G1)),
@@ -193,6 +263,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 				.set_enum(PlayerEntity::Controller);
 		});
 		player_vis(&mut root, owner, vis, particle_mesh);
+		player_arms(&mut root, owner, arm_meshes, arm_particle_mesh);
 		root
 	}
 }
@@ -288,6 +359,60 @@ fn player_vis(
 	cmds.add_child(vis_node);
 }
 
+fn player_arms(
+	cmds: &mut EntityCommands,
+	owner: BelongsToPlayer,
+	meshes: [(MaterialMeshBundle<StandardMaterial>, PlayerArm); 3],
+	particle_mesh: Handle<Mesh>,
+) {
+	cmds.with_children(|builder| {
+		for (arm, which) in meshes {
+			let particle_mesh = particle_mesh.clone();
+			let particle_mat = arm.material.clone();
+			let spewer = Spewer {
+				factory: Arc::new(move |cmds, xform: &GlobalTransform, time_created| {
+					let mut xform = xform.compute_transform();
+					xform.translation.x += rand::random::<f32>() * 0.7 - 0.35;
+					xform.translation.y += rand::random::<f32>() * 0.7 - 0.35;
+					xform.translation.z += rand::random::<f32>() * 0.7 - 0.35;
+
+					// // not working ?:/
+					// xform.rotation = Quat::from_scaled_axis(Vec3::new(
+					// 	rand::random::<f32>() * TAU,
+					// 	rand::random::<f32>() * TAU,
+					// 	rand::random::<f32>() * TAU,
+					// ));
+
+					cmds.spawn((
+						ParticleBundle {
+							mesh_bundle: MaterialMeshBundle {
+								mesh: particle_mesh.clone(),
+								material: particle_mat.clone(),
+								transform: xform,
+								global_transform: xform.into(),
+								..default()
+							},
+							time_created,
+							initial_transform: InitialTransform(xform),
+							initial_global_transform: InitialGlobalTransform(xform.into()),
+							lifetime: Lifetime(Duration::from_secs_f32(0.256)),
+						},
+						Linear {
+							velocity: Vec3::NEG_Z * 5.0,
+						},
+					))
+				}),
+				interval: Duration::from_millis(2),
+				global_coords: true,
+				..default()
+			};
+			builder
+				.spawn((owner, arm, spewer))
+				.set_enum(PlayerEntity::Arm(which));
+		}
+	});
+}
+
 pub fn reset_oob(
 	mut cmds: Commands,
 	q: Query<(Entity, &GlobalTransform, PlayerEntity, &BelongsToPlayer)>,
@@ -312,8 +437,19 @@ pub fn reset_oob(
 	}
 }
 
-pub fn idle(mut q: Query<&mut Transform, ReadPlayerEntity<Vis>>, t: Res<Time>) {
-	for mut xform in &mut q {
-		xform.translation.y = (t.elapsed_seconds() * 3.0).sin() * 0.16;
+pub fn idle(
+	mut vis_q: Query<&mut Transform, ReadPlayerEntity<Vis>>,
+	mut arm_q: Query<&mut Transform, ReadPlayerEntity<Arm>>,
+	t: Res<Time>,
+) {
+	for mut xform in &mut vis_q {
+		xform.translation.y = (t.elapsed_seconds() * 3.0).sin() * 0.24;
+	}
+	for mut xform in &mut arm_q {
+		xform.translation = Quat::from_rotation_z(t.delta_seconds() * 9.0)
+			* Vec3 {
+				z: (t.elapsed_seconds() + 2.0 * xform.translation.angle_between(Vec3::X)).sin(),
+				..xform.translation
+			}
 	}
 }
