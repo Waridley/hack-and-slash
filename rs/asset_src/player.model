@@ -1,0 +1,15 @@
+# Made using Asset Forge (2.3.0)
+
+:materials
+
+[name:_defaultMat;color:RGBA(0.939, 0.953, 1.000, 1.000);scale:(1.0, 1.0);shader:Default;valueA:0.35;valueB:0.25;]
+[name:stoneDark;color:RGBA(0.403, 0.390, 0.594, 1.000);scale:(1.0, 1.0);shader:Default;valueA:0.5;valueB:0;]
+[name:custom2;color:RGBA(0.903, 0.854, 0.959, 1.000);scale:(1.0, 1.0);texture:Patterns/bricks.png;shader:Default;valueA:0.7;valueB:1;]
+[name:custom3;color:RGBA(0.986, 0.973, 1.000, 1.000);scale:(1.0, 1.0);texture:Patterns/grid.png;shader:Default;valueA:0.4;valueB:1;]
+
+:models
+
+[name:;collection:Hexagons;type:hexagon_castleBattlement;position:(-0.0200, -0.1000, 0.0083);rotation:(0.0000, 329.9999, 180.0000);scale:(1.0000, 1.0000, 1.0000);group:;locked:False;hidden:False;materials:custom3;]
+[name:;collection:Primitives;type:pyramid;position:(-0.0283, 0.4100, 0.0112);rotation:(0.0000, 314.9999, 0.0000);scale:(0.7938, 1.5034, 0.8006);group:;locked:False;hidden:False;materials:_defaultMat;]
+[name:;collection:Primitives;type:pyramid;position:(-0.0285, 0.8446, -0.0010);rotation:(0.0000, 89.9999, 180.0000);scale:(1.0347, 1.1766, 0.9464);group:;locked:False;hidden:False;materials:_defaultMat;]
+[name:;collection:Primitives;type:block_hollow;position:(-0.0200, 0.0000, -0.0200);rotation:(0.0000, 314.9999, 0.0000);scale:(1.4400, 1.4000, 1.4400);group:;locked:False;hidden:False;materials:custom2;]

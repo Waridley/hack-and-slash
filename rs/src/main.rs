@@ -31,15 +31,24 @@ pub const UP: Vect = Vect::Z;
 #[bevy_main]
 pub fn main() {
 	let mut app = App::new();
-	app.add_plugins(DefaultPlugins.set(WindowPlugin {
-		window: WindowDescriptor {
-			title: "Sonday Hack-and-Slash Game".to_string(),
-			resizable: true,
-			fit_canvas_to_parent: true,
+	let mut default_plugins = DefaultPlugins
+		.set(WindowPlugin {
+			window: WindowDescriptor {
+				title: "Sonday Hack-and-Slash Game".to_string(),
+				resizable: true,
+				fit_canvas_to_parent: true,
+				..default()
+			},
 			..default()
-		},
-		..default()
-	}))
+		});
+	#[cfg(debug_assertions)]
+	{
+		default_plugins = default_plugins.set(AssetPlugin {
+			watch_for_changes: true,
+			..default()
+		});
+	}
+	app.add_plugins(default_plugins)
 	.insert_resource(RapierConfiguration {
 		gravity: Vect::new(0.0, 0.0, -9.81),
 		// timestep_mode: TimestepMode::Fixed {
@@ -122,8 +131,7 @@ fn startup(
 	mut cmds: Commands,
 	mut materials: ResMut<Assets<StandardMaterial>>,
 	mut meshes: ResMut<Assets<Mesh>>,
-) {
-	cmds.insert_resource(AbsoluteBounds { extents: 2048.0 });
+) {cmds.insert_resource(AbsoluteBounds { extents: 2048.0 });
 
 	cmds.spawn(DirectionalLightBundle {
 		directional_light: DirectionalLight {

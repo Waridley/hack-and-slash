@@ -62,21 +62,21 @@ fn setup(
 	let id = unsafe { PlayerId::new_unchecked(1) };
 	spawn_camera(&mut cmds, id);
 
-	let ship = asset_server.load("ships/rocket_baseA.glb#Scene0");
+	let ship = asset_server.load("ships/player.glb#Scene0");
 	let vis = SceneBundle {
 		scene: ship,
-		transform: Transform {
-			translation: Vec3::new(-1.875, -0.625, 0.25),
-			rotation: Quat::from_rotation_y(FRAC_PI_4),
-			scale: Vec3::splat(0.75),
-		},
+		// transform: Transform {
+		// 	translation: Vec3::new(-1.875, -0.625, 0.25),
+		// 	rotation: Quat::from_rotation_y(FRAC_PI_4),
+		// 	scale: Vec3::splat(0.75),
+		// },
 		..default()
 	};
 
 	let particle_mesh = Mesh::from(shape::Torus {
 		radius: 0.640,
 		ring_radius: 0.064,
-		subdivisions_segments: 8,
+		subdivisions_segments: 6,
 		subdivisions_sides: 3,
 	});
 	let particle_mesh = meshes.add(particle_mesh);
@@ -145,7 +145,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 		particle_mesh: MaterialMeshBundle<StandardMaterial>,
 	) -> EntityCommands<'w, 's, 'c> {
 		let owner = BelongsToPlayer::with_id(id);
-		let char_collider = Collider::ball(0.8);
+		let char_collider = Collider::ball(1.2);
 		let mut root = self.spawn((
 			owner,
 			TerminalVelocity(Velocity {
@@ -208,9 +208,12 @@ fn player_vis(
 		.commands()
 		.spawn((
 			owner,
-			TransformBundle::from_transform(Transform::from_rotation(Quat::from_rotation_x(
-				FRAC_PI_2,
-			))),
+			TransformBundle::from_transform(Transform {
+				translation: Vec3::NEG_Z * 0.64,
+				rotation: Quat::from_rotation_x(FRAC_PI_2),
+				..default()
+			}),
+			// TransformBundle::default(),
 			VisibilityBundle::default(), // for children ComputedVisibility
 		))
 		.set_enum(PlayerEntity::VisNode)

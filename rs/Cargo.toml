@@ -21,7 +21,7 @@ enum_components = { package = "sond-bevy-enum-components", path = "../sond-bevy-
 particles = { package = "sond-bevy-particles", path = "../sond-bevy-particles" }
 
 # Engine
-bevy = { version = "0.9.0", features = [] }
+bevy = { version = "0.9.0", features = ["filesystem_watcher"] }
 bevy_rapier3d = { version = "0.18", features = ["debug-render"] }
 rapier3d = { version = "0.16", features = ["wasm-bindgen"] }
 

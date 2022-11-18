@@ -124,7 +124,7 @@ pub fn move_player(
 		body_xform.rotate_local(rot);
 
 		let slide = body_xform.rotation * (ctrl_vel.linvel * dt);
-		let target_tilt = Vec3::new(ctrl_vel.linvel.x * -0.016, -1.0, ctrl_vel.linvel.y * 0.016)
+		let target_tilt = Vec3::new(ctrl_vel.linvel.x * -0.008, -1.0, ctrl_vel.linvel.y * 0.008)
 			.normalize_or_zero();
 		vis_xform.rotation = Quat::from_rotation_arc(Vec3::NEG_Y, target_tilt);
 		ctrl.translation = Some(slide);
