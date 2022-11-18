@@ -1,12 +1,14 @@
-use crate::input::PlayerAction;
-use crate::{input, terminal_velocity, AbsoluteBounds, TerminalVelocity, R_E};
+use crate::{input, input::PlayerAction, terminal_velocity, AbsoluteBounds, TerminalVelocity, R_E};
 use bevy::{
 	ecs::system::EntityCommands,
-	prelude::{CoreStage::PreUpdate, *},
+	prelude::{
+		shape::{Icosphere, RegularPolygon},
+		CoreStage::PreUpdate,
+		*,
+	},
 };
-use bevy_rapier3d::plugin::systems::update_character_controls;
 use bevy_rapier3d::{
-	control::{KinematicCharacterController, KinematicCharacterControllerOutput},
+	control::KinematicCharacterController,
 	dynamics::{CoefficientCombineRule::Min, RigidBody, Velocity},
 	geometry::{Collider, Friction},
 	math::Vect,
@@ -15,13 +17,11 @@ use bevy_rapier3d::{
 use camera::spawn_camera;
 use ctrl::CtrlVel;
 use enum_components::{EntityEnumCommands, EnumComponent};
-use leafwing_abilities::prelude::*;
 use leafwing_input_manager::prelude::*;
 use particles::{
 	update::{Linear, TargetScale},
-	InitialTransform, Lifetime, ParticleBundle, Spewer, SpewerBundle,
+	InitialGlobalTransform, InitialTransform, Lifetime, ParticleBundle, Spewer, SpewerBundle,
 };
-use rapier3d::control::{CharacterAutostep, CharacterLength};
 use std::{f32::consts::*, num::NonZeroU8, sync::Arc, time::Duration};
 
 pub mod camera;
@@ -42,15 +42,15 @@ pub struct PlayerControllerPlugin;
 impl Plugin for PlayerControllerPlugin {
 	fn build(&self, app: &mut App) {
 		app.add_startup_system(setup)
-			.add_system_to_stage(PreUpdate, gravity)
-			.add_system_to_stage(PreUpdate, ctrl::repel_ground.after(gravity))
+			.add_system_to_stage(PreUpdate, ctrl::gravity)
+			.add_system_to_stage(PreUpdate, ctrl::repel_ground.after(ctrl::gravity))
 			// .add_system(tick_cooldown::<Jump>)
-			.add_system_to_stage(CoreStage::PreUpdate, reset_jump_on_ground)
+			.add_system_to_stage(CoreStage::PreUpdate, ctrl::reset_jump_on_ground)
 			.add_system(input::movement_input.before(terminal_velocity))
 			.add_system(input::look_input.before(terminal_velocity))
 			.add_system(camera::position_target.after(input::look_input))
 			.add_system(camera::follow_target.after(camera::position_target))
-			.add_system(move_player.after(terminal_velocity))
+			.add_system(ctrl::move_player.after(terminal_velocity))
 			.add_system(idle)
 			.add_system_to_stage(CoreStage::Last, reset_oob);
 	}
@@ -65,21 +65,21 @@ fn setup(
 	let id = unsafe { PlayerId::new_unchecked(1) };
 	spawn_camera(&mut cmds, id);
 
-	let ship = asset_server.load("ships/rocket_baseA.glb#Scene0");
+	let ship = asset_server.load("ships/player.glb#Scene0");
 	let vis = SceneBundle {
 		scene: ship,
-		transform: Transform {
-			translation: Vec3::new(-1.875, -0.625, 0.25),
-			rotation: Quat::from_rotation_y(FRAC_PI_4),
-			scale: Vec3::splat(0.75),
-		},
+		// transform: Transform {
+		// 	translation: Vec3::new(-1.875, -0.625, 0.25),
+		// 	rotation: Quat::from_rotation_y(FRAC_PI_4),
+		// 	scale: Vec3::splat(0.75),
+		// },
 		..default()
 	};
 
 	let particle_mesh = Mesh::from(shape::Torus {
 		radius: 0.640,
 		ring_radius: 0.064,
-		subdivisions_segments: 8,
+		subdivisions_segments: 6,
 		subdivisions_sides: 3,
 	});
 	let particle_mesh = meshes.add(particle_mesh);
@@ -96,7 +96,66 @@ fn setup(
 		material: particle_material,
 		..default()
 	};
-	cmds.spawn_player(id, vis, particle_mesh);
+
+	let arm = Mesh::from(Icosphere {
+		radius: 0.3,
+		subdivisions: 2,
+	});
+	let arm_mesh = meshes.add(arm);
+	let arm1 = MaterialMeshBundle::<StandardMaterial> {
+		mesh: arm_mesh.clone(),
+		material: materials.add(StandardMaterial {
+			base_color: Color::NONE,
+			emissive: Color::GREEN,
+			reflectance: 0.0,
+			double_sided: true,
+			cull_mode: None,
+			..default()
+		}),
+		transform: Transform::from_translation(Vec3::X * 2.0),
+		..default()
+	};
+	let arm2 = MaterialMeshBundle::<StandardMaterial> {
+		mesh: arm_mesh.clone(),
+		material: materials.add(StandardMaterial {
+			base_color: Color::NONE,
+			emissive: Color::WHITE,
+			reflectance: 0.0,
+			double_sided: true,
+			cull_mode: None,
+			..default()
+		}),
+		transform: Transform::from_translation(
+			Quat::from_rotation_z(FRAC_PI_3 * 2.0) * Vec3::X * 2.0,
+		),
+		..default()
+	};
+	let arm3 = MaterialMeshBundle::<StandardMaterial> {
+		mesh: arm_mesh,
+		material: materials.add(StandardMaterial {
+			base_color: Color::NONE,
+			emissive: Color::CYAN,
+			reflectance: 0.0,
+			double_sided: true,
+			cull_mode: None,
+			..default()
+		}),
+		transform: Transform::from_translation(
+			Quat::from_rotation_z(FRAC_PI_3 * 4.0) * Vec3::X * 2.0,
+		),
+		..default()
+	};
+
+	let arm_particle_mesh = meshes.add(Mesh::from(RegularPolygon::new(0.05, 3)));
+
+	use PlayerArm::*;
+	cmds.spawn_player(
+		id,
+		vis,
+		particle_mesh,
+		[(arm1, A), (arm2, B), (arm3, C)],
+		arm_particle_mesh,
+	);
 }
 
 #[derive(EnumComponent)]
@@ -108,9 +167,17 @@ pub enum PlayerEntity {
 	CamPivot,
 	Cam,
 	HoverParticle,
+	Arm(PlayerArm),
 	OrbitalParticle,
 }
 use player_entity::*;
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum PlayerArm {
+	A,
+	B,
+	C,
+}
 
 pub type PlayerId = NonZeroU8;
 
@@ -137,6 +204,8 @@ pub trait SpawnPlayer<'c, 'w: 'c, 's: 'c> {
 		id: PlayerId,
 		scene: SceneBundle,
 		particle_mesh: MaterialMeshBundle<StandardMaterial>,
+		arm_meshes: [(MaterialMeshBundle<StandardMaterial>, PlayerArm); 3],
+		arm_particle_mesh: Handle<Mesh>,
 	) -> EntityCommands<'w, 's, 'c>;
 }
 
@@ -146,9 +215,11 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 		id: PlayerId,
 		vis: SceneBundle,
 		particle_mesh: MaterialMeshBundle<StandardMaterial>,
+		arm_meshes: [(MaterialMeshBundle<StandardMaterial>, PlayerArm); 3],
+		arm_particle_mesh: Handle<Mesh>,
 	) -> EntityCommands<'w, 's, 'c> {
 		let owner = BelongsToPlayer::with_id(id);
-		let char_collider = Collider::ball(0.8);
+		let char_collider = Collider::ball(1.4);
 		let mut root = self.spawn((
 			owner,
 			TerminalVelocity(Velocity {
@@ -177,11 +248,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 					KinematicCharacterController {
 						up: Vect::Z,
 						snap_to_ground: None,
-						autostep: Some(CharacterAutostep {
-							max_height: CharacterLength::Relative(1.15),
-							min_width: CharacterLength::Relative(0.5),
-							..default()
-						}),
+						autostep: None,
 						max_slope_climb_angle: CLIMB_ANGLE,
 						min_slope_slide_angle: SLIDE_ANGLE,
 						filter_groups: Some(InteractionGroups::new(G1, !G1)),
@@ -196,6 +263,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 				.set_enum(PlayerEntity::Controller);
 		});
 		player_vis(&mut root, owner, vis, particle_mesh);
+		player_arms(&mut root, owner, arm_meshes, arm_particle_mesh);
 		root
 	}
 }
@@ -211,9 +279,12 @@ fn player_vis(
 		.commands()
 		.spawn((
 			owner,
-			TransformBundle::from_transform(Transform::from_rotation(Quat::from_rotation_x(
-				FRAC_PI_2,
-			))),
+			TransformBundle::from_transform(Transform {
+				translation: Vec3::NEG_Z * 0.64,
+				rotation: Quat::from_rotation_x(FRAC_PI_2),
+				..default()
+			}),
+			// TransformBundle::default(),
 			VisibilityBundle::default(), // for children ComputedVisibility
 		))
 		.set_enum(PlayerEntity::VisNode)
@@ -288,74 +359,58 @@ fn player_vis(
 	cmds.add_child(vis_node);
 }
 
-pub fn reset_jump_on_ground(
-	mut q: Query<(
-		AbilityState<PlayerAction>,
-		&KinematicCharacterControllerOutput,
-	)>,
+fn player_arms(
+	cmds: &mut EntityCommands,
+	owner: BelongsToPlayer,
+	meshes: [(MaterialMeshBundle<StandardMaterial>, PlayerArm); 3],
+	particle_mesh: Handle<Mesh>,
 ) {
-	for (mut state, out) in &mut q {
-		if out.grounded {
-			let charges = state.charges.get_mut(PlayerAction::Jump).as_mut().unwrap();
-			charges.set_charges(charges.max_charges());
+	cmds.with_children(|builder| {
+		for (arm, which) in meshes {
+			let particle_mesh = particle_mesh.clone();
+			let particle_mat = arm.material.clone();
+			let spewer = Spewer {
+				factory: Arc::new(move |cmds, xform: &GlobalTransform, time_created| {
+					let mut xform = xform.compute_transform();
+					xform.translation.x += rand::random::<f32>() * 0.7 - 0.35;
+					xform.translation.y += rand::random::<f32>() * 0.7 - 0.35;
+					xform.translation.z += rand::random::<f32>() * 0.7 - 0.35;
+
+					// // not working ?:/
+					// xform.rotation = Quat::from_scaled_axis(Vec3::new(
+					// 	rand::random::<f32>() * TAU,
+					// 	rand::random::<f32>() * TAU,
+					// 	rand::random::<f32>() * TAU,
+					// ));
+
+					cmds.spawn((
+						ParticleBundle {
+							mesh_bundle: MaterialMeshBundle {
+								mesh: particle_mesh.clone(),
+								material: particle_mat.clone(),
+								transform: xform,
+								global_transform: xform.into(),
+								..default()
+							},
+							time_created,
+							initial_transform: InitialTransform(xform),
+							initial_global_transform: InitialGlobalTransform(xform.into()),
+							lifetime: Lifetime(Duration::from_secs_f32(0.256)),
+						},
+						Linear {
+							velocity: Vec3::NEG_Z * 5.0,
+						},
+					))
+				}),
+				interval: Duration::from_millis(2),
+				global_coords: true,
+				..default()
+			};
+			builder
+				.spawn((owner, arm, spewer))
+				.set_enum(PlayerEntity::Arm(which));
 		}
-	}
-}
-
-pub fn gravity(mut q: Query<(&mut CtrlVel, &KinematicCharacterControllerOutput)>, t: Res<Time>) {
-	for (mut ctrl_vel, out) in q.iter_mut() {
-		if out.grounded {
-			ctrl_vel.linvel.z = 0.0
-		}
-
-		let mut info = vec![(TOIStatus::Converged, Vect::NAN, Vect::NAN); 4];
-		for (i, col) in out.collisions.iter().enumerate() {
-			if let Some(slot) = info.get_mut(i) {
-				*slot = (col.toi.status, col.translation_remaining, col.toi.normal1)
-			}
-		}
-
-		let decr = PLAYER_GRAVITY * t.delta_seconds();
-
-		ctrl_vel.linvel.z -= decr;
-	}
-}
-
-pub fn move_player(
-	mut body_q: Query<(&mut Transform, &BelongsToPlayer), ReadPlayerEntity<Root>>,
-	mut vis_q: Query<(&mut Transform, &BelongsToPlayer), ReadPlayerEntity<Vis>>,
-	mut ctrl_q: Query<
-		(
-			&CtrlVel,
-			&mut KinematicCharacterController,
-			&BelongsToPlayer,
-		),
-		ReadPlayerEntity<Controller>,
-	>,
-	t: Res<Time>,
-) {
-	for (ctrl_vel, mut ctrl, ctrl_owner) in &mut ctrl_q {
-		let mut body_xform = body_q
-			.iter_mut()
-			.find_map(|(xform, owner)| (owner == ctrl_owner).then_some(xform))
-			.unwrap();
-		let mut vis_xform = vis_q
-			.iter_mut()
-			.find_map(|(xform, owner)| (owner == ctrl_owner).then_some(xform))
-			.unwrap();
-
-		let dt = t.delta_seconds();
-
-		let Vec3 { x, y, z } = ctrl_vel.angvel * dt;
-		let rot = Quat::from_euler(EulerRot::ZXY, z, x, y);
-		body_xform.rotate_local(rot);
-
-		let slide = body_xform.rotation * (ctrl_vel.linvel * dt);
-		let target_tilt = Vec3::new(ctrl_vel.linvel.x * -0.016, -1.0, ctrl_vel.linvel.y * 0.016)
-			.normalize_or_zero();
-		vis_xform.rotation = Quat::from_rotation_arc(Vec3::NEG_Y, target_tilt);
-		ctrl.translation = Some(slide);
-	}
+	});
 }
 
 pub fn reset_oob(
@@ -382,8 +437,19 @@ pub fn reset_oob(
 	}
 }
 
-pub fn idle(mut q: Query<&mut Transform, ReadPlayerEntity<Vis>>, t: Res<Time>) {
-	for mut xform in &mut q {
-		xform.translation.y = (t.elapsed_seconds() * 3.0).sin() * 0.16;
+pub fn idle(
+	mut vis_q: Query<&mut Transform, ReadPlayerEntity<Vis>>,
+	mut arm_q: Query<&mut Transform, ReadPlayerEntity<Arm>>,
+	t: Res<Time>,
+) {
+	for mut xform in &mut vis_q {
+		xform.translation.y = (t.elapsed_seconds() * 3.0).sin() * 0.24;
+	}
+	for mut xform in &mut arm_q {
+		xform.translation = Quat::from_rotation_z(t.delta_seconds() * 9.0)
+			* Vec3 {
+				z: (t.elapsed_seconds() + 2.0 * xform.translation.angle_between(Vec3::X)).sin(),
+				..xform.translation
+			}
 	}
 }

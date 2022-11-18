@@ -1,21 +1,19 @@
-use crate::input::InputPlugin;
-use crate::player::PlayerControllerPlugin;
-use bevy::render::mesh::PrimitiveTopology;
-use bevy::render::mesh::VertexAttributeValues::Float32x3;
+use crate::{input::InputPlugin, player::PlayerControllerPlugin};
 use bevy::{
 	diagnostic::FrameTimeDiagnosticsPlugin,
 	ecs::system::EntityCommands,
 	prelude::{CoreStage::*, *},
+	render::mesh::{PrimitiveTopology, VertexAttributeValues::Float32x3},
 	DefaultPlugins,
 };
-use bevy_rapier3d::parry::shape::SharedShape;
-use bevy_rapier3d::prelude::*;
+use bevy_rapier3d::{parry::shape::SharedShape, prelude::*};
 use particles::ParticlesPlugin;
 use player::ctrl::CtrlVel;
-use rapier3d::geometry::HeightField;
-use rapier3d::na::{DMatrix, Vector3};
-use std::sync::Arc;
-use std::{f32::consts::*, fmt::Debug, time::Duration};
+use rapier3d::{
+	geometry::HeightField,
+	na::{DMatrix, Vector3},
+};
+use std::{f32::consts::*, fmt::Debug, sync::Arc, time::Duration};
 
 pub mod input;
 pub mod player;
@@ -33,7 +31,7 @@ pub const UP: Vect = Vect::Z;
 #[bevy_main]
 pub fn main() {
 	let mut app = App::new();
-	app.add_plugins(DefaultPlugins.set(WindowPlugin {
+	let mut default_plugins = DefaultPlugins.set(WindowPlugin {
 		window: WindowDescriptor {
 			title: "Sonday Hack-and-Slash Game".to_string(),
 			resizable: true,
@@ -41,23 +39,31 @@ pub fn main() {
 			..default()
 		},
 		..default()
-	}))
-	.insert_resource(RapierConfiguration {
-		gravity: Vect::new(0.0, 0.0, -9.81),
-		// timestep_mode: TimestepMode::Fixed {
-		// 	dt: DT,
-		// 	substeps: 1,
-		// },
-		..default()
-	})
-	.add_plugin(RapierPhysicsPlugin::<()>::default())
-	.add_plugin(FrameTimeDiagnosticsPlugin::default())
-	.add_plugin(PlayerControllerPlugin)
-	.add_plugin(InputPlugin)
-	.add_plugin(ParticlesPlugin)
-	.add_startup_system(startup)
-	.add_system(terminal_velocity)
-	.add_system(fullscreen);
+	});
+	#[cfg(debug_assertions)]
+	{
+		default_plugins = default_plugins.set(AssetPlugin {
+			watch_for_changes: true,
+			..default()
+		});
+	}
+	app.add_plugins(default_plugins)
+		.insert_resource(RapierConfiguration {
+			gravity: Vect::new(0.0, 0.0, -9.81),
+			// timestep_mode: TimestepMode::Fixed {
+			// 	dt: DT,
+			// 	substeps: 1,
+			// },
+			..default()
+		})
+		.add_plugin(RapierPhysicsPlugin::<()>::default())
+		.add_plugin(FrameTimeDiagnosticsPlugin::default())
+		.add_plugin(PlayerControllerPlugin)
+		.add_plugin(InputPlugin)
+		.add_plugin(ParticlesPlugin)
+		.add_startup_system(startup)
+		.add_system(terminal_velocity)
+		.add_system(fullscreen);
 
 	#[cfg(not(target_arch = "wasm32"))]
 	{

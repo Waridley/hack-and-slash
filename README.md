@@ -4,4 +4,4 @@
 A procedurally-generated sci-fi hack-and-slash written in Rust using
 [Bevy](https://bevyengine.org/)
 
-Runnable in the browser here: [https://waridley.github.io/hack-and-slash/]()
+Runnable in the browser [here](https://waridley.github.io/hack-and-slash/)
