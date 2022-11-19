@@ -47,7 +47,7 @@ nanorand = { version = "0.7.0", default-features = false, features = ["std", "wy
 noises-and-patterns = "0.1.0"
 leafwing-input-manager = "0.7"
 leafwing_abilities = "0.3"
-
+static_assertions = "1.1.0"
 
 [profile.dev]
 opt-level = 1

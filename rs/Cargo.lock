@@ -3063,6 +3063,7 @@ dependencies = [
  "rapier3d",
  "sond-bevy-enum-components",
  "sond-bevy-particles",
+ "static_assertions",
 ]
 
 [[package]]

@@ -108,7 +108,6 @@ pub fn abilities(
 	for mut state in action_q.iter_mut() {
 		match state.trigger_if_just_pressed(AoE) {
 			Ok(()) => {
-				info!("Boom!");
 				audio.play(sfx.0.clone()).with_volume(0.5);
 				for (mut arm, mut rvel) in &mut arm_q {
 					// TODO: Filter by player
@@ -119,7 +118,7 @@ pub fn abilities(
 			}
 			Err(CannotUseAbility::OnCooldown) => {
 				let cd = state.cooldowns.get(AoE).as_ref().unwrap().remaining();
-				info!("{cd:?}");
+				info!("Cooldown: {cd:?}");
 			}
 			_ => {}
 		}
