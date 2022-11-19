@@ -45,6 +45,7 @@ pub fn repel_ground(
 			col,
 			HOVER_HEIGHT,
 			QueryFilter::new()
+				.exclude_sensors()
 				.exclude_rigid_body(**body_id)
 				.groups(InteractionGroups::new(G1, !G1)),
 		);

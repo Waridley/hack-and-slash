@@ -3,7 +3,7 @@ use crate::{
 		camera::CameraVertSlider,
 		ctrl::CtrlVel,
 		player_entity::{Arm, CamPivot, ReadPlayerEntity},
-		BelongsToPlayer, ACCEL, JUMP_VEL, MAX_JUMPS, MAX_SPEED,
+		BelongsToPlayer, RotVel, ACCEL, JUMP_VEL, MAX_JUMPS, MAX_SPEED,
 	},
 	terminal_velocity,
 };
@@ -61,7 +61,7 @@ impl PlayerAction {
 
 		let secs = match *self {
 			Jump => 2.0,
-			AoE => 5.0,
+			AoE => 2.5,
 		};
 
 		Cooldown::from_secs(secs)
@@ -95,7 +95,7 @@ impl PlayerAction {
 
 pub fn abilities(
 	mut action_q: Query<AbilityState<PlayerAction>>,
-	mut arm_q: Query<&mut Transform, ReadPlayerEntity<Arm>>,
+	mut arm_q: Query<(&mut Transform, &mut RotVel), ReadPlayerEntity<Arm>>,
 	t: Res<Time>,
 ) {
 	use PlayerAction::*;
@@ -103,9 +103,11 @@ pub fn abilities(
 		match state.trigger_if_just_pressed(AoE) {
 			Ok(()) => {
 				println!("Boom!");
-				for mut arm in &mut arm_q {
+				for (mut arm, mut rvel) in &mut arm_q {
 					// TODO: Filter by player
-					arm.translation *= 4.0;
+					arm.translation *= 6.0;
+					arm.scale *= 6.0;
+					**rvel = 36.0;
 				}
 			}
 			Err(CannotUseAbility::OnCooldown) => {
@@ -114,11 +116,13 @@ pub fn abilities(
 			}
 			_ => {}
 		}
-		for mut arm in &mut arm_q {
+		for (mut arm, mut rvel) in &mut arm_q {
 			// TODO: Filter by player
 			arm.translation = arm
 				.translation
 				.lerp(arm.translation.normalize() * 2.0, t.delta_seconds() * 2.0);
+			arm.scale = arm.scale.lerp(Vec3::ONE, t.delta_seconds() * 2.0);
+			**rvel = **rvel + (rvel.quiescent - **rvel) * t.delta_seconds();
 		}
 		// screen_print!("{:#?}", (&state.action_state, &state.charges, &state.cooldowns))
 	}

@@ -1,4 +1,4 @@
-use crate::{input::InputPlugin, player::PlayerControllerPlugin};
+use crate::{input::InputPlugin, pickups::PickupPlugin, player::PlayerControllerPlugin};
 use bevy::{
 	diagnostic::FrameTimeDiagnosticsPlugin,
 	ecs::system::EntityCommands,
@@ -16,6 +16,7 @@ use rapier3d::{
 use std::{f32::consts::*, fmt::Debug, sync::Arc, time::Duration};
 
 pub mod input;
+pub mod pickups;
 pub mod player;
 pub mod util;
 
@@ -61,6 +62,7 @@ pub fn main() {
 		.add_plugin(PlayerControllerPlugin)
 		.add_plugin(InputPlugin)
 		.add_plugin(ParticlesPlugin)
+		.add_plugin(PickupPlugin)
 		.add_startup_system(startup)
 		.add_system(terminal_velocity)
 		.add_system(fullscreen);

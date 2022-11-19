@@ -12,18 +12,23 @@ use bevy_rapier3d::{
 	dynamics::{CoefficientCombineRule::Min, RigidBody, Velocity},
 	geometry::{Collider, Friction},
 	math::Vect,
-	prelude::*,
+	prelude::{RigidBody::KinematicPositionBased, *},
 };
 use camera::spawn_camera;
 use ctrl::CtrlVel;
 use enum_components::{EntityEnumCommands, EnumComponent};
 use leafwing_input_manager::prelude::*;
+use nanorand::Rng;
 use particles::{
 	update::{Linear, TargetScale},
 	InitialGlobalTransform, InitialTransform, Lifetime, ParticleBundle, Spewer, SpewerBundle,
 };
-use std::{f32::consts::*, num::NonZeroU8, time::Duration};
-use nanorand::Rng;
+use std::{
+	f32::consts::*,
+	num::NonZeroU8,
+	ops::{Deref, DerefMut},
+	time::Duration,
+};
 
 pub mod camera;
 pub mod ctrl;
@@ -245,13 +250,14 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 					char_collider,
 					TransformBundle::default(),
 					CtrlVel::default(),
-					CollisionGroups::new(Group::empty(), Group::empty()),
+					CollisionGroups::new(Group::GROUP_1, !Group::GROUP_1),
 					KinematicCharacterController {
 						up: Vect::Z,
 						snap_to_ground: None,
 						autostep: None,
 						max_slope_climb_angle: CLIMB_ANGLE,
 						min_slope_slide_angle: SLIDE_ANGLE,
+						filter_flags: QueryFilterFlags::EXCLUDE_SENSORS,
 						filter_groups: Some(InteractionGroups::new(G1, !G1)),
 						..default()
 					},
@@ -361,6 +367,35 @@ fn player_vis(
 	cmds.add_child(vis_node);
 }
 
+#[derive(Component, Debug, Default, Copy, Clone, Reflect, FromReflect)]
+pub struct RotVel {
+	pub quiescent: f32,
+	pub current: f32,
+}
+
+impl RotVel {
+	fn new(vel: f32) -> Self {
+		Self {
+			quiescent: vel,
+			current: vel,
+		}
+	}
+}
+
+impl Deref for RotVel {
+	type Target = f32;
+
+	fn deref(&self) -> &Self::Target {
+		&self.current
+	}
+}
+
+impl DerefMut for RotVel {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.current
+	}
+}
+
 fn player_arms(
 	cmds: &mut EntityCommands,
 	owner: BelongsToPlayer,
@@ -410,7 +445,15 @@ fn player_arms(
 				..default()
 			};
 			builder
-				.spawn((owner, arm, spewer))
+				.spawn((
+					owner,
+					arm,
+					spewer,
+					Collider::ball(0.4),
+					Sensor,
+					KinematicPositionBased,
+					RotVel::new(9.0),
+				))
 				.set_enum(PlayerEntity::Arm(which));
 		}
 	});
@@ -442,14 +485,14 @@ pub fn reset_oob(
 
 pub fn idle(
 	mut vis_q: Query<&mut Transform, ReadPlayerEntity<Vis>>,
-	mut arm_q: Query<&mut Transform, ReadPlayerEntity<Arm>>,
+	mut arm_q: Query<(&mut Transform, &RotVel), ReadPlayerEntity<Arm>>,
 	t: Res<Time>,
 ) {
 	for mut xform in &mut vis_q {
 		xform.translation.y = (t.elapsed_seconds() * 3.0).sin() * 0.24;
 	}
-	for mut xform in &mut arm_q {
-		xform.translation = Quat::from_rotation_z(t.delta_seconds() * 9.0)
+	for (mut xform, rvel) in &mut arm_q {
+		xform.translation = Quat::from_rotation_z(t.delta_seconds() * **rvel)
 			* Vec3 {
 				z: (t.elapsed_seconds() + 2.0 * xform.translation.angle_between(Vec3::X)).sin(),
 				..xform.translation
