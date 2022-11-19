@@ -1,11 +1,12 @@
-use crate::{input::InputPlugin, player::PlayerControllerPlugin};
+use crate::{input::InputPlugin, pickups::PickupPlugin, player::PlayerControllerPlugin};
 use bevy::{
 	diagnostic::FrameTimeDiagnosticsPlugin,
 	ecs::system::EntityCommands,
-	prelude::{CoreStage::*, *},
+	prelude::*,
 	render::mesh::{PrimitiveTopology, VertexAttributeValues::Float32x3},
 	DefaultPlugins,
 };
+use bevy_kira_audio::AudioPlugin;
 use bevy_rapier3d::{parry::shape::SharedShape, prelude::*};
 use particles::ParticlesPlugin;
 use player::ctrl::CtrlVel;
@@ -16,6 +17,7 @@ use rapier3d::{
 use std::{f32::consts::*, fmt::Debug, sync::Arc, time::Duration};
 
 pub mod input;
+pub mod pickups;
 pub mod player;
 pub mod util;
 
@@ -36,6 +38,7 @@ pub fn main() {
 			title: "Sonday Hack-and-Slash Game".to_string(),
 			resizable: true,
 			fit_canvas_to_parent: true,
+			canvas: Some("#game_canvas".into()),
 			..default()
 		},
 		..default()
@@ -61,13 +64,15 @@ pub fn main() {
 		.add_plugin(PlayerControllerPlugin)
 		.add_plugin(InputPlugin)
 		.add_plugin(ParticlesPlugin)
+		.add_plugin(PickupPlugin)
+		.add_plugin(AudioPlugin)
 		.add_startup_system(startup)
 		.add_system(terminal_velocity)
 		.add_system(fullscreen);
 
 	#[cfg(not(target_arch = "wasm32"))]
 	{
-		app.add_system_to_stage(Last, bevy::window::close_on_esc);
+		app.add_system(bevy::window::close_on_esc);
 	}
 
 	#[cfg(debug_assertions)]

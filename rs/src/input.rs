@@ -3,11 +3,12 @@ use crate::{
 		camera::CameraVertSlider,
 		ctrl::CtrlVel,
 		player_entity::{Arm, CamPivot, ReadPlayerEntity},
-		BelongsToPlayer, ACCEL, JUMP_VEL, MAX_JUMPS, MAX_SPEED,
+		BelongsToPlayer, RotVel, ACCEL, JUMP_VEL, MAX_JUMPS, MAX_SPEED,
 	},
 	terminal_velocity,
 };
 use bevy::{math::Vec3Swizzles, prelude::*};
+use bevy_kira_audio::prelude::{Audio, AudioSource, *};
 use leafwing_abilities::{cooldown::Cooldown, prelude::*, AbilitiesBundle, Abilitylike};
 use leafwing_input_manager::prelude::*;
 use std::{
@@ -61,7 +62,7 @@ impl PlayerAction {
 
 		let secs = match *self {
 			Jump => 2.0,
-			AoE => 5.0,
+			AoE => 2.5,
 		};
 
 		Cooldown::from_secs(secs)
@@ -93,32 +94,42 @@ impl PlayerAction {
 	}
 }
 
+#[derive(Debug, Resource, Deref, DerefMut)]
+pub struct AoESound(pub Handle<AudioSource>);
+
 pub fn abilities(
 	mut action_q: Query<AbilityState<PlayerAction>>,
-	mut arm_q: Query<&mut Transform, ReadPlayerEntity<Arm>>,
+	mut arm_q: Query<(&mut Transform, &mut RotVel), ReadPlayerEntity<Arm>>,
+	sfx: Res<AoESound>,
+	audio: Res<Audio>,
 	t: Res<Time>,
 ) {
 	use PlayerAction::*;
 	for mut state in action_q.iter_mut() {
 		match state.trigger_if_just_pressed(AoE) {
 			Ok(()) => {
-				println!("Boom!");
-				for mut arm in &mut arm_q {
+				info!("Boom!");
+				audio.play(sfx.0.clone()).with_volume(0.5);
+				for (mut arm, mut rvel) in &mut arm_q {
 					// TODO: Filter by player
-					arm.translation *= 4.0;
+					arm.translation *= 6.0;
+					arm.scale *= 6.0;
+					**rvel = 36.0;
 				}
 			}
 			Err(CannotUseAbility::OnCooldown) => {
 				let cd = state.cooldowns.get(AoE).as_ref().unwrap().remaining();
-				println!("{cd:?}");
+				info!("{cd:?}");
 			}
 			_ => {}
 		}
-		for mut arm in &mut arm_q {
+		for (mut arm, mut rvel) in &mut arm_q {
 			// TODO: Filter by player
 			arm.translation = arm
 				.translation
 				.lerp(arm.translation.normalize() * 2.0, t.delta_seconds() * 2.0);
+			arm.scale = arm.scale.lerp(Vec3::ONE, t.delta_seconds() * 2.0);
+			**rvel = **rvel + (rvel.quiescent - **rvel) * t.delta_seconds();
 		}
 		// screen_print!("{:#?}", (&state.action_state, &state.charges, &state.cooldowns))
 	}

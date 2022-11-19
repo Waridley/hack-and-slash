@@ -35,6 +35,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
+          targets: wasm32-unknown-unknown
           components: rustfmt, clippy
 
       - name: Prepare crate for stable toolchain
@@ -45,6 +46,10 @@ jobs:
       - name: Build
         working-directory: ./rs
         run: cargo build --verbose
+
+      - name: WASM Build
+        working-directory: ./rs
+        run: cargo build --verbose --target wasm32-unknown-unknown
 
       - name: Run tests
         working-directory: ./rs
