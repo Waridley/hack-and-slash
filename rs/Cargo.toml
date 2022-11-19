@@ -24,6 +24,7 @@ particles = { package = "sond-bevy-particles", path = "../sond-bevy-particles" }
 bevy = { version = "0.9.0", features = ["filesystem_watcher"] }
 bevy_rapier3d = { version = "0.18", features = ["debug-render"] }
 rapier3d = { version = "0.16", features = ["wasm-bindgen"] }
+bevy_kira_audio = "0.13.0"
 
 # Other
 nanorand = { version = "0.7.0", default-features = false, features = ["std", "wyrand", "getrandom"] } # wasm is broken without std and getrandom

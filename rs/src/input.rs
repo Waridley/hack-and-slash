@@ -14,6 +14,7 @@ use std::{
 	f32::consts::{PI, TAU},
 	time::Duration,
 };
+use bevy_kira_audio::prelude::{*, Audio, AudioSource, };
 
 pub struct InputPlugin;
 
@@ -93,16 +94,23 @@ impl PlayerAction {
 	}
 }
 
+#[derive(Debug, Resource, Deref, DerefMut)]
+pub struct AoESound(pub Handle<AudioSource>);
+
 pub fn abilities(
 	mut action_q: Query<AbilityState<PlayerAction>>,
 	mut arm_q: Query<(&mut Transform, &mut RotVel), ReadPlayerEntity<Arm>>,
+	sfx: Res<AoESound>,
+	audio: Res<Audio>,
 	t: Res<Time>,
 ) {
 	use PlayerAction::*;
 	for mut state in action_q.iter_mut() {
 		match state.trigger_if_just_pressed(AoE) {
 			Ok(()) => {
-				println!("Boom!");
+				info!("Boom!");
+				audio.play(sfx.0.clone())
+					.with_volume(0.5);
 				for (mut arm, mut rvel) in &mut arm_q {
 					// TODO: Filter by player
 					arm.translation *= 6.0;
@@ -112,7 +120,7 @@ pub fn abilities(
 			}
 			Err(CannotUseAbility::OnCooldown) => {
 				let cd = state.cooldowns.get(AoE).as_ref().unwrap().remaining();
-				println!("{cd:?}");
+				info!("{cd:?}");
 			}
 			_ => {}
 		}

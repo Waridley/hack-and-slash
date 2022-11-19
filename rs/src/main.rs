@@ -14,6 +14,7 @@ use rapier3d::{
 	na::{DMatrix, Vector3},
 };
 use std::{f32::consts::*, fmt::Debug, sync::Arc, time::Duration};
+use bevy_kira_audio::AudioPlugin;
 
 pub mod input;
 pub mod pickups;
@@ -63,6 +64,7 @@ pub fn main() {
 		.add_plugin(InputPlugin)
 		.add_plugin(ParticlesPlugin)
 		.add_plugin(PickupPlugin)
+		.add_plugin(AudioPlugin)
 		.add_startup_system(startup)
 		.add_system(terminal_velocity)
 		.add_system(fullscreen);

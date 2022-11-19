@@ -1,9 +1,9 @@
 use crate::player::{
-	player_entity::{Arm, Controller, ReadPlayerEntity},
+	player_entity::{Arm, ReadPlayerEntity},
 	RotVel,
 };
 use bevy::prelude::{
-	shape::{Cube, Icosphere},
+	shape::{Icosphere},
 	*,
 };
 use bevy_rapier3d::{
@@ -12,8 +12,8 @@ use bevy_rapier3d::{
 	prelude::{QueryFilter, RigidBody::KinematicPositionBased, Sensor},
 };
 use enum_components::{EntityEnumCommands, EnumComponent};
-use leafwing_input_manager::orientation::Orientation;
 use nanorand::Rng;
+use bevy_kira_audio::{Audio, AudioControl, AudioSource};
 
 pub struct PickupPlugin;
 
@@ -26,11 +26,18 @@ impl Plugin for PickupPlugin {
 	}
 }
 
+#[derive(Resource, Default, Debug, Clone, Deref, DerefMut)]
+pub struct PopSfx(pub Handle<AudioSource>);
+
 pub fn setup(
 	mut cmds: Commands,
 	mut meshes: ResMut<Assets<Mesh>>,
 	mut materials: ResMut<Assets<StandardMaterial>>,
+	asset_server: Res<AssetServer>,
 ) {
+	let pop_sfx = asset_server.load("sfx/SFX_-_hit_big_02.ogg");
+	cmds.insert_resource(PopSfx(pop_sfx));
+	
 	let mesh = meshes.add(
 		Icosphere {
 			radius: 8.0,
@@ -77,7 +84,7 @@ pub fn spawn_pickups(
 			rng.generate::<f32>() * 192.0 - 192.0,
 		));
 
-		dbg!(&transform.translation);
+		info!("{:?}", &transform.translation);
 
 		cmds.spawn((
 			MaterialMeshBundle {
@@ -101,8 +108,10 @@ pub fn spawn_pickups(
 pub fn collect(
 	mut cmds: Commands,
 	ctx: Res<RapierContext>,
-	arms: Query<(Entity, &RotVel), ReadPlayerEntity<Arm>>,
+	arms: Query<&RotVel, ReadPlayerEntity<Arm>>,
 	pickups: Query<(Entity, Pickup, &GlobalTransform, &Collider)>,
+	sfx: Res<PopSfx>,
+	audio: Res<Audio>,
 ) {
 	for (id, pickup, xform, col) in &pickups {
 		let xform = xform.compute_transform();
@@ -112,8 +121,11 @@ pub fn collect(
 			col,
 			QueryFilter::exclude_fixed().exclude_rigid_body(id),
 			|other| {
-				if let Ok((arm, rvel)) = arms.get(other) {
+				if let Ok(rvel) = arms.get(other) {
 					if **rvel >= 16.0 {
+						audio.play(sfx.0.clone())
+							.with_volume(0.3);
+						info!("{pickup:?}");
 						cmds.entity(id).despawn();
 						return true;
 					}
