@@ -1,4 +1,7 @@
-use crate::{input::InputPlugin, pickups::PickupPlugin, player::PlayerControllerPlugin};
+use crate::{player::{
+	input::InputPlugin,
+	PlayerControllerPlugin
+}, pickups::PickupPlugin, };
 use bevy::{
 	diagnostic::FrameTimeDiagnosticsPlugin,
 	ecs::system::EntityCommands,
@@ -16,7 +19,6 @@ use rapier3d::{
 };
 use std::{f32::consts::*, fmt::Debug, sync::Arc, time::Duration};
 
-pub mod input;
 pub mod pickups;
 pub mod player;
 pub mod util;

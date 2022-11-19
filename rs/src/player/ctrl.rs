@@ -1,6 +1,6 @@
 use crate::{
-	input::PlayerAction,
 	player::{
+		input::PlayerAction,
 		player_entity::{Controller, ReadPlayerEntity, Root, Vis},
 		BelongsToPlayer, G1, HOVER_HEIGHT, PLAYER_GRAVITY, SLIDE_ANGLE,
 	},
@@ -50,7 +50,7 @@ pub fn repel_ground(
 				.groups(InteractionGroups::new(G1, !G1)),
 		);
 		if let Some((_, toi)) = result {
-			let angle = quantize::<16>(toi.normal1.angle_between(UP));
+			let angle = quantize::<10>(toi.normal1.angle_between(UP));
 			if angle < SLIDE_ANGLE {
 				state.grounded = true;
 				let dist = HOVER_HEIGHT - toi.toi;

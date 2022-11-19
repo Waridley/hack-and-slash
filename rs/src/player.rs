@@ -1,4 +1,4 @@
-use crate::{input, input::PlayerAction, terminal_velocity, AbsoluteBounds, TerminalVelocity, R_E};
+use crate::{terminal_velocity, AbsoluteBounds, TerminalVelocity, R_E};
 use bevy::{
 	ecs::system::EntityCommands,
 	prelude::{
@@ -32,6 +32,7 @@ use std::{
 
 pub mod camera;
 pub mod ctrl;
+pub mod input;
 
 pub const MAX_SPEED: f32 = 64.0;
 pub const ACCEL: f32 = 3.0;
@@ -179,7 +180,7 @@ pub enum PlayerEntity {
 	Arm(PlayerArm),
 	OrbitalParticle,
 }
-use crate::input::AoESound;
+use crate::player::input::{AoESound, PlayerAction};
 use player_entity::*;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
