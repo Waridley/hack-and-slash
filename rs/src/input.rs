@@ -8,13 +8,13 @@ use crate::{
 	terminal_velocity,
 };
 use bevy::{math::Vec3Swizzles, prelude::*};
+use bevy_kira_audio::prelude::{Audio, AudioSource, *};
 use leafwing_abilities::{cooldown::Cooldown, prelude::*, AbilitiesBundle, Abilitylike};
 use leafwing_input_manager::prelude::*;
 use std::{
 	f32::consts::{PI, TAU},
 	time::Duration,
 };
-use bevy_kira_audio::prelude::{*, Audio, AudioSource, };
 
 pub struct InputPlugin;
 
@@ -109,8 +109,7 @@ pub fn abilities(
 		match state.trigger_if_just_pressed(AoE) {
 			Ok(()) => {
 				info!("Boom!");
-				audio.play(sfx.0.clone())
-					.with_volume(0.5);
+				audio.play(sfx.0.clone()).with_volume(0.5);
 				for (mut arm, mut rvel) in &mut arm_q {
 					// TODO: Filter by player
 					arm.translation *= 6.0;

@@ -6,6 +6,7 @@ use bevy::{
 	render::mesh::{PrimitiveTopology, VertexAttributeValues::Float32x3},
 	DefaultPlugins,
 };
+use bevy_kira_audio::AudioPlugin;
 use bevy_rapier3d::{parry::shape::SharedShape, prelude::*};
 use particles::ParticlesPlugin;
 use player::ctrl::CtrlVel;
@@ -14,7 +15,6 @@ use rapier3d::{
 	na::{DMatrix, Vector3},
 };
 use std::{f32::consts::*, fmt::Debug, sync::Arc, time::Duration};
-use bevy_kira_audio::AudioPlugin;
 
 pub mod input;
 pub mod pickups;
@@ -38,6 +38,7 @@ pub fn main() {
 			title: "Sonday Hack-and-Slash Game".to_string(),
 			resizable: true,
 			fit_canvas_to_parent: true,
+			canvas: Some("#game_canvas".into()),
 			..default()
 		},
 		..default()

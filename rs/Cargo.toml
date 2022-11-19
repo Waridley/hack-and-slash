@@ -14,6 +14,23 @@ members = []
 rapier3d = { version = "0.16", path = "../rapier/crates/rapier3d" }
 bevy_rapier3d = { version = "0.18.0", path = "../bevy_rapier/bevy_rapier3d" }
 
+[dependencies.bevy]
+version = "0.9.0"
+default-features = false
+features = [
+    "animation",
+    "bevy_asset",
+#    "bevy_audio", # using kira
+    "bevy_gilrs",
+    "bevy_scene",
+    "bevy_winit",
+    "render",
+    "png",
+    "hdr",
+    "vorbis",
+    "x11",
+    "filesystem_watcher",
+]
 
 [dependencies]
 # Mine
@@ -21,7 +38,6 @@ enum_components = { package = "sond-bevy-enum-components", path = "../sond-bevy-
 particles = { package = "sond-bevy-particles", path = "../sond-bevy-particles" }
 
 # Engine
-bevy = { version = "0.9.0", features = ["filesystem_watcher"] }
 bevy_rapier3d = { version = "0.18", features = ["debug-render"] }
 rapier3d = { version = "0.16", features = ["wasm-bindgen"] }
 bevy_kira_audio = "0.13.0"

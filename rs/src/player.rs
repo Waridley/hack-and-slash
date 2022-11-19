@@ -70,10 +70,10 @@ fn setup(
 ) {
 	let id = unsafe { PlayerId::new_unchecked(1) };
 	spawn_camera(&mut cmds, id);
-	
+
 	let aoe_sfx = asset_server.load("sfx/SFX_-_magic_spell_03.ogg");
 	cmds.insert_resource(AoESound(aoe_sfx));
-	
+
 	let ship = asset_server.load("ships/player.glb#Scene0");
 	let vis = SceneBundle {
 		scene: ship,
@@ -179,8 +179,8 @@ pub enum PlayerEntity {
 	Arm(PlayerArm),
 	OrbitalParticle,
 }
-use player_entity::*;
 use crate::input::AoESound;
+use player_entity::*;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum PlayerArm {

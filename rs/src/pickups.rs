@@ -2,10 +2,8 @@ use crate::player::{
 	player_entity::{Arm, ReadPlayerEntity},
 	RotVel,
 };
-use bevy::prelude::{
-	shape::{Icosphere},
-	*,
-};
+use bevy::prelude::{shape::Icosphere, *};
+use bevy_kira_audio::{Audio, AudioControl, AudioSource};
 use bevy_rapier3d::{
 	geometry::Collider,
 	plugin::RapierContext,
@@ -13,7 +11,6 @@ use bevy_rapier3d::{
 };
 use enum_components::{EntityEnumCommands, EnumComponent};
 use nanorand::Rng;
-use bevy_kira_audio::{Audio, AudioControl, AudioSource};
 
 pub struct PickupPlugin;
 
@@ -37,7 +34,7 @@ pub fn setup(
 ) {
 	let pop_sfx = asset_server.load("sfx/SFX_-_hit_big_02.ogg");
 	cmds.insert_resource(PopSfx(pop_sfx));
-	
+
 	let mesh = meshes.add(
 		Icosphere {
 			radius: 8.0,
@@ -123,8 +120,7 @@ pub fn collect(
 			|other| {
 				if let Ok(rvel) = arms.get(other) {
 					if **rvel >= 16.0 {
-						audio.play(sfx.0.clone())
-							.with_volume(0.3);
+						audio.play(sfx.0.clone()).with_volume(0.3);
 						info!("{pickup:?}");
 						cmds.entity(id).despawn();
 						return true;
@@ -136,7 +132,7 @@ pub fn collect(
 	}
 }
 
-fn idle(mut q: Query<&mut Transform, Pickup>, mut rng: Local<PickupRng>, t: Res<Time>) {
+fn idle(mut q: Query<&mut Transform, Pickup>, t: Res<Time>) {
 	for mut xform in &mut q {
 		xform.rotation = xform.rotation.slerp(
 			Quat::from_euler(
