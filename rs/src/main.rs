@@ -1,24 +1,22 @@
-use crate::{player::{
-	input::InputPlugin,
-	PlayerControllerPlugin
-}, pickups::PickupPlugin, };
 use bevy::{
+	DefaultPlugins,
 	diagnostic::FrameTimeDiagnosticsPlugin,
 	ecs::system::EntityCommands,
 	prelude::*,
 	render::mesh::{PrimitiveTopology, VertexAttributeValues::Float32x3},
-	DefaultPlugins,
 };
 use bevy_kira_audio::AudioPlugin;
 use bevy_rapier3d::{parry::shape::SharedShape, prelude::*};
 use particles::ParticlesPlugin;
-use player::ctrl::CtrlVel;
+use player::{
+	ctrl::CtrlVel,
+};
 use rapier3d::{
 	geometry::HeightField,
 	na::{DMatrix, Vector3},
 };
 use std::{f32::consts::*, fmt::Debug, sync::Arc, time::Duration};
-use crate::ui::{GameUiPlugin, pause_menu::PauseMenuPlugin};
+use util::FnPluginExt;
 
 pub mod pickups;
 pub mod player;
@@ -66,13 +64,14 @@ pub fn main() {
 		})
 		.add_plugin(RapierPhysicsPlugin::<()>::default())
 		.add_plugin(FrameTimeDiagnosticsPlugin::default())
-		.add_plugin(PlayerControllerPlugin)
-		.add_plugin(InputPlugin)
-		.add_plugin(ParticlesPlugin)
-		.add_plugin(PickupPlugin)
 		.add_plugin(AudioPlugin)
-		.add_plugin(GameUiPlugin)
-		.add_plugin(PauseMenuPlugin)
+		.add_plugin(ParticlesPlugin)
+		
+		.fn_plugin(player::plugin)
+		.fn_plugin(pickups::plugin)
+		.fn_plugin(ui::game_ui::plugin)
+		.fn_plugin(ui::pause_menu::plugin)
+		
 		.add_startup_system(startup)
 		.add_system(terminal_velocity)
 		.add_system(fullscreen);

@@ -23,16 +23,12 @@ use crate::pickups::pickup::PickupItem;
 pub static HEALTH: AtomicI64 = AtomicI64::new(0);
 pub static SHIELD: AtomicI64 = AtomicI64::new(0);
 
-pub struct PickupPlugin;
-
-impl Plugin for PickupPlugin {
-	fn build(&self, app: &mut App) {
-		app.add_startup_system(setup)
-			.add_system(collect)
-			.add_system(spawn_pickups)
-			.add_system(movement)
-			.add_system(miss);
-	}
+pub fn plugin(app: &mut App) -> &mut App {
+	app.add_startup_system(setup)
+		.add_system(collect)
+		.add_system(spawn_pickups)
+		.add_system(movement)
+		.add_system(miss)
 }
 
 #[derive(Resource, Default, Debug, Clone, Deref, DerefMut)]

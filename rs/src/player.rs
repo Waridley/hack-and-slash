@@ -45,24 +45,22 @@ pub const SLIDE_ANGLE: f32 = FRAC_PI_3 - R_E;
 pub const HOVER_HEIGHT: f32 = 2.0;
 const G1: rapier3d::geometry::Group = rapier3d::geometry::Group::GROUP_1;
 
-pub struct PlayerControllerPlugin;
-
-impl Plugin for PlayerControllerPlugin {
-	fn build(&self, app: &mut App) {
-		app.add_startup_system(setup)
-			.add_system_to_stage(PreUpdate, ctrl::gravity)
-			.add_system_to_stage(PreUpdate, ctrl::repel_ground.after(ctrl::gravity))
-			// .add_system(tick_cooldown::<Jump>)
-			.add_system_to_stage(CoreStage::PreUpdate, ctrl::reset_jump_on_ground)
-			.add_system(input::movement_input.before(terminal_velocity))
-			.add_system(input::look_input.before(terminal_velocity))
-			.add_system(camera::position_target.after(input::look_input))
-			.add_system(camera::follow_target.after(camera::position_target))
-			.add_system(camera::toggle_bloom)
-			.add_system(ctrl::move_player.after(terminal_velocity))
-			.add_system(idle)
-			.add_system_to_stage(CoreStage::Last, reset_oob);
-	}
+pub fn plugin(app: &mut App) -> &mut App {
+	app
+		.fn_plugin(input::plugin)
+		.add_startup_system(setup)
+		.add_system_to_stage(PreUpdate, ctrl::gravity)
+		.add_system_to_stage(PreUpdate, ctrl::repel_ground.after(ctrl::gravity))
+		// .add_system(tick_cooldown::<Jump>)
+		.add_system_to_stage(CoreStage::PreUpdate, ctrl::reset_jump_on_ground)
+		.add_system(input::movement_input.before(terminal_velocity))
+		.add_system(input::look_input.before(terminal_velocity))
+		.add_system(camera::position_target.after(input::look_input))
+		.add_system(camera::follow_target.after(camera::position_target))
+		.add_system(camera::toggle_bloom)
+		.add_system(ctrl::move_player.after(terminal_velocity))
+		.add_system(idle)
+		.add_system_to_stage(CoreStage::Last, reset_oob)
 }
 
 fn setup(
@@ -184,6 +182,7 @@ pub enum PlayerEntity {
 }
 use crate::player::input::{AoESound, PlayerAction};
 use player_entity::*;
+use crate::util::FnPluginExt;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum PlayerArm {

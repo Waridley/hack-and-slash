@@ -2,25 +2,19 @@ use bevy::{
 	prelude::*,
 };
 use enum_components::EnumComponent;
+use crate::util::FnPluginExt;
 
+pub mod game_ui;
 pub mod pause_menu;
+
+pub fn plugin(app: &mut App) -> &mut App {
+	app
+		.fn_plugin(game_ui::plugin)
+		.fn_plugin(pause_menu::plugin)
+}
 
 #[derive(Debug, EnumComponent)]
 pub enum GameMenu {
 	MainMenu,
 	PauseMenu,
-}
-use game_menu::*;
-
-
-pub struct GameUiPlugin;
-
-impl Plugin for GameUiPlugin {
-	fn build(&self, app: &mut App) {
-		app.add_system(game_ui_setup);
-	}
-}
-
-pub fn game_ui_setup(mut cmds: Commands) {
-	cmds.spawn((VisibilityBundle::default(),));
 }

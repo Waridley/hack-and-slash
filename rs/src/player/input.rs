@@ -16,16 +16,12 @@ use std::{
 	time::Duration,
 };
 
-pub struct InputPlugin;
-
-impl Plugin for InputPlugin {
-	fn build(&self, app: &mut App) {
-		app.add_plugin(InputManagerPlugin::<PlayerAction>::default())
-			.add_plugin(AbilityPlugin::<PlayerAction>::default())
-			.add_system_to_stage(CoreStage::First, setup)
-			.add_system(abilities)
-			.add_system(jump.before(terminal_velocity));
-	}
+pub fn plugin(app: &mut App) -> &mut App {
+	app.add_plugin(InputManagerPlugin::<PlayerAction>::default())
+		.add_plugin(AbilityPlugin::<PlayerAction>::default())
+		.add_system_to_stage(CoreStage::First, setup)
+		.add_system(abilities)
+		.add_system(jump.before(terminal_velocity))
 }
 
 fn setup(

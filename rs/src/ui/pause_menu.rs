@@ -4,17 +4,13 @@ use bevy_quickmenu::{ActionTrait, Menu, MenuItem, MenuState, QuickMenuPlugin, Sc
 use enum_components::EntityEnumCommands;
 use super::*;
 
-pub struct PauseMenuPlugin;
-
-impl Plugin for PauseMenuPlugin {
-	fn build(&self, app: &mut App) {
-		app
-			.add_event::<PauseMenuEvent>()
-			.add_plugin(QuickMenuPlugin::<PauseMenuState, PauseMenuAction, PauseMenuScreen>::new())
-			.add_startup_system(pause_menu_setup)
-			.add_system(event_reader)
-			.add_system(toggle_pause_menu);
-	}
+pub fn plugin(app: &mut App) -> &mut App {
+	app
+		.add_event::<PauseMenuEvent>()
+		.add_plugin(QuickMenuPlugin::<PauseMenuState, PauseMenuAction, PauseMenuScreen>::new())
+		.add_startup_system(pause_menu_setup)
+		.add_system(event_reader)
+		.add_system(toggle_pause_menu)
 }
 
 pub fn pause_menu_setup(mut cmds: Commands) {
