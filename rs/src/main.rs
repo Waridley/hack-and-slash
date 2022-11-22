@@ -18,9 +18,12 @@ use rapier3d::{
 	na::{DMatrix, Vector3},
 };
 use std::{f32::consts::*, fmt::Debug, sync::Arc, time::Duration};
+use crate::ui::{GameUiPlugin, pause_menu::PauseMenuPlugin};
 
 pub mod pickups;
 pub mod player;
+pub mod settings;
+pub mod ui;
 pub mod util;
 
 /// Epsilon
@@ -68,14 +71,11 @@ pub fn main() {
 		.add_plugin(ParticlesPlugin)
 		.add_plugin(PickupPlugin)
 		.add_plugin(AudioPlugin)
+		.add_plugin(GameUiPlugin)
+		.add_plugin(PauseMenuPlugin)
 		.add_startup_system(startup)
 		.add_system(terminal_velocity)
 		.add_system(fullscreen);
-
-	#[cfg(not(target_arch = "wasm32"))]
-	{
-		app.add_system(bevy::window::close_on_esc);
-	}
 
 	#[cfg(debug_assertions)]
 	{

@@ -1,10 +1,10 @@
 use crate::{
 	player::{
 		input::PlayerAction,
-		player_entity::{Controller, ReadPlayerEntity, Root, Vis},
+		player_entity::{Controller, ReadPlayerEntity, Root,},
 		BelongsToPlayer, G1, HOVER_HEIGHT, PLAYER_GRAVITY, SLIDE_ANGLE,
 	},
-	util::quantize,
+	util::truncate_mantissa,
 	UP,
 };
 use bevy::prelude::*;
@@ -50,7 +50,7 @@ pub fn repel_ground(
 				.groups(InteractionGroups::new(G1, !G1)),
 		);
 		if let Some((_, toi)) = result {
-			let angle = quantize::<10>(toi.normal1.angle_between(UP));
+			let angle = truncate_mantissa::<10>(toi.normal1.angle_between(UP));
 			if angle < SLIDE_ANGLE {
 				state.grounded = true;
 				let dist = HOVER_HEIGHT - toi.toi;
@@ -97,7 +97,6 @@ pub fn gravity(mut q: Query<(&mut CtrlVel, &KinematicCharacterControllerOutput)>
 
 pub fn move_player(
 	mut body_q: Query<(&mut Transform, &BelongsToPlayer), ReadPlayerEntity<Root>>,
-	mut vis_q: Query<(&mut Transform, &BelongsToPlayer), ReadPlayerEntity<Vis>>,
 	mut ctrl_q: Query<
 		(
 			&CtrlVel,
@@ -113,10 +112,6 @@ pub fn move_player(
 			.iter_mut()
 			.find_map(|(xform, owner)| (owner == ctrl_owner).then_some(xform))
 			.unwrap();
-		let mut vis_xform = vis_q
-			.iter_mut()
-			.find_map(|(xform, owner)| (owner == ctrl_owner).then_some(xform))
-			.unwrap();
 
 		let dt = t.delta_seconds();
 
@@ -125,9 +120,6 @@ pub fn move_player(
 		body_xform.rotate_local(rot);
 
 		let slide = body_xform.rotation * (ctrl_vel.linvel * dt);
-		let target_tilt = Vec3::new(ctrl_vel.linvel.x * -0.008, -1.0, ctrl_vel.linvel.y * 0.008)
-			.normalize_or_zero();
-		vis_xform.rotation = Quat::from_rotation_arc(Vec3::NEG_Y, target_tilt);
 		ctrl.translation = Some(slide);
 	}
 }

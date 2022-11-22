@@ -41,8 +41,8 @@ pub fn spawn_camera<'w, 's, 'a>(
 			Camera3dBundle {
 				camera: Camera {
 					// TODO: This causes crashes in debug and web, but I really want bloom to work!
-					#[cfg(all(not(debug_assertions), not(target_arch = "wasm32")))]
-					hdr: true,
+					// #[cfg(all(not(debug_assertions), not(target_arch = "wasm32")))]
+					// hdr: true,
 					..default()
 				},
 				transform: Transform {
@@ -146,5 +146,16 @@ pub fn follow_target(
 		cam_xform.rotation = cam_xform
 			.rotation
 			.slerp(target_xform.rotation, CAM_ACCEL * dt);
+	}
+}
+
+pub fn toggle_bloom(
+	mut cams: Query<&mut Camera>,
+	input: Res<Input<KeyCode>>,
+) {
+	if input.just_pressed(KeyCode::B) {
+		for mut cam in &mut cams {
+			cam.hdr = !cam.hdr;
+		}
 	}
 }

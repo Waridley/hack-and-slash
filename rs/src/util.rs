@@ -1,5 +1,5 @@
 #[inline(always)]
-pub const fn quantize<const BITS: u32>(value: f32) -> f32 {
+pub const fn truncate_mantissa<const BITS: u32>(value: f32) -> f32 {
 	debug_assert!(BITS < f32::MANTISSA_DIGITS);
 	let mask = u32::MAX << (f32::MANTISSA_DIGITS - BITS);
 	unsafe {

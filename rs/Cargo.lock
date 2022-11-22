@@ -565,6 +565,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c36f4d3af0cda50c07e2010d0351ab79594681116edd280592ca394db73ef32b"
 
 [[package]]
+name = "bevy_quickmenu"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d295dcc06d923a2151abb141ff351d37185b55128c958f51de96dab63c5b24f"
+dependencies = [
+ "bevy",
+]
+
+[[package]]
 name = "bevy_rapier3d"
 version = "0.18.0"
 dependencies = [
@@ -3055,12 +3064,14 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy_kira_audio",
+ "bevy_quickmenu",
  "bevy_rapier3d",
  "leafwing-input-manager",
  "leafwing_abilities",
  "nanorand",
  "noises-and-patterns",
  "rapier3d",
+ "serde",
  "sond-bevy-enum-components",
  "sond-bevy-particles",
  "static_assertions",

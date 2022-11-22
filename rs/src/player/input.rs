@@ -40,7 +40,7 @@ fn setup(
 	}
 }
 
-#[derive(Actionlike, Abilitylike, Copy, Clone, Debug, Reflect, FromReflect)]
+#[derive(Actionlike, Abilitylike, Copy, Clone, Debug, PartialEq, Eq, Reflect, FromReflect)]
 pub enum PlayerAction {
 	Jump,
 	AoE,

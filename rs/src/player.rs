@@ -33,6 +33,7 @@ use std::{
 pub mod camera;
 pub mod ctrl;
 pub mod input;
+pub mod prefs;
 
 pub const MAX_SPEED: f32 = 64.0;
 pub const ACCEL: f32 = 3.0;
@@ -57,6 +58,7 @@ impl Plugin for PlayerControllerPlugin {
 			.add_system(input::look_input.before(terminal_velocity))
 			.add_system(camera::position_target.after(input::look_input))
 			.add_system(camera::follow_target.after(camera::position_target))
+			.add_system(camera::toggle_bloom)
 			.add_system(ctrl::move_player.after(terminal_velocity))
 			.add_system(idle)
 			.add_system_to_stage(CoreStage::Last, reset_oob);
@@ -311,6 +313,7 @@ fn player_vis(
 				.set_enum(PlayerEntity::Vis)
 				.with_children(|builder| {
 					builder.spawn((owner, vis));
+					
 					let transform = Transform {
 						// rotation: Quat::from_rotation_x(FRAC_PI_2),
 						..default()
@@ -495,6 +498,7 @@ pub fn idle(
 ) {
 	for mut xform in &mut vis_q {
 		xform.translation.y = (t.elapsed_seconds() * 3.0).sin() * 0.24;
+		xform.rotate_local_y(-2.0 * t.delta_seconds());
 	}
 	for (mut xform, rvel) in &mut arm_q {
 		xform.translation = Quat::from_rotation_z(t.delta_seconds() * **rvel)
