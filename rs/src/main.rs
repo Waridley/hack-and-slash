@@ -69,8 +69,7 @@ pub fn main() {
 		
 		.fn_plugin(player::plugin)
 		.fn_plugin(pickups::plugin)
-		.fn_plugin(ui::game_ui::plugin)
-		.fn_plugin(ui::pause_menu::plugin)
+		.fn_plugin(ui::plugin)
 		
 		.add_startup_system(startup)
 		.add_system(terminal_velocity)

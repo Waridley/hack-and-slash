@@ -10,39 +10,19 @@ pub fn plugin(app: &mut App) -> &mut App {
 		.add_plugin(QuickMenuPlugin::<PauseMenuState, PauseMenuAction, PauseMenuScreen>::new())
 		.add_startup_system(pause_menu_setup)
 		.add_system(event_reader)
-		.add_system(toggle_pause_menu)
 }
 
 pub fn pause_menu_setup(mut cmds: Commands) {
-	spawn_pause_menu(&mut cmds, PauseMenuState::default())
+	// spawn_pause_menu(&mut cmds, PauseMenuState::default())
 }
 
 pub fn spawn_pause_menu(cmds: &mut Commands, state: PauseMenuState) {
-	cmds.spawn((
-		VisibilityBundle::default(),
-		PauseMenuState::default(),
-	)).set_enum(GameMenu::PauseMenu);
 	cmds.insert_resource(MenuState::new(
 		state,
 		PauseMenuScreen::Root,
 		None,
 	));
 }
-
-pub fn toggle_pause_menu(
-	input: Res<Input<KeyCode>>,
-	mut events: EventWriter<PauseMenuEvent>,
-	state: Option<Res<MenuState<PauseMenuState, PauseMenuAction, PauseMenuScreen>>>,
-) {
-	if input.just_pressed(KeyCode::Escape) {
-		if state.is_some() {
-			events.send(PauseMenuEvent::Close)
-		} else {
-			events.send(PauseMenuEvent::Open)
-		}
-	}
-}
-
 
 #[derive(Component, Default, Debug)]
 pub struct PauseMenuState {
@@ -59,15 +39,19 @@ pub enum PauseMenuAction {
 fn event_reader(
 	mut cmds: Commands,
 	mut events: EventReader<PauseMenuEvent>,
+	state: Option<Res<MenuState<PauseMenuState, PauseMenuAction, PauseMenuScreen>>>,
 	mut exit_events: EventWriter<AppExit>,
 	mut cam_q: Query<&mut Camera>,
 ) {
 	for e in events.iter() {
 		match e {
-			PauseMenuEvent::Open => spawn_pause_menu(&mut cmds, PauseMenuState {
-				bloom_on: cam_q.iter().next().unwrap().hdr
-			}),
-			PauseMenuEvent::Close => bevy_quickmenu::cleanup(&mut cmds),
+			PauseMenuEvent::ShowOrHide => if state.is_none() {
+				spawn_pause_menu(&mut cmds, PauseMenuState {
+					bloom_on: cam_q.iter().next().unwrap().hdr
+				})
+			} else {
+				bevy_quickmenu::cleanup(&mut cmds)
+			}
 			PauseMenuEvent::SetBloom(on) => {
 				info!("Turning bloom {on}");
 				for mut cam in &mut cam_q {
@@ -85,7 +69,7 @@ impl ActionTrait for PauseMenuAction {
 	
 	fn handle(&self, state: &mut Self::State, events: &mut EventWriter<Self::Event>) {
 		match self {
-			PauseMenuAction::Close => events.send(PauseMenuEvent::Close),
+			PauseMenuAction::Close => events.send(PauseMenuEvent::ShowOrHide),
 			PauseMenuAction::SetBloom(on) => {
 				state.bloom_on = *on;
 				events.send(PauseMenuEvent::SetBloom(*on))
@@ -113,8 +97,7 @@ impl ScreenTrait for PauseMenuScreen {
 
 #[derive(Debug, Clone, Copy)]
 pub enum PauseMenuEvent {
-	Open,
-	Close,
+	ShowOrHide,
 	SetBloom(bool),
 	Quit,
 }

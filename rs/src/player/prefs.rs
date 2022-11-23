@@ -2,7 +2,7 @@ use bevy::ecs::query::WorldQuery;
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 use serde::{Deserialize, Serialize};
-use crate::player::input::PlayerAction::{AoE, Jump};
+use crate::player::input::PlayerAction::*;
 use super::input::PlayerAction;
 
 /// Player-specific preferences.
@@ -41,6 +41,7 @@ impl Default for PlayerPrefs {
 				(KeyCode::Back, Jump),
 				(KeyCode::Space, Jump),
 				(KeyCode::E, AoE),
+				(KeyCode::Escape, Pause),
 			])
 		}
 	}

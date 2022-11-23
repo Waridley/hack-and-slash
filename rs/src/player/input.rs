@@ -15,6 +15,7 @@ use std::{
 	f32::consts::{PI, TAU},
 	time::Duration,
 };
+use crate::ui::pause_menu::PauseMenuEvent;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugin(InputManagerPlugin::<PlayerAction>::default())
@@ -40,35 +41,27 @@ fn setup(
 pub enum PlayerAction {
 	Jump,
 	AoE,
+	Pause,
 }
 
 impl PlayerAction {
-	pub fn input_map() -> InputMap<Self> {
-		use PlayerAction::*;
-
-		InputMap::new([
-			(KeyCode::Back, Jump),
-			(KeyCode::Space, Jump),
-			(KeyCode::E, AoE),
-		])
-	}
-
-	pub fn cooldown(&self) -> Cooldown {
+	pub fn cooldown(&self) -> Option<Cooldown> {
 		use PlayerAction::*;
 
 		let secs = match *self {
 			Jump => 2.0,
 			AoE => 2.5,
+			Pause => return None,
 		};
 
-		Cooldown::from_secs(secs)
+		Some(Cooldown::from_secs(secs))
 	}
 
 	fn cooldowns() -> CooldownState<Self> {
 		let mut cooldowns = CooldownState::default();
 
 		for ability in Self::variants() {
-			cooldowns.set(ability, ability.cooldown());
+			ability.cooldown().map(|cd| cooldowns.set(ability, cd));
 		}
 
 		cooldowns
@@ -96,6 +89,7 @@ pub struct AoESound(pub Handle<AudioSource>);
 pub fn abilities(
 	mut action_q: Query<AbilityState<PlayerAction>>,
 	mut arm_q: Query<(&mut Transform, &mut RotVel), ReadPlayerEntity<Arm>>,
+	mut pause_events: EventWriter<PauseMenuEvent>,
 	sfx: Res<AoESound>,
 	audio: Res<Audio>,
 	t: Res<Time>,
@@ -118,6 +112,11 @@ pub fn abilities(
 			}
 			_ => {}
 		}
+		
+		if state.trigger_if_just_pressed(Pause).is_ok() {
+			pause_events.send(PauseMenuEvent::ShowOrHide)
+		}
+		
 		for (mut arm, mut rvel) in &mut arm_q {
 			// TODO: Filter by player
 			arm.translation = arm

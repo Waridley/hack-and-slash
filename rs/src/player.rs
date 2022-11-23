@@ -182,6 +182,7 @@ pub enum PlayerEntity {
 }
 use crate::player::input::{AoESound, PlayerAction};
 use player_entity::*;
+use crate::player::prefs::PlayerPrefs;
 use crate::util::FnPluginExt;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -268,7 +269,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 						..default()
 					},
 					InputManagerBundle::<PlayerAction> {
-						input_map: PlayerAction::input_map(),
+						input_map: PlayerPrefs::default().input_map,
 						..default()
 					},
 					PlayerAction::abilities_bundle(),
