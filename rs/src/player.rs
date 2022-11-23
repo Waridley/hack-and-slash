@@ -96,7 +96,7 @@ fn setup(
 	let particle_material = materials.add(StandardMaterial {
 		// base_color: Color::rgba(0.0, 1.0, 0.5, 0.3),
 		base_color: Color::NONE,
-		emissive: Color::rgb(0.0, 1.0, 0.6),
+		emissive: Color::rgb(0.0, 4.0, 2.4),
 		reflectance: 0.0,
 		..default()
 	});
@@ -116,7 +116,7 @@ fn setup(
 		mesh: arm_mesh.clone(),
 		material: materials.add(StandardMaterial {
 			base_color: Color::NONE,
-			emissive: Color::GREEN,
+			emissive: Color::GREEN * 4.0,
 			reflectance: 0.0,
 			double_sided: true,
 			cull_mode: None,
@@ -129,7 +129,7 @@ fn setup(
 		mesh: arm_mesh.clone(),
 		material: materials.add(StandardMaterial {
 			base_color: Color::NONE,
-			emissive: Color::WHITE,
+			emissive: Color::WHITE * 4.0,
 			reflectance: 0.0,
 			double_sided: true,
 			cull_mode: None,
@@ -144,7 +144,7 @@ fn setup(
 		mesh: arm_mesh,
 		material: materials.add(StandardMaterial {
 			base_color: Color::NONE,
-			emissive: Color::CYAN,
+			emissive: Color::CYAN * 4.0,
 			reflectance: 0.0,
 			double_sided: true,
 			cull_mode: None,

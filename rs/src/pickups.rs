@@ -56,9 +56,10 @@ pub fn setup(
 	);
 
 	let material = materials.add(StandardMaterial {
-		base_color: Color::rgba(0.0, 0.0, 0.0, 0.3),
-		emissive: Color::rgb(1.0, 0.15, 0.0),
+		base_color: Color::rgba(0.0, 0.0, 0.0, 0.22),
+		emissive: Color::rgb(4.0, 0.6, 0.0),
 		alpha_mode: AlphaMode::Blend,
+		reflectance: 0.3,
 		..default()
 	});
 
