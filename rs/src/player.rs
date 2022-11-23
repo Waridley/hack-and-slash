@@ -46,8 +46,7 @@ pub const HOVER_HEIGHT: f32 = 2.0;
 const G1: rapier3d::geometry::Group = rapier3d::geometry::Group::GROUP_1;
 
 pub fn plugin(app: &mut App) -> &mut App {
-	app
-		.fn_plugin(input::plugin)
+	app.fn_plugin(input::plugin)
 		.add_startup_system(setup)
 		.add_system_to_stage(PreUpdate, ctrl::gravity)
 		.add_system_to_stage(PreUpdate, ctrl::repel_ground.after(ctrl::gravity))
@@ -57,7 +56,6 @@ pub fn plugin(app: &mut App) -> &mut App {
 		.add_system(input::look_input.before(terminal_velocity))
 		.add_system(camera::position_target.after(input::look_input))
 		.add_system(camera::follow_target.after(camera::position_target))
-		.add_system(camera::toggle_bloom)
 		.add_system(ctrl::move_player.after(terminal_velocity))
 		.add_system(idle)
 		.add_system_to_stage(CoreStage::Last, reset_oob)
@@ -180,10 +178,14 @@ pub enum PlayerEntity {
 	Arm(PlayerArm),
 	OrbitalParticle,
 }
-use crate::player::input::{AoESound, PlayerAction};
+use crate::{
+	player::{
+		input::{AoESound, PlayerAction},
+		prefs::PlayerPrefs,
+	},
+	util::FnPluginExt,
+};
 use player_entity::*;
-use crate::player::prefs::PlayerPrefs;
-use crate::util::FnPluginExt;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum PlayerArm {
@@ -313,7 +315,7 @@ fn player_vis(
 				.set_enum(PlayerEntity::Vis)
 				.with_children(|builder| {
 					builder.spawn((owner, vis));
-					
+
 					let transform = Transform {
 						// rotation: Quat::from_rotation_x(FRAC_PI_2),
 						..default()
@@ -460,7 +462,7 @@ fn player_arms(
 					Collider::ball(0.4),
 					Sensor,
 					KinematicPositionBased,
-					RotVel::new(9.0),
+					RotVel::new(8.0),
 				))
 				.set_enum(PlayerEntity::Arm(which));
 		}

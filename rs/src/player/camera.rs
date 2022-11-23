@@ -148,14 +148,3 @@ pub fn follow_target(
 			.slerp(target_xform.rotation, CAM_ACCEL * dt);
 	}
 }
-
-pub fn toggle_bloom(
-	mut cams: Query<&mut Camera>,
-	input: Res<Input<KeyCode>>,
-) {
-	if input.just_pressed(KeyCode::B) {
-		for mut cam in &mut cams {
-			cam.hdr = !cam.hdr;
-		}
-	}
-}

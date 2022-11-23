@@ -1,13 +1,15 @@
-use bevy::app::AppExit;
-use bevy::prelude::*;
+use super::*;
+use bevy::{app::AppExit, prelude::*};
 use bevy_quickmenu::{ActionTrait, Menu, MenuItem, MenuState, QuickMenuPlugin, ScreenTrait};
 use enum_components::EntityEnumCommands;
-use super::*;
 
 pub fn plugin(app: &mut App) -> &mut App {
-	app
-		.add_event::<PauseMenuEvent>()
-		.add_plugin(QuickMenuPlugin::<PauseMenuState, PauseMenuAction, PauseMenuScreen>::new())
+	app.add_event::<PauseMenuEvent>()
+		.add_plugin(QuickMenuPlugin::<
+			PauseMenuState,
+			PauseMenuAction,
+			PauseMenuScreen,
+		>::new())
 		.add_startup_system(pause_menu_setup)
 		.add_system(event_reader)
 }
@@ -17,11 +19,7 @@ pub fn pause_menu_setup(mut cmds: Commands) {
 }
 
 pub fn spawn_pause_menu(cmds: &mut Commands, state: PauseMenuState) {
-	cmds.insert_resource(MenuState::new(
-		state,
-		PauseMenuScreen::Root,
-		None,
-	));
+	cmds.insert_resource(MenuState::new(state, PauseMenuScreen::Root, None));
 }
 
 #[derive(Component, Default, Debug)]
@@ -45,19 +43,24 @@ fn event_reader(
 ) {
 	for e in events.iter() {
 		match e {
-			PauseMenuEvent::ShowOrHide => if state.is_none() {
-				spawn_pause_menu(&mut cmds, PauseMenuState {
-					bloom_on: cam_q.iter().next().unwrap().hdr
-				})
-			} else {
-				bevy_quickmenu::cleanup(&mut cmds)
+			PauseMenuEvent::ShowOrHide => {
+				if state.is_none() {
+					spawn_pause_menu(
+						&mut cmds,
+						PauseMenuState {
+							bloom_on: cam_q.iter().next().unwrap().hdr,
+						},
+					)
+				} else {
+					bevy_quickmenu::cleanup(&mut cmds)
+				}
 			}
 			PauseMenuEvent::SetBloom(on) => {
 				info!("Turning bloom {on}");
 				for mut cam in &mut cam_q {
 					cam.hdr = *on;
 				}
-			},
+			}
 			PauseMenuEvent::Quit => exit_events.send(AppExit),
 		}
 	}
@@ -66,19 +69,18 @@ fn event_reader(
 impl ActionTrait for PauseMenuAction {
 	type State = PauseMenuState;
 	type Event = PauseMenuEvent;
-	
+
 	fn handle(&self, state: &mut Self::State, events: &mut EventWriter<Self::Event>) {
 		match self {
 			PauseMenuAction::Close => events.send(PauseMenuEvent::ShowOrHide),
 			PauseMenuAction::SetBloom(on) => {
 				state.bloom_on = *on;
 				events.send(PauseMenuEvent::SetBloom(*on))
-			},
-			PauseMenuAction::Quit => events.send(PauseMenuEvent::Quit)
+			}
+			PauseMenuAction::Quit => events.send(PauseMenuEvent::Quit),
 		}
 	}
 }
-
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum PauseMenuScreen {
@@ -87,8 +89,11 @@ pub enum PauseMenuScreen {
 
 impl ScreenTrait for PauseMenuScreen {
 	type Action = PauseMenuAction;
-	
-	fn resolve(&self, state: &<<Self as ScreenTrait>::Action as ActionTrait>::State) -> Menu<Self::Action, Self, <<Self as ScreenTrait>::Action as ActionTrait>::State> {
+
+	fn resolve(
+		&self,
+		state: &<<Self as ScreenTrait>::Action as ActionTrait>::State,
+	) -> Menu<Self::Action, Self, <<Self as ScreenTrait>::Action as ActionTrait>::State> {
 		match self {
 			PauseMenuScreen::Root => root_menu(state),
 		}
@@ -108,11 +113,9 @@ fn root_menu(state: &PauseMenuState) -> Menu<PauseMenuAction, PauseMenuScreen, P
 		vec![
 			MenuItem::headline("Pause"),
 			MenuItem::label("Toggle Bloom"),
-			MenuItem::action("BloomOn", PauseMenuAction::SetBloom(true))
-				.checked(state.bloom_on),
-			MenuItem::action("BloomOff", PauseMenuAction::SetBloom(false))
-				.checked(!state.bloom_on),
-			MenuItem::action("Quit", PauseMenuAction::Quit)
-		]
+			MenuItem::action("BloomOn", PauseMenuAction::SetBloom(true)).checked(state.bloom_on),
+			MenuItem::action("BloomOff", PauseMenuAction::SetBloom(false)).checked(!state.bloom_on),
+			MenuItem::action("Quit", PauseMenuAction::Quit),
+		],
 	)
 }

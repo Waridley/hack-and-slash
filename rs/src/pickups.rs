@@ -1,14 +1,13 @@
-use std::f32::consts::TAU;
-use std::sync::atomic::AtomicI64;
-use std::sync::atomic::Ordering::Relaxed;
-use std::time::Duration;
-use crate::player::{
-	player_entity::{Arm, ReadPlayerEntity},
-	RotVel,
+use crate::{
+	pickups::pickup::PickupItem,
+	player::{
+		player_entity::{Arm, ReadPlayerEntity},
+		RotVel,
+	},
 };
 use bevy::{
 	math::Vec3Swizzles,
-	prelude::{shape::Icosphere, *}
+	prelude::{shape::Icosphere, *},
 };
 use bevy_kira_audio::{Audio, AudioControl, AudioSource};
 use bevy_rapier3d::{
@@ -18,7 +17,11 @@ use bevy_rapier3d::{
 };
 use enum_components::{EntityEnumCommands, EnumComponent};
 use nanorand::Rng;
-use crate::pickups::pickup::PickupItem;
+use std::{
+	f32::consts::TAU,
+	sync::atomic::{AtomicI64, Ordering::Relaxed},
+	time::Duration,
+};
 
 pub static HEALTH: AtomicI64 = AtomicI64::new(0);
 pub static SHIELD: AtomicI64 = AtomicI64::new(0);
@@ -40,10 +43,11 @@ pub fn setup(
 	mut materials: ResMut<Assets<StandardMaterial>>,
 	asset_server: Res<AssetServer>,
 ) {
-	cmds.insert_resource(
-		SpawnTimer(Timer::new(Duration::from_secs(5), TimerMode::Repeating))
-	);
-	
+	cmds.insert_resource(SpawnTimer(Timer::new(
+		Duration::from_secs(5),
+		TimerMode::Repeating,
+	)));
+
 	cmds.insert_resource(MissSfx(asset_server.load("sfx/SFX_-_negative_09.ogg")));
 	cmds.insert_resource(PopSfx(asset_server.load("sfx/SFX_-_hit_big_02.ogg")));
 
@@ -56,10 +60,11 @@ pub fn setup(
 	);
 
 	let material = materials.add(StandardMaterial {
-		base_color: Color::rgba(0.0, 0.0, 0.0, 0.22),
+		base_color: Color::rgba(0.0, 0.0, 0.0, 0.16),
 		emissive: Color::rgb(4.0, 0.6, 0.0),
 		alpha_mode: AlphaMode::Blend,
-		reflectance: 0.3,
+		reflectance: 0.36,
+		cull_mode: None,
 		..default()
 	});
 
@@ -144,12 +149,12 @@ pub fn collect(
 								let val = val.0 as i64;
 								let new = HEALTH.fetch_add(val, Relaxed) + val;
 								info!("Gained {val} health. Current health: {new}");
-							},
+							}
 							PickupItem::Shield(val) => {
 								let val = val.0 as i64;
 								let new = SHIELD.fetch_add(val, Relaxed) + val;
 								info!("Gained {val} shield. Current shield: {new}");
-							},
+							}
 						}
 						info!("{pickup:?}");
 						cmds.entity(id).despawn();
@@ -167,8 +172,8 @@ pub fn movement(mut q: Query<&mut Transform, Pickup>, t: Res<Time>) {
 	let dt = t.delta_seconds();
 	for mut xform in &mut q {
 		xform.translation.z += dt * (4.0 * ((s + xform.translation.x % TAU).sin() + 0.5));
-		if xform.translation.z > 32.0 {
-			xform.translation.z *= 1.003;
+		if xform.translation.z > 128.0 {
+			xform.translation.z *= xform.translation.z - 127.0;
 		}
 		xform.rotation = xform.rotation.slerp(
 			Quat::from_euler(
@@ -186,7 +191,8 @@ pub fn movement(mut q: Query<&mut Transform, Pickup>, t: Res<Time>) {
 pub struct MissSfx(Handle<AudioSource>);
 
 pub fn miss(
-	mut cmds: Commands, q: Query<(Entity, &GlobalTransform, Pickup)>,
+	mut cmds: Commands,
+	q: Query<(Entity, &GlobalTransform, Pickup)>,
 	miss_sfx: Res<MissSfx>,
 	audio: Res<Audio>,
 ) {
@@ -198,12 +204,12 @@ pub fn miss(
 					let val = (val.0 / 2.0) as i64;
 					let new = HEALTH.fetch_sub(val, Relaxed) + val;
 					info!("Lost {val} health. Remaining: {new}");
-				},
+				}
 				PickupItem::Shield(val) => {
 					let val = (val.0 / 2.0) as i64;
 					let new = SHIELD.fetch_sub(val, Relaxed) + val;
 					info!("Lost {val} shield. Remaining: {new}");
-				},
+				}
 			}
 			cmds.entity(id).despawn()
 		}

@@ -1,5 +1,7 @@
-use bevy::app::App;
-use bevy::prelude::{Commands, VisibilityBundle};
+use bevy::{
+	app::App,
+	prelude::{Commands, VisibilityBundle},
+};
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_system(setup)

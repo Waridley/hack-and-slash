@@ -1,16 +1,14 @@
 use bevy::{
-	DefaultPlugins,
 	diagnostic::FrameTimeDiagnosticsPlugin,
 	ecs::system::EntityCommands,
 	prelude::*,
 	render::mesh::{PrimitiveTopology, VertexAttributeValues::Float32x3},
+	DefaultPlugins,
 };
 use bevy_kira_audio::AudioPlugin;
 use bevy_rapier3d::{parry::shape::SharedShape, prelude::*};
 use particles::ParticlesPlugin;
-use player::{
-	ctrl::CtrlVel,
-};
+use player::ctrl::CtrlVel;
 use rapier3d::{
 	geometry::HeightField,
 	na::{DMatrix, Vector3},
@@ -66,11 +64,9 @@ pub fn main() {
 		.add_plugin(FrameTimeDiagnosticsPlugin::default())
 		.add_plugin(AudioPlugin)
 		.add_plugin(ParticlesPlugin)
-		
 		.fn_plugin(player::plugin)
 		.fn_plugin(pickups::plugin)
 		.fn_plugin(ui::plugin)
-		
 		.add_startup_system(startup)
 		.add_system(terminal_velocity)
 		.add_system(fullscreen);

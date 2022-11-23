@@ -1,9 +1,8 @@
-use bevy::ecs::query::WorldQuery;
-use bevy::prelude::*;
+use super::input::PlayerAction;
+use crate::player::input::PlayerAction::*;
+use bevy::{ecs::query::WorldQuery, prelude::*};
 use leafwing_input_manager::prelude::*;
 use serde::{Deserialize, Serialize};
-use crate::player::input::PlayerAction::*;
-use super::input::PlayerAction;
 
 /// Player-specific preferences.
 /// Should be shared across devices, but may differ between local players.
@@ -42,7 +41,7 @@ impl Default for PlayerPrefs {
 				(KeyCode::Space, Jump),
 				(KeyCode::E, AoE),
 				(KeyCode::Escape, Pause),
-			])
+			]),
 		}
 	}
 }
@@ -56,10 +55,7 @@ pub struct InvertCamera {
 impl Default for InvertCamera {
 	fn default() -> Self {
 		// Bwahahaha!
-		Self {
-			x: true,
-			y: true,
-		}
+		Self { x: true, y: true }
 	}
 }
 

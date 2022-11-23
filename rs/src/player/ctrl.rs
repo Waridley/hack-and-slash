@@ -1,7 +1,7 @@
 use crate::{
 	player::{
 		input::PlayerAction,
-		player_entity::{Controller, ReadPlayerEntity, Root,},
+		player_entity::{Controller, ReadPlayerEntity, Root},
 		BelongsToPlayer, G1, HOVER_HEIGHT, PLAYER_GRAVITY, SLIDE_ANGLE,
 	},
 	util::truncate_mantissa,

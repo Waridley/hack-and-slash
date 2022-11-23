@@ -6,6 +6,7 @@ use crate::{
 		BelongsToPlayer, RotVel, ACCEL, JUMP_VEL, MAX_JUMPS, MAX_SPEED,
 	},
 	terminal_velocity,
+	ui::pause_menu::PauseMenuEvent,
 };
 use bevy::{math::Vec3Swizzles, prelude::*};
 use bevy_kira_audio::prelude::{Audio, AudioSource, *};
@@ -15,7 +16,6 @@ use std::{
 	f32::consts::{PI, TAU},
 	time::Duration,
 };
-use crate::ui::pause_menu::PauseMenuEvent;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugin(InputManagerPlugin::<PlayerAction>::default())
@@ -112,11 +112,11 @@ pub fn abilities(
 			}
 			_ => {}
 		}
-		
+
 		if state.trigger_if_just_pressed(Pause).is_ok() {
 			pause_events.send(PauseMenuEvent::ShowOrHide)
 		}
-		
+
 		for (mut arm, mut rvel) in &mut arm_q {
 			// TODO: Filter by player
 			arm.translation = arm
