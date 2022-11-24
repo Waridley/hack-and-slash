@@ -33,6 +33,7 @@ use std::{
 pub mod camera;
 pub mod ctrl;
 pub mod input;
+pub mod prefs;
 
 pub const MAX_SPEED: f32 = 64.0;
 pub const ACCEL: f32 = 3.0;
@@ -44,23 +45,20 @@ pub const SLIDE_ANGLE: f32 = FRAC_PI_3 - R_E;
 pub const HOVER_HEIGHT: f32 = 2.0;
 const G1: rapier3d::geometry::Group = rapier3d::geometry::Group::GROUP_1;
 
-pub struct PlayerControllerPlugin;
-
-impl Plugin for PlayerControllerPlugin {
-	fn build(&self, app: &mut App) {
-		app.add_startup_system(setup)
-			.add_system_to_stage(PreUpdate, ctrl::gravity)
-			.add_system_to_stage(PreUpdate, ctrl::repel_ground.after(ctrl::gravity))
-			// .add_system(tick_cooldown::<Jump>)
-			.add_system_to_stage(CoreStage::PreUpdate, ctrl::reset_jump_on_ground)
-			.add_system(input::movement_input.before(terminal_velocity))
-			.add_system(input::look_input.before(terminal_velocity))
-			.add_system(camera::position_target.after(input::look_input))
-			.add_system(camera::follow_target.after(camera::position_target))
-			.add_system(ctrl::move_player.after(terminal_velocity))
-			.add_system(idle)
-			.add_system_to_stage(CoreStage::Last, reset_oob);
-	}
+pub fn plugin(app: &mut App) -> &mut App {
+	app.fn_plugin(input::plugin)
+		.add_startup_system(setup)
+		.add_system_to_stage(PreUpdate, ctrl::gravity)
+		.add_system_to_stage(PreUpdate, ctrl::repel_ground.after(ctrl::gravity))
+		// .add_system(tick_cooldown::<Jump>)
+		.add_system_to_stage(CoreStage::PreUpdate, ctrl::reset_jump_on_ground)
+		.add_system(input::movement_input.before(terminal_velocity))
+		.add_system(input::look_input.before(terminal_velocity))
+		.add_system(camera::position_target.after(input::look_input))
+		.add_system(camera::follow_target.after(camera::position_target))
+		.add_system(ctrl::move_player.after(terminal_velocity))
+		.add_system(idle)
+		.add_system_to_stage(CoreStage::Last, reset_oob)
 }
 
 fn setup(
@@ -96,7 +94,7 @@ fn setup(
 	let particle_material = materials.add(StandardMaterial {
 		// base_color: Color::rgba(0.0, 1.0, 0.5, 0.3),
 		base_color: Color::NONE,
-		emissive: Color::rgb(0.0, 1.0, 0.6),
+		emissive: Color::rgb(0.0, 4.0, 2.4),
 		reflectance: 0.0,
 		..default()
 	});
@@ -116,7 +114,7 @@ fn setup(
 		mesh: arm_mesh.clone(),
 		material: materials.add(StandardMaterial {
 			base_color: Color::NONE,
-			emissive: Color::GREEN,
+			emissive: Color::GREEN * 4.0,
 			reflectance: 0.0,
 			double_sided: true,
 			cull_mode: None,
@@ -129,7 +127,7 @@ fn setup(
 		mesh: arm_mesh.clone(),
 		material: materials.add(StandardMaterial {
 			base_color: Color::NONE,
-			emissive: Color::WHITE,
+			emissive: Color::WHITE * 4.0,
 			reflectance: 0.0,
 			double_sided: true,
 			cull_mode: None,
@@ -144,7 +142,7 @@ fn setup(
 		mesh: arm_mesh,
 		material: materials.add(StandardMaterial {
 			base_color: Color::NONE,
-			emissive: Color::CYAN,
+			emissive: Color::CYAN * 4.0,
 			reflectance: 0.0,
 			double_sided: true,
 			cull_mode: None,
@@ -180,7 +178,13 @@ pub enum PlayerEntity {
 	Arm(PlayerArm),
 	OrbitalParticle,
 }
-use crate::player::input::{AoESound, PlayerAction};
+use crate::{
+	player::{
+		input::{AoESound, PlayerAction},
+		prefs::PlayerPrefs,
+	},
+	util::FnPluginExt,
+};
 use player_entity::*;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -267,7 +271,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 						..default()
 					},
 					InputManagerBundle::<PlayerAction> {
-						input_map: PlayerAction::input_map(),
+						input_map: PlayerPrefs::default().input_map,
 						..default()
 					},
 					PlayerAction::abilities_bundle(),
@@ -311,6 +315,7 @@ fn player_vis(
 				.set_enum(PlayerEntity::Vis)
 				.with_children(|builder| {
 					builder.spawn((owner, vis));
+
 					let transform = Transform {
 						// rotation: Quat::from_rotation_x(FRAC_PI_2),
 						..default()
@@ -457,7 +462,7 @@ fn player_arms(
 					Collider::ball(0.4),
 					Sensor,
 					KinematicPositionBased,
-					RotVel::new(9.0),
+					RotVel::new(8.0),
 				))
 				.set_enum(PlayerEntity::Arm(which));
 		}
@@ -495,6 +500,7 @@ pub fn idle(
 ) {
 	for mut xform in &mut vis_q {
 		xform.translation.y = (t.elapsed_seconds() * 3.0).sin() * 0.24;
+		xform.rotate_local_y(-2.0 * t.delta_seconds());
 	}
 	for (mut xform, rvel) in &mut arm_q {
 		xform.translation = Quat::from_rotation_z(t.delta_seconds() * **rvel)
