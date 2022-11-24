@@ -1,4 +1,5 @@
 use crate::{
+	mats::BubbleMaterial,
 	pickups::pickup::PickupItem,
 	player::{
 		player_entity::{Arm, ReadPlayerEntity},
@@ -40,7 +41,6 @@ pub struct PopSfx(pub Handle<AudioSource>);
 pub fn setup(
 	mut cmds: Commands,
 	mut meshes: ResMut<Assets<Mesh>>,
-	mut materials: ResMut<Assets<StandardMaterial>>,
 	asset_server: Res<AssetServer>,
 ) {
 	cmds.insert_resource(SpawnTimer(Timer::new(
@@ -59,14 +59,7 @@ pub fn setup(
 		.into(),
 	);
 
-	let material = materials.add(StandardMaterial {
-		base_color: Color::rgba(0.0, 0.0, 0.0, 0.16),
-		emissive: Color::rgb(4.0, 0.6, 0.0),
-		alpha_mode: AlphaMode::Blend,
-		reflectance: 0.36,
-		cull_mode: None,
-		..default()
-	});
+	let material = asset_server.load("pickups/pickup_material.mat.ron");
 
 	cmds.insert_resource(PickupAssets { mesh, material })
 }
@@ -80,7 +73,7 @@ pub enum Pickup {
 #[derive(Debug, Clone, Resource, Reflect, FromReflect)]
 pub struct PickupAssets {
 	mesh: Handle<Mesh>,
-	material: Handle<StandardMaterial>,
+	material: Handle<BubbleMaterial>,
 }
 
 #[derive(Default, Debug, Clone, Resource, Deref, DerefMut)]

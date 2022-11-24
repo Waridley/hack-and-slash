@@ -44,6 +44,7 @@ bevy_kira_audio = "0.13.0"
 leafwing-input-manager = "0.7"
 leafwing_abilities = "0.3"
 bevy_quickmenu = "0.1.1"
+bevy_common_assets = { version = "0.4.0", features = ["ron"] }
 
 # Util
 nanorand = { version = "0.7.0", default-features = false, features = ["std", "wyrand", "getrandom"] } # wasm is broken without std and getrandom

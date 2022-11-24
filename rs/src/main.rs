@@ -1,3 +1,4 @@
+use crate::mats::BubbleMaterial;
 use bevy::{
 	diagnostic::FrameTimeDiagnosticsPlugin,
 	ecs::system::EntityCommands,
@@ -5,6 +6,7 @@ use bevy::{
 	render::mesh::{PrimitiveTopology, VertexAttributeValues::Float32x3},
 	DefaultPlugins,
 };
+use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_kira_audio::AudioPlugin;
 use bevy_rapier3d::{parry::shape::SharedShape, prelude::*};
 use particles::ParticlesPlugin;
@@ -16,6 +18,7 @@ use rapier3d::{
 use std::{f32::consts::*, fmt::Debug, sync::Arc, time::Duration};
 use util::FnPluginExt;
 
+pub mod mats;
 pub mod pickups;
 pub mod player;
 pub mod settings;
@@ -67,6 +70,8 @@ pub fn main() {
 		.fn_plugin(player::plugin)
 		.fn_plugin(pickups::plugin)
 		.fn_plugin(ui::plugin)
+		.add_plugin(RonAssetPlugin::<BubbleMaterial>::new(&["mat.ron"]))
+		.add_plugin(MaterialPlugin::<BubbleMaterial>::default())
 		.add_startup_system(startup)
 		.add_system(terminal_velocity)
 		.add_system(fullscreen);
