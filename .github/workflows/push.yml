@@ -3,7 +3,6 @@ name: Rust
 on:
   push:
     branches: [main]
-  pull_request:
 
 env:
   CARGO_TERM_COLOR: always
@@ -35,7 +34,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-unknown-unknown
+          targets: wasm32-unknown-unknown, x86_64-pc-windows-gnu
           components: rustfmt, clippy
 
       - name: Prepare crate for stable toolchain
@@ -43,14 +42,14 @@ jobs:
           rm ./rs/.cargo/config.toml
           rm ./rs/rust-toolchain.toml
 
-      - name: Build
+      - name: Linux Check
         working-directory: ./rs
-        run: cargo build --verbose
+        run: cargo check
 
-      - name: WASM Build
+      - name: WASM Check
         working-directory: ./rs
-        run: cargo build --verbose --target wasm32-unknown-unknown
+        run: cargo check --target wasm32-unknown-unknown
 
-      - name: Run tests
+      - name: Windows Check
         working-directory: ./rs
-        run: cargo test --verbose
+        run: cargo check --target x86_64-pc-windows-gnu
