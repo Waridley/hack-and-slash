@@ -19,11 +19,10 @@ use bevy_rapier3d::{
 use enum_components::{EntityEnumCommands, EnumComponent};
 use nanorand::Rng;
 use std::{
-	f32::consts::TAU,
+	f32::consts::PI,
 	sync::atomic::{AtomicI64, Ordering::Relaxed},
 	time::Duration,
 };
-use std::f32::consts::PI;
 
 pub static HEALTH: AtomicI64 = AtomicI64::new(0);
 pub static SHIELD: AtomicI64 = AtomicI64::new(0);
@@ -39,11 +38,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 #[derive(Resource, Default, Debug, Clone, Deref, DerefMut)]
 pub struct PopSfx(pub Handle<AudioSource>);
 
-pub fn setup(
-	mut cmds: Commands,
-	mut meshes: ResMut<Assets<Mesh>>,
-	asset_server: Res<AssetServer>,
-) {
+pub fn setup(mut cmds: Commands, mut meshes: ResMut<Assets<Mesh>>, asset_server: Res<AssetServer>) {
 	cmds.insert_resource(SpawnTimer(Timer::new(
 		Duration::from_secs(5),
 		TimerMode::Repeating,
@@ -166,7 +161,7 @@ pub fn movement(mut q: Query<&mut Transform, Pickup>, t: Res<Time>) {
 	let s = t.elapsed_seconds();
 	let dt = t.delta_seconds();
 	for mut xform in &mut q {
-		let rise_speed = (s * (0.9 + ((s * 0.001 + xform.translation.y * 1000.0).sin() * 0.2)));
+		let rise_speed = s * (0.9 + ((s * 0.001 + xform.translation.y * 1000.0).sin() * 0.2));
 		xform.translation.z += dt * (4.0 * ((rise_speed + xform.translation.x).sin() + 0.36));
 		if xform.translation.z > 128.0 {
 			xform.translation.z *= 1.003;
