@@ -347,4 +347,23 @@ fn toggle_debug_rendering(mut ctx: ResMut<DebugRenderContext>, input: Res<Input<
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+	use bevy::{app::AppExit, prelude::*};
+
+	fn app() -> App {
+		let mut app = App::new();
+
+		app.add_plugins(MinimalPlugins);
+
+		app
+	}
+
+	fn exit_app(mut events: EventWriter<AppExit>) {
+		events.send(AppExit)
+	}
+
+	#[test]
+	fn run_app() {
+		app().add_system(exit_app).run()
+	}
+}

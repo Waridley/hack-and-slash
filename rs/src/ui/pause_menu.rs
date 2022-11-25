@@ -1,7 +1,6 @@
 use super::*;
-use bevy::{app::AppExit, prelude::*};
+use bevy::app::AppExit;
 use bevy_quickmenu::{ActionTrait, Menu, MenuItem, MenuState, QuickMenuPlugin, ScreenTrait};
-use enum_components::EntityEnumCommands;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_event::<PauseMenuEvent>()
@@ -14,7 +13,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 		.add_system(event_reader)
 }
 
-pub fn pause_menu_setup(mut cmds: Commands) {
+pub fn pause_menu_setup(mut _cmds: Commands) {
 	// spawn_pause_menu(&mut cmds, PauseMenuState::default())
 }
 
@@ -112,9 +111,9 @@ fn root_menu(state: &PauseMenuState) -> Menu<PauseMenuAction, PauseMenuScreen, P
 		"root",
 		vec![
 			MenuItem::headline("Pause"),
-			MenuItem::label("Toggle Bloom"),
-			MenuItem::action("BloomOn", PauseMenuAction::SetBloom(true)).checked(state.bloom_on),
-			MenuItem::action("BloomOff", PauseMenuAction::SetBloom(false)).checked(!state.bloom_on),
+			MenuItem::label("Graphics"),
+			MenuItem::action("Bloom Lighting", PauseMenuAction::SetBloom(!state.bloom_on))
+				.checked(state.bloom_on),
 			MenuItem::action("Quit", PauseMenuAction::Quit),
 		],
 	)

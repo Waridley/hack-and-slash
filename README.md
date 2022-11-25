@@ -1,12 +1,13 @@
-![screenshot](promo/screenshots/Screenshot%20from%202022-11-23%2019-11-55.png)
+![screenshot](promo/screenshots/banner.png)
 
 # Title TBD
-[![Rust](https://github.com/Waridley/hack-and-slash/actions/workflows/rust.yml/badge.svg)](https://github.com/Waridley/hack-and-slash/actions/workflows/rust.yml)
+[![Rust](https://github.com/Waridley/hack-and-slash/actions/workflows/push.yml/badge.svg)](https://github.com/Waridley/hack-and-slash/actions/workflows/push.yml)
 
 A procedurally-generated sci-fi aerial hack-and-slash written in Rust using
 [Bevy](https://bevyengine.org/)
 
-Runnable in the browser [here](https://waridley.github.io/hack-and-slash/)
+Runnable in the browser [here](https://waridley.github.io/hack-and-slash/). 
+Bloom lighting currently crashes the game in the browser.
 
 ## Licensing
 Source code is licensed under the EUPL version 1.2
