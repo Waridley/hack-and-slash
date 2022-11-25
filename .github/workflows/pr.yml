@@ -47,7 +47,7 @@ jobs:
 
       - name: Clippy
         working-directory: ./rs
-        run: cargo clippy --workspace --all-targets --all-features -Dwarnings
+        run: cargo clippy --workspace --all-targets --all-features -- -Dwarnings
 
       - name: Build
         working-directory: ./rs
