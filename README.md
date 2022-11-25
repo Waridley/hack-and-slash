@@ -1,7 +1,7 @@
 ![screenshot](promo/screenshots/Screenshot%20from%202022-11-23%2019-11-55.png)
 
 # Title TBD
-[![Rust](https://github.com/Waridley/hack-and-slash/actions/workflows/rust.yml/badge.svg)](https://github.com/Waridley/hack-and-slash/actions/workflows/rust.yml)
+[![Rust](https://github.com/Waridley/hack-and-slash/actions/workflows/push.yml/badge.svg)](https://github.com/Waridley/hack-and-slash/actions/workflows/push.yml)
 
 A procedurally-generated sci-fi aerial hack-and-slash written in Rust using
 [Bevy](https://bevyengine.org/)
