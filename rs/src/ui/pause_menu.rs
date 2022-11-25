@@ -112,9 +112,8 @@ fn root_menu(state: &PauseMenuState) -> Menu<PauseMenuAction, PauseMenuScreen, P
 		"root",
 		vec![
 			MenuItem::headline("Pause"),
-			MenuItem::label("Toggle Bloom"),
-			MenuItem::action("BloomOn", PauseMenuAction::SetBloom(true)).checked(state.bloom_on),
-			MenuItem::action("BloomOff", PauseMenuAction::SetBloom(false)).checked(!state.bloom_on),
+			MenuItem::label("Graphics"),
+			MenuItem::action("Bloom Lighting", PauseMenuAction::SetBloom(!state.bloom_on)).checked(state.bloom_on),
 			MenuItem::action("Quit", PauseMenuAction::Quit),
 		],
 	)
