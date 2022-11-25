@@ -40,6 +40,14 @@ jobs:
           rm ./rs/.cargo/config.toml
           rm ./rs/rust-toolchain.toml
 
+      - name: Rustfmt
+        working-directory: ./rs
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        working-directory: ./rs
+        run: cargo clippy --workspace --all-targets --all-features
+
       - name: Build
         working-directory: ./rs
         run: cargo build

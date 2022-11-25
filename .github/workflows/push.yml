@@ -34,8 +34,12 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-unknown-unknown, x86_64-pc-windows-gnu
-          components: rustfmt, clippy
+          targets:
+            wasm32-unknown-unknown,
+            x86_64-pc-windows-gnu,
+            x86_64-apple-darwin,
+            aarch64-linux-android,
+            aarch64-apple-ios,
 
       - name: Prepare crate for stable toolchain
         run: |
@@ -53,3 +57,15 @@ jobs:
       - name: Windows Check
         working-directory: ./rs
         run: cargo check --target x86_64-pc-windows-gnu
+
+      - name: MacOS Check
+        working-directory: ./rs
+        run: cargo check --target x86_64-apple-darwin
+
+      - name: Android Check
+        working-directory: ./rs
+        run: cargo check --target aarch64-linux-android
+
+      - name: iOS Check
+        working-directory: ./rs
+        run: cargo check --target aarch64-apple-ios
