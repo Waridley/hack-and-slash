@@ -352,6 +352,7 @@ mod tests {
 
 	fn app() -> App {
 		let mut app = App::new();
+
 		app.add_plugins(MinimalPlugins);
 
 		app
