@@ -18,6 +18,7 @@ use bevy_rapier3d::{
 use enum_components::EntityEnumCommands;
 use rapier3d::geometry::InteractionGroups;
 use std::f32::consts::FRAC_PI_2;
+use bevy::core_pipeline::fxaa::Fxaa;
 
 pub const CAM_ACCEL: f32 = 12.0;
 const MAX_CAM_DIST: f32 = 24.0;
@@ -39,12 +40,7 @@ pub fn spawn_camera<'w, 's, 'a>(
 		// but parenting handles it properly
 		builder.spawn((
 			Camera3dBundle {
-				camera: Camera {
-					// TODO: This causes crashes in debug and web, but I really want bloom to work!
-					// #[cfg(all(not(debug_assertions), not(target_arch = "wasm32")))]
-					// hdr: true,
-					..default()
-				},
+				camera: Camera::default(),
 				transform: Transform {
 					rotation: Quat::from_rotation_x(FRAC_PI_2),
 					..default()
@@ -57,6 +53,10 @@ pub fn spawn_camera<'w, 's, 'a>(
 			},
 			BloomSettings {
 				intensity: 0.05,
+				..default()
+			},
+			Fxaa {
+				enabled: false,
 				..default()
 			},
 		));
