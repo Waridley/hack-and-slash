@@ -14,4 +14,6 @@ impl Plugin for SettingsPlugin {
 #[derive(Resource, Default, Debug, Serialize, Deserialize)]
 pub struct Settings {
 	pub hdr: bool,
+	pub msaa: bool,
+	pub fxaa: bool,
 }

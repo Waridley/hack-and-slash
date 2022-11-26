@@ -78,7 +78,8 @@ pub fn main() {
 
 	#[cfg(debug_assertions)]
 	{
-		app.add_plugin(RapierDebugRenderPlugin::default())
+		app
+			.add_plugin(RapierDebugRenderPlugin::default())
 			.add_system(toggle_debug_rendering);
 	}
 
@@ -137,6 +138,9 @@ fn startup(
 	mut materials: ResMut<Assets<StandardMaterial>>,
 	mut meshes: ResMut<Assets<Mesh>>,
 ) {
+	#[cfg(target_family = "wasm")]
+	cmds.insert_resource(Msaa { samples: 1 }); // disables MSAA
+	
 	cmds.insert_resource(AbsoluteBounds { extents: 2048.0 });
 
 	cmds.spawn(DirectionalLightBundle {

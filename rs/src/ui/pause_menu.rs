@@ -1,5 +1,6 @@
 use super::*;
 use bevy::app::AppExit;
+use bevy::core_pipeline::fxaa::Fxaa;
 use bevy_quickmenu::{ActionTrait, Menu, MenuItem, MenuState, QuickMenuPlugin, ScreenTrait};
 
 pub fn plugin(app: &mut App) -> &mut App {
@@ -24,12 +25,16 @@ pub fn spawn_pause_menu(cmds: &mut Commands, state: PauseMenuState) {
 #[derive(Component, Default, Debug)]
 pub struct PauseMenuState {
 	bloom_on: bool,
+	msaa_on: bool,
+	fxaa_on: bool,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum PauseMenuAction {
 	Close,
 	SetBloom(bool),
+	SetMsaa(bool),
+	SetFxaa(bool),
 	Quit,
 }
 
@@ -38,7 +43,8 @@ fn event_reader(
 	mut events: EventReader<PauseMenuEvent>,
 	state: Option<Res<MenuState<PauseMenuState, PauseMenuAction, PauseMenuScreen>>>,
 	mut exit_events: EventWriter<AppExit>,
-	mut cam_q: Query<&mut Camera>,
+	mut cam_q: Query<(&mut Camera, &mut Fxaa)>,
+	mut msaa: ResMut<Msaa>,
 ) {
 	for e in events.iter() {
 		match e {
@@ -47,7 +53,9 @@ fn event_reader(
 					spawn_pause_menu(
 						&mut cmds,
 						PauseMenuState {
-							bloom_on: cam_q.iter().next().unwrap().hdr,
+							bloom_on: cam_q.iter().next().unwrap().0.hdr,
+							msaa_on: msaa.samples > 1,
+							fxaa_on: cam_q.iter().next().unwrap().1.enabled,
 						},
 					)
 				} else {
@@ -56,8 +64,18 @@ fn event_reader(
 			}
 			PauseMenuEvent::SetBloom(on) => {
 				info!("Turning bloom {on}");
-				for mut cam in &mut cam_q {
+				for (mut cam, _) in &mut cam_q {
 					cam.hdr = *on;
+				}
+			}
+			PauseMenuEvent::SetMsaa(on) => {
+				info!("Turning MSAA {on}");
+				msaa.samples = if *on { 4 } else { 1 }
+			}
+			PauseMenuEvent::SetFxaa(on) => {
+				info!("Turning FXAA {on}");
+				for (_, mut fxaa) in &mut cam_q {
+					fxaa.enabled = *on
 				}
 			}
 			PauseMenuEvent::Quit => exit_events.send(AppExit),
@@ -74,7 +92,25 @@ impl ActionTrait for PauseMenuAction {
 			PauseMenuAction::Close => events.send(PauseMenuEvent::ShowOrHide),
 			PauseMenuAction::SetBloom(on) => {
 				state.bloom_on = *on;
-				events.send(PauseMenuEvent::SetBloom(*on))
+				events.send(PauseMenuEvent::SetBloom(*on));
+				#[cfg(target_family = "wasm")]
+				if *on {
+					state.msaa_on = false;
+					events.send(PauseMenuEvent::SetMsaa(false))
+				}
+			}
+			PauseMenuAction::SetMsaa(on) => {
+				state.msaa_on = *on;
+				events.send(PauseMenuEvent::SetMsaa(*on));
+				#[cfg(target_family = "wasm")]
+				if *on {
+					state.bloom_on = false;
+					events.send(PauseMenuEvent::SetBloom(false))
+				}
+			}
+			PauseMenuAction::SetFxaa(on) => {
+				state.fxaa_on = *on;
+				events.send(PauseMenuEvent::SetFxaa(*on));
 			}
 			PauseMenuAction::Quit => events.send(PauseMenuEvent::Quit),
 		}
@@ -103,6 +139,8 @@ impl ScreenTrait for PauseMenuScreen {
 pub enum PauseMenuEvent {
 	ShowOrHide,
 	SetBloom(bool),
+	SetMsaa(bool),
+	SetFxaa(bool),
 	Quit,
 }
 
@@ -110,10 +148,14 @@ fn root_menu(state: &PauseMenuState) -> Menu<PauseMenuAction, PauseMenuScreen, P
 	Menu::new(
 		"root",
 		vec![
-			MenuItem::headline("Pause"),
+			MenuItem::headline("Menu"),
 			MenuItem::label("Graphics"),
 			MenuItem::action("Bloom Lighting", PauseMenuAction::SetBloom(!state.bloom_on))
 				.checked(state.bloom_on),
+			MenuItem::action("MSAA", PauseMenuAction::SetMsaa(!state.msaa_on))
+				.checked(state.msaa_on),
+			MenuItem::action("FXAA", PauseMenuAction::SetFxaa(!state.fxaa_on))
+				.checked(state.fxaa_on),
 			MenuItem::action("Quit", PauseMenuAction::Quit),
 		],
 	)

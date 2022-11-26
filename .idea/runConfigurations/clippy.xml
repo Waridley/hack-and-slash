@@ -12,8 +12,6 @@
     <envs />
     <option name="isRedirectInput" value="false" />
     <option name="redirectInputPath" value="" />
-    <method v="2">
-      <option name="RunConfigurationTask" enabled="true" run_configuration_name="rustfmt" run_configuration_type="CargoCommandRunConfiguration" />
-    </method>
+    <method v="2" />
   </configuration>
 </component>
