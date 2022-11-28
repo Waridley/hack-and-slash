@@ -137,9 +137,16 @@ fn startup(
 	mut cmds: Commands,
 	mut materials: ResMut<Assets<StandardMaterial>>,
 	mut meshes: ResMut<Assets<Mesh>>,
+	#[cfg(debug_assertions)]
+	mut dbg_render_ctx: ResMut<DebugRenderContext>,
 ) {
 	#[cfg(target_family = "wasm")]
 	cmds.insert_resource(Msaa { samples: 1 }); // disables MSAA
+	
+	#[cfg(debug_assertions)]
+	{
+		dbg_render_ctx.enabled = false;
+	}
 	
 	cmds.insert_resource(AbsoluteBounds { extents: 2048.0 });
 
