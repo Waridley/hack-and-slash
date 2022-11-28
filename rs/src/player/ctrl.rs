@@ -54,9 +54,8 @@ pub fn repel_ground(
 			if angle < SLIDE_ANGLE {
 				state.grounded = true;
 				let dist = HOVER_HEIGHT - toi.toi;
-				let repel_accel = dist * dist * 64.0;
-				let z = ctrl_vel.linvel.z;
-				ctrl_vel.linvel.z = z + ((repel_accel - z) * f32::min(t.delta_seconds() * 2.0, 1.0))
+				let repel_accel = dist * dist * 64.0 - ctrl_vel.linvel.z;
+				ctrl_vel.linvel.z += repel_accel * f32::min(t.delta_seconds() * 2.0, 0.256);
 			}
 		}
 	}
