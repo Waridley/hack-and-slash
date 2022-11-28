@@ -7,7 +7,7 @@ license = "EUPL-1.2"
 
 [workspace]
 resolver = "2"
-members = []
+members = ["tools/*"]
 
 [features]
 vis_test = ["testing"]
@@ -17,7 +17,7 @@ testing = []
 rapier3d = { version = "0.16", path = "../rapier/crates/rapier3d" }
 bevy_rapier3d = { version = "0.19.0", path = "../bevy_rapier/bevy_rapier3d" }
 
-[dependencies.bevy]
+[workspace.dependencies.bevy]
 version = "0.9.0"
 default-features = false
 features = [
@@ -35,7 +35,7 @@ features = [
     "filesystem_watcher",
 ]
 
-[dependencies]
+[workspace.dependencies]
 # Mine
 enum_components = { package = "sond-bevy-enum-components", path = "../sond-bevy-enum-components" }
 particles = { package = "sond-bevy-particles", path = "../sond-bevy-particles" }
@@ -54,6 +54,28 @@ nanorand = { version = "0.7.0", default-features = false, features = ["std", "wy
 noises-and-patterns = "0.1.0"
 static_assertions = "1.1.0"
 serde = "1"
+
+[dependencies]
+# Mine
+enum_components = { package = "sond-bevy-enum-components", workspace = true }
+particles = { workspace = true }
+
+# Engine
+bevy = { workspace = true }
+bevy_rapier3d = { workspace = true }
+rapier3d = { workspace = true }
+bevy_kira_audio = { workspace = true }
+leafwing-input-manager = { workspace = true }
+leafwing_abilities = { workspace = true }
+bevy_quickmenu = { workspace = true }
+bevy_common_assets = { workspace = true }
+
+# Util
+nanorand = { workspace = true}
+noises-and-patterns = { workspace = true }
+static_assertions = { workspace = true }
+serde = { workspace = true }
+
 
 [profile.dev]
 opt-level = 1

@@ -174,7 +174,7 @@ fn startup(
 	});
 
 	use noises_and_patterns::{noise::Noise, FP};
-	let noise = noises_and_patterns::value::Value::new();
+	let noise = noises_and_patterns::noise::value::Value::new();
 	let r = 48;
 	let d = r * 2;
 	let (columns, rows) = (d, d);
