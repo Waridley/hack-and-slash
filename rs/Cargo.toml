@@ -3,11 +3,11 @@ name = "sond-has"
 version = "0.1.0"
 edition = "2021"
 license = "EUPL-1.2"
-
+default-run = "sond-has"
 
 [workspace]
 resolver = "2"
-members = ["tools/*"]
+members = ["tools/*", "game-dylib"]
 
 [features]
 vis_test = ["testing"]

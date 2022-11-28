@@ -6,6 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-game = { package = "sond-has", path = "../.." }
+game = { package = "sond-has-dylib", path = "../../game-dylib" }
 
 bevy = { workspace = true }
+
+async-process = "1.6.0"
+futures-lite = "1.12.0"
