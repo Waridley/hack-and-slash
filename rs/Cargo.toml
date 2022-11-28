@@ -9,6 +9,9 @@ license = "EUPL-1.2"
 resolver = "2"
 members = []
 
+[features]
+vis_test = ["testing"]
+testing = []
 
 [patch.crates-io]
 rapier3d = { version = "0.16", path = "../rapier/crates/rapier3d" }
@@ -61,3 +64,7 @@ opt-level = 3
 [profile.release]
 opt-level = "z"
 lto = "thin"
+
+[[bin]]
+name = "has-vis-tests"
+required-features = ["vis_test"]
