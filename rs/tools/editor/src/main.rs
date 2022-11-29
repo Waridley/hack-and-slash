@@ -52,24 +52,35 @@ fn run_game(
 			.arg("run")
 			.arg("--features=bevy/dynamic")
 			.stdout(Stdio::piped())
+			.stderr(Stdio::piped())
 			// .stdin(Stdio::piped())
-			// .stderr(Stdio::piped())
 			.spawn();
 		match result {
 			Ok(mut child) => {
 				let out = child.stdout.take().unwrap();
+				let err = child.stderr.take().unwrap();
 				game.0 = Some(child);
-				IoTaskPool::get()
-					.spawn(async move {
-						let reader = BufReader::new(out);
-						let mut lines = reader.lines();
-						while let Some(line) = lines.next().await {
-							match line {
-								Ok(line) => println!("{line}"),
-								Err(e) => error!("{e}"),
-							}
+				let tasks = IoTaskPool::get();
+				tasks.spawn(async move {
+					let reader = BufReader::new(out);
+					let mut lines = reader.lines();
+					while let Some(line) = lines.next().await {
+						match line {
+							Ok(line) => println!("{line}"),
+							Err(e) => error!("{e}"),
 						}
-					}).detach();
+					}
+				}).detach();
+				tasks.spawn(async move {
+					let reader = BufReader::new(err);
+					let mut lines = reader.lines();
+					while let Some(line) = lines.next().await {
+						match line {
+							Ok(line) => eprintln!("{line}"),
+							Err(e) => error!("{e}"),
+						}
+					}
+				}).detach();
 			}
 			Err(e) => error!("{e:?}"),
 		};
