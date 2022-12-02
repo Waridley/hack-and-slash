@@ -16,6 +16,7 @@ use rapier3d::{
 	na::{DMatrix, Vector3},
 };
 use std::{f32::consts::*, fmt::Debug, sync::Arc, time::Duration};
+use bevy_pkv::PkvStore;
 use util::FnPluginExt;
 
 pub mod mats;
@@ -68,8 +69,10 @@ pub fn run() {
 		.add_plugin(FrameTimeDiagnosticsPlugin::default())
 		.add_plugin(AudioPlugin)
 		.add_plugin(ParticlesPlugin)
+		.insert_resource(PkvStore::new_with_qualifier("studio", "sonday", env!("CARGO_PKG_NAME")))
 		.fn_plugin(player::plugin)
 		.fn_plugin(pickups::plugin)
+		.fn_plugin(settings::plugin)
 		.fn_plugin(ui::plugin)
 		.add_plugin(RonAssetPlugin::<BubbleMaterial>::new(&["mat.ron"]))
 		.add_plugin(MaterialPlugin::<BubbleMaterial>::default())

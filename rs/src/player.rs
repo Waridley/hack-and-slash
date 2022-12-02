@@ -66,9 +66,10 @@ fn setup(
 	mut materials: ResMut<Assets<StandardMaterial>>,
 	mut meshes: ResMut<Assets<Mesh>>,
 	asset_server: Res<AssetServer>,
+	settings: Res<Settings>,
 ) {
 	let id = unsafe { PlayerId::new_unchecked(1) };
-	spawn_camera(&mut cmds, id);
+	spawn_camera(&mut cmds, id, &*settings);
 
 	let aoe_sfx = asset_server.load("sfx/SFX_-_magic_spell_03.ogg");
 	cmds.insert_resource(AoESound(aoe_sfx));
@@ -186,6 +187,7 @@ use crate::{
 	util::FnPluginExt,
 };
 use player_entity::*;
+use crate::settings::Settings;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum PlayerArm {

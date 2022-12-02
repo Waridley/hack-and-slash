@@ -50,6 +50,7 @@ bevy_quickmenu = "0.1.1"
 bevy_common_assets = { version = "0.4.0", features = ["ron"] }
 
 # Util
+bevy_pkv = "0.6.0"
 nanorand = { version = "0.7.0", default-features = false, features = ["std", "wyrand", "getrandom"] } # wasm is broken without std and getrandom
 noises-and-patterns = "0.1.0"
 static_assertions = "1.1.0"
@@ -71,7 +72,8 @@ bevy_quickmenu = { workspace = true }
 bevy_common_assets = { workspace = true }
 
 # Util
-nanorand = { workspace = true}
+bevy_pkv = { workspace = true }
+nanorand = { workspace = true }
 noises-and-patterns = { workspace = true }
 static_assertions = { workspace = true }
 serde = { workspace = true }
