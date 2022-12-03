@@ -92,11 +92,7 @@ opt-level = "z"
 lto = "thin"
 
 [[test]]
-name = "headless"
+name = "integration"
 required-features = ["testing"]
 harness = false
 
-[[test]]
-name = "visual"
-required-features = ["vis_test"]
-harness = false
