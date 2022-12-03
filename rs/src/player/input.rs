@@ -6,7 +6,7 @@ use crate::{
 		BelongsToPlayer, RotVel, ACCEL, JUMP_VEL, MAX_JUMPS, MAX_SPEED,
 	},
 	terminal_velocity,
-	ui::pause_menu::PauseMenuEvent,
+	ui::pause_menu::PauseMenuAction,
 };
 use bevy::{math::Vec3Swizzles, prelude::*};
 use bevy_kira_audio::prelude::{Audio, AudioSource, *};
@@ -89,7 +89,7 @@ pub struct AoESound(pub Handle<AudioSource>);
 pub fn abilities(
 	mut action_q: Query<AbilityState<PlayerAction>>,
 	mut arm_q: Query<(&mut Transform, &mut RotVel), ReadPlayerEntity<Arm>>,
-	mut pause_events: EventWriter<PauseMenuEvent>,
+	mut pause_events: EventWriter<PauseMenuAction>,
 	sfx: Res<AoESound>,
 	audio: Res<Audio>,
 	t: Res<Time>,
@@ -114,7 +114,7 @@ pub fn abilities(
 		}
 
 		if state.trigger_if_just_pressed(Pause).is_ok() {
-			pause_events.send(PauseMenuEvent::ShowOrHide)
+			pause_events.send(PauseMenuAction::ShowOrHide)
 		}
 
 		for (mut arm, mut rvel) in &mut arm_q {

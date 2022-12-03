@@ -3,6 +3,8 @@ use super::{
 	BelongsToPlayer, G1,
 };
 use crate::player::{PlayerEntity, PlayerId};
+use crate::settings::Settings;
+use bevy::core_pipeline::fxaa::Fxaa;
 use bevy::{
 	core_pipeline::{bloom::BloomSettings, clear_color::ClearColorConfig},
 	ecs::system::{EntityCommands, Res},
@@ -18,7 +20,6 @@ use bevy_rapier3d::{
 use enum_components::EntityEnumCommands;
 use rapier3d::geometry::InteractionGroups;
 use std::f32::consts::FRAC_PI_2;
-use bevy::core_pipeline::fxaa::Fxaa;
 
 pub const CAM_ACCEL: f32 = 12.0;
 const MAX_CAM_DIST: f32 = 24.0;
@@ -27,6 +28,7 @@ const MIN_CAM_DIST: f32 = 6.4;
 pub fn spawn_camera<'w, 's, 'a>(
 	cmds: &'a mut Commands<'w, 's>,
 	player_id: PlayerId,
+	settings: &Settings,
 ) -> EntityCommands<'w, 's, 'a> {
 	let mut cmds = cmds.spawn((
 		BelongsToPlayer::with_id(player_id),
@@ -40,7 +42,10 @@ pub fn spawn_camera<'w, 's, 'a>(
 		// but parenting handles it properly
 		builder.spawn((
 			Camera3dBundle {
-				camera: Camera::default(),
+				camera: Camera {
+					hdr: settings.hdr,
+					..default()
+				},
 				transform: Transform {
 					rotation: Quat::from_rotation_x(FRAC_PI_2),
 					..default()
@@ -56,7 +61,7 @@ pub fn spawn_camera<'w, 's, 'a>(
 				..default()
 			},
 			Fxaa {
-				enabled: false,
+				enabled: settings.fxaa,
 				..default()
 			},
 		));

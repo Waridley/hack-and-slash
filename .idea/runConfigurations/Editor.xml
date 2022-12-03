@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="web (release)" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="run --release --target wasm32-unknown-unknown" />
+  <configuration default="false" name="Editor" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+    <option name="command" value="run --package sond-has-editor --bin sond-has-editor" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$/rs" />
     <option name="channel" value="DEFAULT" />
     <option name="requiredFeatures" value="true" />
@@ -12,6 +12,8 @@
     <envs />
     <option name="isRedirectInput" value="false" />
     <option name="redirectInputPath" value="" />
-    <method v="2" />
+    <method v="2">
+      <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+    </method>
   </configuration>
 </component>
