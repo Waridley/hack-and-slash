@@ -83,7 +83,7 @@ jobs:
 
       - name: Run tests
         working-directory: ./rs
-        run: cargo test --test headless --features="testing"
+        run: cargo test --features="testing"
 
   wasm_check:
     runs-on: ubuntu-latest
