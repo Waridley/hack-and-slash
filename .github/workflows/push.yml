@@ -47,7 +47,7 @@ jobs:
 
       - name: Linux Build
         working-directory: ./rs
-        run: cargo build
+        run: cargo build --all-features
 
       - name: WASM Check
         working-directory: ./rs

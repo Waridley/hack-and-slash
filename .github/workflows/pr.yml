@@ -46,7 +46,7 @@ jobs:
 
       - name: Build
         working-directory: ./rs
-        run: cargo build
+        run: cargo build --all-features
 
   test:
     runs-on: ubuntu-latest
