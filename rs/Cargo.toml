@@ -11,7 +11,7 @@ members = ["tools/*", "game-dylib"]
 
 [features]
 vis_test = ["testing"]
-testing = []
+testing = ["colored"]
 
 [patch.crates-io]
 rapier3d = { version = "0.16", path = "../rapier/crates/rapier3d" }
@@ -78,6 +78,8 @@ noises-and-patterns = { workspace = true }
 static_assertions = { workspace = true }
 serde = { workspace = true }
 
+# Testing
+colored = { version = "2", optional = true }
 
 [profile.dev]
 opt-level = 1
@@ -89,6 +91,12 @@ opt-level = 3
 opt-level = "z"
 lto = "thin"
 
-[[bin]]
-name = "has-vis-tests"
+[[test]]
+name = "headless"
+required-features = ["testing"]
+harness = false
+
+[[test]]
+name = "visual"
 required-features = ["vis_test"]
+harness = false
