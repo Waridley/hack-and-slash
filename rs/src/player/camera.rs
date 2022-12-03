@@ -3,6 +3,8 @@ use super::{
 	BelongsToPlayer, G1,
 };
 use crate::player::{PlayerEntity, PlayerId};
+use crate::settings::Settings;
+use bevy::core_pipeline::fxaa::Fxaa;
 use bevy::{
 	core_pipeline::{bloom::BloomSettings, clear_color::ClearColorConfig},
 	ecs::system::{EntityCommands, Res},
@@ -18,8 +20,6 @@ use bevy_rapier3d::{
 use enum_components::EntityEnumCommands;
 use rapier3d::geometry::InteractionGroups;
 use std::f32::consts::FRAC_PI_2;
-use bevy::core_pipeline::fxaa::Fxaa;
-use crate::settings::Settings;
 
 pub const CAM_ACCEL: f32 = 12.0;
 const MAX_CAM_DIST: f32 = 24.0;

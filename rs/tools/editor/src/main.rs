@@ -1,7 +1,7 @@
 use async_process::{Child, Command, Stdio};
 use bevy::prelude::*;
-use bevy::tasks::{IoTaskPool};
-use futures_lite::{AsyncBufReadExt, io::BufReader, StreamExt};
+use bevy::tasks::IoTaskPool;
+use futures_lite::{io::BufReader, AsyncBufReadExt, StreamExt};
 
 #[bevy_main]
 fn main() {
@@ -27,11 +27,9 @@ fn setup(mut cmds: Commands) {
 			..default()
 		},
 		..default()
-	}).with_children(|btn| {
-		btn.spawn(TextBundle::from_section(
-			"Run Game",
-			TextStyle::default(),
-		));
+	})
+	.with_children(|btn| {
+		btn.spawn(TextBundle::from_section("Run Game", TextStyle::default()));
 	});
 }
 
@@ -39,14 +37,11 @@ pub struct RunGameEvent;
 #[derive(Resource, Default, Debug)]
 pub struct RunningGame(pub Option<Child>);
 
-fn run_game(
-	mut events: EventReader<RunGameEvent>,
-	mut game: ResMut<RunningGame>,
-) {
+fn run_game(mut events: EventReader<RunGameEvent>, mut game: ResMut<RunningGame>) {
 	for _event in events.iter() {
 		if game.0.is_some() {
 			warn!("Game is already running");
-			continue
+			continue;
 		}
 		let result = Command::new("cargo")
 			.arg("run")
@@ -61,26 +56,30 @@ fn run_game(
 				let err = child.stderr.take().unwrap();
 				game.0 = Some(child);
 				let tasks = IoTaskPool::get();
-				tasks.spawn(async move {
-					let reader = BufReader::new(out);
-					let mut lines = reader.lines();
-					while let Some(line) = lines.next().await {
-						match line {
-							Ok(line) => println!("{line}"),
-							Err(e) => error!("{e}"),
+				tasks
+					.spawn(async move {
+						let reader = BufReader::new(out);
+						let mut lines = reader.lines();
+						while let Some(line) = lines.next().await {
+							match line {
+								Ok(line) => println!("{line}"),
+								Err(e) => error!("{e}"),
+							}
 						}
-					}
-				}).detach();
-				tasks.spawn(async move {
-					let reader = BufReader::new(err);
-					let mut lines = reader.lines();
-					while let Some(line) = lines.next().await {
-						match line {
-							Ok(line) => eprintln!("{line}"),
-							Err(e) => error!("{e}"),
+					})
+					.detach();
+				tasks
+					.spawn(async move {
+						let reader = BufReader::new(err);
+						let mut lines = reader.lines();
+						while let Some(line) = lines.next().await {
+							match line {
+								Ok(line) => eprintln!("{line}"),
+								Err(e) => error!("{e}"),
+							}
 						}
-					}
-				}).detach();
+					})
+					.detach();
 			}
 			Err(e) => error!("{e:?}"),
 		};

@@ -69,7 +69,7 @@ fn setup(
 	settings: Res<Settings>,
 ) {
 	let id = unsafe { PlayerId::new_unchecked(1) };
-	spawn_camera(&mut cmds, id, &*settings);
+	spawn_camera(&mut cmds, id, &settings);
 
 	let aoe_sfx = asset_server.load("sfx/SFX_-_magic_spell_03.ogg");
 	cmds.insert_resource(AoESound(aoe_sfx));
@@ -179,6 +179,7 @@ pub enum PlayerEntity {
 	Arm(PlayerArm),
 	OrbitalParticle,
 }
+use crate::settings::Settings;
 use crate::{
 	player::{
 		input::{AoESound, PlayerAction},
@@ -187,7 +188,6 @@ use crate::{
 	util::FnPluginExt,
 };
 use player_entity::*;
-use crate::settings::Settings;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum PlayerArm {

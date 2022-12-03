@@ -1,16 +1,12 @@
 use super::*;
+use crate::settings::Settings;
 use bevy::app::AppExit;
 use bevy_pkv::PkvStore;
 use bevy_quickmenu::{ActionTrait, Menu, MenuItem, MenuState, QuickMenuPlugin, ScreenTrait};
-use crate::settings::Settings;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_event::<PauseMenuAction>()
-		.add_plugin(QuickMenuPlugin::<
-			Settings,
-			PauseMenuAction,
-			PauseMenuScreen,
-		>::new())
+		.add_plugin(QuickMenuPlugin::<Settings, PauseMenuAction, PauseMenuScreen>::new())
 		.add_startup_system(pause_menu_setup)
 		.add_system(event_reader)
 }
@@ -44,10 +40,7 @@ fn event_reader(
 		match e {
 			PauseMenuAction::ShowOrHide => {
 				if state.is_none() {
-					spawn_pause_menu(
-						&mut cmds,
-						settings.clone(),
-					)
+					spawn_pause_menu(&mut cmds, settings.clone())
 				} else {
 					bevy_quickmenu::cleanup(&mut cmds)
 				}
@@ -132,10 +125,8 @@ fn root_menu(state: &Settings) -> Menu<PauseMenuAction, PauseMenuScreen, Setting
 			MenuItem::label("Graphics"),
 			MenuItem::action("Bloom Lighting", PauseMenuAction::SetBloom(!state.hdr))
 				.checked(state.hdr),
-			MenuItem::action("MSAA", PauseMenuAction::SetMsaa(!state.msaa))
-				.checked(state.msaa),
-			MenuItem::action("FXAA", PauseMenuAction::SetFxaa(!state.fxaa))
-				.checked(state.fxaa),
+			MenuItem::action("MSAA", PauseMenuAction::SetMsaa(!state.msaa)).checked(state.msaa),
+			MenuItem::action("FXAA", PauseMenuAction::SetFxaa(!state.fxaa)).checked(state.fxaa),
 			MenuItem::action("Quit", PauseMenuAction::Quit),
 		],
 	)

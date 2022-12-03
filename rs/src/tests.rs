@@ -1,10 +1,10 @@
-use std::{error::Error, fmt::Display};
-use std::fmt::Formatter;
-use bevy::{app::AppExit, prelude::*, log::LogPlugin};
+use crate::util::FnPluginExt;
 use bevy::utils::HashMap;
+use bevy::{app::AppExit, prelude::*};
 use bevy_rapier3d::prelude::*;
 use colored::Colorize;
-use crate::util::FnPluginExt;
+use std::fmt::Formatter;
+use std::{error::Error, fmt::Display};
 
 pub struct TestEvent {
 	name: &'static str,
@@ -19,10 +19,7 @@ pub enum TestStatus {
 
 impl TestStatus {
 	fn is_running(&self) -> bool {
-		match self {
-			TestStatus::Running => true,
-			_ => false
-		}
+		matches!(self, TestStatus::Running)
 	}
 }
 
@@ -38,26 +35,23 @@ impl Display for TestStatus {
 
 pub fn app() -> App {
 	let mut app = App::new();
-	
+
 	#[cfg(feature = "vis_test")]
 	app.add_plugins(DefaultPlugins);
 	#[cfg(not(feature = "vis_test"))]
-	app
-		.add_plugins(MinimalPlugins)
-		.add_plugin(LogPlugin::default());
-	
-	app
-		.add_event::<TestEvent>()
+	app.add_plugins(MinimalPlugins)
+		.add_plugin(bevy::log::LogPlugin::default());
+
+	app.add_event::<TestEvent>()
 		.insert_resource(RunningTests::default())
 		.add_plugin(RapierPhysicsPlugin::<()>::default())
 		.insert_resource(Timeout(Timer::from_seconds(60.0, TimerMode::Once)))
 		.add_system(timeout)
 		.add_system(check_test_results);
-	
-	app
-		.fn_plugin(app_started)
+
+	app.fn_plugin(app_started)
 		.fn_plugin(slope_angles::angle_stability);
-	
+
 	app
 }
 
@@ -78,9 +72,9 @@ fn check_test_results(
 			Failed(err) => running.insert(name, Failed(err)),
 		};
 	}
-	for status in running.values()  {
+	for status in running.values() {
 		if status.is_running() {
-			return
+			return;
 		}
 	}
 	exit.send(AppExit)
@@ -104,23 +98,23 @@ pub fn app_started(app: &mut App) -> &mut App {
 }
 
 fn check_app_started(mut results: EventWriter<TestEvent>) {
-	results.send(TestEvent { name: "app_started", status: TestStatus::Passed });
+	results.send(TestEvent {
+		name: "app_started",
+		status: TestStatus::Passed,
+	});
 }
 
 pub mod slope_angles {
 	use bevy::core_pipeline::clear_color::ClearColorConfig;
 	use bevy::prelude::*;
 	use bevy_rapier3d::prelude::*;
-	
+
 	fn setup(mut cmds: Commands) {
 		let cam_pos = Vec3::new(0.0, -10.0, 2.0);
 		cmds.spawn(Camera3dBundle {
 			transform: Transform {
 				translation: cam_pos,
-				rotation: Quat::from_rotation_arc(
-					Vec3::NEG_Z,
-					-cam_pos.normalize()
-				),
+				rotation: Quat::from_rotation_arc(Vec3::NEG_Z, -cam_pos.normalize()),
 				..default()
 			},
 			camera_3d: Camera3d {
@@ -129,12 +123,9 @@ pub mod slope_angles {
 			},
 			..default()
 		});
-		cmds.spawn((
-			RigidBody::KinematicPositionBased,
-			Collider::ball(0.5),
-		));
+		cmds.spawn((RigidBody::KinematicPositionBased, Collider::ball(0.5)));
 	}
-	
+
 	pub fn angle_stability(app: &mut App) -> &mut App {
 		app.add_startup_system(setup)
 	}

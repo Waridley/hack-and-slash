@@ -4,8 +4,7 @@ use bevy_pkv::PkvStore;
 use serde::{Deserialize, Serialize};
 
 pub fn plugin(app: &mut App) -> &mut App {
-	app
-		.init_resource::<Settings>()
+	app.init_resource::<Settings>()
 		.add_system_to_stage(CoreStage::First, load)
 }
 
@@ -34,12 +33,18 @@ pub struct Settings {
 
 impl FromWorld for Settings {
 	fn from_world(world: &mut World) -> Self {
-		world.get_resource::<PkvStore>()
-			.map_or(Self { hdr: false, msaa: false, fxaa: false }, |store| {
+		world.get_resource::<PkvStore>().map_or(
+			Self {
+				hdr: false,
+				msaa: false,
+				fxaa: false,
+			},
+			|store| {
 				let hdr = store.get("hdr").unwrap_or(false);
 				let msaa = store.get("msaa").unwrap_or(false);
 				let fxaa = store.get("fxaa").unwrap_or(false);
-				Self { hdr, msaa, fxaa, }
-			})
+				Self { hdr, msaa, fxaa }
+			},
+		)
 	}
 }

@@ -8,6 +8,7 @@ use bevy::{
 };
 use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_kira_audio::AudioPlugin;
+use bevy_pkv::PkvStore;
 use bevy_rapier3d::{parry::shape::SharedShape, prelude::*};
 use particles::ParticlesPlugin;
 use player::ctrl::CtrlVel;
@@ -16,17 +17,16 @@ use rapier3d::{
 	na::{DMatrix, Vector3},
 };
 use std::{f32::consts::*, fmt::Debug, sync::Arc, time::Duration};
-use bevy_pkv::PkvStore;
 use util::FnPluginExt;
 
 pub mod mats;
 pub mod pickups;
 pub mod player;
 pub mod settings;
-pub mod ui;
-pub mod util;
 #[cfg(feature = "testing")]
 pub mod tests;
+pub mod ui;
+pub mod util;
 
 /// Epsilon
 pub const E: f32 = 1.0e-5;
@@ -69,7 +69,11 @@ pub fn run() {
 		.add_plugin(FrameTimeDiagnosticsPlugin::default())
 		.add_plugin(AudioPlugin)
 		.add_plugin(ParticlesPlugin)
-		.insert_resource(PkvStore::new_with_qualifier("studio", "sonday", env!("CARGO_PKG_NAME")))
+		.insert_resource(PkvStore::new_with_qualifier(
+			"studio",
+			"sonday",
+			env!("CARGO_PKG_NAME"),
+		))
 		.fn_plugin(player::plugin)
 		.fn_plugin(pickups::plugin)
 		.fn_plugin(settings::plugin)
@@ -82,8 +86,7 @@ pub fn run() {
 
 	#[cfg(debug_assertions)]
 	{
-		app
-			.add_plugin(RapierDebugRenderPlugin::default())
+		app.add_plugin(RapierDebugRenderPlugin::default())
 			.add_system(toggle_debug_rendering);
 	}
 
@@ -141,17 +144,16 @@ fn startup(
 	mut cmds: Commands,
 	mut materials: ResMut<Assets<StandardMaterial>>,
 	mut meshes: ResMut<Assets<Mesh>>,
-	#[cfg(debug_assertions)]
-	mut dbg_render_ctx: ResMut<DebugRenderContext>,
+	#[cfg(debug_assertions)] mut dbg_render_ctx: ResMut<DebugRenderContext>,
 ) {
 	#[cfg(target_family = "wasm")]
 	cmds.insert_resource(Msaa { samples: 1 }); // disables MSAA
-	
+
 	#[cfg(debug_assertions)]
 	{
 		dbg_render_ctx.enabled = false;
 	}
-	
+
 	cmds.insert_resource(AbsoluteBounds { extents: 2048.0 });
 
 	cmds.spawn(DirectionalLightBundle {
