@@ -46,9 +46,9 @@ jobs:
           rm ./rs/.cargo/config.toml
           rm ./rs/rust-toolchain.toml
 
-      - name: Linux Check
+      - name: Linux Build
         working-directory: ./rs
-        run: cargo check
+        run: cargo build
 
       - name: WASM Check
         working-directory: ./rs
