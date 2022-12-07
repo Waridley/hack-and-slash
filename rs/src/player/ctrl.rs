@@ -4,7 +4,7 @@ use crate::{
 		player_entity::{Controller, ReadPlayerEntity, Root},
 		BelongsToPlayer, G1, HOVER_HEIGHT, PLAYER_GRAVITY, SLIDE_ANGLE,
 	},
-	util::truncate_mantissa,
+	util::quantize,
 	UP,
 };
 use bevy::prelude::*;
@@ -50,7 +50,7 @@ pub fn repel_ground(
 				.groups(InteractionGroups::new(G1, !G1)),
 		);
 		if let Some((_, toi)) = result {
-			let angle = truncate_mantissa::<10>(toi.normal1.angle_between(UP));
+			let angle = quantize::<10>(toi.normal1.angle_between(UP));
 			if angle < SLIDE_ANGLE {
 				state.grounded = true;
 				let dist = HOVER_HEIGHT - toi.toi;
