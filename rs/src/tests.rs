@@ -21,6 +21,7 @@ impl TestStatus {
 	fn is_running(&self) -> bool {
 		matches!(self, TestStatus::Running)
 	}
+	fn failed(&self) -> bool { matches!(self, TestStatus::Failed(_)) }
 }
 
 impl Display for TestStatus {
@@ -28,7 +29,7 @@ impl Display for TestStatus {
 		match self {
 			TestStatus::Running => write!(f, "{}", "Running".yellow()),
 			TestStatus::Passed => write!(f, "{}", "Passed".green()),
-			TestStatus::Failed(err) => write!(f, "Error: {}", format!("{err}").red()),
+			TestStatus::Failed(err) => write!(f, "{}: {}", "Error".red(), format!("{err}").red()),
 		}
 	}
 }
@@ -44,12 +45,17 @@ pub fn app() -> App {
 
 	app.add_event::<TestEvent>()
 		.insert_resource(RunningTests::default())
+		.insert_resource(RapierConfiguration {
+			gravity: Vect::NEG_Z * 9.81,
+			..default()
+		})
 		.add_plugin(RapierPhysicsPlugin::<()>::default())
-		.insert_resource(Timeout(Timer::from_seconds(60.0, TimerMode::Once)))
+		.insert_resource(Timeout(Timer::from_seconds(600.0, TimerMode::Once)))
 		.add_system(timeout)
 		.add_system(check_test_results);
 
-	app.fn_plugin(app_started)
+	app
+		.fn_plugin(app_started)
 		.fn_plugin(slope_angles::angle_stability);
 
 	app
@@ -61,23 +67,35 @@ pub struct RunningTests(HashMap<&'static str, TestStatus>);
 fn check_test_results(
 	mut results: ResMut<Events<TestEvent>>,
 	mut running: ResMut<RunningTests>,
-	mut exit: EventWriter<AppExit>,
+	mut exits: EventWriter<AppExit>,
 ) {
 	use TestStatus::*;
 	for TestEvent { name, status } in results.drain() {
-		info!("{} {name}: {status}", "TEST".blue());
-		match status {
-			Running => running.insert(name, Running),
-			Passed => running.insert(name, Passed),
-			Failed(err) => running.insert(name, Failed(err)),
-		};
+		let message = format!("{} {}: {status}", "TEST".blue(), format!("{name}").bright_black());
+		if status.failed() {
+			error!("{message}");
+		} else {
+			info!("{message}");
+		}
+		running.insert(name, status);
 	}
+	let mut failed = 0;
 	for status in running.values() {
 		if status.is_running() {
 			return;
+		} else if status.failed() {
+			failed += 1;
 		}
 	}
-	exit.send(AppExit)
+	if failed > 0 {
+		if failed > 1 {
+			error!("{failed} tests failed");
+		} else {
+			error!("1 test failed");
+		}
+		std::process::abort()
+	}
+	exits.send(AppExit)
 }
 
 #[derive(Resource, Deref, DerefMut)]
@@ -105,28 +123,196 @@ fn check_app_started(mut results: EventWriter<TestEvent>) {
 }
 
 pub mod slope_angles {
+	use std::f32::consts::{FRAC_PI_2, FRAC_PI_3, TAU};
+	use std::time::Duration;
 	use bevy::core_pipeline::clear_color::ClearColorConfig;
 	use bevy::prelude::*;
 	use bevy_rapier3d::prelude::*;
-
-	fn setup(mut cmds: Commands) {
-		let cam_pos = Vec3::new(0.0, -10.0, 2.0);
-		cmds.spawn(Camera3dBundle {
-			transform: Transform {
-				translation: cam_pos,
-				rotation: Quat::from_rotation_arc(Vec3::NEG_Z, -cam_pos.normalize()),
-				..default()
-			},
-			camera_3d: Camera3d {
-				clear_color: ClearColorConfig::Custom(Color::BLACK),
-				..default()
-			},
-			..default()
+	use crate::tests::slope_angles::Error::{AngleChanged, ShouldClimb};
+	use crate::util::quantize;
+	use super::*;
+	
+	const CLIMB: f32 = FRAC_PI_3;
+	const SLIDE: f32 = FRAC_PI_3;
+	
+	fn setup(mut cmds: Commands, mut events: EventWriter<TestEvent>) {
+		events.send(TestEvent {
+			name: "slope_angles::angle_stability",
+			status: TestStatus::Running,
 		});
-		cmds.spawn((RigidBody::KinematicPositionBased, Collider::ball(0.5)));
+		cmds.init_resource::<LastCollision>();
+		let cam_pos = Vec3::new(0.0, -100.0, 50.0);
+		cmds.spawn((
+			TransformBundle::from_transform(Transform::from_translation(Vect::Z * 11.0)),
+			RigidBody::KinematicPositionBased,
+			Collider::ball(0.5),
+			KinematicCharacterController {
+				up: Vect::Z,
+				max_slope_climb_angle: CLIMB,
+				min_slope_slide_angle: SLIDE,
+				..default()
+			},
+		)).with_children(|parent| {
+			#[cfg(feature = "vis_test")]
+			parent.spawn(Camera3dBundle {
+				transform: Transform {
+					translation: cam_pos,
+					rotation: Quat::from_rotation_arc(Vec3::NEG_Z, -cam_pos.normalize()),
+					..default()
+				},
+				camera_3d: Camera3d {
+					clear_color: ClearColorConfig::Custom(Color::BLACK),
+					..default()
+				},
+				..default()
+			});
+		});
+		
+		let mut last_translation = Vect::ZERO;
+		let mut last_rotation = Quat::IDENTITY;
+		for i in (0..=90).step_by(5) {
+			let degrees = i as f32;
+			let rad = degrees * (TAU / 360.0);
+			let rotation = Quat::from_rotation_y(-rad);
+			let mut translation = rotation * Vect::X * 50.0 + (last_translation + last_rotation * Vect::X * 50.0);
+			translation.z -= 0.1;
+			translation.x += 0.1;
+			last_rotation = rotation;
+			last_translation = translation;
+			cmds.spawn((
+				TransformBundle::from_transform(Transform {
+					translation,
+					rotation,
+					..default()
+				}),
+				RigidBody::Fixed,
+				Collider::cuboid(50.0, 4.0, 10.0),
+			));
+		}
 	}
-
+	
 	pub fn angle_stability(app: &mut App) -> &mut App {
-		app.add_startup_system(setup)
+		app.add_startup_system(setup).add_system(move_ball).add_system(examine_output)
+	}
+	
+	fn move_ball(
+		mut q: Query<(&Transform, &mut KinematicCharacterController)>,
+		mut events: EventWriter<TestEvent>,
+		t: Res<Time>,
+	) {
+		let (xform, mut ctrl) = q.single_mut();
+		if xform.translation.x > 7200.0 { events.send(TestEvent {
+			name: "slope_angles::angle_stability",
+			status: TestStatus::Passed,
+		})}
+		// let gravity = if xform.translation.z <= 0.0 { 0.0 } else { -t.delta_seconds() * 100.0 };
+		ctrl.translation = Some(Vect::new(t.delta_seconds() * 100.0, 0.0, -t.delta_seconds()));
+	}
+	
+	#[derive(Resource, Debug)]
+	struct LastCollision {
+		id: Entity,
+		angle: f32,
+		changes: u8,
+		segment_max_diff: f32,
+		max_diff: f32,
+		grounded: bool,
+		stuck_time: Duration,
+	}
+	
+	impl Default for LastCollision {
+		fn default() -> Self {
+			Self {
+				id: Entity::from_raw(u32::MAX),
+				angle: f32::NAN,
+				changes: 0,
+				segment_max_diff: 0.0,
+				max_diff: 0.0,
+				grounded: false,
+				stuck_time: Duration::ZERO,
+			}
+		}
+	}
+	
+	#[derive(Debug)]
+	pub enum Error {
+		AngleChanged {
+			was: f32,
+			now: f32,
+		},
+		GroundedChanged {
+			was: bool,
+			now: bool,
+		},
+		ShouldClimb {
+			angle: f32,
+		}
+	}
+	
+	impl std::fmt::Display for Error {
+		fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+			write!(f, "{self:?}")
+		}
+	}
+	
+	impl std::error::Error for Error {}
+	
+	fn examine_output(q: Query<&KinematicCharacterControllerOutput>, mut tracker: ResMut<LastCollision>, mut events: EventWriter<TestEvent>, t: Res<Time>) {
+		let Ok(out) = q.get_single() else { return };
+		
+		let Some((id, angle)) = out.collisions.first().map(|col| (
+			col.entity,
+			rapier3d::math::Vector::from(col.toi.normal1).angle(&rapier3d::math::Vector::from(Vec3::Z)),
+		)) else { return };
+		
+		
+		if out.effective_translation.length() < 1.0e-3 {
+			if angle < CLIMB - 1.0e-4 {
+				events.send(TestEvent {
+					name: "slope_angles::angle_stability",
+					status: TestStatus::Failed(ShouldClimb { angle }.into()),
+				})
+			} else {
+				tracker.stuck_time += t.delta();
+				if tracker.stuck_time > Duration::from_secs(3) {
+					events.send(TestEvent {
+						name: "slope_angles::angle_stability",
+						status: TestStatus::Passed,
+					})
+			}
+			}
+		} else if tracker.id == id {
+			tracker.segment_max_diff = f32::max(tracker.segment_max_diff, (tracker.angle - angle).abs());
+			tracker.max_diff = f32::max(tracker.max_diff, (tracker.angle - angle).abs());
+			if !((angle - tracker.angle).abs() < (TAU * 15.0 / 360.0)) {
+				warn!("{id:?} {}", AngleChanged { was: tracker.angle, now: angle });
+				tracker.changes += 1;
+				if tracker.changes > 5 {
+					events.send(TestEvent {
+						name: "slope_angles::angle_stability",
+						status: TestStatus::Failed(Error::AngleChanged {
+							was: tracker.angle,
+							now: angle,
+						}.into())
+					});
+				}
+				tracker.angle = angle;
+			} else if tracker.grounded != out.grounded {
+				// events.send(TestEvent {
+				// 	name: "slope_angles::angle_stability",
+				// 	status: TestStatus::Failed(Error::GroundedChanged {
+				// 		was: col.grounded,
+				// 		now: out.grounded,
+				// 	}.into())
+				// });
+			}
+		} else {
+			dbg!(&tracker);
+			tracker.id = id;
+			tracker.angle = angle;
+			tracker.changes = 0;
+			tracker.segment_max_diff = 0.0;
+			tracker.grounded = out.grounded;
+		}
 	}
 }

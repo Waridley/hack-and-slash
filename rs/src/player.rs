@@ -51,7 +51,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 		.add_system_to_stage(PreUpdate, ctrl::gravity)
 		.add_system_to_stage(PreUpdate, ctrl::repel_ground.after(ctrl::gravity))
 		// .add_system(tick_cooldown::<Jump>)
-		.add_system_to_stage(CoreStage::PreUpdate, ctrl::reset_jump_on_ground)
+		.add_system_to_stage(PreUpdate, ctrl::reset_jump_on_ground)
 		.add_system(input::movement_input.before(terminal_velocity))
 		.add_system(input::look_input.before(terminal_velocity))
 		.add_system(camera::position_target.after(input::look_input))
