@@ -21,7 +21,9 @@ impl TestStatus {
 	fn is_running(&self) -> bool {
 		matches!(self, TestStatus::Running)
 	}
-	fn failed(&self) -> bool { matches!(self, TestStatus::Failed(_)) }
+	fn failed(&self) -> bool {
+		matches!(self, TestStatus::Failed(_))
+	}
 }
 
 impl Display for TestStatus {
@@ -54,8 +56,7 @@ pub fn app() -> App {
 		.add_system(timeout)
 		.add_system(check_test_results);
 
-	app
-		.fn_plugin(app_started)
+	app.fn_plugin(app_started)
 		.fn_plugin(slope_angles::angle_stability);
 
 	app
@@ -69,9 +70,8 @@ fn check_test_results(
 	mut running: ResMut<RunningTests>,
 	mut exits: EventWriter<AppExit>,
 ) {
-	use TestStatus::*;
 	for TestEvent { name, status } in results.drain() {
-		let message = format!("{} {}: {status}", "TEST".blue(), format!("{name}").bright_black());
+		let message = format!("{} {}: {status}", "TEST".blue(), name.bright_black());
 		if status.failed() {
 			error!("{message}");
 		} else {
@@ -123,18 +123,15 @@ fn check_app_started(mut results: EventWriter<TestEvent>) {
 }
 
 pub mod slope_angles {
-	use std::f32::consts::{FRAC_PI_2, FRAC_PI_3, TAU};
-	use std::time::Duration;
-	use bevy::core_pipeline::clear_color::ClearColorConfig;
-	use bevy::prelude::*;
-	use bevy_rapier3d::prelude::*;
-	use crate::tests::slope_angles::Error::{AngleChanged, ShouldClimb};
-	use crate::util::quantize;
 	use super::*;
-	
+	use crate::tests::slope_angles::Error::{AngleChanged, ShouldClimb};
+	use bevy::core_pipeline::clear_color::ClearColorConfig;
+	use std::f32::consts::{FRAC_PI_3, TAU};
+	use std::time::Duration;
+
 	const CLIMB: f32 = FRAC_PI_3;
 	const SLIDE: f32 = FRAC_PI_3;
-	
+
 	fn setup(mut cmds: Commands, mut events: EventWriter<TestEvent>) {
 		events.send(TestEvent {
 			name: "slope_angles::angle_stability",
@@ -152,7 +149,8 @@ pub mod slope_angles {
 				min_slope_slide_angle: SLIDE,
 				..default()
 			},
-		)).with_children(|parent| {
+		))
+		.with_children(|parent| {
 			#[cfg(feature = "vis_test")]
 			parent.spawn(Camera3dBundle {
 				transform: Transform {
@@ -167,14 +165,15 @@ pub mod slope_angles {
 				..default()
 			});
 		});
-		
+
 		let mut last_translation = Vect::ZERO;
 		let mut last_rotation = Quat::IDENTITY;
 		for i in (0..=90).step_by(5) {
 			let degrees = i as f32;
 			let rad = degrees * (TAU / 360.0);
 			let rotation = Quat::from_rotation_y(-rad);
-			let mut translation = rotation * Vect::X * 50.0 + (last_translation + last_rotation * Vect::X * 50.0);
+			let mut translation =
+				rotation * Vect::X * 50.0 + (last_translation + last_rotation * Vect::X * 50.0);
 			translation.z -= 0.1;
 			translation.x += 0.1;
 			last_rotation = rotation;
@@ -190,25 +189,33 @@ pub mod slope_angles {
 			));
 		}
 	}
-	
+
 	pub fn angle_stability(app: &mut App) -> &mut App {
-		app.add_startup_system(setup).add_system(move_ball).add_system(examine_output)
+		app.add_startup_system(setup)
+			.add_system(move_ball)
+			.add_system(examine_output)
 	}
-	
+
 	fn move_ball(
 		mut q: Query<(&Transform, &mut KinematicCharacterController)>,
 		mut events: EventWriter<TestEvent>,
 		t: Res<Time>,
 	) {
 		let (xform, mut ctrl) = q.single_mut();
-		if xform.translation.x > 7200.0 { events.send(TestEvent {
-			name: "slope_angles::angle_stability",
-			status: TestStatus::Passed,
-		})}
+		if xform.translation.x > 7200.0 {
+			events.send(TestEvent {
+				name: "slope_angles::angle_stability",
+				status: TestStatus::Passed,
+			})
+		}
 		// let gravity = if xform.translation.z <= 0.0 { 0.0 } else { -t.delta_seconds() * 100.0 };
-		ctrl.translation = Some(Vect::new(t.delta_seconds() * 100.0, 0.0, -t.delta_seconds()));
+		ctrl.translation = Some(Vect::new(
+			t.delta_seconds() * 100.0,
+			0.0,
+			-t.delta_seconds(),
+		));
 	}
-	
+
 	#[derive(Resource, Debug)]
 	struct LastCollision {
 		id: Entity,
@@ -219,7 +226,7 @@ pub mod slope_angles {
 		grounded: bool,
 		stuck_time: Duration,
 	}
-	
+
 	impl Default for LastCollision {
 		fn default() -> Self {
 			Self {
@@ -233,39 +240,35 @@ pub mod slope_angles {
 			}
 		}
 	}
-	
+
 	#[derive(Debug)]
 	pub enum Error {
-		AngleChanged {
-			was: f32,
-			now: f32,
-		},
-		GroundedChanged {
-			was: bool,
-			now: bool,
-		},
-		ShouldClimb {
-			angle: f32,
-		}
+		AngleChanged { was: f32, now: f32 },
+		GroundedChanged { was: bool, now: bool },
+		ShouldClimb { angle: f32 },
 	}
-	
+
 	impl std::fmt::Display for Error {
 		fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 			write!(f, "{self:?}")
 		}
 	}
-	
+
 	impl std::error::Error for Error {}
-	
-	fn examine_output(q: Query<&KinematicCharacterControllerOutput>, mut tracker: ResMut<LastCollision>, mut events: EventWriter<TestEvent>, t: Res<Time>) {
+
+	fn examine_output(
+		q: Query<&KinematicCharacterControllerOutput>,
+		mut tracker: ResMut<LastCollision>,
+		mut events: EventWriter<TestEvent>,
+		t: Res<Time>,
+	) {
 		let Ok(out) = q.get_single() else { return };
-		
+
 		let Some((id, angle)) = out.collisions.first().map(|col| (
 			col.entity,
 			rapier3d::math::Vector::from(col.toi.normal1).angle(&rapier3d::math::Vector::from(Vec3::Z)),
 		)) else { return };
-		
-		
+
 		if out.effective_translation.length() < 1.0e-3 {
 			if angle < CLIMB - 1.0e-4 {
 				events.send(TestEvent {
@@ -279,21 +282,31 @@ pub mod slope_angles {
 						name: "slope_angles::angle_stability",
 						status: TestStatus::Passed,
 					})
-			}
+				}
 			}
 		} else if tracker.id == id {
-			tracker.segment_max_diff = f32::max(tracker.segment_max_diff, (tracker.angle - angle).abs());
+			tracker.segment_max_diff =
+				f32::max(tracker.segment_max_diff, (tracker.angle - angle).abs());
 			tracker.max_diff = f32::max(tracker.max_diff, (tracker.angle - angle).abs());
-			if !((angle - tracker.angle).abs() < (TAU * 15.0 / 360.0)) {
-				warn!("{id:?} {}", AngleChanged { was: tracker.angle, now: angle });
+			if (angle - tracker.angle).abs() >= TAU * 15.0 / 360.0 {
+				warn!(
+					"{id:?} {}",
+					AngleChanged {
+						was: tracker.angle,
+						now: angle
+					}
+				);
 				tracker.changes += 1;
 				if tracker.changes > 5 {
 					events.send(TestEvent {
 						name: "slope_angles::angle_stability",
-						status: TestStatus::Failed(Error::AngleChanged {
-							was: tracker.angle,
-							now: angle,
-						}.into())
+						status: TestStatus::Failed(
+							Error::AngleChanged {
+								was: tracker.angle,
+								now: angle,
+							}
+							.into(),
+						),
 					});
 				}
 				tracker.angle = angle;
