@@ -1,3 +1,5 @@
+use bevy::ecs::event::Event;
+use bevy::ecs::system::{EntityCommands, SystemParam, SystemParamItem};
 use bevy::prelude::*;
 
 #[inline(always)]
@@ -19,5 +21,37 @@ impl FnPluginExt for App {
 	fn fn_plugin(&mut self, f: impl FnOnce(&mut App) -> &mut App) -> &mut Self {
 		(f)(self);
 		self
+	}
+}
+
+pub trait Spawnable {
+	type Params: SystemParam + 'static;
+	type InstanceData;
+	fn spawn<'w, 's, 'a>(
+		cmds: &'a mut Commands<'w, 's>,
+		params: &mut SystemParamItem<'w, 's, Self::Params>,
+		data: Self::InstanceData,
+	) -> EntityCommands<'w, 's, 'a> where Self: Sized;
+}
+
+#[derive(SystemParam)]
+pub struct Factory<'w, 's, P: Spawnable + 'static> {
+	pub cmds: Commands<'w, 's>,
+	pub params: SystemParamItem<'w, 's, P::Params>,
+}
+
+impl<'w, 's, T: Spawnable> Factory<'w, 's, T> {
+	pub fn spawn<'a>(&'a mut self, data: T::InstanceData) -> EntityCommands<'w, 's, 'a> {
+		let Self { cmds, params } = self;
+		T::spawn(cmds, params, data)
+	}
+}
+
+pub fn consume_spawn_events<T: Spawnable>(mut factory: Factory<T>, mut events: ResMut<Events<T::InstanceData>>)
+	where <T as Spawnable>::InstanceData: Event,
+{
+	for event in events.drain() {
+		let Factory { cmds, params } = &mut factory;
+		T::spawn(cmds, params, event);
 	}
 }

@@ -19,6 +19,7 @@ use rapier3d::{
 use std::{f32::consts::*, fmt::Debug, sync::Arc, time::Duration};
 use util::FnPluginExt;
 
+pub mod enemies;
 pub mod mats;
 pub mod pickups;
 pub mod player;
@@ -74,6 +75,7 @@ pub fn run() {
 			"sonday",
 			env!("CARGO_PKG_NAME"),
 		))
+		.fn_plugin(enemies::plugin)
 		.fn_plugin(player::plugin)
 		.fn_plugin(pickups::plugin)
 		.fn_plugin(settings::plugin)
