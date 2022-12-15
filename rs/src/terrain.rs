@@ -8,11 +8,13 @@ use rapier3d::{
 	na::{DMatrix, Vector3},
 };
 use std::{f32::consts::*, sync::Arc};
-use bevy::ecs::system::EntityCommands;
+use bevy::ecs::system::{EntityCommands, SystemParamItem};
+use crate::util::{Factory, Spawnable};
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app
 		.add_startup_system(setup)
+		.add_startup_system_to_stage(StartupStage::PostStartup, spawn_boxes)
 }
 
 pub fn setup(
@@ -41,7 +43,6 @@ pub fn setup(
 			let x = (col as f32 - 1.0) - r;
 			let y = (row as f32 - 1.0) - r;
 			
-			// sphere
 			let bowl = ((r * r) - (x * x) - (y * y)).sqrt() / r;
 			
 			let bowl = if bowl.is_finite() { bowl } else { 0.0 };
@@ -89,13 +90,14 @@ pub fn setup(
 	let collider = Collider::cuboid(32.0, 32.0, 32.0);
 	let mesh = meshes.add(mesh);
 	
-	let mut factory = TerrainFactory {
-		cmds: &mut cmds,
+	cmds.insert_resource(TerrainTemplate {
 		mesh,
 		material,
 		collider,
-	};
-	
+	});
+}
+
+pub fn spawn_boxes(mut factory: Factory<TerrainObject>) {
 	factory.spawn(Transform::from_translation(Vec3::new(0.0, 0.0, -48.0)));
 	factory.spawn(Transform {
 		translation: Vec3::new(-40.0, -8.0, -44.0),
@@ -118,23 +120,30 @@ pub fn setup(
 }
 
 /// Share mesh, material, and collider amongst multiple `TerrainObjects`
-pub struct TerrainFactory<'c, 'w: 'c, 's: 'c> {
-	pub cmds: &'c mut Commands<'w, 's>,
+#[derive(Resource, Clone)]
+pub struct TerrainTemplate {
 	pub mesh: Handle<Mesh>,
 	pub material: Handle<StandardMaterial>,
 	pub collider: Collider,
 }
 
-impl<'c, 'w: 'c, 's: 'c> TerrainFactory<'c, 'w, 's> {
-	fn spawn<'a>(&'a mut self, transform: Transform) -> EntityCommands<'w, 's, 'a> {
-		self.cmds.spawn(TerrainObject {
+impl Spawnable for TerrainObject {
+	type Params = Res<'static, TerrainTemplate>;
+	type InstanceData = Transform;
+	
+	fn spawn<'w, 's, 'a>(
+		cmds: &'a mut Commands<'w, 's>,
+		params: &mut SystemParamItem<'w, 's, Self::Params>,
+		transform: Transform
+	) -> EntityCommands<'w, 's, 'a> {
+		cmds.spawn(TerrainObject {
 			mat_mesh_bundle: MaterialMeshBundle {
-				mesh: self.mesh.clone(),
-				material: self.material.clone(),
+				mesh: params.mesh.clone(),
+				material: params.material.clone(),
 				transform,
 				..default()
 			},
-			collider: self.collider.clone(),
+			collider: params.collider.clone(),
 			..default()
 		})
 	}

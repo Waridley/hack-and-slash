@@ -19,8 +19,7 @@ pub trait FnPluginExt {
 
 impl FnPluginExt for App {
 	fn fn_plugin(&mut self, f: impl FnOnce(&mut App) -> &mut App) -> &mut Self {
-		(f)(self);
-		self
+		(f)(self)
 	}
 }
 
@@ -31,7 +30,7 @@ pub trait Spawnable {
 		cmds: &'a mut Commands<'w, 's>,
 		params: &mut SystemParamItem<'w, 's, Self::Params>,
 		data: Self::InstanceData,
-	) -> EntityCommands<'w, 's, 'a> where Self: Sized;
+	) -> EntityCommands<'w, 's, 'a>;
 }
 
 #[derive(SystemParam)]
