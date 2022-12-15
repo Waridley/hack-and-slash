@@ -51,7 +51,6 @@ pub fn consume_spawn_events<T: Spawnable>(mut factory: Factory<T>, mut events: R
 	where <T as Spawnable>::InstanceData: Event,
 {
 	for event in events.drain() {
-		let Factory { cmds, params } = &mut factory;
-		T::spawn(cmds, params, event);
+		factory.spawn(event);
 	}
 }
