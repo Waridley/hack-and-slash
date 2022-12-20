@@ -9,6 +9,7 @@ use rapier3d::{
 };
 use std::{f32::consts::*, sync::Arc};
 use bevy::ecs::system::{EntityCommands, SystemParamItem};
+use noise::{Fbm, NoiseFn, Value};
 use crate::util::{Factory, Spawnable};
 
 pub fn plugin(app: &mut App) -> &mut App {
@@ -28,8 +29,8 @@ pub fn setup(
 		..default()
 	});
 	
-	use noises_and_patterns::{noise::Noise, FP};
-	let noise = noises_and_patterns::noise::value::Value::new();
+	let noise = Fbm::<Value>::default();
+	
 	let r = 48;
 	let d = r * 2;
 	let (columns, rows) = (d, d);
@@ -47,33 +48,32 @@ pub fn setup(
 			
 			let bowl = if bowl.is_finite() { bowl } else { 0.0 };
 			
-			noise.fbm_2d((row as FP * 0.3, (i % rows) as FP * 0.3), 3) - (bowl * 20.0)
+			noise.get([row as f64 * 0.2, (i % rows) as f64 * 0.2]) as f32 * 0.3 - (bowl * 20.0)
 		}) // scale to -1.0..=1.0
 		.collect();
 	
-	let heightfield = HeightField::new(
+	let heights = HeightField::new(
 		DMatrix::from_vec(rows, columns, heights),
 		Vector3::new(1024.0, 24.0, 1024.0),
 	);
-	let tris = heightfield.triangles();
+	let tris = heights.triangles();
 	
 	let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
 	let vertices = tris
-		.flat_map(|pos| {
-			[
+		.flat_map(|pos| [
 				[pos.a.x, pos.a.y, pos.a.z],
 				[pos.b.x, pos.b.y, pos.b.z],
 				[pos.c.x, pos.c.y, pos.c.z],
-			]
-		})
-		.collect::<Vec<_>>();
+		])
+		.collect();
 	mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, Float32x3(vertices));
 	mesh.compute_flat_normals();
 	let mesh = meshes.add(mesh);
 	
+	let heights = Arc::new(heights);
 	cmds.spawn((
 		RigidBody::Fixed,
-		Collider::from(SharedShape(Arc::new(heightfield))),
+		Collider::from(SharedShape(heights.clone())),
 		MaterialMeshBundle::<StandardMaterial> {
 			mesh,
 			transform: Transform {
@@ -83,6 +83,9 @@ pub fn setup(
 			},
 			material: material.clone(),
 			..default()
+		},
+		Ground {
+			heights,
 		},
 	));
 	
@@ -170,4 +173,9 @@ impl Default for TerrainObject {
 			ccd: Ccd::disabled(),
 		}
 	}
+}
+
+#[derive(Component, Debug, Clone)]
+pub struct Ground {
+	pub heights: Arc<HeightField>,
 }
