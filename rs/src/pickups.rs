@@ -1,10 +1,7 @@
 use crate::{
 	mats::BubbleMaterial,
 	pickups::pickup::PickupItem,
-	player::{
-		player_entity::{Arm, ReadPlayerEntity},
-		RotVel,
-	},
+	player::{player_entity::Arm, RotVel},
 };
 use bevy::{
 	math::Vec3Swizzles,
@@ -16,7 +13,7 @@ use bevy_rapier3d::{
 	plugin::RapierContext,
 	prelude::{QueryFilter, RigidBody::KinematicPositionBased, Sensor},
 };
-use enum_components::{EntityEnumCommands, EnumComponent};
+use enum_components::{ERef, EntityEnumCommands, EnumComponent};
 use nanorand::Rng;
 use std::{
 	f32::consts::PI,
@@ -117,7 +114,7 @@ pub fn spawn_pickups(
 pub fn collect(
 	mut cmds: Commands,
 	ctx: Res<RapierContext>,
-	arms: Query<&RotVel, ReadPlayerEntity<Arm>>,
+	arms: Query<&RotVel, ERef<Arm>>,
 	pickups: Query<(Entity, Pickup, &GlobalTransform, &Collider)>,
 	sfx: Res<PopSfx>,
 	audio: Res<Audio>,

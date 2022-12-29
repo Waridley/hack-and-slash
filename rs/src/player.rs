@@ -16,7 +16,7 @@ use bevy_rapier3d::{
 };
 use camera::spawn_camera;
 use ctrl::CtrlVel;
-use enum_components::{EntityEnumCommands, EnumComponent};
+use enum_components::{ERef, EntityEnumCommands, EnumComponent};
 use leafwing_input_manager::prelude::*;
 use nanorand::Rng;
 use particles::{
@@ -496,8 +496,8 @@ pub fn reset_oob(
 }
 
 pub fn idle(
-	mut vis_q: Query<&mut Transform, ReadPlayerEntity<Vis>>,
-	mut arm_q: Query<(&mut Transform, &RotVel), ReadPlayerEntity<Arm>>,
+	mut vis_q: Query<&mut Transform, ERef<Vis>>,
+	mut arm_q: Query<(&mut Transform, &RotVel), ERef<Arm>>,
 	t: Res<Time>,
 ) {
 	for mut xform in &mut vis_q {

@@ -46,8 +46,11 @@ impl<'w, 's, T: Spawnable> Factory<'w, 's, T> {
 	}
 }
 
-pub fn consume_spawn_events<T: Spawnable>(mut factory: Factory<T>, mut events: ResMut<Events<T::InstanceData>>)
-	where <T as Spawnable>::InstanceData: Event,
+pub fn consume_spawn_events<T: Spawnable>(
+	mut factory: Factory<T>,
+	mut events: ResMut<Events<T::InstanceData>>,
+) where
+	<T as Spawnable>::InstanceData: Event,
 {
 	for event in events.drain() {
 		factory.spawn(event);

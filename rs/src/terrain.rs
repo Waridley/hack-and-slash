@@ -1,20 +1,19 @@
+use crate::util::{Factory, Spawnable};
+use bevy::ecs::system::{EntityCommands, SystemParamItem};
 use bevy::{
 	prelude::*,
 	render::mesh::{PrimitiveTopology, VertexAttributeValues::Float32x3},
 };
 use bevy_rapier3d::{parry::shape::SharedShape, prelude::*};
+use noise::{Fbm, NoiseFn, Value};
 use rapier3d::{
 	geometry::HeightField,
 	na::{DMatrix, Vector3},
 };
 use std::{f32::consts::*, sync::Arc};
-use bevy::ecs::system::{EntityCommands, SystemParamItem};
-use noise::{Fbm, NoiseFn, Value};
-use crate::util::{Factory, Spawnable};
 
 pub fn plugin(app: &mut App) -> &mut App {
-	app
-		.add_startup_system(setup)
+	app.add_startup_system(setup)
 		.add_startup_system_to_stage(StartupStage::PostStartup, spawn_boxes)
 }
 
@@ -28,48 +27,50 @@ pub fn setup(
 		reflectance: 0.032,
 		..default()
 	});
-	
+
 	let noise = Fbm::<Value>::default();
-	
+
 	let r = 48;
 	let d = r * 2;
 	let (columns, rows) = (d, d);
-	
+
 	let heights = (0..(rows * columns))
 		.map(|i: usize| {
 			let col = i % d;
 			let row = i / d;
-			
+
 			let r = r as f32 - 2.0;
 			let x = (col as f32 - 1.0) - r;
 			let y = (row as f32 - 1.0) - r;
-			
+
 			let bowl = ((r * r) - (x * x) - (y * y)).sqrt() / r;
-			
+
 			let bowl = if bowl.is_finite() { bowl } else { 0.0 };
-			
+
 			noise.get([row as f64 * 0.2, (i % rows) as f64 * 0.2]) as f32 * 0.3 - (bowl * 20.0)
 		}) // scale to -1.0..=1.0
 		.collect();
-	
+
 	let heights = HeightField::new(
 		DMatrix::from_vec(rows, columns, heights),
 		Vector3::new(1024.0, 24.0, 1024.0),
 	);
 	let tris = heights.triangles();
-	
+
 	let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
 	let vertices = tris
-		.flat_map(|pos| [
+		.flat_map(|pos| {
+			[
 				[pos.a.x, pos.a.y, pos.a.z],
 				[pos.b.x, pos.b.y, pos.b.z],
 				[pos.c.x, pos.c.y, pos.c.z],
-		])
+			]
+		})
 		.collect();
 	mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, Float32x3(vertices));
 	mesh.compute_flat_normals();
 	let mesh = meshes.add(mesh);
-	
+
 	let heights = Arc::new(heights);
 	cmds.spawn((
 		RigidBody::Fixed,
@@ -84,15 +85,13 @@ pub fn setup(
 			material: material.clone(),
 			..default()
 		},
-		Ground {
-			heights,
-		},
+		Ground { heights },
 	));
-	
+
 	let mesh = Mesh::from(shape::Cube { size: 64.0 });
 	let collider = Collider::cuboid(32.0, 32.0, 32.0);
 	let mesh = meshes.add(mesh);
-	
+
 	cmds.insert_resource(TerrainTemplate {
 		mesh,
 		material,
@@ -133,11 +132,11 @@ pub struct TerrainTemplate {
 impl Spawnable for TerrainObject {
 	type Params = Res<'static, TerrainTemplate>;
 	type InstanceData = Transform;
-	
+
 	fn spawn<'w, 's, 'a>(
 		cmds: &'a mut Commands<'w, 's>,
 		params: &mut SystemParamItem<'w, 's, Self::Params>,
-		transform: Transform
+		transform: Transform,
 	) -> EntityCommands<'w, 's, 'a> {
 		cmds.spawn(TerrainObject {
 			mat_mesh_bundle: MaterialMeshBundle {

@@ -1,7 +1,7 @@
 use crate::{
 	player::{
 		input::PlayerAction,
-		player_entity::{Controller, ReadPlayerEntity, Root},
+		player_entity::{Controller, Root},
 		BelongsToPlayer, G1, HOVER_HEIGHT, PLAYER_GRAVITY, SLIDE_ANGLE,
 	},
 	util::quantize,
@@ -9,6 +9,7 @@ use crate::{
 };
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
+use enum_components::ERef;
 use leafwing_abilities::AbilityState;
 
 #[derive(Component)]
@@ -32,7 +33,7 @@ pub fn repel_ground(
 			&mut CtrlVel,
 			&mut KinematicCharacterControllerOutput,
 		),
-		ReadPlayerEntity<Controller>,
+		ERef<Controller>,
 	>,
 	t: Res<Time>,
 ) {
@@ -95,14 +96,14 @@ pub fn gravity(mut q: Query<(&mut CtrlVel, &KinematicCharacterControllerOutput)>
 }
 
 pub fn move_player(
-	mut body_q: Query<(&mut Transform, &BelongsToPlayer), ReadPlayerEntity<Root>>,
+	mut body_q: Query<(&mut Transform, &BelongsToPlayer), ERef<Root>>,
 	mut ctrl_q: Query<
 		(
 			&CtrlVel,
 			&mut KinematicCharacterController,
 			&BelongsToPlayer,
 		),
-		ReadPlayerEntity<Controller>,
+		ERef<Controller>,
 	>,
 	t: Res<Time>,
 ) {

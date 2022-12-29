@@ -1,5 +1,5 @@
 use super::{
-	player_entity::{Cam, CamPivot, ReadPlayerEntity},
+	player_entity::{Cam, CamPivot},
 	BelongsToPlayer, G1,
 };
 use crate::player::{PlayerEntity, PlayerId};
@@ -17,7 +17,7 @@ use bevy_rapier3d::{
 	pipeline::QueryFilter,
 	plugin::RapierContext,
 };
-use enum_components::EntityEnumCommands;
+use enum_components::{ERef, EntityEnumCommands};
 use rapier3d::geometry::InteractionGroups;
 use std::f32::consts::FRAC_PI_2;
 
@@ -93,8 +93,8 @@ pub struct CamTarget(Transform);
 
 pub fn position_target(
 	ctx: Res<RapierContext>,
-	cam_pivot_q: Query<(&GlobalTransform, &BelongsToPlayer), ReadPlayerEntity<CamPivot>>,
-	mut cam_q: Query<(&mut CamTarget, &Collider, &BelongsToPlayer), ReadPlayerEntity<Cam>>,
+	cam_pivot_q: Query<(&GlobalTransform, &BelongsToPlayer), ERef<CamPivot>>,
+	mut cam_q: Query<(&mut CamTarget, &Collider, &BelongsToPlayer), ERef<Cam>>,
 ) {
 	for (mut target, col, cam_owner) in &mut cam_q {
 		let pivot_xform = cam_pivot_q
@@ -138,10 +138,7 @@ pub fn position_target(
 	}
 }
 
-pub fn follow_target(
-	mut cam_q: Query<(&mut Transform, &CamTarget), ReadPlayerEntity<Cam>>,
-	t: Res<Time>,
-) {
+pub fn follow_target(mut cam_q: Query<(&mut Transform, &CamTarget), ERef<Cam>>, t: Res<Time>) {
 	let dt = t.delta_seconds();
 	for (mut cam_xform, target_xform) in &mut cam_q {
 		// TODO: Maybe always aim towards pivot, rather than immediately assuming final rotation

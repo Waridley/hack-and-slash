@@ -1,13 +1,9 @@
 use crate::mats::BubbleMaterial;
-use bevy::{
-	diagnostic::FrameTimeDiagnosticsPlugin,
-	prelude::*,
-	DefaultPlugins,
-};
+use bevy::{diagnostic::FrameTimeDiagnosticsPlugin, prelude::*, DefaultPlugins};
 use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_kira_audio::AudioPlugin;
 use bevy_pkv::PkvStore;
-use bevy_rapier3d::{prelude::*};
+use bevy_rapier3d::prelude::*;
 use particles::ParticlesPlugin;
 use player::ctrl::CtrlVel;
 use std::{f32::consts::*, fmt::Debug, time::Duration};

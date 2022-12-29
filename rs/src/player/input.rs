@@ -2,7 +2,7 @@ use crate::{
 	player::{
 		camera::CameraVertSlider,
 		ctrl::CtrlVel,
-		player_entity::{Arm, CamPivot, ReadPlayerEntity},
+		player_entity::{Arm, CamPivot},
 		BelongsToPlayer, RotVel, ACCEL, JUMP_VEL, MAX_JUMPS, MAX_SPEED,
 	},
 	terminal_velocity,
@@ -10,6 +10,7 @@ use crate::{
 };
 use bevy::{math::Vec3Swizzles, prelude::*};
 use bevy_kira_audio::prelude::{Audio, AudioSource, *};
+use enum_components::ERef;
 use leafwing_abilities::{cooldown::Cooldown, prelude::*, AbilitiesBundle, Abilitylike};
 use leafwing_input_manager::prelude::*;
 use std::{
@@ -88,7 +89,7 @@ pub struct AoESound(pub Handle<AudioSource>);
 
 pub fn abilities(
 	mut action_q: Query<AbilityState<PlayerAction>>,
-	mut arm_q: Query<(&mut Transform, &mut RotVel), ReadPlayerEntity<Arm>>,
+	mut arm_q: Query<(&mut Transform, &mut RotVel), ERef<Arm>>,
 	mut pause_events: EventWriter<PauseMenuAction>,
 	sfx: Res<AoESound>,
 	audio: Res<Audio>,
@@ -167,7 +168,7 @@ pub fn look_input(
 	mut player_q: Query<(&mut CtrlVel, &BelongsToPlayer)>,
 	mut camera_pivot_q: Query<
 		(&mut Transform, &mut CameraVertSlider, &BelongsToPlayer),
-		ReadPlayerEntity<CamPivot>,
+		ERef<CamPivot>,
 	>,
 	kb: Res<Input<KeyCode>>,
 	t: Res<Time>,
