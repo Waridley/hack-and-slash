@@ -2,7 +2,7 @@ use super::{
 	player_entity::{Cam, CamPivot},
 	BelongsToPlayer, G1,
 };
-use crate::player::{PlayerEntity, PlayerId};
+use crate::player::PlayerId;
 use crate::settings::Settings;
 use bevy::core_pipeline::fxaa::Fxaa;
 use bevy::{
@@ -37,7 +37,7 @@ pub fn spawn_camera<'w, 's, 'a>(
 		CollisionGroups::new(Group::empty(), Group::empty()),
 		CamTarget::default(),
 	));
-	cmds.set_enum(PlayerEntity::Cam).with_children(|builder| {
+	cmds.set_enum(Cam).with_children(|builder| {
 		// Adjusting transform of Camera entity causes weird visual glitches,
 		// but parenting handles it properly
 		builder.spawn((
@@ -81,7 +81,7 @@ pub fn spawn_pivot<'w, 's, 'a>(
 			..default()
 		}),
 	));
-	cmds.set_enum(PlayerEntity::CamPivot);
+	cmds.set_enum(CamPivot);
 	cmds
 }
 

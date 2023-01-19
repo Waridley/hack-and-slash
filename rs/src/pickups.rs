@@ -58,6 +58,7 @@ pub fn setup(mut cmds: Commands, mut meshes: ResMut<Assets<Mesh>>, asset_server:
 }
 
 #[derive(EnumComponent)]
+#[component(derive(Debug, Copy, Clone, PartialEq))]
 pub enum Pickup {
 	Health(f32),
 	Shield(f32),
@@ -92,7 +93,7 @@ pub fn spawn_pickups(
 
 		info!("{:?}", &transform.translation.xy());
 
-		cmds.spawn((
+		let mut cmds = cmds.spawn((
 			MaterialMeshBundle {
 				mesh: handles.mesh.clone(),
 				material: handles.material.clone(),
@@ -102,12 +103,12 @@ pub fn spawn_pickups(
 			Collider::ball(8.0),
 			Sensor,
 			KinematicPositionBased,
-		))
-		.set_enum(if rng.generate::<bool>() {
-			Pickup::Health(points)
+		));
+		if rng.generate::<bool>() {
+			cmds.set_enum(pickup::Health(points));
 		} else {
-			Pickup::Shield(points)
-		});
+			cmds.set_enum(pickup::Shield(points));
+		};
 	}
 }
 

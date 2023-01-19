@@ -9,7 +9,7 @@ use bevy::{
 };
 use bevy_rapier3d::{
 	control::KinematicCharacterController,
-	dynamics::{CoefficientCombineRule::Min, RigidBody, Velocity},
+	dynamics::{CoefficientCombineRule::Min, Velocity},
 	geometry::{Collider, Friction},
 	math::Vect,
 	prelude::{RigidBody::KinematicPositionBased, *},
@@ -168,6 +168,7 @@ fn setup(
 }
 
 #[derive(EnumComponent)]
+#[component(mutable, derive(Debug, PartialEq, Eq))]
 pub enum PlayerEntity {
 	Root,
 	Controller,
@@ -243,7 +244,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 				linvel: Vect::splat(128.0),
 				angvel: Vect::new(0.0, 0.0, TAU * 60.0), // one rotation per frame at 60 fps
 			}),
-			RigidBody::KinematicPositionBased,
+			KinematicPositionBased,
 			TransformBundle::default(),
 			Velocity::default(),
 			Friction {
@@ -252,7 +253,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 			},
 			VisibilityBundle::default(),
 		));
-		root.set_enum(PlayerEntity::Root);
+		root.set_enum(player_entity::Root);
 
 		root.with_children(|builder| {
 			builder
@@ -278,7 +279,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 					},
 					PlayerAction::abilities_bundle(),
 				))
-				.set_enum(PlayerEntity::Controller);
+				.set_enum(player_entity::Controller);
 		});
 		player_vis(&mut root, owner, vis, particle_mesh);
 		player_arms(&mut root, owner, arm_meshes, arm_particle_mesh);
@@ -305,7 +306,7 @@ fn player_vis(
 			// TransformBundle::default(),
 			VisibilityBundle::default(), // for children ComputedVisibility
 		))
-		.set_enum(PlayerEntity::VisNode)
+		.set_enum(player_entity::VisNode)
 		.with_children(move |builder| {
 			// Mesh is a child so we can apply transform independent of collider to align them
 			builder
@@ -314,7 +315,7 @@ fn player_vis(
 					TransformBundle::default(),
 					VisibilityBundle::default(),
 				))
-				.set_enum(PlayerEntity::Vis)
+				.set_enum(player_entity::Vis)
 				.with_children(|builder| {
 					builder.spawn((owner, vis));
 
@@ -466,7 +467,7 @@ fn player_arms(
 					KinematicPositionBased,
 					RotVel::new(8.0),
 				))
-				.set_enum(PlayerEntity::Arm(which));
+				.set_enum(player_entity::Arm(which));
 		}
 	});
 }

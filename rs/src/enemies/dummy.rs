@@ -1,4 +1,4 @@
-use super::{enemy::Dummy, Enemy};
+use super::enemy::Dummy;
 use crate::util::{consume_spawn_events, Spawnable};
 use bevy::ecs::system::{EntityCommands, SystemParamItem};
 use bevy::prelude::*;
@@ -44,7 +44,7 @@ impl Spawnable for Dummy {
 			},
 			..default()
 		});
-		cmds.set_enum(Enemy::Dummy);
+		cmds.set_enum(Dummy);
 		cmds
 	}
 }
