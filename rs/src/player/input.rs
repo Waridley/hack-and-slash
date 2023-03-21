@@ -17,6 +17,7 @@ use std::{
 	f32::consts::{PI, TAU},
 	time::Duration,
 };
+use serde::{Deserialize, Serialize};
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugin(InputManagerPlugin::<PlayerAction>::default())
@@ -38,7 +39,7 @@ fn setup(
 	}
 }
 
-#[derive(Actionlike, Abilitylike, Copy, Clone, Debug, PartialEq, Eq, Reflect, FromReflect)]
+#[derive(Actionlike, Abilitylike, Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Reflect, FromReflect, Serialize, Deserialize)]
 pub enum PlayerAction {
 	Jump,
 	AoE,

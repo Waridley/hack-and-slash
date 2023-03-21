@@ -6,7 +6,7 @@ use bevy_quickmenu::{ActionTrait, Menu, MenuItem, MenuState, QuickMenuPlugin, Sc
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_event::<PauseMenuAction>()
-		.add_plugin(QuickMenuPlugin::<Settings, PauseMenuAction, PauseMenuScreen>::new())
+		.add_plugin(QuickMenuPlugin::<PauseMenuScreen>::new())
 		.add_startup_system(pause_menu_setup)
 		.add_system(event_reader)
 }
@@ -31,7 +31,7 @@ pub enum PauseMenuAction {
 fn event_reader(
 	mut cmds: Commands,
 	mut events: EventReader<PauseMenuAction>,
-	state: Option<Res<MenuState<Settings, PauseMenuAction, PauseMenuScreen>>>,
+	state: Option<Res<MenuState<PauseMenuScreen>>>,
 	mut exit_events: EventWriter<AppExit>,
 	mut store: ResMut<PkvStore>,
 	mut settings: ResMut<Settings>,
@@ -106,18 +106,19 @@ pub enum PauseMenuScreen {
 
 impl ScreenTrait for PauseMenuScreen {
 	type Action = PauseMenuAction;
-
+	type State = Settings;
+	
 	fn resolve(
 		&self,
 		state: &<<Self as ScreenTrait>::Action as ActionTrait>::State,
-	) -> Menu<Self::Action, Self, <<Self as ScreenTrait>::Action as ActionTrait>::State> {
+	) -> Menu<Self> {
 		match self {
 			PauseMenuScreen::Root => root_menu(state),
 		}
 	}
 }
 
-fn root_menu(state: &Settings) -> Menu<PauseMenuAction, PauseMenuScreen, Settings> {
+fn root_menu(state: &Settings) -> Menu<PauseMenuScreen> {
 	Menu::new(
 		"root",
 		vec![
