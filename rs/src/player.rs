@@ -3,7 +3,6 @@ use bevy::{
 	ecs::system::EntityCommands,
 	prelude::{
 		shape::{Icosphere, RegularPolygon},
-		CoreStage::PreUpdate,
 		*,
 	},
 };
@@ -29,6 +28,7 @@ use std::{
 	ops::{Deref, DerefMut},
 	time::Duration,
 };
+use rapier3d::prelude::InteractionGroups;
 
 pub mod camera;
 pub mod ctrl;
@@ -47,7 +47,7 @@ const G1: rapier3d::geometry::Group = rapier3d::geometry::Group::GROUP_1;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.fn_plugin(input::plugin)
-		.add_startup_system(setup)
+		.add_systems(Startup, setup)
 		.add_system_to_stage(PreUpdate, ctrl::gravity)
 		.add_system_to_stage(PreUpdate, ctrl::repel_ground.after(ctrl::gravity))
 		// .add_system(tick_cooldown::<Jump>)
@@ -58,7 +58,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 		.add_system(camera::follow_target.after(camera::position_target))
 		.add_system(ctrl::move_player.after(terminal_velocity))
 		.add_system(idle)
-		.add_system_to_stage(CoreStage::Last, reset_oob)
+		.add_system(Last, reset_oob)
 }
 
 fn setup(

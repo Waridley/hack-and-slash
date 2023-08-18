@@ -11,20 +11,17 @@ use crate::{
 use bevy::{math::Vec3Swizzles, prelude::*};
 use bevy_kira_audio::prelude::{Audio, AudioSource, *};
 use enum_components::ERef;
-use leafwing_abilities::{cooldown::Cooldown, prelude::*, AbilitiesBundle, Abilitylike};
 use leafwing_input_manager::prelude::*;
 use std::{
 	f32::consts::{PI, TAU},
 	time::Duration,
 };
-use serde::{Deserialize, Serialize};
 
 pub fn plugin(app: &mut App) -> &mut App {
-	app.add_plugin(InputManagerPlugin::<PlayerAction>::default())
-		.add_plugin(AbilityPlugin::<PlayerAction>::default())
-		.add_system_to_stage(CoreStage::First, setup)
-		.add_system(abilities)
-		.add_system(jump.before(terminal_velocity))
+	app.add_plugins((InputManagerPlugin::<PlayerAction>::default(), AbilityPlugin::<PlayerAction>::default()))
+		.add_systems(First, setup)
+		.add_systems(Update, abilities)
+		.add_systems(Update, jump.before(terminal_velocity))
 }
 
 fn setup(
@@ -39,7 +36,7 @@ fn setup(
 	}
 }
 
-#[derive(Actionlike, Abilitylike, Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Reflect, FromReflect, Serialize, Deserialize)]
+#[derive(Actionlike, Copy, Clone, Debug, PartialEq, Eq, Reflect, FromReflect)]
 pub enum PlayerAction {
 	Jump,
 	AoE,

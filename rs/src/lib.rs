@@ -7,6 +7,7 @@ use bevy_rapier3d::prelude::*;
 use particles::ParticlesPlugin;
 use player::ctrl::CtrlVel;
 use std::{f32::consts::*, fmt::Debug, time::Duration};
+use bevy::window::PrimaryWindow;
 use util::FnPluginExt;
 
 pub mod enemies;
@@ -32,13 +33,13 @@ pub const UP: Vect = Vect::Z;
 pub fn run() {
 	let mut app = App::new();
 	let mut default_plugins = DefaultPlugins.set(WindowPlugin {
-		window: WindowDescriptor {
+		primary_window: Some(Window {
 			title: "Sonday Hack-and-Slash Game".to_string(),
 			resizable: true,
 			fit_canvas_to_parent: true,
 			canvas: Some("#game_canvas".into()),
 			..default()
-		},
+		}),
 		..default()
 	});
 	#[cfg(debug_assertions)]
@@ -189,8 +190,8 @@ fn terminal_velocity(mut q: Query<(&mut CtrlVel, &TerminalVelocity)>) {
 	}
 }
 
-fn fullscreen(kb: Res<Input<KeyCode>>, mut windows: ResMut<Windows>) {
-	use WindowMode::*;
+fn fullscreen(kb: Res<Input<KeyCode>>, mut windows: Query<&Window, With<PrimaryWindow>>) {
+	use bevy::window::WindowMode::*;
 
 	if kb.just_pressed(KeyCode::F11) {
 		let window = windows.get_primary_mut().unwrap();

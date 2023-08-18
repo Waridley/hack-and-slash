@@ -8,9 +8,9 @@ use crate::{
 	UP,
 };
 use bevy::prelude::*;
+use rapier3d::prelude::InteractionGroups;
 use bevy_rapier3d::prelude::*;
 use enum_components::ERef;
-use leafwing_abilities::AbilityState;
 
 #[derive(Component)]
 pub struct CtrlState {

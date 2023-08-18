@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.init_resource::<Settings>()
-		.add_system_to_stage(CoreStage::First, load)
+		.add_system_to_stage(First, load)
 }
 
 pub fn load(

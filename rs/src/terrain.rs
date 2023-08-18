@@ -14,7 +14,7 @@ use std::{f32::consts::*, sync::Arc};
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_startup_system(setup)
-		.add_startup_system_to_stage(StartupStage::PostStartup, spawn_boxes)
+		.add_startup_system_to_stage(PostStartup, spawn_boxes)
 }
 
 pub fn setup(
