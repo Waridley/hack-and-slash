@@ -49,7 +49,7 @@ pub fn setup(mut cmds: Commands, mut meshes: ResMut<Assets<Mesh>>, asset_server:
 			radius: 8.0,
 			subdivisions: 0,
 		}
-		.into(),
+		.try_into().expect("create icosphere mesh"),
 	);
 
 	let material = asset_server.load("pickups/pickup_material.mat.ron");
@@ -64,7 +64,7 @@ pub enum Pickup {
 	Shield(f32),
 }
 
-#[derive(Debug, Clone, Resource, Reflect, FromReflect)]
+#[derive(Debug, Clone, Resource, Reflect)]
 pub struct PickupAssets {
 	mesh: Handle<Mesh>,
 	material: Handle<BubbleMaterial>,

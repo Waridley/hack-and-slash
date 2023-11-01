@@ -42,14 +42,15 @@ particles = { package = "sond-bevy-particles", path = "../sond-bevy-particles" }
 
 # Engine
 bevy_rapier3d = { version = "0.22", features = ["debug-render"] }
-rapier3d = { version = "0.16.1", features = ["wasm-bindgen"] }
+rapier3d = { version = "0.17.2", features = ["wasm-bindgen"] }
 bevy_kira_audio = "0.16.0"
 leafwing-input-manager = "0.10.0"
+leafwing_abilities = "0.5.0"
 bevy_quickmenu = "0.2.0"
 bevy_common_assets = { version = "0.7.0", features = ["ron"] }
 
 # Util
-bevy_pkv = "0.6.0"
+bevy_pkv = "0.8.0"
 nanorand = { version = "0.7.0", default-features = false, features = ["std", "wyrand", "getrandom"] } # wasm is broken without std and getrandom
 noise = "0.8.2"
 noises-and-patterns = "0.1.0"
@@ -67,6 +68,7 @@ bevy_rapier3d = { workspace = true }
 rapier3d = { workspace = true }
 bevy_kira_audio = { workspace = true }
 leafwing-input-manager = { workspace = true }
+leafwing_abilities = { workspace = true }
 bevy_quickmenu = { workspace = true }
 bevy_common_assets = { workspace = true }
 

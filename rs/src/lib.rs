@@ -7,6 +7,7 @@ use bevy_rapier3d::prelude::*;
 use particles::ParticlesPlugin;
 use player::ctrl::CtrlVel;
 use std::{f32::consts::*, fmt::Debug, time::Duration};
+use bevy::asset::ChangeWatcher;
 use bevy::window::PrimaryWindow;
 use util::FnPluginExt;
 
@@ -45,7 +46,7 @@ pub fn run() {
 	#[cfg(debug_assertions)]
 	{
 		default_plugins = default_plugins.set(AssetPlugin {
-			watch_for_changes: true,
+			watch_for_changes: ChangeWatcher::with_delay(Duration::from_secs(1)),
 			..default()
 		});
 	}
@@ -58,10 +59,12 @@ pub fn run() {
 			// },
 			..default()
 		})
-		.add_plugin(RapierPhysicsPlugin::<()>::default())
-		.add_plugin(FrameTimeDiagnosticsPlugin::default())
-		.add_plugin(AudioPlugin)
-		.add_plugin(ParticlesPlugin)
+		.add_plugins((
+			RapierPhysicsPlugin::<()>::default(),
+			FrameTimeDiagnosticsPlugin::default(),
+			AudioPlugin,
+			ParticlesPlugin)
+		)
 		.insert_resource(PkvStore::new_with_qualifier(
 			"studio",
 			"sonday",
@@ -73,11 +76,13 @@ pub fn run() {
 		.fn_plugin(settings::plugin)
 		.fn_plugin(terrain::plugin)
 		.fn_plugin(ui::plugin)
-		.add_plugin(RonAssetPlugin::<BubbleMaterial>::new(&["mat.ron"]))
-		.add_plugin(MaterialPlugin::<BubbleMaterial>::default())
-		.add_startup_system(startup)
-		.add_system(terminal_velocity)
-		.add_system(fullscreen);
+		.add_plugins((
+			RonAssetPlugin::<BubbleMaterial>::new(&["mat.ron"]),
+			MaterialPlugin::<BubbleMaterial>::default())
+		)
+		.add_systems(Startup, startup)
+		.add_systems(Update, terminal_velocity)
+		.add_systems(Update, fullscreen);
 
 	#[cfg(debug_assertions)]
 	{
@@ -137,7 +142,7 @@ fn startup(
 	#[cfg(debug_assertions)] mut dbg_render_ctx: ResMut<DebugRenderContext>,
 ) {
 	#[cfg(target_family = "wasm")]
-	cmds.insert_resource(Msaa { samples: 1 }); // disables MSAA
+	cmds.insert_resource(Msaa::Off);
 
 	#[cfg(debug_assertions)]
 	{
@@ -190,15 +195,15 @@ fn terminal_velocity(mut q: Query<(&mut CtrlVel, &TerminalVelocity)>) {
 	}
 }
 
-fn fullscreen(kb: Res<Input<KeyCode>>, mut windows: Query<&Window, With<PrimaryWindow>>) {
+fn fullscreen(kb: Res<Input<KeyCode>>, mut windows: Query<&mut Window, With<PrimaryWindow>>) {
 	use bevy::window::WindowMode::*;
 
 	if kb.just_pressed(KeyCode::F11) {
-		let window = windows.get_primary_mut().unwrap();
-		window.set_mode(match window.mode() {
+		let mut window = windows.single_mut();
+		window.mode = match window.mode {
 			Windowed => BorderlessFullscreen,
 			_ => Windowed,
-		})
+		};
 	}
 }
 

@@ -43,22 +43,22 @@ pub const JUMP_VEL: f32 = 64.0;
 pub const CLIMB_ANGLE: f32 = FRAC_PI_3 - R_E;
 pub const SLIDE_ANGLE: f32 = FRAC_PI_3 - R_E;
 pub const HOVER_HEIGHT: f32 = 2.0;
-const G1: rapier3d::geometry::Group = rapier3d::geometry::Group::GROUP_1;
+const G1: bevy_rapier3d::geometry::Group = bevy_rapier3d::geometry::Group::GROUP_1;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.fn_plugin(input::plugin)
 		.add_systems(Startup, setup)
-		.add_system_to_stage(PreUpdate, ctrl::gravity)
-		.add_system_to_stage(PreUpdate, ctrl::repel_ground.after(ctrl::gravity))
+		.add_systems(PreUpdate, ctrl::gravity)
+		.add_systems(PreUpdate, ctrl::repel_ground.after(ctrl::gravity))
 		// .add_system(tick_cooldown::<Jump>)
-		.add_system_to_stage(PreUpdate, ctrl::reset_jump_on_ground)
+		.add_systems(PreUpdate, ctrl::reset_jump_on_ground)
 		.add_system(input::movement_input.before(terminal_velocity))
 		.add_system(input::look_input.before(terminal_velocity))
 		.add_system(camera::position_target.after(input::look_input))
 		.add_system(camera::follow_target.after(camera::position_target))
 		.add_system(ctrl::move_player.after(terminal_velocity))
 		.add_system(idle)
-		.add_system(Last, reset_oob)
+		.add_systems(Last, reset_oob)
 }
 
 fn setup(
@@ -106,10 +106,10 @@ fn setup(
 		..default()
 	};
 
-	let arm = Mesh::from(Icosphere {
+	let arm = Mesh::try_from(Icosphere {
 		radius: 0.3,
 		subdivisions: 2,
-	});
+	}).expect("create icosphere mesh");
 	let arm_mesh = meshes.add(arm);
 	let arm1 = MaterialMeshBundle::<StandardMaterial> {
 		mesh: arm_mesh.clone(),
@@ -270,7 +270,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 						max_slope_climb_angle: CLIMB_ANGLE,
 						min_slope_slide_angle: SLIDE_ANGLE,
 						filter_flags: QueryFilterFlags::EXCLUDE_SENSORS,
-						filter_groups: Some(InteractionGroups::new(G1, !G1)),
+						filter_groups: Some(CollisionGroups::new(G1, !G1)),
 						..default()
 					},
 					InputManagerBundle::<PlayerAction> {
@@ -380,7 +380,7 @@ fn player_vis(
 	cmds.add_child(vis_node);
 }
 
-#[derive(Component, Debug, Default, Copy, Clone, Reflect, FromReflect)]
+#[derive(Component, Debug, Default, Copy, Clone, Reflect)]
 pub struct RotVel {
 	pub quiescent: f32,
 	pub current: f32,

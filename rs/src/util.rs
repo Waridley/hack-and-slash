@@ -1,5 +1,5 @@
 use bevy::ecs::event::Event;
-use bevy::ecs::system::{EntityCommands, SystemParam, SystemParamItem};
+use bevy::ecs::system::{EntityCommands, StaticSystemParam, SystemParam, SystemParamItem};
 use bevy::prelude::*;
 
 #[inline(always)]
@@ -36,7 +36,7 @@ pub trait Spawnable {
 #[derive(SystemParam)]
 pub struct Factory<'w, 's, P: Spawnable + 'static> {
 	pub cmds: Commands<'w, 's>,
-	pub params: SystemParamItem<'w, 's, P::Params>,
+	pub params: StaticSystemParam<'w, 's, <P as Spawnable>::Params>,
 }
 
 impl<'w, 's, T: Spawnable> Factory<'w, 's, T> {

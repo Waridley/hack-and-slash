@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.init_resource::<Settings>()
-		.add_system_to_stage(First, load)
+		.add_systems(First, load)
 }
 
 pub fn load(
@@ -16,7 +16,7 @@ pub fn load(
 	if settings.is_changed() {
 		for (mut cam, mut fxaa) in &mut cam_q {
 			cam.hdr = settings.hdr;
-			msaa.samples = if settings.msaa { 4 } else { 1 };
+			*msaa = if settings.msaa { Msaa::Sample4 } else { Msaa::Off };
 			fxaa.enabled = settings.fxaa;
 		}
 	}

@@ -13,7 +13,7 @@ fn main() {
 		.add_event::<RunGameEvent>()
 		.insert_resource(RunningGame::default())
 		.add_systems(Startup, setup)
-		.add_system_to_stage(CoreStage::First, clear_running_game)
+		.add_system_to_stage(First, clear_running_game)
 		.add_system(run_game)
 		.add_system(run_game_btn)
 		.run()

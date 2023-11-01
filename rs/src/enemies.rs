@@ -9,7 +9,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 	app.fn_plugin(dummy::plugin)
 }
 
-#[derive(EnumComponent, Reflect, FromReflect)]
+#[derive(EnumComponent, Reflect)]
 pub enum Enemy {
 	Dummy,
 	AA,

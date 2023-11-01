@@ -12,10 +12,12 @@ use bevy::{math::Vec3Swizzles, prelude::*};
 use bevy_kira_audio::prelude::{Audio, AudioSource, *};
 use enum_components::ERef;
 use leafwing_input_manager::prelude::*;
+use leafwing_abilities::prelude::*;
 use std::{
 	f32::consts::{PI, TAU},
 	time::Duration,
 };
+use serde::{Deserialize, Serialize};
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugins((InputManagerPlugin::<PlayerAction>::default(), AbilityPlugin::<PlayerAction>::default()))
@@ -36,7 +38,7 @@ fn setup(
 	}
 }
 
-#[derive(Actionlike, Copy, Clone, Debug, PartialEq, Eq, Reflect, FromReflect)]
+#[derive(Actionlike, Abilitylike, Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect, Serialize, Deserialize)]
 pub enum PlayerAction {
 	Jump,
 	AoE,

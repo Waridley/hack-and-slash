@@ -10,6 +10,7 @@ use crate::{
 use bevy::prelude::*;
 use rapier3d::prelude::InteractionGroups;
 use bevy_rapier3d::prelude::*;
+use leafwing_abilities::prelude::*;
 use enum_components::ERef;
 
 #[derive(Component)]
@@ -48,7 +49,7 @@ pub fn repel_ground(
 			QueryFilter::new()
 				.exclude_sensors()
 				.exclude_rigid_body(**body_id)
-				.groups(InteractionGroups::new(G1, !G1)),
+				.groups(CollisionGroups::new(G1, !G1)),
 		);
 		if let Some((_, toi)) = result {
 			let angle = quantize::<10>(toi.normal1.angle_between(UP));

@@ -19,7 +19,7 @@ pub fn spawn_pause_menu(cmds: &mut Commands, state: Settings) {
 	cmds.insert_resource(MenuState::new(state, PauseMenuScreen::Root, None));
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Event, Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum PauseMenuAction {
 	ShowOrHide,
 	SetBloom(bool),

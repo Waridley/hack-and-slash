@@ -13,8 +13,8 @@ use rapier3d::{
 use std::{f32::consts::*, sync::Arc};
 
 pub fn plugin(app: &mut App) -> &mut App {
-	app.add_startup_system(setup)
-		.add_startup_system_to_stage(PostStartup, spawn_boxes)
+	app.add_systems(Startup, setup)
+		.add_systems(PostStartup, spawn_boxes)
 }
 
 pub fn setup(
