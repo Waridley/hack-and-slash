@@ -1,3 +1,4 @@
+#![allow(clippy::needless_update)] // ..default() used a lot to make it easier to add/remove field assignments quickly
 use super::enemy::Dummy;
 use crate::util::{consume_spawn_events, Spawnable};
 use bevy::ecs::system::{EntityCommands, SystemParamItem};

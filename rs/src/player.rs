@@ -28,7 +28,6 @@ use std::{
 	ops::{Deref, DerefMut},
 	time::Duration,
 };
-use rapier3d::prelude::InteractionGroups;
 
 pub mod camera;
 pub mod ctrl;
@@ -50,14 +49,16 @@ pub fn plugin(app: &mut App) -> &mut App {
 		.add_systems(Startup, setup)
 		.add_systems(PreUpdate, ctrl::gravity)
 		.add_systems(PreUpdate, ctrl::repel_ground.after(ctrl::gravity))
-		// .add_system(tick_cooldown::<Jump>)
+		// .add_systems(Update, tick_cooldown::<Jump>)
 		.add_systems(PreUpdate, ctrl::reset_jump_on_ground)
-		.add_system(input::movement_input.before(terminal_velocity))
-		.add_system(input::look_input.before(terminal_velocity))
-		.add_system(camera::position_target.after(input::look_input))
-		.add_system(camera::follow_target.after(camera::position_target))
-		.add_system(ctrl::move_player.after(terminal_velocity))
-		.add_system(idle)
+		.add_systems(Update,(
+			input::movement_input.before(terminal_velocity),
+			input::look_input.before(terminal_velocity),
+			camera::position_target.after(input::look_input),
+			camera::follow_target.after(camera::position_target),
+			ctrl::move_player.after(terminal_velocity),
+			idle,
+		))
 		.add_systems(Last, reset_oob)
 }
 

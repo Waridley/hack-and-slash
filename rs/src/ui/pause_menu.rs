@@ -6,9 +6,9 @@ use bevy_quickmenu::{ActionTrait, Menu, MenuItem, MenuState, QuickMenuPlugin, Sc
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_event::<PauseMenuAction>()
-		.add_plugin(QuickMenuPlugin::<PauseMenuScreen>::new())
-		.add_startup_system(pause_menu_setup)
-		.add_system(event_reader)
+		.add_plugins(QuickMenuPlugin::<PauseMenuScreen>::new())
+		.add_systems(Startup, pause_menu_setup)
+		.add_systems(Update, event_reader)
 }
 
 pub fn pause_menu_setup(mut _cmds: Commands) {

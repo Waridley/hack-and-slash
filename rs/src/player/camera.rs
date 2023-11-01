@@ -18,7 +18,6 @@ use bevy_rapier3d::{
 	plugin::RapierContext,
 };
 use enum_components::{ERef, EntityEnumCommands};
-use rapier3d::geometry::InteractionGroups;
 use std::f32::consts::FRAC_PI_2;
 
 pub const CAM_ACCEL: f32 = 12.0;

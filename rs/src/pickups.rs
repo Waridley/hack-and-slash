@@ -25,11 +25,13 @@ pub static HEALTH: AtomicI64 = AtomicI64::new(0);
 pub static SHIELD: AtomicI64 = AtomicI64::new(0);
 
 pub fn plugin(app: &mut App) -> &mut App {
-	app.add_startup_system(setup)
-		.add_system(collect)
-		.add_system(spawn_pickups)
-		.add_system(movement)
-		.add_system(miss)
+	app.add_systems(Startup, setup)
+		.add_systems(Update, (
+			collect,
+			spawn_pickups,
+			movement,
+			miss,
+		))
 }
 
 #[derive(Resource, Default, Debug, Clone, Deref, DerefMut)]

@@ -6,6 +6,7 @@ use colored::Colorize;
 use std::fmt::Formatter;
 use std::{error::Error, fmt::Display};
 
+#[derive(Event)]
 pub struct TestEvent {
 	name: &'static str,
 	status: TestStatus,
@@ -51,10 +52,10 @@ pub fn app() -> App {
 			gravity: Vect::NEG_Z * 9.81,
 			..default()
 		})
-		.add_plugin(RapierPhysicsPlugin::<()>::default())
+		.add_plugins(RapierPhysicsPlugin::<()>::default())
 		.insert_resource(Timeout(Timer::from_seconds(600.0, TimerMode::Once)))
-		.add_system(timeout)
-		.add_system(check_test_results);
+		.add_systems(Update, timeout)
+		.add_systems(Update, check_test_results);
 
 	app.fn_plugin(app_started)
 		.fn_plugin(slope_angles::angle_stability);
@@ -112,7 +113,7 @@ pub fn exit_app(mut events: EventWriter<AppExit>) {
 }
 
 pub fn app_started(app: &mut App) -> &mut App {
-	app.add_startup_system(check_app_started)
+	app.add_systems(Startup, check_app_started)
 }
 
 fn check_app_started(mut results: EventWriter<TestEvent>) {
@@ -191,9 +192,9 @@ pub mod slope_angles {
 	}
 
 	pub fn angle_stability(app: &mut App) -> &mut App {
-		app.add_startup_system(setup)
-			.add_system(move_ball)
-			.add_system(examine_output)
+		app.add_systems(Startup, setup)
+			.add_systems(Update, move_ball)
+			.add_systems(Update, examine_output)
 	}
 
 	fn move_ball(

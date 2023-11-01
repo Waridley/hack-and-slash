@@ -8,7 +8,6 @@ use crate::{
 	UP,
 };
 use bevy::prelude::*;
-use rapier3d::prelude::InteractionGroups;
 use bevy_rapier3d::prelude::*;
 use leafwing_abilities::prelude::*;
 use enum_components::ERef;
@@ -83,7 +82,7 @@ pub fn gravity(mut q: Query<(&mut CtrlVel, &KinematicCharacterControllerOutput)>
 			ctrl_vel.linvel.z = 0.0
 		}
 
-		let mut info = vec![(TOIStatus::Converged, Vect::NAN, Vect::NAN); 4];
+		let mut info = [(TOIStatus::Converged, Vect::NAN, Vect::NAN); 4];
 		for (i, col) in out.collisions.iter().enumerate() {
 			if let Some(slot) = info.get_mut(i) {
 				*slot = (col.toi.status, col.translation_remaining, col.toi.normal1)

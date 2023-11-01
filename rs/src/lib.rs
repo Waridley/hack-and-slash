@@ -61,7 +61,7 @@ pub fn run() {
 		})
 		.add_plugins((
 			RapierPhysicsPlugin::<()>::default(),
-			FrameTimeDiagnosticsPlugin::default(),
+			FrameTimeDiagnosticsPlugin,
 			AudioPlugin,
 			ParticlesPlugin)
 		)
@@ -86,8 +86,8 @@ pub fn run() {
 
 	#[cfg(debug_assertions)]
 	{
-		app.add_plugin(RapierDebugRenderPlugin::default())
-			.add_system(toggle_debug_rendering);
+		app.add_plugins(RapierDebugRenderPlugin::default())
+			.add_systems(Update, toggle_debug_rendering);
 	}
 
 	app.run()
