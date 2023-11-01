@@ -1,4 +1,5 @@
-#import bevy_pbr::mesh_view_bindings
+#import bevy_pbr::mesh_vertex_output    MeshVertexOutput
+#import bevy_pbr::mesh_view_bindings	view
 #import bevy_pbr::mesh_bindings
 
 struct BubbleMaterial {
@@ -9,13 +10,10 @@ struct BubbleMaterial {
 @group(1) @binding(0)
 var<uniform> material: BubbleMaterial;
 
-struct FragmentInput {
-	#import bevy_pbr::mesh_vertex_output
-};
 
 @fragment
 fn fragment(
-	in: FragmentInput
+	in: MeshVertexOutput
 ) -> @location(0) vec4<f32> {
 	var N = normalize(in.world_normal);
 	var V = normalize(view.world_position.xyz - in.world_position.xyz);
