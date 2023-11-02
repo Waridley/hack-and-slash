@@ -63,7 +63,8 @@ pub fn run() {
 			RapierPhysicsPlugin::<()>::default(),
 			FrameTimeDiagnosticsPlugin,
 			AudioPlugin,
-			ParticlesPlugin)
+			ParticlesPlugin,
+		)
 		)
 		.insert_resource(PkvStore::new_with_qualifier(
 			"studio",
@@ -78,8 +79,8 @@ pub fn run() {
 		.fn_plugin(ui::plugin)
 		.add_plugins((
 			RonAssetPlugin::<BubbleMaterial>::new(&["mat.ron"]),
-			MaterialPlugin::<BubbleMaterial>::default())
-		)
+			MaterialPlugin::<BubbleMaterial>::default(),
+		))
 		.add_systems(Startup, startup)
 		.add_systems(Update, terminal_velocity)
 		.add_systems(Update, fullscreen);

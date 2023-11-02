@@ -27,12 +27,26 @@ features = [
     "bevy_gilrs",
     "bevy_scene",
     "bevy_winit",
-#    "render",
+    "bevy_core_pipeline",
+    "bevy_pbr",
+    "bevy_gltf",
+    "bevy_render",
+    "bevy_sprite",
+    "bevy_text",
+    "bevy_ui",
+    "multi-threaded",
     "png",
     "hdr",
+    "ktx2",
+    "zstd",
     "vorbis",
     "x11",
     "filesystem_watcher",
+    "bevy_gizmos",
+    "android_shared_stdcxx",
+    "tonemapping_luts",
+    "default_font",
+    "webgl2",
 ]
 
 [workspace.dependencies]
@@ -43,7 +57,7 @@ particles = { package = "sond-bevy-particles", path = "../sond-bevy-particles" }
 # Engine
 bevy_rapier3d = { version = "0.22", features = ["debug-render"] }
 rapier3d = { version = "0.17.2", features = ["wasm-bindgen"] }
-bevy_kira_audio = "0.16.0"
+bevy_kira_audio = "0.17.0"
 leafwing-input-manager = "0.10.0"
 leafwing_abilities = "0.5.0"
 bevy_quickmenu = "0.2.0"
