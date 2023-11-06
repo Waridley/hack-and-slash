@@ -28,6 +28,7 @@ use std::{
 	ops::{Deref, DerefMut},
 	time::Duration,
 };
+use particles::update::InterpTransform;
 
 pub mod camera;
 pub mod ctrl;
@@ -96,7 +97,7 @@ fn setup(
 	let particle_material = materials.add(StandardMaterial {
 		// base_color: Color::rgba(0.0, 1.0, 0.5, 0.3),
 		base_color: Color::NONE,
-		emissive: Color::rgb(0.0, 4.0, 2.4),
+		emissive: Color::rgb(0.0, 12.0, 7.2),
 		reflectance: 0.0,
 		..default()
 	});
@@ -116,7 +117,7 @@ fn setup(
 		mesh: arm_mesh.clone(),
 		material: materials.add(StandardMaterial {
 			base_color: Color::NONE,
-			emissive: Color::GREEN * 4.0,
+			emissive: Color::GREEN * 8.0,
 			reflectance: 0.0,
 			double_sided: true,
 			cull_mode: None,
@@ -129,7 +130,7 @@ fn setup(
 		mesh: arm_mesh.clone(),
 		material: materials.add(StandardMaterial {
 			base_color: Color::NONE,
-			emissive: Color::WHITE * 4.0,
+			emissive: Color::WHITE * 8.0,
 			reflectance: 0.0,
 			double_sided: true,
 			cull_mode: None,
@@ -144,7 +145,7 @@ fn setup(
 		mesh: arm_mesh,
 		material: materials.add(StandardMaterial {
 			base_color: Color::NONE,
-			emissive: Color::CYAN * 4.0,
+			emissive: Color::CYAN * 8.0,
 			reflectance: 0.0,
 			double_sided: true,
 			cull_mode: None,
@@ -156,7 +157,7 @@ fn setup(
 		..default()
 	};
 
-	let arm_particle_mesh = meshes.add(Mesh::from(RegularPolygon::new(0.05, 3)));
+	let arm_particle_mesh = meshes.add(Mesh::from(RegularPolygon::new(0.075, 3)));
 
 	use PlayerArm::*;
 	cmds.spawn_player(
@@ -336,11 +337,13 @@ fn player_vis(
 							spewer: Spewer {
 								factory: Box::new(move |cmds, xform, time_created| {
 									let xform = xform.compute_transform();
+									let scale_rng = rng.generate::<f32>() * 0.6 + 0.6;
 									let xform = Transform {
 										translation: Vec3 {
 											z: xform.translation.z - rng.generate::<f32>() * 0.2,
 											..xform.translation
 										},
+										scale: xform.scale * scale_rng,
 										..xform
 									};
 									cmds.spawn((
@@ -349,7 +352,7 @@ fn player_vis(
 												transform: xform,
 												..particle_mesh.clone()
 											},
-											lifetime: Lifetime(Duration::from_secs_f32(0.32)),
+											lifetime: Lifetime(Duration::from_secs_f32(0.24)),
 											initial_transform: InitialTransform(xform),
 											time_created,
 											..default()
@@ -362,7 +365,7 @@ fn player_vis(
 										},
 									))
 								}),
-								interval: Duration::from_secs_f32(0.033),
+								interval: Duration::from_secs_f32(0.072),
 								// jitter: Duration::from_secs_f32(0.033),
 								global_coords: true,
 								..default()
@@ -422,19 +425,18 @@ fn player_arms(
 			let particle_mat = arm.material.clone();
 			let mut rng = nanorand::WyRand::new();
 			let spewer = Spewer {
-				factory: Box::new(move |cmds, xform: &GlobalTransform, time_created| {
-					let mut xform = xform.compute_transform();
-					xform.translation.x += rng.generate::<f32>() * 0.7 - 0.35;
-					xform.translation.y += rng.generate::<f32>() * 0.7 - 0.35;
-					xform.translation.z += rng.generate::<f32>() * 0.7 - 0.35;
+				factory: Box::new(move |cmds, glob_xform: &GlobalTransform, time_created| {
+					let mut xform = Transform { scale: Vec3::ONE, ..glob_xform.compute_transform() };
+					xform.translation.x += rng.generate::<f32>() * 0.32 - 0.16;
+					xform.translation.y += rng.generate::<f32>() * 0.32 - 0.16;
+					xform.translation.z += rng.generate::<f32>() * 0.32 - 0.16;
 
-					// // not working ?:/
-					// xform.rotation = Quat::from_scaled_axis(Vec3::new(
-					// 	rng.f32() * TAU,
-					// 	rng.f32() * TAU,
-					// 	rng.f32() * TAU,
-					// ));
-
+					xform.rotation = Quat::from_rotation_arc(Vec3::Z, Vec3::new(
+						rng.generate::<f32>() * 2.0 - 1.0,
+						rng.generate::<f32>() * 2.0 - 1.0,
+						rng.generate::<f32>() * 2.0 - 1.0,
+					).normalize());
+					
 					cmds.spawn((
 						ParticleBundle {
 							mesh_bundle: MaterialMeshBundle {
@@ -446,15 +448,19 @@ fn player_arms(
 							},
 							time_created,
 							initial_transform: InitialTransform(xform),
-							initial_global_transform: InitialGlobalTransform(xform.into()),
-							lifetime: Lifetime(Duration::from_secs_f32(0.256)),
+							initial_global_transform: InitialGlobalTransform(*glob_xform),
+							lifetime: Lifetime(Duration::from_secs_f32(0.5)),
 						},
-						Linear {
-							velocity: Vec3::NEG_Z * 5.0,
+						InterpTransform {
+							final_xform: Transform {
+								translation: xform.translation + (Vec3::NEG_Z * 2.0),
+								rotation: xform.rotation,
+								scale: Vec3::ZERO,
+							},
 						},
 					))
 				}),
-				interval: Duration::from_millis(2),
+				interval: Duration::from_millis(4),
 				global_coords: true,
 				..default()
 			};
