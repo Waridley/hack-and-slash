@@ -56,3 +56,13 @@ pub fn consume_spawn_events<T: Spawnable>(
 		factory.spawn(event);
 	}
 }
+
+pub trait Lerp {
+	fn lerp(self, rhs: Self, t: f32) -> Self;
+}
+
+impl Lerp for f32 {
+	fn lerp(self, rhs: Self, t: f32) -> Self {
+		((rhs - self) * t) + self
+	}
+}

@@ -17,7 +17,9 @@ use std::{
 	f32::consts::{PI, TAU},
 	time::Duration,
 };
+use particles::Spewer;
 use serde::{Deserialize, Serialize};
+use crate::util::Lerp;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugins((InputManagerPlugin::<PlayerAction>::default(), AbilityPlugin::<PlayerAction>::default()))
@@ -89,7 +91,7 @@ pub struct AoESound(pub Handle<AudioSource>);
 
 pub fn abilities(
 	mut action_q: Query<AbilityState<PlayerAction>>,
-	mut arm_q: Query<(&mut Transform, &mut RotVel), ERef<Arm>>,
+	mut arm_q: Query<(&mut Transform, &mut RotVel, &mut Spewer), ERef<Arm>>,
 	mut pause_events: EventWriter<PauseMenuAction>,
 	sfx: Res<AoESound>,
 	audio: Res<Audio>,
@@ -100,11 +102,12 @@ pub fn abilities(
 		match state.trigger_if_just_pressed(AoE) {
 			Ok(()) => {
 				audio.play(sfx.0.clone()).with_volume(0.5);
-				for (mut arm, mut rvel) in &mut arm_q {
+				for (mut arm, mut rvel, mut spewer) in &mut arm_q {
 					// TODO: Filter by player
 					arm.translation *= 6.0;
 					arm.scale *= 6.0;
 					**rvel = 36.0;
+					spewer.interval = Duration::from_micros(100);
 				}
 			}
 			Err(CannotUseAbility::OnCooldown) => {
@@ -118,13 +121,14 @@ pub fn abilities(
 			pause_events.send(PauseMenuAction::ShowOrHide)
 		}
 
-		for (mut arm, mut rvel) in &mut arm_q {
+		for (mut arm, mut rvel, mut spewer) in &mut arm_q {
 			// TODO: Filter by player
 			arm.translation = arm
 				.translation
 				.lerp(arm.translation.normalize() * 2.0, t.delta_seconds() * 2.0);
 			arm.scale = arm.scale.lerp(Vec3::ONE, t.delta_seconds() * 2.0);
 			**rvel = **rvel + (rvel.quiescent - **rvel) * t.delta_seconds();
+			spewer.interval = Duration::from_secs_f32(spewer.interval.as_secs_f32().lerp(0.001, t.delta_seconds()));
 		}
 		// screen_print!("{:#?}", (&state.action_state, &state.charges, &state.cooldowns))
 	}

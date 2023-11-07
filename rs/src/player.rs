@@ -18,17 +18,14 @@ use ctrl::CtrlVel;
 use enum_components::{ERef, EntityEnumCommands, EnumComponent};
 use leafwing_input_manager::prelude::*;
 use nanorand::Rng;
-use particles::{
-	update::{Linear, TargetScale},
-	InitialGlobalTransform, InitialTransform, Lifetime, ParticleBundle, Spewer, SpewerBundle,
-};
+use particles::{update::{Linear, TargetScale}, InitialGlobalTransform, InitialTransform, Lifetime, ParticleBundle, Spewer, SpewerBundle, PreviousTransform, PreviousGlobalTransform};
 use std::{
 	f32::consts::*,
 	num::NonZeroU8,
 	ops::{Deref, DerefMut},
 	time::Duration,
 };
-use particles::update::InterpTransform;
+use particles::update::TargetTransform;
 
 pub mod camera;
 pub mod ctrl;
@@ -157,7 +154,7 @@ fn setup(
 		..default()
 	};
 
-	let arm_particle_mesh = meshes.add(Mesh::from(RegularPolygon::new(0.075, 3)));
+	let arm_particle_mesh = meshes.add(Mesh::from(RegularPolygon::new(0.1, 3)));
 
 	use PlayerArm::*;
 	cmds.spawn_player(
@@ -367,7 +364,7 @@ fn player_vis(
 								}),
 								interval: Duration::from_secs_f32(0.072),
 								// jitter: Duration::from_secs_f32(0.033),
-								global_coords: true,
+								use_global_coords: true,
 								..default()
 							},
 							transform: TransformBundle::from_transform(Transform {
@@ -426,16 +423,25 @@ fn player_arms(
 			let mut rng = nanorand::WyRand::new();
 			let spewer = Spewer {
 				factory: Box::new(move |cmds, glob_xform: &GlobalTransform, time_created| {
-					let mut xform = Transform { scale: Vec3::ONE, ..glob_xform.compute_transform() };
-					xform.translation.x += rng.generate::<f32>() * 0.32 - 0.16;
-					xform.translation.y += rng.generate::<f32>() * 0.32 - 0.16;
-					xform.translation.z += rng.generate::<f32>() * 0.32 - 0.16;
+					let mut xform = glob_xform.compute_transform();
+					xform.translation.x += (rng.generate::<f32>() * 0.42 - 0.21) * xform.scale.x;
+					xform.translation.y += (rng.generate::<f32>() * 0.42 - 0.21) * xform.scale.y;
+					xform.translation.z += (rng.generate::<f32>() * 0.42 - 0.21) * xform.scale.z;
+					let mut xform = Transform { scale: Vec3::ONE, ..xform };
 
-					xform.rotation = Quat::from_rotation_arc(Vec3::Z, Vec3::new(
+					let init_rot_vec = Vec3::new(
 						rng.generate::<f32>() * 2.0 - 1.0,
 						rng.generate::<f32>() * 2.0 - 1.0,
 						rng.generate::<f32>() * 2.0 - 1.0,
-					).normalize());
+					).normalize();
+					xform.rotation = Quat::from_rotation_arc(Vec3::Z, init_rot_vec);
+					
+					let final_rot_vec = Vec3::new(
+						rng.generate::<f32>() * 2.0 - 1.0,
+						rng.generate::<f32>() * 2.0 - 1.0,
+						rng.generate::<f32>() * 2.0 - 1.0,
+					).normalize();
+					let final_rot = Quat::from_rotation_arc(init_rot_vec, final_rot_vec);
 					
 					cmds.spawn((
 						ParticleBundle {
@@ -449,19 +455,18 @@ fn player_arms(
 							time_created,
 							initial_transform: InitialTransform(xform),
 							initial_global_transform: InitialGlobalTransform(*glob_xform),
-							lifetime: Lifetime(Duration::from_secs_f32(0.5)),
+							lifetime: Lifetime(Duration::from_secs_f32(0.1)),
 						},
-						InterpTransform {
-							final_xform: Transform {
-								translation: xform.translation + (Vec3::NEG_Z * 2.0),
-								rotation: xform.rotation,
-								scale: Vec3::ZERO,
-							},
+						Linear {
+							velocity: Vec3::NEG_Z * 2.0,
+						},
+						TargetScale {
+							scale: Vec3::ZERO,
 						},
 					))
 				}),
-				interval: Duration::from_millis(4),
-				global_coords: true,
+				interval: Duration::from_millis(1),
+				use_global_coords: true,
 				..default()
 			};
 			builder
@@ -469,6 +474,8 @@ fn player_arms(
 					owner,
 					arm,
 					spewer,
+					PreviousTransform::default(),
+					PreviousGlobalTransform::default(),
 					Collider::ball(0.4),
 					Sensor,
 					KinematicPositionBased,
@@ -509,13 +516,13 @@ pub fn idle(
 	t: Res<Time>,
 ) {
 	for mut xform in &mut vis_q {
-		xform.translation.y = (t.elapsed_seconds() * 3.0).sin() * 0.24;
+		xform.translation.y = (t.elapsed_seconds_wrapped() * 3.0).sin() * 0.24;
 		xform.rotate_local_y(-2.0 * t.delta_seconds());
 	}
 	for (mut xform, rvel) in &mut arm_q {
 		xform.translation = Quat::from_rotation_z(t.delta_seconds() * **rvel)
 			* Vec3 {
-				z: (t.elapsed_seconds() + 2.0 * xform.translation.angle_between(Vec3::X)).sin(),
+				z: (t.elapsed_seconds_wrapped() + 2.0 * xform.translation.angle_between(Vec3::X)).sin(),
 				..xform.translation
 			}
 	}
