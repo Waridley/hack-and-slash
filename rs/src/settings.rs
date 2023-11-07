@@ -35,12 +35,12 @@ impl FromWorld for Settings {
 	fn from_world(world: &mut World) -> Self {
 		world.get_resource::<PkvStore>().map_or(
 			Self {
-				hdr: false,
+				hdr: true,
 				msaa: false,
 				fxaa: false,
 			},
 			|store| {
-				let hdr = store.get("hdr").unwrap_or(false);
+				let hdr = store.get("hdr").unwrap_or(true);
 				let msaa = store.get("msaa").unwrap_or(false);
 				let fxaa = store.get("fxaa").unwrap_or(false);
 				Self { hdr, msaa, fxaa }

@@ -75,20 +75,10 @@ impl ActionTrait for PauseMenuAction {
 			PauseMenuAction::SetBloom(on) => {
 				state.hdr = *on;
 				events.send(PauseMenuAction::SetBloom(*on));
-				#[cfg(target_family = "wasm")]
-				if *on {
-					state.msaa = false;
-					events.send(PauseMenuAction::SetMsaa(false))
-				}
 			}
 			PauseMenuAction::SetMsaa(on) => {
 				state.msaa = *on;
 				events.send(PauseMenuAction::SetMsaa(*on));
-				#[cfg(target_family = "wasm")]
-				if *on {
-					state.hdr = false;
-					events.send(PauseMenuAction::SetBloom(false))
-				}
 			}
 			PauseMenuAction::SetFxaa(on) => {
 				state.fxaa = *on;
