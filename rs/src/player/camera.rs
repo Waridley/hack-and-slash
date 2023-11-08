@@ -56,7 +56,7 @@ pub fn spawn_camera<'w, 's, 'a>(
 				..default()
 			},
 			BloomSettings {
-				intensity: 0.05,
+				intensity: 0.1,
 				..default()
 			},
 			Fxaa {

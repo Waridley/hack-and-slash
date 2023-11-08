@@ -114,7 +114,7 @@ fn setup(
 		mesh: arm_mesh.clone(),
 		material: materials.add(StandardMaterial {
 			base_color: Color::NONE,
-			emissive: Color::GREEN * 8.0,
+			emissive: Color::GREEN * 6.0,
 			reflectance: 0.0,
 			double_sided: true,
 			cull_mode: None,
@@ -127,7 +127,7 @@ fn setup(
 		mesh: arm_mesh.clone(),
 		material: materials.add(StandardMaterial {
 			base_color: Color::NONE,
-			emissive: Color::WHITE * 8.0,
+			emissive: Color::WHITE * 6.0,
 			reflectance: 0.0,
 			double_sided: true,
 			cull_mode: None,
@@ -142,7 +142,7 @@ fn setup(
 		mesh: arm_mesh,
 		material: materials.add(StandardMaterial {
 			base_color: Color::NONE,
-			emissive: Color::CYAN * 8.0,
+			emissive: Color::CYAN * 6.0,
 			reflectance: 0.0,
 			double_sided: true,
 			cull_mode: None,
