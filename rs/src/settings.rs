@@ -15,7 +15,7 @@ pub fn load(
 ) {
 	if settings.is_changed() {
 		for (mut cam, mut fxaa) in &mut cam_q {
-			cam.hdr = settings.hdr;
+			// cam.hdr = settings.hdr;
 			*msaa = if settings.msaa { Msaa::Sample4 } else { Msaa::Off };
 			fxaa.enabled = settings.fxaa;
 		}
@@ -26,7 +26,7 @@ pub fn load(
 /// E.g. graphics settings should not be shared between machines.
 #[derive(Resource, Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
-	pub hdr: bool,
+	// pub hdr: bool,
 	pub msaa: bool,
 	pub fxaa: bool,
 }
@@ -35,15 +35,15 @@ impl FromWorld for Settings {
 	fn from_world(world: &mut World) -> Self {
 		world.get_resource::<PkvStore>().map_or(
 			Self {
-				hdr: true,
+				// hdr: true,
 				msaa: false,
 				fxaa: false,
 			},
 			|store| {
-				let hdr = store.get("hdr").unwrap_or(true);
+				// let hdr = store.get("hdr").unwrap_or(true);
 				let msaa = store.get("msaa").unwrap_or(false);
 				let fxaa = store.get("fxaa").unwrap_or(false);
-				Self { hdr, msaa, fxaa }
+				Self { msaa, fxaa }
 			},
 		)
 	}

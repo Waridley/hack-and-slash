@@ -42,7 +42,7 @@ pub fn spawn_camera<'w, 's, 'a>(
 		builder.spawn((
 			Camera3dBundle {
 				camera: Camera {
-					hdr: settings.hdr,
+					hdr: true,
 					..default()
 				},
 				transform: Transform {

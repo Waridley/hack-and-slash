@@ -22,7 +22,7 @@ pub fn spawn_pause_menu(cmds: &mut Commands, state: Settings) {
 #[derive(Event, Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum PauseMenuAction {
 	ShowOrHide,
-	SetBloom(bool),
+	// SetBloom(bool),
 	SetMsaa(bool),
 	SetFxaa(bool),
 	Quit,
@@ -45,11 +45,11 @@ fn event_reader(
 					bevy_quickmenu::cleanup(&mut cmds)
 				}
 			}
-			PauseMenuAction::SetBloom(on) => {
-				info!("Turning bloom {on}");
-				settings.hdr = *on;
-				store.set("hdr", on).unwrap()
-			}
+			// PauseMenuAction::SetBloom(on) => {
+			// 	info!("Turning bloom {on}");
+			// 	settings.hdr = *on;
+			// 	store.set("hdr", on).unwrap()
+			// }
 			PauseMenuAction::SetMsaa(on) => {
 				info!("Turning MSAA {on}");
 				settings.msaa = *on;
@@ -72,10 +72,10 @@ impl ActionTrait for PauseMenuAction {
 	fn handle(&self, state: &mut Self::State, events: &mut EventWriter<Self::Event>) {
 		match self {
 			PauseMenuAction::ShowOrHide => events.send(PauseMenuAction::ShowOrHide),
-			PauseMenuAction::SetBloom(on) => {
-				state.hdr = *on;
-				events.send(PauseMenuAction::SetBloom(*on));
-			}
+			// PauseMenuAction::SetBloom(on) => {
+			// 	state.hdr = *on;
+			// 	events.send(PauseMenuAction::SetBloom(*on));
+			// }
 			PauseMenuAction::SetMsaa(on) => {
 				state.msaa = *on;
 				events.send(PauseMenuAction::SetMsaa(*on));
@@ -114,8 +114,8 @@ fn root_menu(state: &Settings) -> Menu<PauseMenuScreen> {
 		vec![
 			MenuItem::headline("Menu"),
 			MenuItem::label("Graphics"),
-			MenuItem::action("Bloom Lighting", PauseMenuAction::SetBloom(!state.hdr))
-				.checked(state.hdr),
+			// MenuItem::action("Bloom Lighting", PauseMenuAction::SetBloom(!state.hdr))
+			// 	.checked(state.hdr),
 			MenuItem::action("MSAA", PauseMenuAction::SetMsaa(!state.msaa)).checked(state.msaa),
 			MenuItem::action("FXAA", PauseMenuAction::SetFxaa(!state.fxaa)).checked(state.fxaa),
 			MenuItem::action("Quit", PauseMenuAction::Quit),
