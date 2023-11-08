@@ -165,7 +165,7 @@ fn startup(
 	});
 
 	cmds.insert_resource(AmbientLight {
-		color: Color::rgb(0.6, 0.4, 1.0),
+		color: Color::rgb(0.64, 0.32, 1.0),
 		brightness: 0.05
 	});
 }
