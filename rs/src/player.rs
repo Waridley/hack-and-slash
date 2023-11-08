@@ -374,6 +374,18 @@ fn player_vis(
 							..default()
 						},
 					));
+					
+					builder.spawn(PointLightBundle {
+						point_light: PointLight {
+							color: Color::rgb(0.0, 1.0, 0.6),
+							intensity: 10000.0,
+							range: 8.0,
+							shadows_enabled: false,
+							..default()
+						},
+						transform: Transform::from_xyz(0.0, -0.5, 0.0),
+						..default()
+					});
 				});
 		})
 		.add_child(pivot)

@@ -23,7 +23,7 @@ pub fn setup(
 	mut meshes: ResMut<Assets<Mesh>>,
 ) {
 	let material = materials.add(StandardMaterial {
-		base_color: Color::rgb(0.024, 0.0, 0.064),
+		base_color: Color::rgb(0.024, 0.006, 0.064),
 		reflectance: 0.032,
 		perceptual_roughness: 0.0,
 		..default()
