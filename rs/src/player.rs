@@ -378,7 +378,7 @@ fn player_vis(
 					builder.spawn(PointLightBundle {
 						point_light: PointLight {
 							color: Color::rgb(0.0, 1.0, 0.6),
-							intensity: 10000.0,
+							intensity: 4000.0,
 							range: 8.0,
 							shadows_enabled: false,
 							..default()

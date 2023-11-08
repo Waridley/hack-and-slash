@@ -154,7 +154,7 @@ fn startup(
 
 	cmds.spawn(DirectionalLightBundle {
 		directional_light: DirectionalLight {
-			// illuminance: 10000.0,
+			illuminance: 10000.0,
 			..default()
 		},
 		transform: Transform::from_rotation(Quat::from_rotation_arc(
@@ -165,8 +165,8 @@ fn startup(
 	});
 
 	cmds.insert_resource(AmbientLight {
-		// brightness: 0.2,
-		..default()
+		color: Color::rgb(0.6, 0.4, 1.0),
+		brightness: 0.05
 	});
 }
 
