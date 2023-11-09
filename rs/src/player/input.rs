@@ -1,3 +1,4 @@
+use crate::util::Lerp;
 use crate::{
 	player::{
 		camera::CameraVertSlider,
@@ -11,21 +12,23 @@ use crate::{
 use bevy::{math::Vec3Swizzles, prelude::*};
 use bevy_kira_audio::prelude::{Audio, AudioSource, *};
 use enum_components::ERef;
-use leafwing_input_manager::prelude::*;
 use leafwing_abilities::prelude::*;
+use leafwing_input_manager::prelude::*;
+use particles::Spewer;
+use serde::{Deserialize, Serialize};
 use std::{
 	f32::consts::{PI, TAU},
 	time::Duration,
 };
-use particles::Spewer;
-use serde::{Deserialize, Serialize};
-use crate::util::Lerp;
 
 pub fn plugin(app: &mut App) -> &mut App {
-	app.add_plugins((InputManagerPlugin::<PlayerAction>::default(), AbilityPlugin::<PlayerAction>::default()))
-		.add_systems(First, setup)
-		.add_systems(Update, abilities)
-		.add_systems(Update, jump.before(terminal_velocity))
+	app.add_plugins((
+		InputManagerPlugin::<PlayerAction>::default(),
+		AbilityPlugin::<PlayerAction>::default(),
+	))
+	.add_systems(First, setup)
+	.add_systems(Update, abilities)
+	.add_systems(Update, jump.before(terminal_velocity))
 }
 
 fn setup(
@@ -40,7 +43,21 @@ fn setup(
 	}
 }
 
-#[derive(Actionlike, Abilitylike, Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect, Serialize, Deserialize)]
+#[derive(
+	Actionlike,
+	Abilitylike,
+	Copy,
+	Clone,
+	Debug,
+	PartialEq,
+	Eq,
+	PartialOrd,
+	Ord,
+	Hash,
+	Reflect,
+	Serialize,
+	Deserialize,
+)]
 pub enum PlayerAction {
 	Jump,
 	AoE,
@@ -128,7 +145,9 @@ pub fn abilities(
 				.lerp(arm.translation.normalize() * 2.0, t.delta_seconds() * 2.0);
 			arm.scale = arm.scale.lerp(Vec3::ONE, t.delta_seconds() * 2.0);
 			**rvel = **rvel + (rvel.quiescent - **rvel) * t.delta_seconds();
-			spewer.interval = Duration::from_secs_f32(spewer.interval.as_secs_f32().lerp(0.001, t.delta_seconds()));
+			spewer.interval = Duration::from_secs_f32(
+				spewer.interval.as_secs_f32().lerp(0.001, t.delta_seconds()),
+			);
 		}
 		// screen_print!("{:#?}", (&state.action_state, &state.charges, &state.cooldowns))
 	}

@@ -1,5 +1,3 @@
-use std::f32::consts::FRAC_PI_2;
-use std::ops::Mul;
 use crate::{
 	player::{
 		input::PlayerAction,
@@ -11,8 +9,8 @@ use crate::{
 };
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
-use leafwing_abilities::prelude::*;
 use enum_components::ERef;
+use leafwing_abilities::prelude::*;
 
 #[derive(Component)]
 pub struct CtrlState {
@@ -31,7 +29,6 @@ pub fn repel_ground(
 		(
 			&Parent,
 			&GlobalTransform,
-			&Collider,
 			&mut CtrlVel,
 			&mut KinematicCharacterControllerOutput,
 		),
@@ -39,10 +36,10 @@ pub fn repel_ground(
 	>,
 	t: Res<Time>,
 ) {
-	for (body_id, global, col, mut ctrl_vel, mut state) in &mut q {
+	for (body_id, global, mut ctrl_vel, mut state) in &mut q {
 		let global = global.compute_transform();
 		let col = Collider::ball(1.0);
-		
+
 		let result = ctx.cast_shape(
 			global.translation + (global.rotation.mul_vec3(ctrl_vel.linvel) * t.delta_seconds()), // predict next frame
 			global.rotation,
@@ -54,12 +51,11 @@ pub fn repel_ground(
 				.exclude_rigid_body(**body_id)
 				.groups(CollisionGroups::new(G1, !G1)),
 		);
-		
+
 		if let Some((_, toi)) = result {
-			dbg!(&toi.status);
 			let angle = quantize::<10>(toi.normal1.angle_between(UP));
 			let dist = HOVER_HEIGHT - toi.toi;
-			if dbg!(angle) < SLIDE_ANGLE {
+			if angle < SLIDE_ANGLE {
 				state.grounded = true;
 				let repel_accel = dist * dist * 64.0 - ctrl_vel.linvel.z;
 				ctrl_vel.linvel.z += repel_accel * f32::min(t.delta_seconds() * 2.0, 0.256);
@@ -69,7 +65,8 @@ pub fn repel_ground(
 				let repel_dir = Vec3 {
 					z: f32::min(-(1.0 - repel_dir.z) + ctrl_vel.linvel.z, 0.0),
 					..repel_dir
-				}.normalize();
+				}
+				.normalize();
 				let repel_speed = 32.0;
 				ctrl_vel.linvel = repel_dir * repel_speed;
 			}

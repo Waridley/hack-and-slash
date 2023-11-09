@@ -1,4 +1,6 @@
 use crate::mats::BubbleMaterial;
+use bevy::asset::ChangeWatcher;
+use bevy::window::PrimaryWindow;
 use bevy::{diagnostic::FrameTimeDiagnosticsPlugin, prelude::*, DefaultPlugins};
 use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_kira_audio::AudioPlugin;
@@ -7,8 +9,6 @@ use bevy_rapier3d::prelude::*;
 use particles::ParticlesPlugin;
 use player::ctrl::CtrlVel;
 use std::{f32::consts::*, fmt::Debug, time::Duration};
-use bevy::asset::ChangeWatcher;
-use bevy::window::PrimaryWindow;
 use util::FnPluginExt;
 
 pub mod enemies;
@@ -64,8 +64,7 @@ pub fn run() {
 			FrameTimeDiagnosticsPlugin,
 			AudioPlugin,
 			ParticlesPlugin,
-		)
-		)
+		))
 		.insert_resource(PkvStore::new_with_qualifier(
 			"studio",
 			"sonday",
@@ -166,7 +165,7 @@ fn startup(
 
 	cmds.insert_resource(AmbientLight {
 		color: Color::rgb(0.64, 0.32, 1.0),
-		brightness: 0.05
+		brightness: 0.05,
 	});
 }
 

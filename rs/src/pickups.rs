@@ -26,12 +26,7 @@ pub static SHIELD: AtomicI64 = AtomicI64::new(0);
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_systems(Startup, setup)
-		.add_systems(Update, (
-			collect,
-			spawn_pickups,
-			movement,
-			miss,
-		))
+		.add_systems(Update, (collect, spawn_pickups, movement, miss))
 }
 
 #[derive(Resource, Default, Debug, Clone, Deref, DerefMut)]
@@ -51,7 +46,8 @@ pub fn setup(mut cmds: Commands, mut meshes: ResMut<Assets<Mesh>>, asset_server:
 			radius: 8.0,
 			subdivisions: 0,
 		}
-		.try_into().expect("create icosphere mesh"),
+		.try_into()
+		.expect("create icosphere mesh"),
 	);
 
 	let material = asset_server.load("pickups/pickup_material.mat.ron");

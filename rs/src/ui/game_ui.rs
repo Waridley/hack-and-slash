@@ -1,8 +1,5 @@
 use bevy::{
-	app::{
-		App,
-		Update
-	},
+	app::{App, Update},
 	prelude::{Commands, VisibilityBundle},
 };
 

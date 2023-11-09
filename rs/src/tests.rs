@@ -265,10 +265,15 @@ pub mod slope_angles {
 	) {
 		let Ok(out) = q.get_single() else { return };
 
-		let Some((id, angle)) = out.collisions.first().map(|col| (
-			col.entity,
-			rapier3d::math::Vector::from(col.toi.normal1).angle(&rapier3d::math::Vector::from(Vec3::Z)),
-		)) else { return };
+		let Some((id, angle)) = out.collisions.first().map(|col| {
+			(
+				col.entity,
+				rapier3d::math::Vector::from(col.toi.normal1)
+					.angle(&rapier3d::math::Vector::from(Vec3::Z)),
+			)
+		}) else {
+			return;
+		};
 
 		if out.effective_translation.length() < 1.0e-3 {
 			if angle < CLIMB - 1.0e-4 {

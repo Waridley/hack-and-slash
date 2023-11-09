@@ -4,19 +4,17 @@ use bevy_pkv::PkvStore;
 use serde::{Deserialize, Serialize};
 
 pub fn plugin(app: &mut App) -> &mut App {
-	app.init_resource::<Settings>()
-		.add_systems(First, load)
+	app.init_resource::<Settings>().add_systems(First, load)
 }
 
-pub fn load(
-	settings: Res<Settings>,
-	mut cam_q: Query<(&mut Camera, &mut Fxaa)>,
-	mut msaa: ResMut<Msaa>,
-) {
+pub fn load(settings: Res<Settings>, mut cam_q: Query<&mut Fxaa>, mut msaa: ResMut<Msaa>) {
 	if settings.is_changed() {
-		for (mut cam, mut fxaa) in &mut cam_q {
-			// cam.hdr = settings.hdr;
-			*msaa = if settings.msaa { Msaa::Sample4 } else { Msaa::Off };
+		for mut fxaa in &mut cam_q {
+			*msaa = if settings.msaa {
+				Msaa::Sample4
+			} else {
+				Msaa::Off
+			};
 			fxaa.enabled = settings.fxaa;
 		}
 	}

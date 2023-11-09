@@ -1,9 +1,9 @@
-use std::time::Duration;
 use async_process::{Child, Command, Stdio};
 use bevy::asset::ChangeWatcher;
 use bevy::prelude::*;
 use bevy::tasks::IoTaskPool;
 use futures_lite::{io::BufReader, AsyncBufReadExt, StreamExt};
+use std::time::Duration;
 
 #[bevy_main]
 fn main() {

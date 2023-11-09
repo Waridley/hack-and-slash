@@ -97,11 +97,8 @@ pub enum PauseMenuScreen {
 impl ScreenTrait for PauseMenuScreen {
 	type Action = PauseMenuAction;
 	type State = Settings;
-	
-	fn resolve(
-		&self,
-		state: &<<Self as ScreenTrait>::Action as ActionTrait>::State,
-	) -> Menu<Self> {
+
+	fn resolve(&self, state: &<<Self as ScreenTrait>::Action as ActionTrait>::State) -> Menu<Self> {
 		match self {
 			PauseMenuScreen::Root => root_menu(state),
 		}

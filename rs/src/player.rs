@@ -18,14 +18,17 @@ use ctrl::CtrlVel;
 use enum_components::{ERef, EntityEnumCommands, EnumComponent};
 use leafwing_input_manager::prelude::*;
 use nanorand::Rng;
-use particles::{update::{Linear, TargetScale}, InitialGlobalTransform, InitialTransform, Lifetime, ParticleBundle, Spewer, SpewerBundle, PreviousTransform, PreviousGlobalTransform};
+use particles::{
+	update::{Linear, TargetScale},
+	InitialGlobalTransform, InitialTransform, Lifetime, ParticleBundle, PreviousGlobalTransform,
+	PreviousTransform, Spewer, SpewerBundle,
+};
 use std::{
 	f32::consts::*,
 	num::NonZeroU8,
 	ops::{Deref, DerefMut},
 	time::Duration,
 };
-use particles::update::TargetTransform;
 
 pub mod camera;
 pub mod ctrl;
@@ -49,14 +52,17 @@ pub fn plugin(app: &mut App) -> &mut App {
 		.add_systems(PreUpdate, ctrl::repel_ground.after(ctrl::gravity))
 		// .add_systems(Update, tick_cooldown::<Jump>)
 		.add_systems(PreUpdate, ctrl::reset_jump_on_ground)
-		.add_systems(Update,(
-			input::movement_input.before(terminal_velocity),
-			input::look_input.before(terminal_velocity),
-			camera::position_target.after(input::look_input),
-			camera::follow_target.after(camera::position_target),
-			ctrl::move_player.after(terminal_velocity),
-			idle,
-		))
+		.add_systems(
+			Update,
+			(
+				input::movement_input.before(terminal_velocity),
+				input::look_input.before(terminal_velocity),
+				camera::position_target.after(input::look_input),
+				camera::follow_target.after(camera::position_target),
+				ctrl::move_player.after(terminal_velocity),
+				idle,
+			),
+		)
 		.add_systems(Last, reset_oob)
 }
 
@@ -108,7 +114,8 @@ fn setup(
 	let arm = Mesh::try_from(Icosphere {
 		radius: 0.3,
 		subdivisions: 2,
-	}).expect("create icosphere mesh");
+	})
+	.expect("create icosphere mesh");
 	let arm_mesh = meshes.add(arm);
 	let arm1 = MaterialMeshBundle::<StandardMaterial> {
 		mesh: arm_mesh.clone(),
@@ -374,7 +381,7 @@ fn player_vis(
 							..default()
 						},
 					));
-					
+
 					builder.spawn(PointLightBundle {
 						point_light: PointLight {
 							color: Color::rgb(0.0, 1.0, 0.6),
@@ -439,22 +446,18 @@ fn player_arms(
 					xform.translation.x += (rng.generate::<f32>() * 0.42 - 0.21) * xform.scale.x;
 					xform.translation.y += (rng.generate::<f32>() * 0.42 - 0.21) * xform.scale.y;
 					xform.translation.z += (rng.generate::<f32>() * 0.42 - 0.21) * xform.scale.z;
-					let mut xform = Transform { scale: Vec3::ONE, ..xform };
+					let mut xform = Transform {
+						scale: Vec3::ONE,
+						..xform
+					};
 
 					let init_rot_vec = Vec3::new(
 						rng.generate::<f32>() * 2.0 - 1.0,
 						rng.generate::<f32>() * 2.0 - 1.0,
 						rng.generate::<f32>() * 2.0 - 1.0,
-					).normalize();
+					)
+					.normalize();
 					xform.rotation = Quat::from_rotation_arc(Vec3::Z, init_rot_vec);
-					
-					let final_rot_vec = Vec3::new(
-						rng.generate::<f32>() * 2.0 - 1.0,
-						rng.generate::<f32>() * 2.0 - 1.0,
-						rng.generate::<f32>() * 2.0 - 1.0,
-					).normalize();
-					let final_rot = Quat::from_rotation_arc(init_rot_vec, final_rot_vec);
-					
 					cmds.spawn((
 						ParticleBundle {
 							mesh_bundle: MaterialMeshBundle {
@@ -472,9 +475,7 @@ fn player_arms(
 						Linear {
 							velocity: Vec3::NEG_Z * 2.0,
 						},
-						TargetScale {
-							scale: Vec3::ZERO,
-						},
+						TargetScale { scale: Vec3::ZERO },
 					))
 				}),
 				interval: Duration::from_millis(1),
@@ -534,7 +535,8 @@ pub fn idle(
 	for (mut xform, rvel) in &mut arm_q {
 		xform.translation = Quat::from_rotation_z(t.delta_seconds() * **rvel)
 			* Vec3 {
-				z: (t.elapsed_seconds_wrapped() + 2.0 * xform.translation.angle_between(Vec3::X)).sin(),
+				z: (t.elapsed_seconds_wrapped() + 2.0 * xform.translation.angle_between(Vec3::X))
+					.sin(),
 				..xform.translation
 			}
 	}
