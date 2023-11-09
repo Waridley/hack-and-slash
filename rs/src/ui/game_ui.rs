@@ -1,10 +1,10 @@
 use bevy::{
-	app::App,
+	app::{App, Update},
 	prelude::{Commands, VisibilityBundle},
 };
 
 pub fn plugin(app: &mut App) -> &mut App {
-	app.add_system(setup)
+	app.add_systems(Update, setup)
 }
 
 pub fn setup(mut cmds: Commands) {

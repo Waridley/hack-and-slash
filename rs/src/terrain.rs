@@ -13,8 +13,8 @@ use rapier3d::{
 use std::{f32::consts::*, sync::Arc};
 
 pub fn plugin(app: &mut App) -> &mut App {
-	app.add_startup_system(setup)
-		.add_startup_system_to_stage(StartupStage::PostStartup, spawn_boxes)
+	app.add_systems(Startup, setup)
+		.add_systems(PostStartup, spawn_boxes)
 }
 
 pub fn setup(
@@ -23,8 +23,9 @@ pub fn setup(
 	mut meshes: ResMut<Assets<Mesh>>,
 ) {
 	let material = materials.add(StandardMaterial {
-		base_color: Color::rgb(0.024, 0.0, 0.064),
-		reflectance: 0.032,
+		base_color: Color::rgb(0.072, 0.072, 0.072),
+		reflectance: 0.1,
+		perceptual_roughness: 0.0,
 		..default()
 	});
 
@@ -75,7 +76,7 @@ pub fn setup(
 	cmds.spawn((
 		RigidBody::Fixed,
 		Collider::from(SharedShape(heights.clone())),
-		MaterialMeshBundle::<StandardMaterial> {
+		PbrBundle {
 			mesh,
 			transform: Transform {
 				translation: Vec3::new(0.0, 0.0, 256.0),
@@ -139,7 +140,7 @@ impl Spawnable for TerrainObject {
 		transform: Transform,
 	) -> EntityCommands<'w, 's, 'a> {
 		cmds.spawn(TerrainObject {
-			mat_mesh_bundle: MaterialMeshBundle {
+			mat_mesh_bundle: PbrBundle {
 				mesh: params.mesh.clone(),
 				material: params.material.clone(),
 				transform,
@@ -153,7 +154,7 @@ impl Spawnable for TerrainObject {
 
 #[derive(Bundle)]
 pub struct TerrainObject {
-	pub mat_mesh_bundle: MaterialMeshBundle<StandardMaterial>,
+	pub mat_mesh_bundle: PbrBundle,
 	pub rigid_body: RigidBody,
 	pub collider: Collider,
 	pub restitution: Restitution,
@@ -164,7 +165,7 @@ pub struct TerrainObject {
 impl Default for TerrainObject {
 	fn default() -> Self {
 		Self {
-			mat_mesh_bundle: MaterialMeshBundle::default(),
+			mat_mesh_bundle: PbrBundle::default(),
 			rigid_body: RigidBody::Fixed,
 			collider: Collider::default(),
 			restitution: Restitution::new(0.5),

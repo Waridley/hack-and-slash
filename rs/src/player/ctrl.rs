@@ -10,7 +10,7 @@ use crate::{
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 use enum_components::ERef;
-use leafwing_abilities::AbilityState;
+use leafwing_abilities::prelude::*;
 
 #[derive(Component)]
 pub struct CtrlState {
@@ -29,7 +29,6 @@ pub fn repel_ground(
 		(
 			&Parent,
 			&GlobalTransform,
-			&Collider,
 			&mut CtrlVel,
 			&mut KinematicCharacterControllerOutput,
 		),
@@ -37,26 +36,39 @@ pub fn repel_ground(
 	>,
 	t: Res<Time>,
 ) {
-	for (body_id, global, col, mut ctrl_vel, mut state) in &mut q {
+	for (body_id, global, mut ctrl_vel, mut state) in &mut q {
 		let global = global.compute_transform();
+		let col = Collider::ball(1.0);
+
 		let result = ctx.cast_shape(
-			global.translation,
+			global.translation + (global.rotation.mul_vec3(ctrl_vel.linvel) * t.delta_seconds()), // predict next frame
 			global.rotation,
 			-UP,
-			col,
+			&col,
 			HOVER_HEIGHT,
 			QueryFilter::new()
 				.exclude_sensors()
 				.exclude_rigid_body(**body_id)
-				.groups(InteractionGroups::new(G1, !G1)),
+				.groups(CollisionGroups::new(G1, !G1)),
 		);
+
 		if let Some((_, toi)) = result {
 			let angle = quantize::<10>(toi.normal1.angle_between(UP));
+			let dist = HOVER_HEIGHT - toi.toi;
 			if angle < SLIDE_ANGLE {
 				state.grounded = true;
-				let dist = HOVER_HEIGHT - toi.toi;
 				let repel_accel = dist * dist * 64.0 - ctrl_vel.linvel.z;
 				ctrl_vel.linvel.z += repel_accel * f32::min(t.delta_seconds() * 2.0, 0.256);
+			} else {
+				state.grounded = false;
+				let repel_dir = global.rotation.inverse().mul_vec3(toi.normal1); // convert to local space
+				let repel_dir = Vec3 {
+					z: f32::min(-(1.0 - repel_dir.z) + ctrl_vel.linvel.z, 0.0),
+					..repel_dir
+				}
+				.normalize();
+				let repel_speed = 32.0;
+				ctrl_vel.linvel = repel_dir * repel_speed;
 			}
 		}
 	}
@@ -79,10 +91,10 @@ pub fn reset_jump_on_ground(
 pub fn gravity(mut q: Query<(&mut CtrlVel, &KinematicCharacterControllerOutput)>, t: Res<Time>) {
 	for (mut ctrl_vel, out) in q.iter_mut() {
 		if out.grounded {
-			ctrl_vel.linvel.z = 0.0
+			ctrl_vel.linvel.z = f32::max(ctrl_vel.linvel.z, 0.0)
 		}
 
-		let mut info = vec![(TOIStatus::Converged, Vect::NAN, Vect::NAN); 4];
+		let mut info = [(TOIStatus::Converged, Vect::NAN, Vect::NAN); 4];
 		for (i, col) in out.collisions.iter().enumerate() {
 			if let Some(slot) = info.get_mut(i) {
 				*slot = (col.toi.status, col.translation_remaining, col.toi.normal1)

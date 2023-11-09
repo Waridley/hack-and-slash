@@ -5,7 +5,7 @@ use bevy::{
 };
 use serde::{Deserialize, Serialize};
 
-#[derive(AsBindGroup, Debug, Clone, TypeUuid, Serialize, Deserialize, Reflect, FromReflect)]
+#[derive(AsBindGroup, Debug, Clone, TypeUuid, Serialize, Deserialize, Reflect)]
 #[uuid = "32c44b20-ae2c-43b2-96c8-aa9bb12d6a8b"]
 pub struct BubbleMaterial {
 	#[uniform(0)]

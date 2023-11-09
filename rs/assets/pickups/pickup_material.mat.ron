@@ -1,5 +1,5 @@
 
 BubbleMaterial(
     color: Rgba ( red: 2.0, green: 0.8, blue: 0.0, alpha: 0.05 ),
-    intensity: 0.24
+    intensity: 0.5
 )

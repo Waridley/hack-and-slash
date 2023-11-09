@@ -1,3 +1,4 @@
+#![allow(clippy::needless_update)] // ..default() used a lot to make it easier to add/remove field assignments quickly
 use super::enemy::Dummy;
 use crate::util::{consume_spawn_events, Spawnable};
 use bevy::ecs::system::{EntityCommands, SystemParamItem};
@@ -5,9 +6,9 @@ use bevy::prelude::*;
 use enum_components::EntityEnumCommands;
 
 pub fn plugin(app: &mut App) -> &mut App {
-	app.add_startup_system(setup)
+	app.add_systems(Startup, setup)
 		.add_event::<NewDummy>()
-		.add_system(consume_spawn_events::<Dummy>)
+		.add_systems(Update, consume_spawn_events::<Dummy>)
 }
 
 fn setup(
@@ -55,7 +56,7 @@ pub struct DummyTemplate {
 	material: Handle<StandardMaterial>,
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Event, Default, Debug, Clone)]
 pub struct NewDummy {
 	transform: Transform,
 }

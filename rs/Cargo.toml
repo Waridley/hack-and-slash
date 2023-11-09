@@ -10,15 +10,20 @@ resolver = "2"
 members = ["tools/*", "game-dylib"]
 
 [features]
-vis_test = ["testing"]
+vis_test = ["testing", "render"]
 testing = ["colored"]
+render = ["bevy/bevy_render", "bevy/bevy_winit", "bevy_rapier3d/debug-render", "bevy_rapier3d/async-collider"]
+default = [
+    "render",
+]
+
 
 [patch.crates-io]
 rapier3d = { version = "0.16", path = "../rapier/crates/rapier3d" }
-bevy_rapier3d = { version = "0.19.0", path = "../bevy_rapier/bevy_rapier3d" }
+bevy_rapier3d = { version = "0.22.0", path = "../bevy_rapier/bevy_rapier3d" }
 
 [workspace.dependencies.bevy]
-version = "0.9.0"
+version = "0.11.0"
 default-features = false
 features = [
     "animation",
@@ -26,13 +31,27 @@ features = [
 #    "bevy_audio", # using kira
     "bevy_gilrs",
     "bevy_scene",
-    "bevy_winit",
-    "render",
+#    "bevy_winit",
+    "bevy_core_pipeline",
+    "bevy_pbr",
+    "bevy_gltf",
+#    "bevy_render",
+    "bevy_sprite",
+    "bevy_text",
+    "bevy_ui",
+    "multi-threaded",
     "png",
     "hdr",
+    "ktx2",
+    "zstd",
     "vorbis",
     "x11",
     "filesystem_watcher",
+    "bevy_gizmos",
+    "android_shared_stdcxx",
+    "tonemapping_luts",
+    "default_font",
+    "webgl2",
 ]
 
 [workspace.dependencies]
@@ -41,16 +60,16 @@ enum_components = { package = "sond-bevy-enum-components", path = "../sond-bevy-
 particles = { package = "sond-bevy-particles", path = "../sond-bevy-particles" }
 
 # Engine
-bevy_rapier3d = { version = "0.19", features = ["debug-render"] }
-rapier3d = { version = "0.16", features = ["wasm-bindgen"] }
-bevy_kira_audio = "0.13.0"
-leafwing-input-manager = "0.7"
-leafwing_abilities = "0.3"
-bevy_quickmenu = "0.1.1"
-bevy_common_assets = { version = "0.4.0", features = ["ron"] }
+bevy_rapier3d = { version = "0.22", default-features = false, features = ["dim3"] }
+rapier3d = { version = "0.17.2", features = ["wasm-bindgen"] }
+bevy_kira_audio = "0.17.0"
+leafwing-input-manager = "0.10.0"
+leafwing_abilities = "0.5.0"
+bevy_quickmenu = "0.2.0"
+bevy_common_assets = { version = "0.7.0", features = ["ron"] }
 
 # Util
-bevy_pkv = "0.6.0"
+bevy_pkv = "0.8.0"
 nanorand = { version = "0.7.0", default-features = false, features = ["std", "wyrand", "getrandom"] } # wasm is broken without std and getrandom
 noise = "0.8.2"
 noises-and-patterns = "0.1.0"

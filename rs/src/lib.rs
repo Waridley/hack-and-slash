@@ -1,4 +1,6 @@
 use crate::mats::BubbleMaterial;
+use bevy::asset::ChangeWatcher;
+use bevy::window::PrimaryWindow;
 use bevy::{diagnostic::FrameTimeDiagnosticsPlugin, prelude::*, DefaultPlugins};
 use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_kira_audio::AudioPlugin;
@@ -32,19 +34,19 @@ pub const UP: Vect = Vect::Z;
 pub fn run() {
 	let mut app = App::new();
 	let mut default_plugins = DefaultPlugins.set(WindowPlugin {
-		window: WindowDescriptor {
+		primary_window: Some(Window {
 			title: "Sonday Hack-and-Slash Game".to_string(),
 			resizable: true,
 			fit_canvas_to_parent: true,
 			canvas: Some("#game_canvas".into()),
 			..default()
-		},
+		}),
 		..default()
 	});
 	#[cfg(debug_assertions)]
 	{
 		default_plugins = default_plugins.set(AssetPlugin {
-			watch_for_changes: true,
+			watch_for_changes: ChangeWatcher::with_delay(Duration::from_secs(1)),
 			..default()
 		});
 	}
@@ -57,10 +59,12 @@ pub fn run() {
 			// },
 			..default()
 		})
-		.add_plugin(RapierPhysicsPlugin::<()>::default())
-		.add_plugin(FrameTimeDiagnosticsPlugin::default())
-		.add_plugin(AudioPlugin)
-		.add_plugin(ParticlesPlugin)
+		.add_plugins((
+			RapierPhysicsPlugin::<()>::default(),
+			FrameTimeDiagnosticsPlugin,
+			AudioPlugin,
+			ParticlesPlugin,
+		))
 		.insert_resource(PkvStore::new_with_qualifier(
 			"studio",
 			"sonday",
@@ -72,16 +76,18 @@ pub fn run() {
 		.fn_plugin(settings::plugin)
 		.fn_plugin(terrain::plugin)
 		.fn_plugin(ui::plugin)
-		.add_plugin(RonAssetPlugin::<BubbleMaterial>::new(&["mat.ron"]))
-		.add_plugin(MaterialPlugin::<BubbleMaterial>::default())
-		.add_startup_system(startup)
-		.add_system(terminal_velocity)
-		.add_system(fullscreen);
+		.add_plugins((
+			RonAssetPlugin::<BubbleMaterial>::new(&["mat.ron"]),
+			MaterialPlugin::<BubbleMaterial>::default(),
+		))
+		.add_systems(Startup, startup)
+		.add_systems(Update, terminal_velocity)
+		.add_systems(Update, fullscreen);
 
-	#[cfg(debug_assertions)]
+	#[cfg(all(debug_assertions, feature = "render"))]
 	{
-		app.add_plugin(RapierDebugRenderPlugin::default())
-			.add_system(toggle_debug_rendering);
+		app.add_plugins(RapierDebugRenderPlugin::default())
+			.add_systems(Update, toggle_debug_rendering);
 	}
 
 	app.run()
@@ -133,12 +139,12 @@ pub fn tick_cooldown<A: Ability>(
 
 fn startup(
 	mut cmds: Commands,
-	#[cfg(debug_assertions)] mut dbg_render_ctx: ResMut<DebugRenderContext>,
+	#[cfg(all(debug_assertions, feature = "render"))] mut dbg_render_ctx: ResMut<DebugRenderContext>,
 ) {
 	#[cfg(target_family = "wasm")]
-	cmds.insert_resource(Msaa { samples: 1 }); // disables MSAA
+	cmds.insert_resource(Msaa::Off);
 
-	#[cfg(debug_assertions)]
+	#[cfg(all(debug_assertions, feature = "render"))]
 	{
 		dbg_render_ctx.enabled = false;
 	}
@@ -147,7 +153,7 @@ fn startup(
 
 	cmds.spawn(DirectionalLightBundle {
 		directional_light: DirectionalLight {
-			// illuminance: 10000.0,
+			illuminance: 10000.0,
 			..default()
 		},
 		transform: Transform::from_rotation(Quat::from_rotation_arc(
@@ -158,8 +164,8 @@ fn startup(
 	});
 
 	cmds.insert_resource(AmbientLight {
-		// brightness: 0.2,
-		..default()
+		color: Color::rgb(0.64, 0.32, 1.0),
+		brightness: 0.05,
 	});
 }
 
@@ -189,19 +195,19 @@ fn terminal_velocity(mut q: Query<(&mut CtrlVel, &TerminalVelocity)>) {
 	}
 }
 
-fn fullscreen(kb: Res<Input<KeyCode>>, mut windows: ResMut<Windows>) {
-	use WindowMode::*;
+fn fullscreen(kb: Res<Input<KeyCode>>, mut windows: Query<&mut Window, With<PrimaryWindow>>) {
+	use bevy::window::WindowMode::*;
 
 	if kb.just_pressed(KeyCode::F11) {
-		let window = windows.get_primary_mut().unwrap();
-		window.set_mode(match window.mode() {
+		let mut window = windows.single_mut();
+		window.mode = match window.mode {
 			Windowed => BorderlessFullscreen,
 			_ => Windowed,
-		})
+		};
 	}
 }
 
-#[cfg(debug_assertions)]
+#[cfg(all(debug_assertions, feature = "render"))]
 fn toggle_debug_rendering(mut ctx: ResMut<DebugRenderContext>, input: Res<Input<KeyCode>>) {
 	if input.just_pressed(KeyCode::P) {
 		ctx.enabled = !ctx.enabled

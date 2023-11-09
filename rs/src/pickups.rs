@@ -25,11 +25,8 @@ pub static HEALTH: AtomicI64 = AtomicI64::new(0);
 pub static SHIELD: AtomicI64 = AtomicI64::new(0);
 
 pub fn plugin(app: &mut App) -> &mut App {
-	app.add_startup_system(setup)
-		.add_system(collect)
-		.add_system(spawn_pickups)
-		.add_system(movement)
-		.add_system(miss)
+	app.add_systems(Startup, setup)
+		.add_systems(Update, (collect, spawn_pickups, movement, miss))
 }
 
 #[derive(Resource, Default, Debug, Clone, Deref, DerefMut)]
@@ -49,7 +46,8 @@ pub fn setup(mut cmds: Commands, mut meshes: ResMut<Assets<Mesh>>, asset_server:
 			radius: 8.0,
 			subdivisions: 0,
 		}
-		.into(),
+		.try_into()
+		.expect("create icosphere mesh"),
 	);
 
 	let material = asset_server.load("pickups/pickup_material.mat.ron");
@@ -64,7 +62,7 @@ pub enum Pickup {
 	Shield(f32),
 }
 
-#[derive(Debug, Clone, Resource, Reflect, FromReflect)]
+#[derive(Debug, Clone, Resource, Reflect)]
 pub struct PickupAssets {
 	mesh: Handle<Mesh>,
 	material: Handle<BubbleMaterial>,

@@ -18,7 +18,6 @@ use bevy_rapier3d::{
 	plugin::RapierContext,
 };
 use enum_components::{ERef, EntityEnumCommands};
-use rapier3d::geometry::InteractionGroups;
 use std::f32::consts::FRAC_PI_2;
 
 pub const CAM_ACCEL: f32 = 12.0;
@@ -43,7 +42,7 @@ pub fn spawn_camera<'w, 's, 'a>(
 		builder.spawn((
 			Camera3dBundle {
 				camera: Camera {
-					hdr: settings.hdr,
+					hdr: true,
 					..default()
 				},
 				transform: Transform {
@@ -57,7 +56,7 @@ pub fn spawn_camera<'w, 's, 'a>(
 				..default()
 			},
 			BloomSettings {
-				intensity: 0.05,
+				intensity: 0.1,
 				..default()
 			},
 			Fxaa {
@@ -102,7 +101,7 @@ pub fn position_target(
 			.find_map(|(xform, owner)| (owner == cam_owner).then_some(xform))
 			.unwrap();
 
-		let filter = QueryFilter::from(InteractionGroups::new(G1, !G1)).exclude_sensors();
+		let filter = QueryFilter::from(CollisionGroups::new(G1, !G1)).exclude_sensors();
 		let (_, rot, tr) = pivot_xform.to_scale_rotation_translation();
 		let dir = rot * Vect::NEG_Y;
 		let pos = tr + (dir * MIN_CAM_DIST); // start at minimum distance, not player origin
