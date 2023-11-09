@@ -1,11 +1,11 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Test" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="test --features=&quot;testing,bevy/dynamic&quot;" />
+    <option name="command" value="test --no-default-features --features=&quot;testing&quot;" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$/rs" />
+    <option name="emulateTerminal" value="true" />
     <option name="channel" value="DEFAULT" />
     <option name="requiredFeatures" value="true" />
     <option name="allFeatures" value="false" />
-    <option name="emulateTerminal" value="true" />
     <option name="withSudo" value="false" />
     <option name="buildTarget" value="REMOTE" />
     <option name="backtrace" value="SHORT" />

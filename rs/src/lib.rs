@@ -84,7 +84,7 @@ pub fn run() {
 		.add_systems(Update, terminal_velocity)
 		.add_systems(Update, fullscreen);
 
-	#[cfg(debug_assertions)]
+	#[cfg(all(debug_assertions, feature = "render"))]
 	{
 		app.add_plugins(RapierDebugRenderPlugin::default())
 			.add_systems(Update, toggle_debug_rendering);
@@ -139,12 +139,12 @@ pub fn tick_cooldown<A: Ability>(
 
 fn startup(
 	mut cmds: Commands,
-	#[cfg(debug_assertions)] mut dbg_render_ctx: ResMut<DebugRenderContext>,
+	#[cfg(all(debug_assertions, feature = "render"))] mut dbg_render_ctx: ResMut<DebugRenderContext>,
 ) {
 	#[cfg(target_family = "wasm")]
 	cmds.insert_resource(Msaa::Off);
 
-	#[cfg(debug_assertions)]
+	#[cfg(all(debug_assertions, feature = "render"))]
 	{
 		dbg_render_ctx.enabled = false;
 	}
@@ -207,7 +207,7 @@ fn fullscreen(kb: Res<Input<KeyCode>>, mut windows: Query<&mut Window, With<Prim
 	}
 }
 
-#[cfg(debug_assertions)]
+#[cfg(all(debug_assertions, feature = "render"))]
 fn toggle_debug_rendering(mut ctx: ResMut<DebugRenderContext>, input: Res<Input<KeyCode>>) {
 	if input.just_pressed(KeyCode::P) {
 		ctx.enabled = !ctx.enabled

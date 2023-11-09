@@ -10,8 +10,13 @@ resolver = "2"
 members = ["tools/*", "game-dylib"]
 
 [features]
-vis_test = ["testing"]
+vis_test = ["testing", "render"]
 testing = ["colored"]
+render = ["bevy/bevy_render", "bevy/bevy_winit", "bevy_rapier3d/debug-render", "bevy_rapier3d/async-collider"]
+default = [
+    "render",
+]
+
 
 [patch.crates-io]
 rapier3d = { version = "0.16", path = "../rapier/crates/rapier3d" }
@@ -26,11 +31,11 @@ features = [
 #    "bevy_audio", # using kira
     "bevy_gilrs",
     "bevy_scene",
-    "bevy_winit",
+#    "bevy_winit",
     "bevy_core_pipeline",
     "bevy_pbr",
     "bevy_gltf",
-    "bevy_render",
+#    "bevy_render",
     "bevy_sprite",
     "bevy_text",
     "bevy_ui",
@@ -55,7 +60,7 @@ enum_components = { package = "sond-bevy-enum-components", path = "../sond-bevy-
 particles = { package = "sond-bevy-particles", path = "../sond-bevy-particles" }
 
 # Engine
-bevy_rapier3d = { version = "0.22", features = ["debug-render"] }
+bevy_rapier3d = { version = "0.22", default-features = false, features = ["dim3"] }
 rapier3d = { version = "0.17.2", features = ["wasm-bindgen"] }
 bevy_kira_audio = "0.17.0"
 leafwing-input-manager = "0.10.0"
