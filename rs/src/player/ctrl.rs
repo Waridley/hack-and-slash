@@ -1,3 +1,5 @@
+use std::f32::consts::FRAC_PI_2;
+use std::ops::Mul;
 use crate::{
 	player::{
 		input::PlayerAction,
@@ -39,24 +41,37 @@ pub fn repel_ground(
 ) {
 	for (body_id, global, col, mut ctrl_vel, mut state) in &mut q {
 		let global = global.compute_transform();
+		let col = Collider::ball(1.0);
+		
 		let result = ctx.cast_shape(
-			global.translation,
+			global.translation + (global.rotation.mul_vec3(ctrl_vel.linvel) * t.delta_seconds()), // predict next frame
 			global.rotation,
 			-UP,
-			col,
+			&col,
 			HOVER_HEIGHT,
 			QueryFilter::new()
 				.exclude_sensors()
 				.exclude_rigid_body(**body_id)
 				.groups(CollisionGroups::new(G1, !G1)),
 		);
+		
 		if let Some((_, toi)) = result {
+			dbg!(&toi.status);
 			let angle = quantize::<10>(toi.normal1.angle_between(UP));
-			if angle < SLIDE_ANGLE {
+			let dist = HOVER_HEIGHT - toi.toi;
+			if dbg!(angle) < SLIDE_ANGLE {
 				state.grounded = true;
-				let dist = HOVER_HEIGHT - toi.toi;
 				let repel_accel = dist * dist * 64.0 - ctrl_vel.linvel.z;
 				ctrl_vel.linvel.z += repel_accel * f32::min(t.delta_seconds() * 2.0, 0.256);
+			} else {
+				state.grounded = false;
+				let repel_dir = global.rotation.inverse().mul_vec3(toi.normal1); // convert to local space
+				let repel_dir = Vec3 {
+					z: f32::min(-(1.0 - repel_dir.z) + ctrl_vel.linvel.z, 0.0),
+					..repel_dir
+				}.normalize();
+				let repel_speed = 32.0;
+				ctrl_vel.linvel = repel_dir * repel_speed;
 			}
 		}
 	}
@@ -79,7 +94,7 @@ pub fn reset_jump_on_ground(
 pub fn gravity(mut q: Query<(&mut CtrlVel, &KinematicCharacterControllerOutput)>, t: Res<Time>) {
 	for (mut ctrl_vel, out) in q.iter_mut() {
 		if out.grounded {
-			ctrl_vel.linvel.z = 0.0
+			ctrl_vel.linvel.z = f32::max(ctrl_vel.linvel.z, 0.0)
 		}
 
 		let mut info = [(TOIStatus::Converged, Vect::NAN, Vect::NAN); 4];

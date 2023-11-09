@@ -236,7 +236,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 		arm_particle_mesh: Handle<Mesh>,
 	) -> EntityCommands<'w, 's, 'c> {
 		let owner = BelongsToPlayer::with_id(id);
-		let char_collider = Collider::ball(1.4);
+		let char_collider = Collider::ball(1.2);
 		let mut root = self.spawn((
 			owner,
 			TerminalVelocity(Velocity {
