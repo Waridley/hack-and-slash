@@ -31,7 +31,7 @@ jobs:
             ./rs/target/
           key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.lock') }}
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@beta
         with:
           targets:
             wasm32-unknown-unknown,
@@ -40,7 +40,7 @@ jobs:
             aarch64-linux-android,
             aarch64-apple-ios,
 
-      - name: Prepare crate for stable toolchain
+      - name: Prepare crate for beta toolchain
         run: |
           rm ./rs/.cargo/config.toml
           rm ./rs/rust-toolchain.toml

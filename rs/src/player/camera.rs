@@ -1,8 +1,8 @@
 use super::{
-	player_entity::{Cam, CamPivot, ReadPlayerEntity},
+	player_entity::{Cam, CamPivot},
 	BelongsToPlayer, G1,
 };
-use crate::player::{PlayerEntity, PlayerId};
+use crate::player::PlayerId;
 use crate::settings::Settings;
 use bevy::core_pipeline::fxaa::Fxaa;
 use bevy::{
@@ -17,8 +17,7 @@ use bevy_rapier3d::{
 	pipeline::QueryFilter,
 	plugin::RapierContext,
 };
-use enum_components::EntityEnumCommands;
-use rapier3d::geometry::InteractionGroups;
+use enum_components::{ERef, EntityEnumCommands};
 use std::f32::consts::FRAC_PI_2;
 
 pub const CAM_ACCEL: f32 = 12.0;
@@ -37,13 +36,13 @@ pub fn spawn_camera<'w, 's, 'a>(
 		CollisionGroups::new(Group::empty(), Group::empty()),
 		CamTarget::default(),
 	));
-	cmds.set_enum(PlayerEntity::Cam).with_children(|builder| {
+	cmds.set_enum(Cam).with_children(|builder| {
 		// Adjusting transform of Camera entity causes weird visual glitches,
 		// but parenting handles it properly
 		builder.spawn((
 			Camera3dBundle {
 				camera: Camera {
-					hdr: settings.hdr,
+					hdr: true,
 					..default()
 				},
 				transform: Transform {
@@ -57,7 +56,7 @@ pub fn spawn_camera<'w, 's, 'a>(
 				..default()
 			},
 			BloomSettings {
-				intensity: 0.05,
+				intensity: 0.1,
 				..default()
 			},
 			Fxaa {
@@ -81,7 +80,7 @@ pub fn spawn_pivot<'w, 's, 'a>(
 			..default()
 		}),
 	));
-	cmds.set_enum(PlayerEntity::CamPivot);
+	cmds.set_enum(CamPivot);
 	cmds
 }
 
@@ -93,8 +92,8 @@ pub struct CamTarget(Transform);
 
 pub fn position_target(
 	ctx: Res<RapierContext>,
-	cam_pivot_q: Query<(&GlobalTransform, &BelongsToPlayer), ReadPlayerEntity<CamPivot>>,
-	mut cam_q: Query<(&mut CamTarget, &Collider, &BelongsToPlayer), ReadPlayerEntity<Cam>>,
+	cam_pivot_q: Query<(&GlobalTransform, &BelongsToPlayer), ERef<CamPivot>>,
+	mut cam_q: Query<(&mut CamTarget, &Collider, &BelongsToPlayer), ERef<Cam>>,
 ) {
 	for (mut target, col, cam_owner) in &mut cam_q {
 		let pivot_xform = cam_pivot_q
@@ -102,7 +101,7 @@ pub fn position_target(
 			.find_map(|(xform, owner)| (owner == cam_owner).then_some(xform))
 			.unwrap();
 
-		let filter = QueryFilter::from(InteractionGroups::new(G1, !G1)).exclude_sensors();
+		let filter = QueryFilter::from(CollisionGroups::new(G1, !G1)).exclude_sensors();
 		let (_, rot, tr) = pivot_xform.to_scale_rotation_translation();
 		let dir = rot * Vect::NEG_Y;
 		let pos = tr + (dir * MIN_CAM_DIST); // start at minimum distance, not player origin
@@ -138,10 +137,7 @@ pub fn position_target(
 	}
 }
 
-pub fn follow_target(
-	mut cam_q: Query<(&mut Transform, &CamTarget), ReadPlayerEntity<Cam>>,
-	t: Res<Time>,
-) {
+pub fn follow_target(mut cam_q: Query<(&mut Transform, &CamTarget), ERef<Cam>>, t: Res<Time>) {
 	let dt = t.delta_seconds();
 	for (mut cam_xform, target_xform) in &mut cam_q {
 		// TODO: Maybe always aim towards pivot, rather than immediately assuming final rotation

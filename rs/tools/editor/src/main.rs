@@ -1,21 +1,23 @@
 use async_process::{Child, Command, Stdio};
+use bevy::asset::ChangeWatcher;
 use bevy::prelude::*;
 use bevy::tasks::IoTaskPool;
 use futures_lite::{io::BufReader, AsyncBufReadExt, StreamExt};
+use std::time::Duration;
 
 #[bevy_main]
 fn main() {
 	App::new()
 		.add_plugins(DefaultPlugins.set(AssetPlugin {
-			watch_for_changes: true,
+			watch_for_changes: ChangeWatcher::with_delay(Duration::from_secs(1)),
 			..default()
 		}))
 		.add_event::<RunGameEvent>()
 		.insert_resource(RunningGame::default())
-		.add_startup_system(setup)
-		.add_system_to_stage(CoreStage::First, clear_running_game)
-		.add_system(run_game)
-		.add_system(run_game_btn)
+		.add_systems(Startup, setup)
+		.add_systems(First, clear_running_game)
+		.add_systems(Update, run_game)
+		.add_systems(Update, run_game_btn)
 		.run()
 }
 
@@ -23,7 +25,8 @@ fn setup(mut cmds: Commands) {
 	cmds.spawn(Camera2dBundle::default());
 	cmds.spawn(ButtonBundle {
 		style: Style {
-			size: Size::new(Val::Px(150.0), Val::Px(65.0)),
+			width: Val::Px(150.0),
+			height: Val::Px(65.0),
 			..default()
 		},
 		..default()
@@ -33,6 +36,7 @@ fn setup(mut cmds: Commands) {
 	});
 }
 
+#[derive(Event)]
 pub struct RunGameEvent;
 #[derive(Resource, Default, Debug)]
 pub struct RunningGame(pub Option<Child>);
@@ -106,7 +110,7 @@ fn run_game_btn(
 	mut events: EventWriter<RunGameEvent>,
 ) {
 	for interaction in &interaction_q {
-		if *interaction == Interaction::Clicked {
+		if *interaction == Interaction::Pressed {
 			events.send(RunGameEvent)
 		}
 	}

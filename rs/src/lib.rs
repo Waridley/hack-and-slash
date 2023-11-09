@@ -1,28 +1,22 @@
 use crate::mats::BubbleMaterial;
-use bevy::{
-	diagnostic::FrameTimeDiagnosticsPlugin,
-	ecs::system::EntityCommands,
-	prelude::*,
-	render::mesh::{PrimitiveTopology, VertexAttributeValues::Float32x3},
-	DefaultPlugins,
-};
+use bevy::asset::ChangeWatcher;
+use bevy::window::PrimaryWindow;
+use bevy::{diagnostic::FrameTimeDiagnosticsPlugin, prelude::*, DefaultPlugins};
 use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_kira_audio::AudioPlugin;
 use bevy_pkv::PkvStore;
-use bevy_rapier3d::{parry::shape::SharedShape, prelude::*};
+use bevy_rapier3d::prelude::*;
 use particles::ParticlesPlugin;
 use player::ctrl::CtrlVel;
-use rapier3d::{
-	geometry::HeightField,
-	na::{DMatrix, Vector3},
-};
-use std::{f32::consts::*, fmt::Debug, sync::Arc, time::Duration};
+use std::{f32::consts::*, fmt::Debug, time::Duration};
 use util::FnPluginExt;
 
+pub mod enemies;
 pub mod mats;
 pub mod pickups;
 pub mod player;
 pub mod settings;
+pub mod terrain;
 #[cfg(feature = "testing")]
 pub mod tests;
 pub mod ui;
@@ -40,19 +34,19 @@ pub const UP: Vect = Vect::Z;
 pub fn run() {
 	let mut app = App::new();
 	let mut default_plugins = DefaultPlugins.set(WindowPlugin {
-		window: WindowDescriptor {
+		primary_window: Some(Window {
 			title: "Sonday Hack-and-Slash Game".to_string(),
 			resizable: true,
 			fit_canvas_to_parent: true,
 			canvas: Some("#game_canvas".into()),
 			..default()
-		},
+		}),
 		..default()
 	});
 	#[cfg(debug_assertions)]
 	{
 		default_plugins = default_plugins.set(AssetPlugin {
-			watch_for_changes: true,
+			watch_for_changes: ChangeWatcher::with_delay(Duration::from_secs(1)),
 			..default()
 		});
 	}
@@ -65,29 +59,35 @@ pub fn run() {
 			// },
 			..default()
 		})
-		.add_plugin(RapierPhysicsPlugin::<()>::default())
-		.add_plugin(FrameTimeDiagnosticsPlugin::default())
-		.add_plugin(AudioPlugin)
-		.add_plugin(ParticlesPlugin)
+		.add_plugins((
+			RapierPhysicsPlugin::<()>::default(),
+			FrameTimeDiagnosticsPlugin,
+			AudioPlugin,
+			ParticlesPlugin,
+		))
 		.insert_resource(PkvStore::new_with_qualifier(
 			"studio",
 			"sonday",
 			env!("CARGO_PKG_NAME"),
 		))
+		.fn_plugin(enemies::plugin)
 		.fn_plugin(player::plugin)
 		.fn_plugin(pickups::plugin)
 		.fn_plugin(settings::plugin)
+		.fn_plugin(terrain::plugin)
 		.fn_plugin(ui::plugin)
-		.add_plugin(RonAssetPlugin::<BubbleMaterial>::new(&["mat.ron"]))
-		.add_plugin(MaterialPlugin::<BubbleMaterial>::default())
-		.add_startup_system(startup)
-		.add_system(terminal_velocity)
-		.add_system(fullscreen);
+		.add_plugins((
+			RonAssetPlugin::<BubbleMaterial>::new(&["mat.ron"]),
+			MaterialPlugin::<BubbleMaterial>::default(),
+		))
+		.add_systems(Startup, startup)
+		.add_systems(Update, terminal_velocity)
+		.add_systems(Update, fullscreen);
 
-	#[cfg(debug_assertions)]
+	#[cfg(all(debug_assertions, feature = "render"))]
 	{
-		app.add_plugin(RapierDebugRenderPlugin::default())
-			.add_system(toggle_debug_rendering);
+		app.add_plugins(RapierDebugRenderPlugin::default())
+			.add_systems(Update, toggle_debug_rendering);
 	}
 
 	app.run()
@@ -137,19 +137,14 @@ pub fn tick_cooldown<A: Ability>(
 	}
 }
 
-#[derive(Component, Debug, Default, Clone, Copy)]
-struct IsPlayerXformText;
-
 fn startup(
 	mut cmds: Commands,
-	mut materials: ResMut<Assets<StandardMaterial>>,
-	mut meshes: ResMut<Assets<Mesh>>,
-	#[cfg(debug_assertions)] mut dbg_render_ctx: ResMut<DebugRenderContext>,
+	#[cfg(all(debug_assertions, feature = "render"))] mut dbg_render_ctx: ResMut<DebugRenderContext>,
 ) {
 	#[cfg(target_family = "wasm")]
-	cmds.insert_resource(Msaa { samples: 1 }); // disables MSAA
+	cmds.insert_resource(Msaa::Off);
 
-	#[cfg(debug_assertions)]
+	#[cfg(all(debug_assertions, feature = "render"))]
 	{
 		dbg_render_ctx.enabled = false;
 	}
@@ -158,7 +153,7 @@ fn startup(
 
 	cmds.spawn(DirectionalLightBundle {
 		directional_light: DirectionalLight {
-			// illuminance: 10000.0,
+			illuminance: 10000.0,
 			..default()
 		},
 		transform: Transform::from_rotation(Quat::from_rotation_arc(
@@ -169,153 +164,9 @@ fn startup(
 	});
 
 	cmds.insert_resource(AmbientLight {
-		// brightness: 0.2,
-		..default()
+		color: Color::rgb(0.64, 0.32, 1.0),
+		brightness: 0.05,
 	});
-	let material = materials.add(StandardMaterial {
-		base_color: Color::rgb(0.024, 0.0, 0.064),
-		reflectance: 0.032,
-		..default()
-	});
-
-	use noises_and_patterns::{noise::Noise, FP};
-	let noise = noises_and_patterns::noise::value::Value::new();
-	let r = 48;
-	let d = r * 2;
-	let (columns, rows) = (d, d);
-
-	let heights = (0..(rows * columns))
-		.map(|i: usize| {
-			let col = i % d;
-			let row = i / d;
-
-			let r = r as f32 - 2.0;
-			let x = (col as f32 - 1.0) - r;
-			let y = (row as f32 - 1.0) - r;
-
-			// sphere
-			let bowl = ((r * r) - (x * x) - (y * y)).sqrt() / r;
-
-			// rounded cube might as well add real walls, looks too obvious that it's a heightfield
-			// let bowl = ((r * r * r * r) - (x * x * x * x) - (y * y * y * y)).sqrt().sqrt() / r;
-
-			let bowl = if bowl.is_finite() { bowl } else { 0.0 };
-
-			noise.fbm_2d((row as FP * 0.3, (i % rows) as FP * 0.3), 3) - (bowl * 20.0)
-		}) // scale to -1.0..=1.0
-		.collect();
-
-	let heightfield = HeightField::new(
-		DMatrix::from_vec(rows, columns, heights),
-		Vector3::new(1024.0, 24.0, 1024.0),
-	);
-	let tris = heightfield.triangles();
-
-	let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
-	let vertices = tris
-		.flat_map(|pos| {
-			[
-				[pos.a.x, pos.a.y, pos.a.z],
-				[pos.b.x, pos.b.y, pos.b.z],
-				[pos.c.x, pos.c.y, pos.c.z],
-			]
-		})
-		.collect::<Vec<_>>();
-	mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, Float32x3(vertices));
-	mesh.compute_flat_normals();
-	let mesh = meshes.add(mesh);
-
-	cmds.spawn((
-		RigidBody::Fixed,
-		Collider::from(SharedShape(Arc::new(heightfield))),
-		MaterialMeshBundle::<StandardMaterial> {
-			mesh,
-			transform: Transform {
-				translation: Vec3::new(0.0, 0.0, 256.0),
-				rotation: Quat::from_rotation_x(FRAC_PI_2),
-				..default()
-			},
-			material: material.clone(),
-			..default()
-		},
-	));
-
-	let mesh = Mesh::from(shape::Cube { size: 64.0 });
-	let collider = Collider::cuboid(32.0, 32.0, 32.0);
-	let mesh = meshes.add(mesh);
-
-	let mut factory = TerrainFactory {
-		cmds: &mut cmds,
-		mesh,
-		material,
-		collider,
-	};
-
-	factory.spawn(Transform::from_translation(Vec3::new(0.0, 0.0, -48.0)));
-	factory.spawn(Transform {
-		translation: Vec3::new(-40.0, -8.0, -44.0),
-		rotation: Quat::from_euler(EulerRot::ZXY, 0.0, 0.0, -FRAC_PI_3),
-		..default()
-	});
-	factory.spawn(Transform {
-		translation: Vec3::new(42.0, 24.0, -36.0),
-		rotation: Quat::from_rotation_y(FRAC_PI_4),
-		..default()
-	});
-	factory.spawn(Transform::from_translation(Vec3::new(-32.0, 42.0, -44.0)));
-	factory.spawn(Transform::from_translation(Vec3::new(-64.0, 72.0, -32.0)));
-	factory.spawn(Transform::from_translation(Vec3::new(-96.0, 0.0, -64.0)));
-	factory.spawn(Transform {
-		translation: Vec3::new(-24.0, 96.0, 16.0),
-		rotation: Quat::from_rotation_x(FRAC_PI_3),
-		..default()
-	});
-}
-
-/// Share mesh, material, and collider amongst multiple `TerrainObjects`
-pub struct TerrainFactory<'c, 'w: 'c, 's: 'c> {
-	pub cmds: &'c mut Commands<'w, 's>,
-	pub mesh: Handle<Mesh>,
-	pub material: Handle<StandardMaterial>,
-	pub collider: Collider,
-}
-
-impl<'c, 'w: 'c, 's: 'c> TerrainFactory<'c, 'w, 's> {
-	fn spawn<'a>(&'a mut self, transform: Transform) -> EntityCommands<'w, 's, 'a> {
-		self.cmds.spawn(TerrainObject {
-			mat_mesh_bundle: MaterialMeshBundle {
-				mesh: self.mesh.clone(),
-				material: self.material.clone(),
-				transform,
-				..default()
-			},
-			collider: self.collider.clone(),
-			..default()
-		})
-	}
-}
-
-#[derive(Bundle)]
-pub struct TerrainObject {
-	pub mat_mesh_bundle: MaterialMeshBundle<StandardMaterial>,
-	pub rigid_body: RigidBody,
-	pub collider: Collider,
-	pub restitution: Restitution,
-	pub friction: Friction,
-	pub ccd: Ccd,
-}
-
-impl Default for TerrainObject {
-	fn default() -> Self {
-		Self {
-			mat_mesh_bundle: MaterialMeshBundle::default(),
-			rigid_body: RigidBody::Fixed,
-			collider: Collider::default(),
-			restitution: Restitution::new(0.5),
-			friction: Friction::new(0.01),
-			ccd: Ccd::disabled(),
-		}
-	}
 }
 
 fn terminal_velocity(mut q: Query<(&mut CtrlVel, &TerminalVelocity)>) {
@@ -344,19 +195,19 @@ fn terminal_velocity(mut q: Query<(&mut CtrlVel, &TerminalVelocity)>) {
 	}
 }
 
-fn fullscreen(kb: Res<Input<KeyCode>>, mut windows: ResMut<Windows>) {
-	use WindowMode::*;
+fn fullscreen(kb: Res<Input<KeyCode>>, mut windows: Query<&mut Window, With<PrimaryWindow>>) {
+	use bevy::window::WindowMode::*;
 
 	if kb.just_pressed(KeyCode::F11) {
-		let window = windows.get_primary_mut().unwrap();
-		window.set_mode(match window.mode() {
+		let mut window = windows.single_mut();
+		window.mode = match window.mode {
 			Windowed => BorderlessFullscreen,
 			_ => Windowed,
-		})
+		};
 	}
 }
 
-#[cfg(debug_assertions)]
+#[cfg(all(debug_assertions, feature = "render"))]
 fn toggle_debug_rendering(mut ctx: ResMut<DebugRenderContext>, input: Res<Input<KeyCode>>) {
 	if input.just_pressed(KeyCode::P) {
 		ctx.enabled = !ctx.enabled

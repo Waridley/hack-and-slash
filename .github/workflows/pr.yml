@@ -30,7 +30,7 @@ jobs:
             ./rs/target/
           key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.lock') }}
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@beta
         with:
           targets:
             wasm32-unknown-unknown,
@@ -38,8 +38,12 @@ jobs:
             x86_64-apple-darwin,
             aarch64-linux-android,
             aarch64-apple-ios,
+          components:
+            clippy,
+            rustfmt,
 
-      - name: Prepare crate for stable toolchain
+
+      - name: Prepare crate for beta toolchain
         run: |
           rm ./rs/.cargo/config.toml
           rm ./rs/rust-toolchain.toml
@@ -71,93 +75,19 @@ jobs:
             ./rs/target/
           key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.lock') }}
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@beta
         with:
           targets: wasm32-unknown-unknown, x86_64-pc-windows-gnu
           components: rustfmt, clippy
 
-      - name: Prepare crate for stable toolchain
+      - name: Prepare crate for beta toolchain
         run: |
           rm ./rs/.cargo/config.toml
           rm ./rs/rust-toolchain.toml
 
       - name: Run tests
         working-directory: ./rs
-        run: cargo test --features="testing"
-
-  wasm_check:
-    runs-on: ubuntu-latest
-    needs: build
-
-    steps:
-      - name: Checkout repo and submodules
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
-
-      - name: Install alsa and udev
-        run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
-
-      - uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            ./rs/target/
-          key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.lock') }}
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown, x86_64-pc-windows-gnu
-          components: rustfmt, clippy
-
-      - name: Prepare crate for stable toolchain
-        run: |
-          rm ./rs/.cargo/config.toml
-          rm ./rs/rust-toolchain.toml
-
-      - name: WASM Check
-        working-directory: ./rs
-        run: cargo check --target wasm32-unknown-unknown
-
-  windows_check:
-    runs-on: ubuntu-latest
-    needs: build
-
-    steps:
-      - name: Checkout repo and submodules
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
-
-      - name: Install alsa and udev
-        run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
-
-      - uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            ./rs/target/
-          key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.lock') }}
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown, x86_64-pc-windows-gnu
-          components: rustfmt, clippy
-
-      - name: Prepare crate for stable toolchain
-        run: |
-          rm ./rs/.cargo/config.toml
-          rm ./rs/rust-toolchain.toml
-
-      - name: Windows Check
-        working-directory: ./rs
-        run: cargo check --target x86_64-pc-windows-gnu
+        run: cargo test --no-default-features --features="testing"
 
   static_checks:
     runs-on: ubuntu-latest
@@ -182,7 +112,7 @@ jobs:
             ./rs/target/
           key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.lock') }}
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@beta
         with:
           targets:
             wasm32-unknown-unknown,
@@ -191,7 +121,7 @@ jobs:
             aarch64-linux-android,
             aarch64-apple-ios,
 
-      - name: Prepare crate for stable toolchain
+      - name: Prepare crate for beta toolchain
         run: |
           rm ./rs/.cargo/config.toml
           rm ./rs/rust-toolchain.toml

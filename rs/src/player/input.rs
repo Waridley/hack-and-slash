@@ -1,8 +1,9 @@
+use crate::util::Lerp;
 use crate::{
 	player::{
 		camera::CameraVertSlider,
 		ctrl::CtrlVel,
-		player_entity::{Arm, CamPivot, ReadPlayerEntity},
+		player_entity::{Arm, CamPivot},
 		BelongsToPlayer, RotVel, ACCEL, JUMP_VEL, MAX_JUMPS, MAX_SPEED,
 	},
 	terminal_velocity,
@@ -10,19 +11,24 @@ use crate::{
 };
 use bevy::{math::Vec3Swizzles, prelude::*};
 use bevy_kira_audio::prelude::{Audio, AudioSource, *};
-use leafwing_abilities::{cooldown::Cooldown, prelude::*, AbilitiesBundle, Abilitylike};
+use enum_components::ERef;
+use leafwing_abilities::prelude::*;
 use leafwing_input_manager::prelude::*;
+use particles::Spewer;
+use serde::{Deserialize, Serialize};
 use std::{
 	f32::consts::{PI, TAU},
 	time::Duration,
 };
 
 pub fn plugin(app: &mut App) -> &mut App {
-	app.add_plugin(InputManagerPlugin::<PlayerAction>::default())
-		.add_plugin(AbilityPlugin::<PlayerAction>::default())
-		.add_system_to_stage(CoreStage::First, setup)
-		.add_system(abilities)
-		.add_system(jump.before(terminal_velocity))
+	app.add_plugins((
+		InputManagerPlugin::<PlayerAction>::default(),
+		AbilityPlugin::<PlayerAction>::default(),
+	))
+	.add_systems(First, setup)
+	.add_systems(Update, abilities)
+	.add_systems(Update, jump.before(terminal_velocity))
 }
 
 fn setup(
@@ -37,7 +43,21 @@ fn setup(
 	}
 }
 
-#[derive(Actionlike, Abilitylike, Copy, Clone, Debug, PartialEq, Eq, Reflect, FromReflect)]
+#[derive(
+	Actionlike,
+	Abilitylike,
+	Copy,
+	Clone,
+	Debug,
+	PartialEq,
+	Eq,
+	PartialOrd,
+	Ord,
+	Hash,
+	Reflect,
+	Serialize,
+	Deserialize,
+)]
 pub enum PlayerAction {
 	Jump,
 	AoE,
@@ -88,7 +108,7 @@ pub struct AoESound(pub Handle<AudioSource>);
 
 pub fn abilities(
 	mut action_q: Query<AbilityState<PlayerAction>>,
-	mut arm_q: Query<(&mut Transform, &mut RotVel), ReadPlayerEntity<Arm>>,
+	mut arm_q: Query<(&mut Transform, &mut RotVel, &mut Spewer), ERef<Arm>>,
 	mut pause_events: EventWriter<PauseMenuAction>,
 	sfx: Res<AoESound>,
 	audio: Res<Audio>,
@@ -99,11 +119,12 @@ pub fn abilities(
 		match state.trigger_if_just_pressed(AoE) {
 			Ok(()) => {
 				audio.play(sfx.0.clone()).with_volume(0.5);
-				for (mut arm, mut rvel) in &mut arm_q {
+				for (mut arm, mut rvel, mut spewer) in &mut arm_q {
 					// TODO: Filter by player
 					arm.translation *= 6.0;
 					arm.scale *= 6.0;
 					**rvel = 36.0;
+					spewer.interval = Duration::from_micros(100);
 				}
 			}
 			Err(CannotUseAbility::OnCooldown) => {
@@ -117,13 +138,16 @@ pub fn abilities(
 			pause_events.send(PauseMenuAction::ShowOrHide)
 		}
 
-		for (mut arm, mut rvel) in &mut arm_q {
+		for (mut arm, mut rvel, mut spewer) in &mut arm_q {
 			// TODO: Filter by player
 			arm.translation = arm
 				.translation
 				.lerp(arm.translation.normalize() * 2.0, t.delta_seconds() * 2.0);
 			arm.scale = arm.scale.lerp(Vec3::ONE, t.delta_seconds() * 2.0);
 			**rvel = **rvel + (rvel.quiescent - **rvel) * t.delta_seconds();
+			spewer.interval = Duration::from_secs_f32(
+				spewer.interval.as_secs_f32().lerp(0.001, t.delta_seconds()),
+			);
 		}
 		// screen_print!("{:#?}", (&state.action_state, &state.charges, &state.cooldowns))
 	}
@@ -167,7 +191,7 @@ pub fn look_input(
 	mut player_q: Query<(&mut CtrlVel, &BelongsToPlayer)>,
 	mut camera_pivot_q: Query<
 		(&mut Transform, &mut CameraVertSlider, &BelongsToPlayer),
-		ReadPlayerEntity<CamPivot>,
+		ERef<CamPivot>,
 	>,
 	kb: Res<Input<KeyCode>>,
 	t: Res<Time>,

@@ -1,10 +1,7 @@
 use crate::{
 	mats::BubbleMaterial,
 	pickups::pickup::PickupItem,
-	player::{
-		player_entity::{Arm, ReadPlayerEntity},
-		RotVel,
-	},
+	player::{player_entity::Arm, RotVel},
 };
 use bevy::{
 	math::Vec3Swizzles,
@@ -16,7 +13,7 @@ use bevy_rapier3d::{
 	plugin::RapierContext,
 	prelude::{QueryFilter, RigidBody::KinematicPositionBased, Sensor},
 };
-use enum_components::{EntityEnumCommands, EnumComponent};
+use enum_components::{ERef, EntityEnumCommands, EnumComponent};
 use nanorand::Rng;
 use std::{
 	f32::consts::PI,
@@ -28,11 +25,8 @@ pub static HEALTH: AtomicI64 = AtomicI64::new(0);
 pub static SHIELD: AtomicI64 = AtomicI64::new(0);
 
 pub fn plugin(app: &mut App) -> &mut App {
-	app.add_startup_system(setup)
-		.add_system(collect)
-		.add_system(spawn_pickups)
-		.add_system(movement)
-		.add_system(miss)
+	app.add_systems(Startup, setup)
+		.add_systems(Update, (collect, spawn_pickups, movement, miss))
 }
 
 #[derive(Resource, Default, Debug, Clone, Deref, DerefMut)]
@@ -52,7 +46,8 @@ pub fn setup(mut cmds: Commands, mut meshes: ResMut<Assets<Mesh>>, asset_server:
 			radius: 8.0,
 			subdivisions: 0,
 		}
-		.into(),
+		.try_into()
+		.expect("create icosphere mesh"),
 	);
 
 	let material = asset_server.load("pickups/pickup_material.mat.ron");
@@ -61,12 +56,13 @@ pub fn setup(mut cmds: Commands, mut meshes: ResMut<Assets<Mesh>>, asset_server:
 }
 
 #[derive(EnumComponent)]
+#[component(derive(Debug, Copy, Clone, PartialEq))]
 pub enum Pickup {
 	Health(f32),
 	Shield(f32),
 }
 
-#[derive(Debug, Clone, Resource, Reflect, FromReflect)]
+#[derive(Debug, Clone, Resource, Reflect)]
 pub struct PickupAssets {
 	mesh: Handle<Mesh>,
 	material: Handle<BubbleMaterial>,
@@ -95,7 +91,7 @@ pub fn spawn_pickups(
 
 		info!("{:?}", &transform.translation.xy());
 
-		cmds.spawn((
+		let mut cmds = cmds.spawn((
 			MaterialMeshBundle {
 				mesh: handles.mesh.clone(),
 				material: handles.material.clone(),
@@ -105,19 +101,19 @@ pub fn spawn_pickups(
 			Collider::ball(8.0),
 			Sensor,
 			KinematicPositionBased,
-		))
-		.set_enum(if rng.generate::<bool>() {
-			Pickup::Health(points)
+		));
+		if rng.generate::<bool>() {
+			cmds.set_enum(pickup::Health(points));
 		} else {
-			Pickup::Shield(points)
-		});
+			cmds.set_enum(pickup::Shield(points));
+		};
 	}
 }
 
 pub fn collect(
 	mut cmds: Commands,
 	ctx: Res<RapierContext>,
-	arms: Query<&RotVel, ReadPlayerEntity<Arm>>,
+	arms: Query<&RotVel, ERef<Arm>>,
 	pickups: Query<(Entity, Pickup, &GlobalTransform, &Collider)>,
 	sfx: Res<PopSfx>,
 	audio: Res<Audio>,

@@ -6,9 +6,9 @@ use bevy_quickmenu::{ActionTrait, Menu, MenuItem, MenuState, QuickMenuPlugin, Sc
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_event::<PauseMenuAction>()
-		.add_plugin(QuickMenuPlugin::<Settings, PauseMenuAction, PauseMenuScreen>::new())
-		.add_startup_system(pause_menu_setup)
-		.add_system(event_reader)
+		.add_plugins(QuickMenuPlugin::<PauseMenuScreen>::new())
+		.add_systems(Startup, pause_menu_setup)
+		.add_systems(Update, event_reader)
 }
 
 pub fn pause_menu_setup(mut _cmds: Commands) {
@@ -19,10 +19,10 @@ pub fn spawn_pause_menu(cmds: &mut Commands, state: Settings) {
 	cmds.insert_resource(MenuState::new(state, PauseMenuScreen::Root, None));
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Event, Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum PauseMenuAction {
 	ShowOrHide,
-	SetBloom(bool),
+	// SetBloom(bool),
 	SetMsaa(bool),
 	SetFxaa(bool),
 	Quit,
@@ -31,7 +31,7 @@ pub enum PauseMenuAction {
 fn event_reader(
 	mut cmds: Commands,
 	mut events: EventReader<PauseMenuAction>,
-	state: Option<Res<MenuState<Settings, PauseMenuAction, PauseMenuScreen>>>,
+	state: Option<Res<MenuState<PauseMenuScreen>>>,
 	mut exit_events: EventWriter<AppExit>,
 	mut store: ResMut<PkvStore>,
 	mut settings: ResMut<Settings>,
@@ -45,11 +45,11 @@ fn event_reader(
 					bevy_quickmenu::cleanup(&mut cmds)
 				}
 			}
-			PauseMenuAction::SetBloom(on) => {
-				info!("Turning bloom {on}");
-				settings.hdr = *on;
-				store.set("hdr", on).unwrap()
-			}
+			// PauseMenuAction::SetBloom(on) => {
+			// 	info!("Turning bloom {on}");
+			// 	settings.hdr = *on;
+			// 	store.set("hdr", on).unwrap()
+			// }
 			PauseMenuAction::SetMsaa(on) => {
 				info!("Turning MSAA {on}");
 				settings.msaa = *on;
@@ -72,23 +72,13 @@ impl ActionTrait for PauseMenuAction {
 	fn handle(&self, state: &mut Self::State, events: &mut EventWriter<Self::Event>) {
 		match self {
 			PauseMenuAction::ShowOrHide => events.send(PauseMenuAction::ShowOrHide),
-			PauseMenuAction::SetBloom(on) => {
-				state.hdr = *on;
-				events.send(PauseMenuAction::SetBloom(*on));
-				#[cfg(target_family = "wasm")]
-				if *on {
-					state.msaa = false;
-					events.send(PauseMenuAction::SetMsaa(false))
-				}
-			}
+			// PauseMenuAction::SetBloom(on) => {
+			// 	state.hdr = *on;
+			// 	events.send(PauseMenuAction::SetBloom(*on));
+			// }
 			PauseMenuAction::SetMsaa(on) => {
 				state.msaa = *on;
 				events.send(PauseMenuAction::SetMsaa(*on));
-				#[cfg(target_family = "wasm")]
-				if *on {
-					state.hdr = false;
-					events.send(PauseMenuAction::SetBloom(false))
-				}
 			}
 			PauseMenuAction::SetFxaa(on) => {
 				state.fxaa = *on;
@@ -106,25 +96,23 @@ pub enum PauseMenuScreen {
 
 impl ScreenTrait for PauseMenuScreen {
 	type Action = PauseMenuAction;
+	type State = Settings;
 
-	fn resolve(
-		&self,
-		state: &<<Self as ScreenTrait>::Action as ActionTrait>::State,
-	) -> Menu<Self::Action, Self, <<Self as ScreenTrait>::Action as ActionTrait>::State> {
+	fn resolve(&self, state: &<<Self as ScreenTrait>::Action as ActionTrait>::State) -> Menu<Self> {
 		match self {
 			PauseMenuScreen::Root => root_menu(state),
 		}
 	}
 }
 
-fn root_menu(state: &Settings) -> Menu<PauseMenuAction, PauseMenuScreen, Settings> {
+fn root_menu(state: &Settings) -> Menu<PauseMenuScreen> {
 	Menu::new(
 		"root",
 		vec![
 			MenuItem::headline("Menu"),
 			MenuItem::label("Graphics"),
-			MenuItem::action("Bloom Lighting", PauseMenuAction::SetBloom(!state.hdr))
-				.checked(state.hdr),
+			// MenuItem::action("Bloom Lighting", PauseMenuAction::SetBloom(!state.hdr))
+			// 	.checked(state.hdr),
 			MenuItem::action("MSAA", PauseMenuAction::SetMsaa(!state.msaa)).checked(state.msaa),
 			MenuItem::action("FXAA", PauseMenuAction::SetFxaa(!state.fxaa)).checked(state.fxaa),
 			MenuItem::action("Quit", PauseMenuAction::Quit),

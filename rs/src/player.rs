@@ -3,25 +3,25 @@ use bevy::{
 	ecs::system::EntityCommands,
 	prelude::{
 		shape::{Icosphere, RegularPolygon},
-		CoreStage::PreUpdate,
 		*,
 	},
 };
 use bevy_rapier3d::{
 	control::KinematicCharacterController,
-	dynamics::{CoefficientCombineRule::Min, RigidBody, Velocity},
+	dynamics::{CoefficientCombineRule::Min, Velocity},
 	geometry::{Collider, Friction},
 	math::Vect,
 	prelude::{RigidBody::KinematicPositionBased, *},
 };
 use camera::spawn_camera;
 use ctrl::CtrlVel;
-use enum_components::{EntityEnumCommands, EnumComponent};
+use enum_components::{ERef, EntityEnumCommands, EnumComponent};
 use leafwing_input_manager::prelude::*;
 use nanorand::Rng;
 use particles::{
 	update::{Linear, TargetScale},
-	InitialGlobalTransform, InitialTransform, Lifetime, ParticleBundle, Spewer, SpewerBundle,
+	InitialGlobalTransform, InitialTransform, Lifetime, ParticleBundle, PreviousGlobalTransform,
+	PreviousTransform, Spewer, SpewerBundle,
 };
 use std::{
 	f32::consts::*,
@@ -43,22 +43,27 @@ pub const JUMP_VEL: f32 = 64.0;
 pub const CLIMB_ANGLE: f32 = FRAC_PI_3 - R_E;
 pub const SLIDE_ANGLE: f32 = FRAC_PI_3 - R_E;
 pub const HOVER_HEIGHT: f32 = 2.0;
-const G1: rapier3d::geometry::Group = rapier3d::geometry::Group::GROUP_1;
+const G1: bevy_rapier3d::geometry::Group = bevy_rapier3d::geometry::Group::GROUP_1;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.fn_plugin(input::plugin)
-		.add_startup_system(setup)
-		.add_system_to_stage(PreUpdate, ctrl::gravity)
-		.add_system_to_stage(PreUpdate, ctrl::repel_ground.after(ctrl::gravity))
-		// .add_system(tick_cooldown::<Jump>)
-		.add_system_to_stage(PreUpdate, ctrl::reset_jump_on_ground)
-		.add_system(input::movement_input.before(terminal_velocity))
-		.add_system(input::look_input.before(terminal_velocity))
-		.add_system(camera::position_target.after(input::look_input))
-		.add_system(camera::follow_target.after(camera::position_target))
-		.add_system(ctrl::move_player.after(terminal_velocity))
-		.add_system(idle)
-		.add_system_to_stage(CoreStage::Last, reset_oob)
+		.add_systems(Startup, setup)
+		.add_systems(PreUpdate, ctrl::gravity)
+		.add_systems(PreUpdate, ctrl::repel_ground.after(ctrl::gravity))
+		// .add_systems(Update, tick_cooldown::<Jump>)
+		.add_systems(PreUpdate, ctrl::reset_jump_on_ground)
+		.add_systems(
+			Update,
+			(
+				input::movement_input.before(terminal_velocity),
+				input::look_input.before(terminal_velocity),
+				camera::position_target.after(input::look_input),
+				camera::follow_target.after(camera::position_target),
+				ctrl::move_player.after(terminal_velocity),
+				idle,
+			),
+		)
+		.add_systems(Last, reset_oob)
 }
 
 fn setup(
@@ -95,7 +100,7 @@ fn setup(
 	let particle_material = materials.add(StandardMaterial {
 		// base_color: Color::rgba(0.0, 1.0, 0.5, 0.3),
 		base_color: Color::NONE,
-		emissive: Color::rgb(0.0, 4.0, 2.4),
+		emissive: Color::rgb(0.0, 12.0, 7.2),
 		reflectance: 0.0,
 		..default()
 	});
@@ -106,16 +111,17 @@ fn setup(
 		..default()
 	};
 
-	let arm = Mesh::from(Icosphere {
+	let arm = Mesh::try_from(Icosphere {
 		radius: 0.3,
 		subdivisions: 2,
-	});
+	})
+	.expect("create icosphere mesh");
 	let arm_mesh = meshes.add(arm);
 	let arm1 = MaterialMeshBundle::<StandardMaterial> {
 		mesh: arm_mesh.clone(),
 		material: materials.add(StandardMaterial {
 			base_color: Color::NONE,
-			emissive: Color::GREEN * 4.0,
+			emissive: Color::GREEN * 6.0,
 			reflectance: 0.0,
 			double_sided: true,
 			cull_mode: None,
@@ -128,7 +134,7 @@ fn setup(
 		mesh: arm_mesh.clone(),
 		material: materials.add(StandardMaterial {
 			base_color: Color::NONE,
-			emissive: Color::WHITE * 4.0,
+			emissive: Color::WHITE * 6.0,
 			reflectance: 0.0,
 			double_sided: true,
 			cull_mode: None,
@@ -143,7 +149,7 @@ fn setup(
 		mesh: arm_mesh,
 		material: materials.add(StandardMaterial {
 			base_color: Color::NONE,
-			emissive: Color::CYAN * 4.0,
+			emissive: Color::CYAN * 6.0,
 			reflectance: 0.0,
 			double_sided: true,
 			cull_mode: None,
@@ -155,7 +161,7 @@ fn setup(
 		..default()
 	};
 
-	let arm_particle_mesh = meshes.add(Mesh::from(RegularPolygon::new(0.05, 3)));
+	let arm_particle_mesh = meshes.add(Mesh::from(RegularPolygon::new(0.1, 3)));
 
 	use PlayerArm::*;
 	cmds.spawn_player(
@@ -168,6 +174,7 @@ fn setup(
 }
 
 #[derive(EnumComponent)]
+#[component(mutable, derive(Debug, PartialEq, Eq))]
 pub enum PlayerEntity {
 	Root,
 	Controller,
@@ -236,14 +243,14 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 		arm_particle_mesh: Handle<Mesh>,
 	) -> EntityCommands<'w, 's, 'c> {
 		let owner = BelongsToPlayer::with_id(id);
-		let char_collider = Collider::ball(1.4);
+		let char_collider = Collider::ball(1.2);
 		let mut root = self.spawn((
 			owner,
 			TerminalVelocity(Velocity {
 				linvel: Vect::splat(128.0),
 				angvel: Vect::new(0.0, 0.0, TAU * 60.0), // one rotation per frame at 60 fps
 			}),
-			RigidBody::KinematicPositionBased,
+			KinematicPositionBased,
 			TransformBundle::default(),
 			Velocity::default(),
 			Friction {
@@ -252,7 +259,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 			},
 			VisibilityBundle::default(),
 		));
-		root.set_enum(PlayerEntity::Root);
+		root.set_enum(player_entity::Root);
 
 		root.with_children(|builder| {
 			builder
@@ -269,7 +276,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 						max_slope_climb_angle: CLIMB_ANGLE,
 						min_slope_slide_angle: SLIDE_ANGLE,
 						filter_flags: QueryFilterFlags::EXCLUDE_SENSORS,
-						filter_groups: Some(InteractionGroups::new(G1, !G1)),
+						filter_groups: Some(CollisionGroups::new(G1, !G1)),
 						..default()
 					},
 					InputManagerBundle::<PlayerAction> {
@@ -278,7 +285,7 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 					},
 					PlayerAction::abilities_bundle(),
 				))
-				.set_enum(PlayerEntity::Controller);
+				.set_enum(player_entity::Controller);
 		});
 		player_vis(&mut root, owner, vis, particle_mesh);
 		player_arms(&mut root, owner, arm_meshes, arm_particle_mesh);
@@ -305,7 +312,7 @@ fn player_vis(
 			// TransformBundle::default(),
 			VisibilityBundle::default(), // for children ComputedVisibility
 		))
-		.set_enum(PlayerEntity::VisNode)
+		.set_enum(player_entity::VisNode)
 		.with_children(move |builder| {
 			// Mesh is a child so we can apply transform independent of collider to align them
 			builder
@@ -314,7 +321,7 @@ fn player_vis(
 					TransformBundle::default(),
 					VisibilityBundle::default(),
 				))
-				.set_enum(PlayerEntity::Vis)
+				.set_enum(player_entity::Vis)
 				.with_children(|builder| {
 					builder.spawn((owner, vis));
 
@@ -334,11 +341,13 @@ fn player_vis(
 							spewer: Spewer {
 								factory: Box::new(move |cmds, xform, time_created| {
 									let xform = xform.compute_transform();
+									let scale_rng = rng.generate::<f32>() * 0.6 + 0.6;
 									let xform = Transform {
 										translation: Vec3 {
 											z: xform.translation.z - rng.generate::<f32>() * 0.2,
 											..xform.translation
 										},
+										scale: xform.scale * scale_rng,
 										..xform
 									};
 									cmds.spawn((
@@ -347,7 +356,7 @@ fn player_vis(
 												transform: xform,
 												..particle_mesh.clone()
 											},
-											lifetime: Lifetime(Duration::from_secs_f32(0.32)),
+											lifetime: Lifetime(Duration::from_secs_f32(0.24)),
 											initial_transform: InitialTransform(xform),
 											time_created,
 											..default()
@@ -360,9 +369,9 @@ fn player_vis(
 										},
 									))
 								}),
-								interval: Duration::from_secs_f32(0.033),
+								interval: Duration::from_secs_f32(0.072),
 								// jitter: Duration::from_secs_f32(0.033),
-								global_coords: true,
+								use_global_coords: true,
 								..default()
 							},
 							transform: TransformBundle::from_transform(Transform {
@@ -372,6 +381,18 @@ fn player_vis(
 							..default()
 						},
 					));
+
+					builder.spawn(PointLightBundle {
+						point_light: PointLight {
+							color: Color::rgb(0.0, 1.0, 0.6),
+							intensity: 4000.0,
+							range: 8.0,
+							shadows_enabled: false,
+							..default()
+						},
+						transform: Transform::from_xyz(0.0, -0.5, 0.0),
+						..default()
+					});
 				});
 		})
 		.add_child(pivot)
@@ -379,7 +400,7 @@ fn player_vis(
 	cmds.add_child(vis_node);
 }
 
-#[derive(Component, Debug, Default, Copy, Clone, Reflect, FromReflect)]
+#[derive(Component, Debug, Default, Copy, Clone, Reflect)]
 pub struct RotVel {
 	pub quiescent: f32,
 	pub current: f32,
@@ -420,19 +441,23 @@ fn player_arms(
 			let particle_mat = arm.material.clone();
 			let mut rng = nanorand::WyRand::new();
 			let spewer = Spewer {
-				factory: Box::new(move |cmds, xform: &GlobalTransform, time_created| {
-					let mut xform = xform.compute_transform();
-					xform.translation.x += rng.generate::<f32>() * 0.7 - 0.35;
-					xform.translation.y += rng.generate::<f32>() * 0.7 - 0.35;
-					xform.translation.z += rng.generate::<f32>() * 0.7 - 0.35;
+				factory: Box::new(move |cmds, glob_xform: &GlobalTransform, time_created| {
+					let mut xform = glob_xform.compute_transform();
+					xform.translation.x += (rng.generate::<f32>() * 0.42 - 0.21) * xform.scale.x;
+					xform.translation.y += (rng.generate::<f32>() * 0.42 - 0.21) * xform.scale.y;
+					xform.translation.z += (rng.generate::<f32>() * 0.42 - 0.21) * xform.scale.z;
+					let mut xform = Transform {
+						scale: Vec3::ONE,
+						..xform
+					};
 
-					// // not working ?:/
-					// xform.rotation = Quat::from_scaled_axis(Vec3::new(
-					// 	rng.f32() * TAU,
-					// 	rng.f32() * TAU,
-					// 	rng.f32() * TAU,
-					// ));
-
+					let init_rot_vec = Vec3::new(
+						rng.generate::<f32>() * 2.0 - 1.0,
+						rng.generate::<f32>() * 2.0 - 1.0,
+						rng.generate::<f32>() * 2.0 - 1.0,
+					)
+					.normalize();
+					xform.rotation = Quat::from_rotation_arc(Vec3::Z, init_rot_vec);
 					cmds.spawn((
 						ParticleBundle {
 							mesh_bundle: MaterialMeshBundle {
@@ -444,16 +469,17 @@ fn player_arms(
 							},
 							time_created,
 							initial_transform: InitialTransform(xform),
-							initial_global_transform: InitialGlobalTransform(xform.into()),
-							lifetime: Lifetime(Duration::from_secs_f32(0.256)),
+							initial_global_transform: InitialGlobalTransform(*glob_xform),
+							lifetime: Lifetime(Duration::from_secs_f32(0.1)),
 						},
 						Linear {
-							velocity: Vec3::NEG_Z * 5.0,
+							velocity: Vec3::NEG_Z * 2.0,
 						},
+						TargetScale { scale: Vec3::ZERO },
 					))
 				}),
-				interval: Duration::from_millis(2),
-				global_coords: true,
+				interval: Duration::from_millis(1),
+				use_global_coords: true,
 				..default()
 			};
 			builder
@@ -461,12 +487,14 @@ fn player_arms(
 					owner,
 					arm,
 					spewer,
+					PreviousTransform::default(),
+					PreviousGlobalTransform::default(),
 					Collider::ball(0.4),
 					Sensor,
 					KinematicPositionBased,
 					RotVel::new(8.0),
 				))
-				.set_enum(PlayerEntity::Arm(which));
+				.set_enum(player_entity::Arm(which));
 		}
 	});
 }
@@ -496,18 +524,19 @@ pub fn reset_oob(
 }
 
 pub fn idle(
-	mut vis_q: Query<&mut Transform, ReadPlayerEntity<Vis>>,
-	mut arm_q: Query<(&mut Transform, &RotVel), ReadPlayerEntity<Arm>>,
+	mut vis_q: Query<&mut Transform, ERef<Vis>>,
+	mut arm_q: Query<(&mut Transform, &RotVel), ERef<Arm>>,
 	t: Res<Time>,
 ) {
 	for mut xform in &mut vis_q {
-		xform.translation.y = (t.elapsed_seconds() * 3.0).sin() * 0.24;
+		xform.translation.y = (t.elapsed_seconds_wrapped() * 3.0).sin() * 0.24;
 		xform.rotate_local_y(-2.0 * t.delta_seconds());
 	}
 	for (mut xform, rvel) in &mut arm_q {
 		xform.translation = Quat::from_rotation_z(t.delta_seconds() * **rvel)
 			* Vec3 {
-				z: (t.elapsed_seconds() + 2.0 * xform.translation.angle_between(Vec3::X)).sin(),
+				z: (t.elapsed_seconds_wrapped() + 2.0 * xform.translation.angle_between(Vec3::X))
+					.sin(),
 				..xform.translation
 			}
 	}
