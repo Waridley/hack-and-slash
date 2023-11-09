@@ -78,7 +78,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@beta
         with:
           targets: wasm32-unknown-unknown, x86_64-pc-windows-gnu
-          components: rustfmt, clippy
 
       - name: Prepare crate for beta toolchain
         run: |
@@ -120,6 +119,7 @@ jobs:
             x86_64-apple-darwin,
             aarch64-linux-android,
             aarch64-apple-ios,
+          components: rustfmt, clippy
 
       - name: Prepare crate for beta toolchain
         run: |
