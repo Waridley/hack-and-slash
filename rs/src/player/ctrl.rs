@@ -46,22 +46,23 @@ pub fn repel_ground(
 			-UP,
 			&col,
 			HOVER_HEIGHT,
+			true,
 			QueryFilter::new()
 				.exclude_sensors()
 				.exclude_rigid_body(**body_id)
 				.groups(CollisionGroups::new(G1, !G1)),
 		);
 
-		if let Some((_, toi)) = result {
-			let angle = quantize::<10>(toi.normal1.angle_between(UP));
-			let dist = HOVER_HEIGHT - toi.toi;
+		if let Some((_, Toi { toi, details: Some(details), .. })) = result {
+			let angle = quantize::<10>(details.normal1.angle_between(UP));
+			let dist = HOVER_HEIGHT - toi;
 			if angle < SLIDE_ANGLE {
 				state.grounded = true;
 				let repel_accel = dist * dist * 64.0 - ctrl_vel.linvel.z;
 				ctrl_vel.linvel.z += repel_accel * f32::min(t.delta_seconds() * 2.0, 0.256);
 			} else {
 				state.grounded = false;
-				let repel_dir = global.rotation.inverse().mul_vec3(toi.normal1); // convert to local space
+				let repel_dir = global.rotation.inverse().mul_vec3(details.normal1); // convert to local space
 				let repel_dir = Vec3 {
 					z: f32::min(-(1.0 - repel_dir.z) + ctrl_vel.linvel.z, 0.0),
 					..repel_dir
@@ -97,7 +98,9 @@ pub fn gravity(mut q: Query<(&mut CtrlVel, &KinematicCharacterControllerOutput)>
 		let mut info = [(TOIStatus::Converged, Vect::NAN, Vect::NAN); 4];
 		for (i, col) in out.collisions.iter().enumerate() {
 			if let Some(slot) = info.get_mut(i) {
-				*slot = (col.toi.status, col.translation_remaining, col.toi.normal1)
+				if let Some(toi) = col.toi.details {
+					*slot = (col.toi.status, col.translation_remaining, toi.normal1)
+				}
 			}
 		}
 

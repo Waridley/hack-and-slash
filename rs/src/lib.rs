@@ -1,5 +1,4 @@
 use crate::mats::BubbleMaterial;
-use bevy::asset::ChangeWatcher;
 use bevy::window::PrimaryWindow;
 use bevy::{diagnostic::FrameTimeDiagnosticsPlugin, prelude::*, DefaultPlugins};
 use bevy_common_assets::ron::RonAssetPlugin;
@@ -33,7 +32,7 @@ pub const UP: Vect = Vect::Z;
 
 pub fn run() {
 	let mut app = App::new();
-	let mut default_plugins = DefaultPlugins.set(WindowPlugin {
+	let default_plugins = DefaultPlugins.set(WindowPlugin {
 		primary_window: Some(Window {
 			title: "Sonday Hack-and-Slash Game".to_string(),
 			resizable: true,
@@ -43,13 +42,7 @@ pub fn run() {
 		}),
 		..default()
 	});
-	#[cfg(debug_assertions)]
-	{
-		default_plugins = default_plugins.set(AssetPlugin {
-			watch_for_changes: ChangeWatcher::with_delay(Duration::from_secs(1)),
-			..default()
-		});
-	}
+	
 	app.add_plugins(default_plugins)
 		.insert_resource(RapierConfiguration {
 			gravity: Vect::new(0.0, 0.0, -9.81),
@@ -153,7 +146,7 @@ fn startup(
 
 	cmds.spawn(DirectionalLightBundle {
 		directional_light: DirectionalLight {
-			illuminance: 10000.0,
+			illuminance: 1000.0,
 			..default()
 		},
 		transform: Transform::from_rotation(Quat::from_rotation_arc(
@@ -165,7 +158,7 @@ fn startup(
 
 	cmds.insert_resource(AmbientLight {
 		color: Color::rgb(0.64, 0.32, 1.0),
-		brightness: 0.05,
+		brightness: 0.1,
 	});
 }
 

@@ -24,7 +24,7 @@ pub fn setup(
 ) {
 	let material = materials.add(StandardMaterial {
 		base_color: Color::rgb(0.072, 0.072, 0.072),
-		reflectance: 0.1,
+		reflectance: 0.3,
 		perceptual_roughness: 0.0,
 		..default()
 	});

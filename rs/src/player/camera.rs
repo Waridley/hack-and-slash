@@ -105,7 +105,7 @@ pub fn position_target(
 		let (_, rot, tr) = pivot_xform.to_scale_rotation_translation();
 		let dir = rot * Vect::NEG_Y;
 		let pos = tr + (dir * MIN_CAM_DIST); // start at minimum distance, not player origin
-		let result = ctx.cast_shape(pos, -rot, dir, col, MAX_CAM_DIST - MIN_CAM_DIST, filter);
+		let result = ctx.cast_shape(pos, -rot, dir, col, MAX_CAM_DIST - MIN_CAM_DIST, true, filter);
 		let toi = if let Some((_, toi)) = result {
 			let toi = toi.toi;
 			if toi == 0.0 {
@@ -116,6 +116,7 @@ pub fn position_target(
 						-dir,
 						col,
 						(MAX_CAM_DIST - MIN_CAM_DIST) * 0.3, // Don't want enormous object right in front of camera if possible
+						true,
 						filter,
 					)
 					.is_some()
