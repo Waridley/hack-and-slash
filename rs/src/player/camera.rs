@@ -96,10 +96,10 @@ pub fn position_target(
 	mut cam_q: Query<(&mut CamTarget, &Collider, &BelongsToPlayer), ERef<Cam>>,
 ) {
 	for (mut target, col, cam_owner) in &mut cam_q {
-		let pivot_xform = cam_pivot_q
+		let Some(pivot_xform) = cam_pivot_q
 			.iter()
 			.find_map(|(xform, owner)| (owner == cam_owner).then_some(xform))
-			.unwrap();
+			 else { continue };
 
 		let filter = QueryFilter::from(CollisionGroups::new(G1, !G1)).exclude_sensors();
 		let (_, rot, tr) = pivot_xform.to_scale_rotation_translation();

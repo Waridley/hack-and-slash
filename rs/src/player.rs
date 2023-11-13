@@ -30,6 +30,9 @@ use std::{
 	time::Duration,
 };
 use std::ops::Add;
+use std::sync::OnceLock;
+use bevy::ecs::system::SystemId;
+use bevy::utils::HashSet;
 
 pub mod camera;
 pub mod ctrl;
@@ -45,6 +48,8 @@ pub const CLIMB_ANGLE: f32 = FRAC_PI_3 - R_E;
 pub const SLIDE_ANGLE: f32 = FRAC_PI_3 - R_E;
 pub const HOVER_HEIGHT: f32 = 2.0;
 const G1: bevy_rapier3d::geometry::Group = bevy_rapier3d::geometry::Group::GROUP_1;
+
+pub static RESPAWN_SYSTEM_ID: OnceLock<SystemId> = OnceLock::new();
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.fn_plugin(input::plugin)
@@ -64,7 +69,9 @@ pub fn plugin(app: &mut App) -> &mut App {
 				idle,
 			),
 		)
-		.add_systems(Last, reset_oob)
+		.add_systems(Last, (reset_oob, countdown_respawn));
+	RESPAWN_SYSTEM_ID.get_or_init(|| app.world.register_system(spawn_player));
+	app
 }
 
 fn setup(
@@ -80,25 +87,16 @@ fn setup(
 	let aoe_sfx = asset_server.load("sfx/SFX_-_magic_spell_03.ogg");
 	cmds.insert_resource(AoESound(aoe_sfx));
 
-	let ship = asset_server.load("ships/player.glb#Scene0");
-	let vis = SceneBundle {
-		scene: ship,
-		// transform: Transform {
-		// 	translation: Vec3::new(-1.875, -0.625, 0.25),
-		// 	rotation: Quat::from_rotation_y(FRAC_PI_4),
-		// 	scale: Vec3::splat(0.75),
-		// },
-		..default()
-	};
-
-	let particle_mesh = Mesh::from(shape::Torus {
+	let ship_scene = asset_server.load("ships/player.glb#Scene0");
+	
+	let antigrav_pulse_mesh = Mesh::from(shape::Torus {
 		radius: 0.640,
 		ring_radius: 0.064,
 		subdivisions_segments: 6,
 		subdivisions_sides: 3,
 	});
-	let particle_mesh = meshes.add(particle_mesh);
-	let particle_material = materials.add(StandardMaterial {
+	let antigrav_pulse_mesh = meshes.add(antigrav_pulse_mesh);
+	let antigrav_pulse_mat = materials.add(StandardMaterial {
 		// base_color: Color::rgba(0.0, 1.0, 0.5, 0.3),
 		base_color: Color::NONE,
 		emissive: Color::rgb(0.0, 12.0, 7.2),
@@ -106,21 +104,15 @@ fn setup(
 		..default()
 	});
 
-	let particle_mesh = MaterialMeshBundle {
-		mesh: particle_mesh,
-		material: particle_material,
-		..default()
-	};
-
-	let arm = Mesh::try_from(Icosphere {
+	let arm_mesh = Mesh::try_from(Icosphere {
 		radius: 0.3,
 		subdivisions: 2,
 	})
 	.expect("create icosphere mesh");
-	let arm_mesh = meshes.add(arm);
-	let arm1 = MaterialMeshBundle::<StandardMaterial> {
-		mesh: arm_mesh.clone(),
-		material: materials.add(StandardMaterial {
+	let arm_mesh = meshes.add(arm_mesh);
+	let arm_particle_mesh = meshes.add(Mesh::from(RegularPolygon::new(0.1, 3)));
+	let arm_mats = [
+		materials.add(StandardMaterial {
 			base_color: Color::NONE,
 			emissive: Color::GREEN * 6.0,
 			reflectance: 0.0,
@@ -128,12 +120,7 @@ fn setup(
 			cull_mode: None,
 			..default()
 		}),
-		transform: Transform::from_translation(Vec3::X * 2.0),
-		..default()
-	};
-	let arm2 = MaterialMeshBundle::<StandardMaterial> {
-		mesh: arm_mesh.clone(),
-		material: materials.add(StandardMaterial {
+		materials.add(StandardMaterial {
 			base_color: Color::NONE,
 			emissive: Color::WHITE * 6.0,
 			reflectance: 0.0,
@@ -141,14 +128,7 @@ fn setup(
 			cull_mode: None,
 			..default()
 		}),
-		transform: Transform::from_translation(
-			Quat::from_rotation_z(FRAC_PI_3 * 2.0) * Vec3::X * 2.0,
-		),
-		..default()
-	};
-	let arm3 = MaterialMeshBundle::<StandardMaterial> {
-		mesh: arm_mesh,
-		material: materials.add(StandardMaterial {
+		materials.add(StandardMaterial {
 			base_color: Color::NONE,
 			emissive: Color::CYAN * 6.0,
 			reflectance: 0.0,
@@ -156,22 +136,29 @@ fn setup(
 			cull_mode: None,
 			..default()
 		}),
-		transform: Transform::from_translation(
-			Quat::from_rotation_z(FRAC_PI_3 * 4.0) * Vec3::X * 2.0,
-		),
-		..default()
-	};
+	];
 
-	let arm_particle_mesh = meshes.add(Mesh::from(RegularPolygon::new(0.1, 3)));
-
-	use PlayerArm::*;
-	cmds.spawn_player(
-		id,
-		vis,
-		particle_mesh,
-		[(arm1, A), (arm2, B), (arm3, C)],
+	
+	cmds.insert_resource(PlayerSpawnData {
+		ship_scene,
+		arm_mesh,
+		antigrav_pulse_mesh,
+		antigrav_pulse_mat,
 		arm_particle_mesh,
-	);
+		arm_mats,
+	});
+	
+	cmds.run_system(*RESPAWN_SYSTEM_ID.get().unwrap());
+}
+
+#[derive(Resource, Clone, Debug)]
+pub struct PlayerSpawnData {
+	pub ship_scene: Handle<Scene>,
+	pub antigrav_pulse_mesh: Handle<Mesh>,
+	pub antigrav_pulse_mat: Handle<StandardMaterial>,
+	pub arm_mesh: Handle<Mesh>,
+	pub arm_particle_mesh: Handle<Mesh>,
+	pub arm_mats: [Handle<StandardMaterial>; 3],
 }
 
 #[derive(EnumComponent)]
@@ -207,7 +194,7 @@ pub enum PlayerArm {
 
 pub type PlayerId = NonZeroU8;
 
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BelongsToPlayer(PlayerId);
 
 impl BelongsToPlayer {
@@ -222,6 +209,66 @@ impl BelongsToPlayer {
 	pub fn id(&self) -> PlayerId {
 		self.0
 	}
+}
+
+pub fn spawn_player(mut cmds: Commands, spawn_data: Res<PlayerSpawnData>) {
+	let PlayerSpawnData {
+		ship_scene,
+		antigrav_pulse_mesh,
+		antigrav_pulse_mat,
+		arm_mesh,
+		arm_particle_mesh,
+		arm_mats,
+	} = &*spawn_data;
+	
+	let vis = SceneBundle {
+		scene: ship_scene.clone(),
+		// transform: Transform {
+		// 	translation: Vec3::new(-1.875, -0.625, 0.25),
+		// 	rotation: Quat::from_rotation_y(FRAC_PI_4),
+		// 	scale: Vec3::splat(0.75),
+		// },
+		..default()
+	};
+	
+	let antigrav_pulse_mesh = MaterialMeshBundle {
+		mesh: antigrav_pulse_mesh.clone(),
+		material: antigrav_pulse_mat.clone(),
+		..default()
+	};
+	
+	let arm1 = MaterialMeshBundle::<StandardMaterial> {
+		mesh: arm_mesh.clone(),
+		material: arm_mats[0].clone(),
+		transform: Transform::from_translation(Vec3::X * 2.0),
+		..default()
+	};
+	let arm2 = MaterialMeshBundle::<StandardMaterial> {
+		mesh: arm_mesh.clone(),
+		material: arm_mats[1].clone(),
+		transform: Transform::from_translation(
+			Quat::from_rotation_z(FRAC_PI_3 * 2.0) * Vec3::X * 2.0,
+		),
+		..default()
+	};
+	let arm3 = MaterialMeshBundle::<StandardMaterial> {
+		mesh: arm_mesh.clone(),
+		material: arm_mats[2].clone(),
+		transform: Transform::from_translation(
+			Quat::from_rotation_z(FRAC_PI_3 * 4.0) * Vec3::X * 2.0,
+		),
+		..default()
+	};
+	
+	
+	use PlayerArm::*;
+	cmds.spawn_player(
+		unsafe { PlayerId::new_unchecked(1) }, // TODO: Generify ID
+		vis,
+		antigrav_pulse_mesh,
+		[(arm1, A), (arm2, B), (arm3, C)],
+		arm_particle_mesh.clone(),
+	);
 }
 
 pub trait SpawnPlayer<'c, 'w: 'c, 's: 'c> {
@@ -514,23 +561,27 @@ fn player_arms(
 pub fn reset_oob(
 	mut cmds: Commands,
 	q: Query<(Entity, &GlobalTransform, PlayerEntity, &BelongsToPlayer)>,
+	player_root_nodes: Query<(Entity, &BelongsToPlayer), ERef<Root>>,
 	bounds: Res<AbsoluteBounds>,
 ) {
-	let mut to_respawn = vec![];
+	let mut to_respawn = HashSet::new();
 	for (_id, xform, which, owner) in &q {
 		if let PlayerEntityItem::Root(..) = which {
 			if xform.translation().x.abs() > bounds.extents
 				|| xform.translation().y.abs() > bounds.extents
 				|| xform.translation().z.abs() > bounds.extents
 			{
-				to_respawn.push(owner)
+				to_respawn.insert(owner);
 			}
 		}
 	}
-	for (id, _, _, owner) in &q {
+	for (id, owner) in &player_root_nodes {
 		if to_respawn.contains(&owner) {
 			cmds.entity(id).despawn_recursive();
-			todo!("respawn player")
+			cmds.spawn(PlayerRespawnTimer {
+				id: owner.0,
+				timer: Timer::new(Duration::from_secs(3), TimerMode::Once),
+			});
 		}
 	}
 }
@@ -557,5 +608,26 @@ pub fn idle(
 					+ ((s * 15.7) + phase).sin() * 0.3,
 				..xform.translation
 			}
+	}
+}
+
+#[derive(Component, Clone, Debug, Deref, DerefMut)]
+pub struct PlayerRespawnTimer {
+	id: PlayerId,
+	#[deref]
+	timer: Timer,
+}
+
+pub fn countdown_respawn(
+	mut cmds: Commands,
+	mut q: Query<(Entity, &mut PlayerRespawnTimer)>,
+	t: Res<Time>,
+) {
+	for (id, mut data) in &mut q {
+		data.tick(t.delta());
+		if data.just_finished() {
+			cmds.entity(id).despawn();
+			cmds.run_system(*RESPAWN_SYSTEM_ID.get().unwrap())
+		}
 	}
 }
