@@ -43,6 +43,11 @@ pub fn run() {
 		..default()
 	});
 	
+	let default_plugins = default_plugins.set(AssetPlugin {
+		mode: AssetMode::Processed,
+		..default()
+	});
+	
 	app.add_plugins(default_plugins)
 		.insert_resource(RapierConfiguration {
 			gravity: Vect::new(0.0, 0.0, -9.81),
