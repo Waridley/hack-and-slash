@@ -482,15 +482,15 @@ fn player_arms(
 							time_created,
 							initial_transform: InitialTransform(xform),
 							initial_global_transform: InitialGlobalTransform(*glob_xform),
-							lifetime: Lifetime(Duration::from_secs_f32(0.1)),
+							lifetime: Lifetime(Duration::from_secs_f32(0.12)),
 						},
 						Linear {
-							velocity: Vec3::NEG_Z * 2.0,
+							velocity: Vec3::NEG_Z * 2.4,
 						},
 						TargetScale { scale: Vec3::ZERO },
 					))
 				}),
-				interval: Duration::from_millis(1),
+				interval: Duration::from_micros(1500),
 				use_global_coords: true,
 				..default()
 			};
@@ -541,19 +541,20 @@ pub fn idle(
 	mut arm_q: Query<&mut Transform, ERef<Arm>>,
 	t: Res<Time>,
 ) {
+	let s = t.elapsed_seconds_wrapped();
 	for mut xform in &mut vis_q {
-		xform.translation.y = (t.elapsed_seconds_wrapped() * 3.0).sin() * 0.24;
+		xform.translation.y = (s * 3.0).sin() * 0.24;
 		xform.rotate_local_y(-2.0 * t.delta_seconds());
 	}
 	for (mut xform, rvel) in &mut arms_q {
-		xform.rotation *= Quat::from_rotation_z(t.delta_seconds() * **rvel);
+		xform.rotation = (xform.rotation * Quat::from_rotation_z(t.delta_seconds() * **rvel)).normalize();
 	}
 	for (n, mut xform) in arm_q.iter_mut().enumerate() {
 		let phase = (n as f32) * FRAC_PI_3 * 2.0;
 		xform.translation = Vec3 {
-				z: ((t.elapsed_seconds_wrapped() * 15.1) + phase).sin() * 0.3
-					+ ((t.elapsed_seconds_wrapped() * 15.3) + phase).sin() * 0.3
-					+ ((t.elapsed_seconds_wrapped() * 15.7) + phase).sin() * 0.3,
+				z: ((s * 15.1) + phase).sin() * 0.3
+					+ ((s * 15.3) + phase).sin() * 0.3
+					+ ((s * 15.7) + phase).sin() * 0.3,
 				..xform.translation
 			}
 	}
