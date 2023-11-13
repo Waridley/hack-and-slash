@@ -29,6 +29,7 @@ use std::{
 	ops::{Deref, DerefMut},
 	time::Duration,
 };
+use std::ops::Add;
 
 pub mod camera;
 pub mod ctrl;
@@ -183,6 +184,7 @@ pub enum PlayerEntity {
 	CamPivot,
 	Cam,
 	HoverParticle,
+	Arms,
 	Arm(PlayerArm),
 	OrbitalParticle,
 }
@@ -288,7 +290,17 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 				.set_enum(player_entity::Controller);
 		});
 		player_vis(&mut root, owner, vis, particle_mesh);
-		player_arms(&mut root, owner, arm_meshes, arm_particle_mesh);
+		
+		root.with_children(|builder| {
+			let mut arms = builder.spawn((
+				TransformBundle::default(),
+				VisibilityBundle::default(),
+				RotVel::new(8.0),
+			));
+			arms.set_enum(Arms);
+			player_arms(&mut arms, owner, arm_meshes, arm_particle_mesh);
+		});
+		
 		root
 	}
 }
@@ -525,18 +537,23 @@ pub fn reset_oob(
 
 pub fn idle(
 	mut vis_q: Query<&mut Transform, ERef<Vis>>,
-	mut arm_q: Query<(&mut Transform, &RotVel), ERef<Arm>>,
+	mut arms_q: Query<(&mut Transform, &RotVel), ERef<Arms>>,
+	mut arm_q: Query<&mut Transform, ERef<Arm>>,
 	t: Res<Time>,
 ) {
 	for mut xform in &mut vis_q {
 		xform.translation.y = (t.elapsed_seconds_wrapped() * 3.0).sin() * 0.24;
 		xform.rotate_local_y(-2.0 * t.delta_seconds());
 	}
-	for (mut xform, rvel) in &mut arm_q {
-		xform.translation = Quat::from_rotation_z(t.delta_seconds() * **rvel)
-			* Vec3 {
-				z: (t.elapsed_seconds_wrapped() + 2.0 * xform.translation.angle_between(Vec3::X))
-					.sin(),
+	for (mut xform, rvel) in &mut arms_q {
+		xform.rotation *= Quat::from_rotation_z(t.delta_seconds() * **rvel);
+	}
+	for (n, mut xform) in arm_q.iter_mut().enumerate() {
+		let phase = (n as f32) * FRAC_PI_3 * 2.0;
+		xform.translation = Vec3 {
+				z: ((t.elapsed_seconds_wrapped() * 15.1) + phase).sin() * 0.3
+					+ ((t.elapsed_seconds_wrapped() * 15.3) + phase).sin() * 0.3
+					+ ((t.elapsed_seconds_wrapped() * 15.7) + phase).sin() * 0.3,
 				..xform.translation
 			}
 	}

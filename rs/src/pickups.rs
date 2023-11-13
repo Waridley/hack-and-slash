@@ -1,7 +1,7 @@
 use crate::{
 	mats::BubbleMaterial,
 	pickups::pickup::PickupItem,
-	player::{player_entity::Arm, RotVel},
+	player::{player_entity::{Arms, Arm}, RotVel},
 };
 use bevy::{
 	math::Vec3Swizzles,
@@ -113,7 +113,8 @@ pub fn spawn_pickups(
 pub fn collect(
 	mut cmds: Commands,
 	ctx: Res<RapierContext>,
-	arms: Query<&RotVel, ERef<Arm>>,
+	arms_q: Query<&RotVel, ERef<Arms>>,
+	arm_q: Query<(), ERef<Arm>>,
 	pickups: Query<(Entity, Pickup, &GlobalTransform, &Collider)>,
 	sfx: Res<PopSfx>,
 	audio: Res<Audio>,
@@ -126,7 +127,8 @@ pub fn collect(
 			col,
 			QueryFilter::exclude_fixed().exclude_rigid_body(id),
 			|other| {
-				if let Ok(rvel) = arms.get(other) {
+				if let Ok(()) = arm_q.get(other) {
+					let rvel = arms_q.single();
 					if **rvel >= 16.0 {
 						audio.play(sfx.0.clone()).with_volume(0.3);
 						match pickup {
