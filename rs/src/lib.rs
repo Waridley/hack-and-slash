@@ -51,10 +51,10 @@ pub fn run() {
 	app.add_plugins(default_plugins)
 		.insert_resource(RapierConfiguration {
 			gravity: Vect::new(0.0, 0.0, -9.81),
-			// timestep_mode: TimestepMode::Fixed {
-			// 	dt: DT,
-			// 	substeps: 1,
-			// },
+			timestep_mode: TimestepMode::Fixed {
+				dt: DT,
+				substeps: 1,
+			},
 			..default()
 		})
 		.add_plugins((
