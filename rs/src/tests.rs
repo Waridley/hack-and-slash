@@ -44,7 +44,7 @@ pub fn app() -> App {
 	app.add_plugins(DefaultPlugins);
 	#[cfg(not(feature = "vis_test"))]
 	app.add_plugins(MinimalPlugins)
-		.add_plugin(bevy::log::LogPlugin::default());
+		.add_plugins(bevy::log::LogPlugin::default());
 
 	app.add_event::<TestEvent>()
 		.insert_resource(RunningTests::default())
@@ -265,12 +265,16 @@ pub mod slope_angles {
 	) {
 		let Ok(out) = q.get_single() else { return };
 
-		let Some((id, angle)) = out.collisions.first().map(|col| {
-			(
-				col.entity,
-				rapier3d::math::Vector::from(col.toi.normal1)
-					.angle(&rapier3d::math::Vector::from(Vec3::Z)),
-			)
+		let Some((id, angle)) = out.collisions.first().and_then(|col| {
+			if let Some(details) = &col.toi.details {
+				Some((
+					col.entity,
+					rapier3d::math::Vector::from(details.normal1)
+						.angle(&rapier3d::math::Vector::from(Vec3::Z)),
+				))
+			} else {
+				None
+			}
 		}) else {
 			return;
 		};
