@@ -124,6 +124,7 @@ pub fn position_target(
 					// Max distance is still inside something, just let it be close
 					toi
 				} else {
+					// TODO: Add hysteresis when this happens.
 					// Something is in-between character and camera, but better than camera being inside it
 					MAX_CAM_DIST
 				}

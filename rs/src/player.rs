@@ -29,9 +29,6 @@ use std::{
 	ops::{Deref, DerefMut},
 	time::Duration,
 };
-use std::ops::Add;
-use std::sync::OnceLock;
-use bevy::ecs::system::SystemId;
 use bevy::utils::HashSet;
 
 pub mod camera;
@@ -47,17 +44,17 @@ pub const JUMP_VEL: f32 = 64.0;
 pub const CLIMB_ANGLE: f32 = FRAC_PI_3 - R_E;
 pub const SLIDE_ANGLE: f32 = FRAC_PI_3 - R_E;
 pub const HOVER_HEIGHT: f32 = 2.0;
-const G1: bevy_rapier3d::geometry::Group = bevy_rapier3d::geometry::Group::GROUP_1;
+const G1: Group = Group::GROUP_1;
 
-pub static RESPAWN_SYSTEM_ID: OnceLock<SystemId> = OnceLock::new();
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.fn_plugin(input::plugin)
 		.add_systems(Startup, setup)
-		.add_systems(PreUpdate, ctrl::gravity)
-		.add_systems(PreUpdate, ctrl::repel_ground.after(ctrl::gravity))
-		// .add_systems(Update, tick_cooldown::<Jump>)
-		.add_systems(PreUpdate, ctrl::reset_jump_on_ground)
+		.add_systems(PreUpdate, (
+			ctrl::gravity,
+			ctrl::repel_ground.after(ctrl::gravity),
+			ctrl::reset_jump_on_ground,
+		))
 		.add_systems(
 			Update,
 			(
@@ -69,8 +66,8 @@ pub fn plugin(app: &mut App) -> &mut App {
 				idle,
 			),
 		)
-		.add_systems(Last, (reset_oob, countdown_respawn));
-	RESPAWN_SYSTEM_ID.get_or_init(|| app.world.register_system(spawn_player));
+		.add_systems(Last, (reset_oob, countdown_respawn, spawn_players))
+		.add_event::<PlayerSpawnEvent>();
 	app
 }
 
@@ -80,6 +77,7 @@ fn setup(
 	mut meshes: ResMut<Assets<Mesh>>,
 	asset_server: Res<AssetServer>,
 	settings: Res<Settings>,
+	mut spawn_events: EventWriter<PlayerSpawnEvent>,
 ) {
 	let id = unsafe { PlayerId::new_unchecked(1) };
 	spawn_camera(&mut cmds, id, &settings);
@@ -111,33 +109,27 @@ fn setup(
 	.expect("create icosphere mesh");
 	let arm_mesh = meshes.add(arm_mesh);
 	let arm_particle_mesh = meshes.add(Mesh::from(RegularPolygon::new(0.1, 3)));
+	let arm_mat_template = StandardMaterial {
+		base_color: Color::NONE,
+		reflectance: 0.0,
+		double_sided: true,
+		cull_mode: None,
+		..default()
+	};
 	let arm_mats = [
 		materials.add(StandardMaterial {
-			base_color: Color::NONE,
 			emissive: Color::GREEN * 6.0,
-			reflectance: 0.0,
-			double_sided: true,
-			cull_mode: None,
-			..default()
+			..arm_mat_template.clone()
 		}),
 		materials.add(StandardMaterial {
-			base_color: Color::NONE,
 			emissive: Color::WHITE * 6.0,
-			reflectance: 0.0,
-			double_sided: true,
-			cull_mode: None,
-			..default()
+			..arm_mat_template.clone()
 		}),
 		materials.add(StandardMaterial {
-			base_color: Color::NONE,
 			emissive: Color::CYAN * 6.0,
-			reflectance: 0.0,
-			double_sided: true,
-			cull_mode: None,
-			..default()
+			..arm_mat_template
 		}),
 	];
-
 	
 	cmds.insert_resource(PlayerSpawnData {
 		ship_scene,
@@ -148,7 +140,7 @@ fn setup(
 		arm_mats,
 	});
 	
-	cmds.run_system(*RESPAWN_SYSTEM_ID.get().unwrap());
+	spawn_events.send(PlayerSpawnEvent { id });
 }
 
 #[derive(Resource, Clone, Debug)]
@@ -166,14 +158,13 @@ pub struct PlayerSpawnData {
 pub enum PlayerEntity {
 	Root,
 	Controller,
-	Vis,
-	VisNode,
+	Ship,
+	ShipCenter,
 	CamPivot,
 	Cam,
 	HoverParticle,
 	Arms,
 	Arm(PlayerArm),
-	OrbitalParticle,
 }
 use crate::settings::Settings;
 use crate::{
@@ -211,89 +202,55 @@ impl BelongsToPlayer {
 	}
 }
 
-pub fn spawn_player(mut cmds: Commands, spawn_data: Res<PlayerSpawnData>) {
-	let PlayerSpawnData {
-		ship_scene,
-		antigrav_pulse_mesh,
-		antigrav_pulse_mat,
-		arm_mesh,
-		arm_particle_mesh,
-		arm_mats,
-	} = &*spawn_data;
-	
-	let vis = SceneBundle {
-		scene: ship_scene.clone(),
-		// transform: Transform {
-		// 	translation: Vec3::new(-1.875, -0.625, 0.25),
-		// 	rotation: Quat::from_rotation_y(FRAC_PI_4),
-		// 	scale: Vec3::splat(0.75),
-		// },
-		..default()
-	};
-	
-	let antigrav_pulse_mesh = MaterialMeshBundle {
-		mesh: antigrav_pulse_mesh.clone(),
-		material: antigrav_pulse_mat.clone(),
-		..default()
-	};
-	
-	let arm1 = MaterialMeshBundle::<StandardMaterial> {
-		mesh: arm_mesh.clone(),
-		material: arm_mats[0].clone(),
-		transform: Transform::from_translation(Vec3::X * 2.0),
-		..default()
-	};
-	let arm2 = MaterialMeshBundle::<StandardMaterial> {
-		mesh: arm_mesh.clone(),
-		material: arm_mats[1].clone(),
-		transform: Transform::from_translation(
-			Quat::from_rotation_z(FRAC_PI_3 * 2.0) * Vec3::X * 2.0,
-		),
-		..default()
-	};
-	let arm3 = MaterialMeshBundle::<StandardMaterial> {
-		mesh: arm_mesh.clone(),
-		material: arm_mats[2].clone(),
-		transform: Transform::from_translation(
-			Quat::from_rotation_z(FRAC_PI_3 * 4.0) * Vec3::X * 2.0,
-		),
-		..default()
-	};
-	
-	
-	use PlayerArm::*;
-	cmds.spawn_player(
-		unsafe { PlayerId::new_unchecked(1) }, // TODO: Generify ID
-		vis,
-		antigrav_pulse_mesh,
-		[(arm1, A), (arm2, B), (arm3, C)],
-		arm_particle_mesh.clone(),
-	);
-}
-
-pub trait SpawnPlayer<'c, 'w: 'c, 's: 'c> {
-	fn spawn_player(
-		&'c mut self,
-		id: PlayerId,
-		scene: SceneBundle,
-		particle_mesh: MaterialMeshBundle<StandardMaterial>,
-		arm_meshes: [(MaterialMeshBundle<StandardMaterial>, PlayerArm); 3],
-		arm_particle_mesh: Handle<Mesh>,
-	) -> EntityCommands<'w, 's, 'c>;
-}
-
-impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
-	fn spawn_player(
-		&'c mut self,
-		id: PlayerId,
-		vis: SceneBundle,
-		particle_mesh: MaterialMeshBundle<StandardMaterial>,
-		arm_meshes: [(MaterialMeshBundle<StandardMaterial>, PlayerArm); 3],
-		arm_particle_mesh: Handle<Mesh>,
-	) -> EntityCommands<'w, 's, 'c> {
+pub fn spawn_players(mut cmds: Commands, spawn_data: Res<PlayerSpawnData>, mut events: ResMut<Events<PlayerSpawnEvent>>) {
+	for event in events.drain() {
+		let PlayerSpawnData {
+			ship_scene,
+			antigrav_pulse_mesh,
+			antigrav_pulse_mat,
+			arm_mesh,
+			arm_particle_mesh,
+			arm_mats: [mat_a, mat_b, mat_c],
+		} = spawn_data.clone();
+		
+		let vis = SceneBundle {
+			scene: ship_scene,
+			..default()
+		};
+		
+		let antigrav_pulse_mesh = MaterialMeshBundle {
+			mesh: antigrav_pulse_mesh,
+			material: antigrav_pulse_mat,
+			..default()
+		};
+		
+		let arm1 = MaterialMeshBundle::<StandardMaterial> {
+			mesh: arm_mesh.clone(),
+			material: mat_a,
+			transform: Transform::from_translation(Vec3::X * 2.0),
+			..default()
+		};
+		let arm2 = MaterialMeshBundle::<StandardMaterial> {
+			mesh: arm_mesh.clone(),
+			material: mat_b,
+			transform: Transform::from_translation(
+				Quat::from_rotation_z(FRAC_PI_3 * 2.0) * Vec3::X * 2.0,
+			),
+			..default()
+		};
+		let arm3 = MaterialMeshBundle::<StandardMaterial> {
+			mesh: arm_mesh,
+			material: mat_c,
+			transform: Transform::from_translation(
+				Quat::from_rotation_z(FRAC_PI_3 * 4.0) * Vec3::X * 2.0,
+			),
+			..default()
+		};
+		
+		let id = event.id;
 		let owner = BelongsToPlayer::with_id(id);
 		let char_collider = Collider::ball(1.2);
-		let mut root = self.spawn((
+		let mut root = cmds.spawn((
 			owner,
 			TerminalVelocity(Velocity {
 				linvel: Vect::splat(128.0),
@@ -308,48 +265,75 @@ impl<'c, 'w: 'c, 's: 'c> SpawnPlayer<'c, 'w, 's> for Commands<'w, 's> {
 			},
 			VisibilityBundle::default(),
 		));
-		root.set_enum(player_entity::Root);
-
-		root.with_children(|builder| {
-			builder
-				.spawn((
-					owner,
-					char_collider,
-					TransformBundle::default(),
-					CtrlVel::default(),
-					CollisionGroups::new(Group::GROUP_1, !Group::GROUP_1),
-					KinematicCharacterController {
-						up: Vect::Z,
-						snap_to_ground: None,
-						autostep: None,
-						max_slope_climb_angle: CLIMB_ANGLE,
-						min_slope_slide_angle: SLIDE_ANGLE,
-						filter_flags: QueryFilterFlags::EXCLUDE_SENSORS,
-						filter_groups: Some(CollisionGroups::new(G1, !G1)),
-						..default()
-					},
-					InputManagerBundle::<PlayerAction> {
-						input_map: PlayerPrefs::default().input_map,
-						..default()
-					},
-					PlayerAction::abilities_bundle(),
-				))
-				.set_enum(player_entity::Controller);
-		});
-		player_vis(&mut root, owner, vis, particle_mesh);
+		root.set_enum(Root);
 		
-		root.with_children(|builder| {
-			let mut arms = builder.spawn((
-				TransformBundle::default(),
-				VisibilityBundle::default(),
-				RotVel::new(8.0),
-			));
-			arms.set_enum(Arms);
-			player_arms(&mut arms, owner, arm_meshes, arm_particle_mesh);
-		});
-		
-		root
+		build_player_scene(
+			&mut root,
+			owner,
+			vis,
+			char_collider,
+			antigrav_pulse_mesh,
+			[(arm1, PlayerArm::A), (arm2, PlayerArm::B), (arm3, PlayerArm::C)],
+			arm_particle_mesh,
+		);
 	}
+}
+
+fn build_player_scene(
+	mut root: &mut EntityCommands,
+	owner: BelongsToPlayer,
+	vis: SceneBundle,
+	char_collider: Collider,
+	particle_mesh: MaterialMeshBundle<StandardMaterial>,
+	arm_meshes: [(MaterialMeshBundle<StandardMaterial>, PlayerArm); 3],
+	arm_particle_mesh: Handle<Mesh>,
+) {
+	player_controller(root, owner, char_collider);
+	player_vis(&mut root, owner, vis, particle_mesh);
+	
+	root.with_children(|builder| {
+		let mut arms = builder.spawn((
+			TransformBundle::default(),
+			VisibilityBundle::default(),
+			RotVel::new(8.0),
+		));
+		arms.set_enum(Arms);
+		player_arms(&mut arms, owner, arm_meshes, arm_particle_mesh);
+	});
+}
+
+fn player_controller(
+	root: &mut EntityCommands,
+	owner: BelongsToPlayer,
+	char_collider: Collider,
+) {
+	root.with_children(|builder| {
+		builder
+			.spawn((
+				owner,
+				char_collider,
+				TransformBundle::default(),
+				CtrlVel::default(),
+				CollisionGroups::new(Group::GROUP_1, !Group::GROUP_1),
+				KinematicCharacterController {
+					up: Vect::Z,
+					snap_to_ground: None,
+					autostep: None,
+					max_slope_climb_angle: CLIMB_ANGLE,
+					min_slope_slide_angle: SLIDE_ANGLE,
+					filter_flags: QueryFilterFlags::EXCLUDE_SENSORS,
+					filter_groups: Some(CollisionGroups::new(G1, !G1)),
+					..default()
+				},
+				InputManagerBundle::<PlayerAction> {
+					input_map: PlayerPrefs::default().input_map,
+					..default()
+				},
+				PlayerAction::abilities_bundle(),
+			))
+			.set_enum(Controller);
+	});
+	
 }
 
 fn player_vis(
@@ -358,8 +342,8 @@ fn player_vis(
 	vis: SceneBundle,
 	particle_mesh: MaterialMeshBundle<StandardMaterial>,
 ) {
-	let pivot = camera::spawn_pivot(cmds.commands(), owner).id();
-	let vis_node = cmds
+	let camera_pivot = camera::spawn_pivot(cmds.commands(), owner).id();
+	let ship_center = cmds
 		.commands()
 		.spawn((
 			owner,
@@ -371,7 +355,7 @@ fn player_vis(
 			// TransformBundle::default(),
 			VisibilityBundle::default(), // for children ComputedVisibility
 		))
-		.set_enum(player_entity::VisNode)
+		.set_enum(ShipCenter)
 		.with_children(move |builder| {
 			// Mesh is a child so we can apply transform independent of collider to align them
 			builder
@@ -380,7 +364,7 @@ fn player_vis(
 					TransformBundle::default(),
 					VisibilityBundle::default(),
 				))
-				.set_enum(player_entity::Vis)
+				.set_enum(Ship)
 				.with_children(|builder| {
 					builder.spawn((owner, vis));
 
@@ -454,9 +438,9 @@ fn player_vis(
 					});
 				});
 		})
-		.add_child(pivot)
+		.add_child(camera_pivot)
 		.id();
-	cmds.add_child(vis_node);
+	cmds.add_child(ship_center);
 }
 
 #[derive(Component, Debug, Default, Copy, Clone, Reflect)]
@@ -553,7 +537,7 @@ fn player_arms(
 					KinematicPositionBased,
 					RotVel::new(8.0),
 				))
-				.set_enum(player_entity::Arm(which));
+				.set_enum(Arm(which));
 		}
 	});
 }
@@ -587,7 +571,7 @@ pub fn reset_oob(
 }
 
 pub fn idle(
-	mut vis_q: Query<&mut Transform, ERef<Vis>>,
+	mut vis_q: Query<&mut Transform, ERef<Ship>>,
 	mut arms_q: Query<(&mut Transform, &RotVel), ERef<Arms>>,
 	mut arm_q: Query<&mut Transform, ERef<Arm>>,
 	t: Res<Time>,
@@ -613,21 +597,28 @@ pub fn idle(
 
 #[derive(Component, Clone, Debug, Deref, DerefMut)]
 pub struct PlayerRespawnTimer {
-	id: PlayerId,
+	pub id: PlayerId,
 	#[deref]
-	timer: Timer,
+	pub timer: Timer,
+}
+
+
+#[derive(Event, Clone, Debug)]
+pub struct PlayerSpawnEvent {
+	id: PlayerId,
 }
 
 pub fn countdown_respawn(
 	mut cmds: Commands,
 	mut q: Query<(Entity, &mut PlayerRespawnTimer)>,
+	mut spawn_events: EventWriter<PlayerSpawnEvent>,
 	t: Res<Time>,
 ) {
 	for (id, mut data) in &mut q {
 		data.tick(t.delta());
 		if data.just_finished() {
 			cmds.entity(id).despawn();
-			cmds.run_system(*RESPAWN_SYSTEM_ID.get().unwrap())
+			spawn_events.send(PlayerSpawnEvent { id: data.id });
 		}
 	}
 }
