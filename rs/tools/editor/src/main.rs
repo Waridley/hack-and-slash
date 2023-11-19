@@ -1,17 +1,12 @@
 use async_process::{Child, Command, Stdio};
-use bevy::asset::ChangeWatcher;
 use bevy::prelude::*;
 use bevy::tasks::IoTaskPool;
 use futures_lite::{io::BufReader, AsyncBufReadExt, StreamExt};
-use std::time::Duration;
 
 #[bevy_main]
 fn main() {
 	App::new()
-		.add_plugins(DefaultPlugins.set(AssetPlugin {
-			watch_for_changes: ChangeWatcher::with_delay(Duration::from_secs(1)),
-			..default()
-		}))
+		.add_plugins(DefaultPlugins)
 		.add_event::<RunGameEvent>()
 		.insert_resource(RunningGame::default())
 		.add_systems(Startup, setup)
@@ -42,7 +37,7 @@ pub struct RunGameEvent;
 pub struct RunningGame(pub Option<Child>);
 
 fn run_game(mut events: EventReader<RunGameEvent>, mut game: ResMut<RunningGame>) {
-	for _event in events.iter() {
+	for _event in events.read() {
 		if game.0.is_some() {
 			warn!("Game is already running");
 			continue;
