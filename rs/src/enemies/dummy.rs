@@ -1,14 +1,21 @@
-#![allow(clippy::needless_update)] // ..default() used a lot to make it easier to add/remove field assignments quickly
 use super::enemy::Dummy;
 use crate::util::{consume_spawn_events, Spawnable};
 use bevy::ecs::system::{EntityCommands, SystemParamItem};
 use bevy::prelude::*;
+use bevy_rapier3d::math::Vect;
+use bevy_rapier3d::prelude::{Collider, RigidBody};
 use enum_components::EntityEnumCommands;
+use std::time::Duration;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_systems(Startup, setup)
 		.add_event::<NewDummy>()
+		.insert_resource(DummySpawnTimer(Timer::new(
+			Duration::from_secs(15),
+			TimerMode::Repeating,
+		)))
 		.add_systems(Update, consume_spawn_events::<Dummy>)
+		.add_systems(Last, spawn_new_dummies)
 }
 
 fn setup(
@@ -16,14 +23,28 @@ fn setup(
 	mut meshes: ResMut<Assets<Mesh>>,
 	mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-	let mesh = meshes.add(shape::Cube::new(4.0).into());
+	let mesh = meshes.add(
+		shape::Capsule {
+			radius: 2.0,
+			depth: 4.0,
+			..default()
+		}
+		.into(),
+	);
 	let material = materials.add(Color::YELLOW.into());
-	cmds.insert_resource(DummyTemplate { mesh, material });
+	let collider = Collider::capsule(Vect::NEG_Y * 2.0, Vect::Y * 2.0, 2.0);
+	cmds.insert_resource(DummyTemplate {
+		mesh,
+		material,
+		collider,
+	});
 }
 
 #[derive(Bundle, Default, Clone)]
 struct DummyBundle {
 	mat_mesh: MaterialMeshBundle<StandardMaterial>,
+	body: RigidBody,
+	collider: Collider,
 }
 
 impl Spawnable for Dummy {
@@ -35,7 +56,11 @@ impl Spawnable for Dummy {
 		params: &mut SystemParamItem<'w, 's, Self::Params>,
 		NewDummy { transform }: Self::InstanceData,
 	) -> EntityCommands<'w, 's, 'a> {
-		let DummyTemplate { mesh, material } = params.clone();
+		let DummyTemplate {
+			mesh,
+			material,
+			collider,
+		} = params.clone();
 		let mut cmds = cmds.spawn(DummyBundle {
 			mat_mesh: MaterialMeshBundle {
 				mesh,
@@ -43,6 +68,7 @@ impl Spawnable for Dummy {
 				transform,
 				..default()
 			},
+			collider,
 			..default()
 		});
 		cmds.set_enum(Dummy);
@@ -54,9 +80,26 @@ impl Spawnable for Dummy {
 pub struct DummyTemplate {
 	mesh: Handle<Mesh>,
 	material: Handle<StandardMaterial>,
+	collider: Collider,
 }
 
 #[derive(Event, Default, Debug, Clone)]
 pub struct NewDummy {
 	transform: Transform,
 }
+
+pub fn spawn_new_dummies(
+	mut events: EventWriter<NewDummy>,
+	mut timer: ResMut<DummySpawnTimer>,
+	t: Res<Time>,
+) {
+	timer.tick(t.delta());
+	if timer.just_finished() {
+		events.send(NewDummy {
+			transform: Transform::default(),
+		});
+	}
+}
+
+#[derive(Resource, Debug, Deref, DerefMut)]
+pub struct DummySpawnTimer(Timer);

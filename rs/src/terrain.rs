@@ -1,3 +1,6 @@
+use crate::nav::{height_field_graph_with_max_climb, HeightmapNavGraph};
+use crate::planet::PlanetPoint;
+use crate::player::{CLIMB_ANGLE, SLIDE_ANGLE};
 use crate::util::{Factory, Spawnable};
 use bevy::ecs::system::{EntityCommands, SystemParamItem};
 use bevy::{
@@ -6,6 +9,7 @@ use bevy::{
 };
 use bevy_rapier3d::{parry::shape::SharedShape, prelude::*};
 use noise::{Fbm, NoiseFn, Value};
+use petgraph::prelude::EdgeRef;
 use rapier3d::{
 	geometry::HeightField,
 	na::{DMatrix, Vector3},
@@ -31,7 +35,7 @@ pub fn setup(
 
 	let noise = Fbm::<Value>::default();
 
-	let r = 48;
+	let r = 64;
 	let d = r * 2;
 	let (columns, rows) = (d, d);
 
@@ -45,26 +49,36 @@ pub fn setup(
 			let y = (row as f32 - 1.0) - r;
 
 			let bowl = ((r * r) - (x * x) - (y * y)).sqrt() / r;
-
 			let bowl = if bowl.is_finite() { bowl } else { 0.0 };
 
-			noise.get([row as f64 * 0.2, (i % rows) as f64 * 0.2]) as f32 * 0.3 - (bowl * 20.0)
+			let obstacle = if x.abs() < 10.0 && y.abs() < 10.0 {
+				2.0
+			} else {
+				0.0
+			};
+
+			noise.get([row as f64 * 0.05, (i % rows) as f64 * 0.05]) as f32 * 0.5 - (bowl * 20.0)
+				+ obstacle
 		}) // scale to -1.0..=1.0
 		.collect();
 
 	let heights = HeightField::new(
 		DMatrix::from_vec(rows, columns, heights),
-		Vector3::new(1024.0, 24.0, 1024.0),
+		Vector3::new(2048.0, 48.0, 2048.0),
 	);
 	let tris = heights.triangles();
 
 	let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
+	let mut nav_mesh = Vec::new();
 	let vertices = tris
-		.flat_map(|pos| {
+		.flat_map(|tri| {
+			if tri.normal().unwrap().angle(&Vect::Y.into()) <= SLIDE_ANGLE {
+				nav_mesh.push(tri);
+			}
 			[
-				[pos.a.x, pos.a.y, pos.a.z],
-				[pos.b.x, pos.b.y, pos.b.z],
-				[pos.c.x, pos.c.y, pos.c.z],
+				[tri.a.x, tri.a.y, tri.a.z],
+				[tri.b.x, tri.b.y, tri.b.z],
+				[tri.c.x, tri.c.y, tri.c.z],
 			]
 		})
 		.collect();
@@ -72,8 +86,51 @@ pub fn setup(
 	mesh.compute_flat_normals();
 	let mesh = meshes.add(mesh);
 
+	use crate::nav::FnsThatShouldBePub;
+	let mut astar_test_vis = Mesh::new(PrimitiveTopology::TriangleList);
+	let graph = height_field_graph_with_max_climb(&heights, CLIMB_ANGLE);
+	let path = graph.astar(
+		graph.triangle_id(115, 12, false),
+		graph.triangle_id(26, 101, true),
+		|_| 1.0,
+	);
+	println!("Path: {:?}", path);
+	if let Some((cost, path)) = path {
+		let astar_verts = path
+			.into_iter()
+			.flat_map(|id| {
+				let tri = graph.triangle_at_id(id).unwrap();
+				[
+					[tri.a.x, tri.a.y, tri.a.z],
+					[tri.b.x, tri.b.y, tri.b.z],
+					[tri.c.x, tri.c.y, tri.c.z],
+				]
+			})
+			.collect::<Vec<_>>();
+		astar_test_vis.insert_attribute(Mesh::ATTRIBUTE_POSITION, Float32x3(astar_verts));
+	}
+	astar_test_vis.compute_flat_normals();
+	let astar_test_vis = meshes.add(astar_test_vis);
+	let nav_mat = materials.add(StandardMaterial {
+		base_color: Color::NONE,
+		emissive: Color::BLUE,
+		..default()
+	});
+	// TODO: In-game toggle for navmesh rendering
+	cmds.spawn((PbrBundle {
+		mesh: astar_test_vis,
+		material: nav_mat,
+		transform: Transform {
+			translation: Vec3::new(0.0, 0.0, 256.05),
+			rotation: Quat::from_rotation_x(FRAC_PI_2),
+			..default()
+		},
+		..default()
+	},));
+
 	let heights = Arc::new(heights);
 	cmds.spawn((
+		PlanetPoint::default(),
 		RigidBody::Fixed,
 		Collider::from(SharedShape(heights.clone())),
 		PbrBundle {

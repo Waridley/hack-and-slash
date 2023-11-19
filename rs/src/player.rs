@@ -1,4 +1,5 @@
 use crate::{terminal_velocity, AbsoluteBounds, TerminalVelocity, R_E};
+use bevy::utils::HashSet;
 use bevy::{
 	ecs::system::EntityCommands,
 	prelude::{
@@ -29,7 +30,6 @@ use std::{
 	ops::{Deref, DerefMut},
 	time::Duration,
 };
-use bevy::utils::HashSet;
 
 pub mod camera;
 pub mod ctrl;
@@ -46,15 +46,17 @@ pub const SLIDE_ANGLE: f32 = FRAC_PI_3 - R_E;
 pub const HOVER_HEIGHT: f32 = 2.0;
 const G1: Group = Group::GROUP_1;
 
-
 pub fn plugin(app: &mut App) -> &mut App {
 	app.fn_plugin(input::plugin)
 		.add_systems(Startup, setup)
-		.add_systems(PreUpdate, (
-			ctrl::gravity,
-			ctrl::repel_ground.after(ctrl::gravity),
-			ctrl::reset_jump_on_ground,
-		))
+		.add_systems(
+			PreUpdate,
+			(
+				ctrl::gravity,
+				ctrl::repel_ground.after(ctrl::gravity),
+				ctrl::reset_jump_on_ground,
+			),
+		)
 		.add_systems(
 			Update,
 			(
@@ -86,7 +88,7 @@ fn setup(
 	cmds.insert_resource(AoESound(aoe_sfx));
 
 	let ship_scene = asset_server.load("ships/player.glb#Scene0");
-	
+
 	let antigrav_pulse_mesh = Mesh::from(shape::Torus {
 		radius: 0.640,
 		ring_radius: 0.064,
@@ -130,7 +132,7 @@ fn setup(
 			..arm_mat_template
 		}),
 	];
-	
+
 	cmds.insert_resource(PlayerSpawnData {
 		ship_scene,
 		arm_mesh,
@@ -139,7 +141,7 @@ fn setup(
 		arm_particle_mesh,
 		arm_mats,
 	});
-	
+
 	spawn_events.send(PlayerSpawnEvent { id });
 }
 
@@ -202,7 +204,11 @@ impl BelongsToPlayer {
 	}
 }
 
-pub fn spawn_players(mut cmds: Commands, spawn_data: Res<PlayerSpawnData>, mut events: ResMut<Events<PlayerSpawnEvent>>) {
+pub fn spawn_players(
+	mut cmds: Commands,
+	spawn_data: Res<PlayerSpawnData>,
+	mut events: ResMut<Events<PlayerSpawnEvent>>,
+) {
 	for event in events.drain() {
 		let PlayerSpawnData {
 			ship_scene,
@@ -212,18 +218,18 @@ pub fn spawn_players(mut cmds: Commands, spawn_data: Res<PlayerSpawnData>, mut e
 			arm_particle_mesh,
 			arm_mats: [mat_a, mat_b, mat_c],
 		} = spawn_data.clone();
-		
+
 		let vis = SceneBundle {
 			scene: ship_scene,
 			..default()
 		};
-		
+
 		let antigrav_pulse_mesh = MaterialMeshBundle {
 			mesh: antigrav_pulse_mesh,
 			material: antigrav_pulse_mat,
 			..default()
 		};
-		
+
 		let arm1 = MaterialMeshBundle::<StandardMaterial> {
 			mesh: arm_mesh.clone(),
 			material: mat_a,
@@ -246,7 +252,7 @@ pub fn spawn_players(mut cmds: Commands, spawn_data: Res<PlayerSpawnData>, mut e
 			),
 			..default()
 		};
-		
+
 		let id = event.id;
 		let owner = BelongsToPlayer::with_id(id);
 		let char_collider = Collider::ball(1.2);
@@ -266,21 +272,25 @@ pub fn spawn_players(mut cmds: Commands, spawn_data: Res<PlayerSpawnData>, mut e
 			VisibilityBundle::default(),
 		));
 		root.set_enum(Root);
-		
+
 		build_player_scene(
 			&mut root,
 			owner,
 			vis,
 			char_collider,
 			antigrav_pulse_mesh,
-			[(arm1, PlayerArm::A), (arm2, PlayerArm::B), (arm3, PlayerArm::C)],
+			[
+				(arm1, PlayerArm::A),
+				(arm2, PlayerArm::B),
+				(arm3, PlayerArm::C),
+			],
 			arm_particle_mesh,
 		);
 	}
 }
 
 fn build_player_scene(
-	mut root: &mut EntityCommands,
+	root: &mut EntityCommands,
 	owner: BelongsToPlayer,
 	vis: SceneBundle,
 	char_collider: Collider,
@@ -289,8 +299,8 @@ fn build_player_scene(
 	arm_particle_mesh: Handle<Mesh>,
 ) {
 	player_controller(root, owner, char_collider);
-	player_vis(&mut root, owner, vis, particle_mesh);
-	
+	player_vis(root, owner, vis, particle_mesh);
+
 	root.with_children(|builder| {
 		let mut arms = builder.spawn((
 			TransformBundle::default(),
@@ -302,11 +312,7 @@ fn build_player_scene(
 	});
 }
 
-fn player_controller(
-	root: &mut EntityCommands,
-	owner: BelongsToPlayer,
-	char_collider: Collider,
-) {
+fn player_controller(root: &mut EntityCommands, owner: BelongsToPlayer, char_collider: Collider) {
 	root.with_children(|builder| {
 		builder
 			.spawn((
@@ -333,7 +339,6 @@ fn player_controller(
 			))
 			.set_enum(Controller);
 	});
-	
 }
 
 fn player_vis(
@@ -582,16 +587,17 @@ pub fn idle(
 		xform.rotate_local_y(-2.0 * t.delta_seconds());
 	}
 	for (mut xform, rvel) in &mut arms_q {
-		xform.rotation = (xform.rotation * Quat::from_rotation_z(t.delta_seconds() * **rvel)).normalize();
+		xform.rotation =
+			(xform.rotation * Quat::from_rotation_z(t.delta_seconds() * **rvel)).normalize();
 	}
 	for (n, mut xform) in arm_q.iter_mut().enumerate() {
 		let phase = (n as f32) * FRAC_PI_3 * 2.0;
 		xform.translation = Vec3 {
-				z: ((s * 15.1) + phase).sin() * 0.3
-					+ ((s * 15.3) + phase).sin() * 0.3
-					+ ((s * 15.7) + phase).sin() * 0.3,
-				..xform.translation
-			}
+			z: ((s * 15.1) + phase).sin() * 0.3
+				+ ((s * 15.3) + phase).sin() * 0.3
+				+ ((s * 15.7) + phase).sin() * 0.3,
+			..xform.translation
+		}
 	}
 }
 
@@ -601,7 +607,6 @@ pub struct PlayerRespawnTimer {
 	#[deref]
 	pub timer: Timer,
 }
-
 
 #[derive(Event, Clone, Debug)]
 pub struct PlayerSpawnEvent {

@@ -53,7 +53,15 @@ pub fn repel_ground(
 				.groups(CollisionGroups::new(G1, !G1)),
 		);
 
-		if let Some((_, Toi { toi, details: Some(details), .. })) = result {
+		if let Some((
+			_,
+			Toi {
+				toi,
+				details: Some(details),
+				..
+			},
+		)) = result
+		{
 			let angle = quantize::<10>(details.normal1.angle_between(UP));
 			let dist = HOVER_HEIGHT - toi;
 			if angle < SLIDE_ANGLE {

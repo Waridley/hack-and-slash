@@ -1,3 +1,4 @@
+use crate::player::player_entity::Arms;
 use crate::util::Lerp;
 use crate::{
 	player::{
@@ -20,7 +21,6 @@ use std::{
 	f32::consts::{PI, TAU},
 	time::Duration,
 };
-use crate::player::player_entity::Arms;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugins((
@@ -128,7 +128,7 @@ pub fn abilities(
 					// TODO: Filter by player
 					arm.translation *= 6.0;
 					arm.scale *= 6.0;
-					spewer.interval = Duration::from_micros(100);
+					spewer.interval = Duration::from_micros(200);
 				}
 			}
 			Err(CannotUseAbility::OnCooldown) => {

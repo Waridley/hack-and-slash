@@ -12,7 +12,9 @@ use util::FnPluginExt;
 
 pub mod enemies;
 pub mod mats;
+pub mod nav;
 pub mod pickups;
+pub mod planet;
 pub mod player;
 pub mod settings;
 pub mod terrain;
@@ -42,12 +44,12 @@ pub fn run() {
 		}),
 		..default()
 	});
-	
+
 	let default_plugins = default_plugins.set(AssetPlugin {
 		mode: AssetMode::Processed,
 		..default()
 	});
-	
+
 	app.add_plugins(default_plugins)
 		.insert_resource(RapierConfiguration {
 			gravity: Vect::new(0.0, 0.0, -9.81),
@@ -137,7 +139,9 @@ pub fn tick_cooldown<A: Ability>(
 
 fn startup(
 	mut cmds: Commands,
-	#[cfg(all(debug_assertions, feature = "render"))] mut dbg_render_ctx: ResMut<DebugRenderContext>,
+	#[cfg(all(debug_assertions, feature = "render"))] mut dbg_render_ctx: ResMut<
+		DebugRenderContext,
+	>,
 ) {
 	#[cfg(target_family = "wasm")]
 	cmds.insert_resource(Msaa::Off);

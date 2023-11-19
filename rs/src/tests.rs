@@ -266,15 +266,13 @@ pub mod slope_angles {
 		let Ok(out) = q.get_single() else { return };
 
 		let Some((id, angle)) = out.collisions.first().and_then(|col| {
-			if let Some(details) = &col.toi.details {
-				Some((
+			col.toi.details.as_ref().map(|details| {
+				(
 					col.entity,
 					rapier3d::math::Vector::from(details.normal1)
 						.angle(&rapier3d::math::Vector::from(Vec3::Z)),
-				))
-			} else {
-				None
-			}
+				)
+			})
 		}) else {
 			return;
 		};
@@ -282,11 +280,11 @@ pub mod slope_angles {
 		if out.effective_translation.length() < 1.0e-3 {
 			if angle < CLIMB - 1.0e-4 {
 				warn!("{:?}", ShouldClimb { angle });
-				// // FIXME: Too flaky
-				// events.send(TestEvent {
-				// 	name: "slope_angles::angle_stability",
-				// 	status: TestStatus::Failed(ShouldClimb { angle }.into()),
-				// })
+			// // FIXME: Too flaky
+			// events.send(TestEvent {
+			// 	name: "slope_angles::angle_stability",
+			// 	status: TestStatus::Failed(ShouldClimb { angle }.into()),
+			// })
 			} else {
 				tracker.stuck_time += t.delta();
 				if tracker.stuck_time > Duration::from_secs(3) {

@@ -1,7 +1,10 @@
 use crate::{
 	mats::BubbleMaterial,
 	pickups::pickup::PickupItem,
-	player::{player_entity::{Arms, Arm}, RotVel},
+	player::{
+		player_entity::{Arm, Arms},
+		RotVel,
+	},
 };
 use bevy::{
 	math::Vec3Swizzles,
@@ -83,9 +86,9 @@ pub fn spawn_pickups(
 ) {
 	if timer.tick(t.delta()).finished() {
 		let transform = Transform::from_translation(Vec3::new(
-			rng.generate::<f32>() * 640.0 - 320.0,
-			rng.generate::<f32>() * 640.0 - 320.0,
-			-212.0,
+			rng.generate::<f32>() * 1280.0 - 640.0,
+			rng.generate::<f32>() * 1280.0 - 640.0,
+			-848.0,
 		));
 		let points = transform.translation.xy().length() * 0.1 + 10.0;
 
