@@ -1,5 +1,4 @@
-use bevy::core_pipeline::fxaa::Fxaa;
-use bevy::prelude::*;
+use bevy::{core_pipeline::fxaa::Fxaa, prelude::*};
 use bevy_pkv::PkvStore;
 use serde::{Deserialize, Serialize};
 

@@ -1,9 +1,13 @@
 use super::enemy::Dummy;
 use crate::util::{consume_spawn_events, Spawnable};
-use bevy::ecs::system::{EntityCommands, SystemParamItem};
-use bevy::prelude::*;
-use bevy_rapier3d::math::Vect;
-use bevy_rapier3d::prelude::{Collider, RigidBody};
+use bevy::{
+	ecs::system::{EntityCommands, SystemParamItem},
+	prelude::*,
+};
+use bevy_rapier3d::{
+	math::Vect,
+	prelude::{Collider, RigidBody},
+};
 use enum_components::EntityEnumCommands;
 use std::time::Duration;
 

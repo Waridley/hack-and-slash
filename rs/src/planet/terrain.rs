@@ -1,22 +1,29 @@
-use crate::planet::{PlanetVec2, PlanetVec3};
-use crate::util::{Factory, Spawnable};
-use bevy::ecs::system::{EntityCommands, SystemParamItem};
+use crate::{
+	nav::FnsThatShouldBePub,
+	offloading::{wasm_yield, Offload, OffloadedTask, TaskHandle, TaskOffloader},
+	planet::{
+		terrain::noise::{ChooseAndSmooth, Source, SyncWorley},
+		PlanetVec2, PlanetVec3,
+	},
+	util::{Factory, Spawnable},
+};
+use ::noise::{
+	Add, Billow, Fbm, HybridMulti, MultiFractal, NoiseFn, Perlin, RidgedMulti, ScaleBias, Seedable,
+	Value,
+};
 use bevy::{
+	ecs::system::{EntityCommands, SystemParamItem},
 	prelude::*,
 	render::mesh::{PrimitiveTopology, VertexAttributeValues::Float32x3},
 };
 use bevy_rapier3d::{parry::shape::SharedShape, prelude::*};
-use ::noise::{Add, Billow, Fbm, HybridMulti, MultiFractal, NoiseFn, Perlin, RidgedMulti, ScaleBias, Seedable, Value};
-use crate::nav::FnsThatShouldBePub;
 use rapier3d::{
 	geometry::HeightField,
 	na::{DMatrix, Vector3},
 };
 use std::{f32::consts::*, sync::Arc};
-use crate::offloading::{Offload, OffloadedTask, TaskOffloader, wasm_yield};
-use crate::planet::terrain::noise::{ChooseAndSmooth, Source, SyncWorley};
 
-mod noise;
+pub mod noise;
 
 const CHUNK_WIDTH: usize = 128;
 const CHUNK_SCALE: Vector3<f32> = Vector3::new(2048.0, 1024.0, 2048.0);
@@ -43,124 +50,140 @@ pub fn setup(
 		perceptual_roughness: 0.0,
 		..default()
 	});
-	
+
 	cmds.insert_resource(TerrainMaterial(material.clone()));
 
 	// Add is not Clone, so we'll use a closer to get multiple copies
-	let base = || Add::new(
-		ScaleBias::new(
-			HybridMulti::<Value>::default()
-				.set_frequency(0.00032)
-				.set_persistence(0.5)
-		).set_scale(2.0),
-		Fbm::<Perlin>::default()
-			.set_frequency(0.00128)
-			.set_octaves(2)
-			.set_persistence(0.45),
-	);
-	
+	let base = || {
+		Add::new(
+			ScaleBias::new(
+				HybridMulti::<Value>::default()
+					.set_frequency(0.00032)
+					.set_persistence(0.5),
+			)
+			.set_scale(2.0),
+			Fbm::<Perlin>::default()
+				.set_frequency(0.00128)
+				.set_octaves(2)
+				.set_persistence(0.45),
+		)
+	};
+
 	let strength_noise = Fbm::<Perlin>::default()
 		.set_frequency(0.00128)
 		.set_octaves(2);
-	
+
 	let perlin = Source::new(
 		Add::new(
 			ScaleBias::new(
 				Fbm::<Perlin>::default()
 					.set_frequency(0.0256)
-					.set_persistence(0.45)
-			).set_scale(0.05),
+					.set_persistence(0.45),
+			)
+			.set_scale(0.05),
 			base(),
 		),
 		strength_noise.clone(),
 		// Constant::new(-1.0),
 	);
-	
+
 	let worley = Source::new(
-		Add::new(ScaleBias::new(SyncWorley::default().set_frequency(0.05)).set_scale(0.1), base()),
+		Add::new(
+			ScaleBias::new(SyncWorley::default().set_frequency(0.05)).set_scale(0.1),
+			base(),
+		),
 		strength_noise.clone().set_seed(1),
 		// Constant::new(-1.0),
 	);
-	
+
 	let billow = Source::new(
 		Add::new(
 			ScaleBias::new(
 				Billow::<Perlin>::default()
 					.set_frequency(0.02)
-					.set_octaves(2)
-			).set_scale(0.04),
+					.set_octaves(2),
+			)
+			.set_scale(0.04),
 			base(),
 		),
 		strength_noise.clone().set_seed(2),
 		// Constant::new(-1.0),
 	);
-	
+
 	let ridged = Source::new(
 		Add::new(
-			ScaleBias::new(
-				RidgedMulti::<Perlin>::default().set_frequency(0.02)
-			).set_scale(0.07),
+			ScaleBias::new(RidgedMulti::<Perlin>::default().set_frequency(0.02)).set_scale(0.07),
 			base(),
 		),
 		strength_noise.clone().set_seed(3),
 		// Constant::new(-1.0),
 	);
-	
-	let noise = ChooseAndSmooth::new([
-		perlin,
-		worley,
-		billow,
-		ridged,
-	]);
-	
+
+	let noise = ChooseAndSmooth::new([perlin, worley, billow, ridged]);
+
 	let noise = Arc::new(noise);
-	
+
 	let (columns, rows) = (CHUNK_WIDTH, CHUNK_WIDTH);
-	
+
 	{
 		let noise = noise.clone();
 		let center = PlanetVec2::new(0.0, 0.0);
-		chunk_loading_tasks.push((center, task_offloader.start(async move {
-			let heights = noise.generate_map(PlanetVec2::new(0.0, 0.0), rows, columns).await;
-			let heights = HeightField::new(
-				DMatrix::from_vec(rows, columns, heights),
-				CHUNK_SCALE,
-			);
-			
-			fn face_normal(a: [f32; 3], b: [f32; 3], c: [f32; 3]) -> [f32; 3] {
-				let (a, b, c) = (Vec3::from(a), Vec3::from(b), Vec3::from(c));
-				(b - a).cross(c - a).normalize().into()
-			}
-			
-			let mut vertices = Vec::with_capacity(heights.num_triangles() * 3);
-			let mut normals = Vec::with_capacity(vertices.len());
-			for (i, tri) in heights.triangles().enumerate() {
-				let tri = [
-					[tri.a.x + center.x as f32, tri.a.y + center.y as f32, tri.a.z],
-					[tri.b.x + center.x as f32, tri.b.y + center.y as f32, tri.b.z],
-					[tri.c.x + center.x as f32, tri.c.y + center.y as f32, tri.c.z],
-				];
-				
-				vertices.extend_from_slice(&tri);
-				let normal = face_normal(tri[0], tri[1], tri[2]);
-				normals.extend_from_slice(&[normal; 3]);
-				if i % 1024 == 0 {
-					wasm_yield().await;
+		chunk_loading_tasks.push((
+			center,
+			task_offloader.start(async move {
+				let heights = noise
+					.generate_map(PlanetVec2::new(0.0, 0.0), rows, columns)
+					.await;
+				let heights =
+					HeightField::new(DMatrix::from_vec(rows, columns, heights), CHUNK_SCALE);
+
+				fn face_normal(a: [f32; 3], b: [f32; 3], c: [f32; 3]) -> [f32; 3] {
+					let (a, b, c) = (Vec3::from(a), Vec3::from(b), Vec3::from(c));
+					(b - a).cross(c - a).normalize().into()
 				}
-			}
-			
-			let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
-			mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, Float32x3(vertices));
-			mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
-			
-			(heights, mesh)
-		})));
+
+				let mut vertices = Vec::with_capacity(heights.num_triangles() * 3);
+				let mut normals = Vec::with_capacity(vertices.len());
+				for (i, tri) in heights.triangles().enumerate() {
+					let tri = [
+						[
+							tri.a.x + center.x as f32,
+							tri.a.y + center.y as f32,
+							tri.a.z,
+						],
+						[
+							tri.b.x + center.x as f32,
+							tri.b.y + center.y as f32,
+							tri.b.z,
+						],
+						[
+							tri.c.x + center.x as f32,
+							tri.c.y + center.y as f32,
+							tri.c.z,
+						],
+					];
+
+					vertices.extend_from_slice(&tri);
+					let normal = face_normal(tri[0], tri[1], tri[2]);
+					normals.extend_from_slice(&[normal; 3]);
+					if i % 1024 == 0 {
+						wasm_yield().await;
+					}
+				}
+
+				let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
+				mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, Float32x3(vertices));
+				mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+
+				(heights, mesh)
+			}),
+		));
 	}
-	
+
 	let planet_noise = PlanetHeightSource::new(noise);
-	
+
 	cmds.insert_resource(planet_noise);
-	
+
 	let mesh = Mesh::from(shape::Cube { size: 64.0 });
 	let collider = Collider::cuboid(32.0, 32.0, 32.0);
 	let mesh = meshes.add(mesh);
@@ -290,10 +313,7 @@ impl LocalHeightSource {
 }
 
 #[derive(Resource, Default, Deref, DerefMut)]
-pub struct ChunkLoadingTasks(Vec<(
-	PlanetVec2,
-	<TaskOffloader<'static, 'static> as Offload>::Task<(HeightField, Mesh)>,
-)>);
+pub struct ChunkLoadingTasks(Vec<(PlanetVec2, TaskHandle<(HeightField, Mesh)>)>);
 
 #[derive(Resource, Clone, Debug, Deref, DerefMut)]
 pub struct TerrainMaterial(Handle<StandardMaterial>);
@@ -304,7 +324,7 @@ pub fn spawn_loaded_chunks(
 	mut meshes: ResMut<Assets<Mesh>>,
 	mat: Res<TerrainMaterial>,
 ) {
-	tasks.retain_mut(|(center, task)| {
+	tasks.retain_mut(|(_center, task)| {
 		if let Some((heights, mesh)) = task.check() {
 			let mesh = meshes.add(mesh);
 			let heights = Arc::new(heights);

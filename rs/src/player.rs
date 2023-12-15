@@ -1,11 +1,12 @@
-use crate::{terminal_velocity, AbsoluteBounds, TerminalVelocity, R_EPS};
-use bevy::utils::HashSet;
+use crate::{terminal_velocity, TerminalVelocity, R_EPS};
+
 use bevy::{
 	ecs::system::EntityCommands,
 	prelude::{
 		shape::{Icosphere, RegularPolygon},
 		*,
 	},
+	utils::HashSet,
 };
 use bevy_rapier3d::{
 	control::KinematicCharacterController,
@@ -24,15 +25,13 @@ use particles::{
 	InitialGlobalTransform, InitialTransform, Lifetime, ParticleBundle, PreviousGlobalTransform,
 	PreviousTransform, Spewer, SpewerBundle,
 };
+use rapier3d::{math::Point, prelude::Aabb};
 use std::{
 	f32::consts::*,
 	num::NonZeroU8,
 	ops::{Deref, DerefMut},
 	time::Duration,
 };
-use bevy::input::keyboard::KeyboardInput;
-use rapier3d::math::Point;
-use rapier3d::prelude::Aabb;
 
 pub mod camera;
 pub mod ctrl;
@@ -65,7 +64,10 @@ pub fn plugin(app: &mut App) -> &mut App {
 				idle,
 			),
 		)
-		.add_systems(Last, (reset_oob, countdown_respawn, spawn_players, kill_on_key))
+		.add_systems(
+			Last,
+			(reset_oob, countdown_respawn, spawn_players, kill_on_key),
+		)
 		.add_event::<PlayerSpawnEvent>();
 	app
 }
@@ -85,7 +87,7 @@ pub fn setup(
 			Point::new(16384.0, 16384.0, 8192.0),
 		),
 	});
-	
+
 	let id = unsafe { PlayerId::new_unchecked(1) };
 	spawn_camera(&mut cmds, id, &settings, &mut images, &asset_server);
 
@@ -173,16 +175,16 @@ pub enum PlayerEntity {
 	Arms,
 	Arm(PlayerArm),
 }
-use crate::settings::Settings;
 use crate::{
 	player::{
+		ctrl::CtrlState,
 		input::{AoESound, PlayerAction},
 		prefs::PlayerPrefs,
 	},
+	settings::Settings,
 	util::FnPluginExt,
 };
 use player_entity::*;
-use crate::player::ctrl::CtrlState;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum PlayerArm {
@@ -321,7 +323,10 @@ fn build_player_scene(
 fn player_controller(root: &mut EntityCommands, owner: BelongsToPlayer, char_collider: Collider) {
 	root.with_children(|builder| {
 		let PlayerPrefs {
-			invert_camera, fov, input_map, sens
+			invert_camera,
+			fov,
+			input_map,
+			sens,
 		} = PlayerPrefs::default();
 		builder
 			.spawn((
@@ -567,7 +572,10 @@ pub fn reset_oob(
 	let mut to_respawn = HashSet::new();
 	for (_id, xform, which, owner) in &q {
 		if let PlayerEntityItem::Root(..) = which {
-			if !bounds.aabb.contains_local_point(&xform.translation().into()) {
+			if !bounds
+				.aabb
+				.contains_local_point(&xform.translation().into())
+			{
 				bevy::log::error!("Player {owner:?} is out of bounds. Respawning.");
 				to_respawn.insert(owner);
 			}

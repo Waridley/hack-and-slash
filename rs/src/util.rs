@@ -1,7 +1,11 @@
+use bevy::{
+	ecs::{
+		event::Event,
+		system::{EntityCommands, StaticSystemParam, SystemParam, SystemParamItem},
+	},
+	prelude::*,
+};
 use std::ops::{Add, Mul, Sub};
-use bevy::ecs::event::Event;
-use bevy::ecs::system::{EntityCommands, StaticSystemParam, SystemParam, SystemParamItem};
-use bevy::prelude::*;
 
 #[inline(always)]
 pub fn quantize<const BITS: u32>(value: f32) -> f32 {
@@ -59,19 +63,27 @@ pub fn consume_spawn_events<T: Spawnable>(
 }
 
 pub trait Lerp<R, T>
-where Self: Clone,
-      R: Sub<Self>,
-      <R as Sub<Self>>::Output: Mul<T>,
-      <<R as Sub<Self>>::Output as Mul<T>>::Output: Add<Self>,
+where
+	Self: Clone,
+	R: Sub<Self>,
+	<R as Sub<Self>>::Output: Mul<T>,
+	<<R as Sub<Self>>::Output as Mul<T>>::Output: Add<Self>,
 {
 	#[inline(always)]
-	fn lerp(self, rhs: R, t: T) -> <<<R as Sub<Self>>::Output as Mul<T>>::Output as Add<Self>>::Output {
+	fn lerp(
+		self,
+		rhs: R,
+		t: T,
+	) -> <<<R as Sub<Self>>::Output as Mul<T>>::Output as Add<Self>>::Output {
 		((rhs - self.clone()) * t) + self
 	}
 }
 
 impl<This, R, T> Lerp<R, T> for This
-where This: Clone,
-      R: Sub<This>,
-      <R as Sub<This>>::Output: Mul<T>,
-      <<R as Sub<This>>::Output as Mul<T>>::Output: Add<This>, {}
+where
+	This: Clone,
+	R: Sub<This>,
+	<R as Sub<This>>::Output: Mul<T>,
+	<<R as Sub<This>>::Output as Mul<T>>::Output: Add<This>,
+{
+}

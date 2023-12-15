@@ -1,12 +1,15 @@
-use crate::player::player_entity::Arms;
-use crate::util::Lerp;
-use crate::{EPS, player::{
-	camera::CameraVertSlider,
-	ctrl::CtrlVel,
-	player_entity::{Arm, CamPivot},
-	BelongsToPlayer, RotVel, ACCEL, JUMP_VEL, MAX_JUMPS, MAX_SPEED,
-}, terminal_velocity};
-use bevy::{math::Vec3Swizzles, prelude::*};
+use crate::{
+	player::{
+		camera::CameraVertSlider,
+		ctrl::CtrlVel,
+		player_entity::{Arm, Arms, CamPivot},
+		prefs::LookSensitivity,
+		BelongsToPlayer, RotVel, ACCEL, JUMP_VEL, MAX_JUMPS, MAX_SPEED,
+	},
+	terminal_velocity,
+	util::Lerp,
+};
+use bevy::{input::mouse::MouseMotion, math::Vec3Swizzles, prelude::*, window::CursorGrabMode};
 use bevy_kira_audio::prelude::{Audio, AudioSource, *};
 use enum_components::ERef;
 use leafwing_abilities::prelude::*;
@@ -14,13 +17,9 @@ use leafwing_input_manager::prelude::*;
 use particles::Spewer;
 use serde::{Deserialize, Serialize};
 use std::{
-	f32::consts::{PI, TAU},
+	f32::consts::{FRAC_PI_3, PI, TAU},
 	time::Duration,
 };
-use std::f32::consts::FRAC_PI_3;
-use bevy::input::mouse::MouseMotion;
-use bevy::window::CursorGrabMode;
-use crate::player::prefs::LookSensitivity;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugins((
@@ -28,12 +27,15 @@ pub fn plugin(app: &mut App) -> &mut App {
 		AbilityPlugin::<PlayerAction>::default(),
 	))
 	.add_systems(First, setup)
-	.add_systems(Update, (
-		grab_mouse,
-		abilities,
-		look_input.before(terminal_velocity),
-		jump.before(terminal_velocity),
-	))
+	.add_systems(
+		Update,
+		(
+			grab_mouse,
+			abilities,
+			look_input.before(terminal_velocity),
+			jump.before(terminal_velocity),
+		),
+	)
 }
 
 fn setup(
@@ -152,9 +154,7 @@ pub fn abilities(
 		for (i, (mut arm, mut spewer)) in arm_q.iter_mut().enumerate() {
 			let resting = Quat::from_rotation_z(i as f32 * FRAC_PI_3 * 2.0) * Vec3::X * 2.0;
 			// TODO: Filter by player
-			arm.translation = arm
-				.translation
-				.lerp(resting, t.delta_seconds() * 2.0);
+			arm.translation = arm.translation.lerp(resting, t.delta_seconds() * 2.0);
 			arm.scale = arm.scale.lerp(Vec3::ONE, t.delta_seconds() * 2.0);
 			spewer.interval = Duration::from_secs_f32(
 				spewer.interval.as_secs_f32().lerp(0.001, t.delta_seconds()),
@@ -165,7 +165,7 @@ pub fn abilities(
 }
 
 #[derive(Component, Resource, Reflect, Default, Debug, Clone, Deref, DerefMut)]
-struct InputStorageTimer(Timer);
+pub struct InputStorageTimer(Timer);
 
 pub fn jump(
 	mut q: Query<(
@@ -177,7 +177,14 @@ pub fn jump(
 ) {
 	for (mut state, mut vel, mut storage) in q.iter_mut() {
 		storage.tick(t.delta());
-		let triggered = if state.cooldowns.get(PlayerAction::Jump).as_ref().unwrap().ready().is_ok() {
+		let triggered = if state
+			.cooldowns
+			.get(PlayerAction::Jump)
+			.as_ref()
+			.unwrap()
+			.ready()
+			.is_ok()
+		{
 			if storage.finished() {
 				// No storage timer is set right now
 				if state.action_state.just_pressed(PlayerAction::Jump) {
@@ -188,8 +195,11 @@ pub fn jump(
 							// Couldn't trigger right now, keep trying over next few frames
 							storage.reset();
 							false
-						},
-						Err(e) => { bevy::log::error!("Not sure how to handle {e:?}"); false },
+						}
+						Err(e) => {
+							bevy::log::error!("Not sure how to handle {e:?}");
+							false
+						}
 					}
 				} else {
 					false
@@ -205,8 +215,14 @@ pub fn jump(
 		if triggered {
 			let dur = storage.duration();
 			storage.tick(dur); // tick makes sure it finishes, unlike set_elapsed
-			// FIXME: Debouncing isn't working for some reason
-			let cd_triggered = state.cooldowns.get_mut(PlayerAction::Jump).as_mut().unwrap().trigger().is_ok();
+				   // FIXME: Debouncing isn't working for some reason
+			let cd_triggered = state
+				.cooldowns
+				.get_mut(PlayerAction::Jump)
+				.as_mut()
+				.unwrap()
+				.trigger()
+				.is_ok();
 			if !cd_triggered {
 				bevy::log::error!("How did we trigger Jump if the cooldown hadn't elapsed???");
 			}
@@ -228,9 +244,11 @@ pub fn look_input(
 ) {
 	for (mut vel, player_id, sens) in player_q.iter_mut() {
 		let delta = (TAU / 0.5/* seconds to max angvel */) * t.delta_seconds();
-		
+
 		let mouse = if windows.single().cursor.grab_mode == CursorGrabMode::Locked {
-			mouse.read().fold(Vec2::ZERO, |acc, delta| acc + delta.delta * **sens)
+			mouse
+				.read()
+				.fold(Vec2::ZERO, |acc, delta| acc + delta.delta * **sens)
 		} else {
 			Vec2::ZERO
 		};
@@ -308,12 +326,12 @@ fn grab_mouse(
 	key: Res<Input<KeyCode>>,
 ) {
 	let mut window = windows.single_mut();
-	
+
 	if mouse.just_pressed(MouseButton::Left) {
 		window.cursor.visible = false;
 		window.cursor.grab_mode = CursorGrabMode::Locked;
 	}
-	
+
 	if key.just_pressed(KeyCode::Escape) {
 		window.cursor.visible = true;
 		window.cursor.grab_mode = CursorGrabMode::None;

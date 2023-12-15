@@ -1,6 +1,7 @@
 use crate::mats::BubbleMaterial;
-use bevy::window::PrimaryWindow;
-use bevy::{diagnostic::FrameTimeDiagnosticsPlugin, prelude::*, DefaultPlugins};
+use bevy::{
+	diagnostic::FrameTimeDiagnosticsPlugin, prelude::*, window::PrimaryWindow, DefaultPlugins,
+};
 use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_kira_audio::AudioPlugin;
 use bevy_pkv::PkvStore;
@@ -10,10 +11,10 @@ use player::ctrl::CtrlVel;
 use std::{f32::consts::*, fmt::Debug, time::Duration};
 use util::FnPluginExt;
 
-pub mod offloading;
 pub mod enemies;
 pub mod mats;
 pub mod nav;
+pub mod offloading;
 pub mod pickups;
 pub mod planet;
 pub mod player;
@@ -113,11 +114,7 @@ impl AbsoluteBounds {
 
 pub type InBounds = bool;
 
-fn despawn_oob(
-	mut cmds: Commands,
-	bounds: Res<AbsoluteBounds>,
-	q: Query<(Entity, &Transform)>,
-) {
+fn despawn_oob(mut cmds: Commands, bounds: Res<AbsoluteBounds>, q: Query<(Entity, &Transform)>) {
 	for (id, xform) in &q {
 		if !bounds.test(xform.translation) {
 			bevy::log::warn!("Entity {id:?} is way out of bounds. Despawning.");
@@ -180,7 +177,6 @@ fn startup(
 	}
 
 	cmds.insert_resource(AbsoluteBounds { extents: 65536.0 });
-
 
 	cmds.insert_resource(AmbientLight {
 		color: Color::rgb(0.64, 0.32, 1.0),

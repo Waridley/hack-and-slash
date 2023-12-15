@@ -1,11 +1,11 @@
-use crate::util::FnPluginExt;
-use bevy::utils::HashMap;
-use bevy::{app::AppExit, prelude::*};
+use crate::{util::FnPluginExt, DT};
+use bevy::{app::AppExit, prelude::*, utils::HashMap};
 use bevy_rapier3d::prelude::*;
 use colored::Colorize;
-use std::fmt::Formatter;
-use std::{error::Error, fmt::Display};
-use crate::DT;
+use std::{
+	error::Error,
+	fmt::{Display, Formatter},
+};
 
 #[derive(Event)]
 pub struct TestEvent {
@@ -133,8 +133,10 @@ pub mod slope_angles {
 	use super::*;
 	use crate::tests::slope_angles::Error::{AngleChanged, ShouldClimb};
 	use bevy::core_pipeline::clear_color::ClearColorConfig;
-	use std::f32::consts::{FRAC_PI_3, TAU};
-	use std::time::Duration;
+	use std::{
+		f32::consts::{FRAC_PI_3, TAU},
+		time::Duration,
+	};
 
 	const CLIMB: f32 = FRAC_PI_3;
 	const SLIDE: f32 = FRAC_PI_3;

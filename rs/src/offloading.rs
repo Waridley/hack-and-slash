@@ -1,6 +1,5 @@
-use std::any::Any;
-use std::future::Future;
 use bevy::prelude::*;
+use std::{any::Any, future::Future};
 
 #[cfg(target_arch = "wasm32")]
 mod wasm;
@@ -21,42 +20,51 @@ impl Plugin for OffloadingPlugin {
 	}
 }
 
+pub type TaskHandle<T> = <TaskOffloader<'static, 'static> as Offload>::Task<T>;
+
 pub trait Offload {
 	type Task<Out: Any + Send + 'static>: OffloadedTask<Out>;
-	
-	fn start<Out: Send + Sync + 'static>(&mut self, task: impl Future<Output = Out> + Send + Sync + 'static) -> Self::Task<Out>;
+
+	fn start<Out: Send + Sync + 'static>(
+		&mut self,
+		task: impl Future<Output = Out> + Send + Sync + 'static,
+	) -> Self::Task<Out>;
 }
 
 pub trait OffloadedTask<Out: 'static>: Future<Output = Out> {
 	fn let_go(self);
-	fn check(&mut self) -> Option<Out> where Self: Unpin {
+	fn check(&mut self) -> Option<Out>
+	where
+		Self: Unpin,
+	{
 		futures_lite::future::block_on(futures_lite::future::poll_once(self))
 	}
 }
 
 #[cfg(feature = "testing")]
 pub(crate) mod tests {
-	use bevy::prelude::*;
-	use std::sync::atomic::AtomicBool;
-	use std::sync::atomic::Ordering::Relaxed;
 	use crate::offloading::{Offload, OffloadedTask, TaskOffloader};
-	
+	use bevy::prelude::*;
+	use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
+
 	pub(crate) fn spawning(mut offloader: TaskOffloader, t: Res<Time>) {
 		static SPAWNED: AtomicBool = AtomicBool::new(false);
 		if !SPAWNED.load(Relaxed) && t.elapsed_seconds() > 3.0 {
 			bevy::log::info!("Hello from async task!");
 			for task in 0..100 {
-				offloader.start(async move {
-					bevy::log::info!("Starting task {task}...");
-					for i in task..task + 1_000_000u64 {
-						std::hint::black_box(i);
-						if i % 10_000 == 0 {
-							bevy::log::info!("Task {task} yielding at {i}");
-							futures_lite::future::yield_now().await;
+				offloader
+					.start(async move {
+						bevy::log::info!("Starting task {task}...");
+						for i in task..task + 1_000_000u64 {
+							std::hint::black_box(i);
+							if i % 10_000 == 0 {
+								bevy::log::info!("Task {task} yielding at {i}");
+								futures_lite::future::yield_now().await;
+							}
 						}
-					}
-					bevy::log::info!("Task {task} done!");
-				}).let_go();
+						bevy::log::info!("Task {task} done!");
+					})
+					.let_go();
 			}
 			bevy::log::info!("Done spawning counting tasks");
 			SPAWNED.store(true, Relaxed);

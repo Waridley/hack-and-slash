@@ -185,8 +185,8 @@ pub struct MissSfx(Handle<AudioSource>);
 pub fn miss(
 	mut cmds: Commands,
 	q: Query<(Entity, &GlobalTransform, Pickup)>,
-	miss_sfx: Res<MissSfx>,
-	audio: Res<Audio>,
+	_miss_sfx: Res<MissSfx>,
+	_audio: Res<Audio>,
 ) {
 	for (id, xform, pickup) in &q {
 		if xform.translation().z > 512.0 {

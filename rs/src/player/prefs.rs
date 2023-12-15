@@ -20,7 +20,7 @@ impl<'w> From<PlayerPrefsQuery<'w>> for PlayerPrefs {
 			invert_camera: *value.invert_camera,
 			fov: *value.fov,
 			input_map: value.input_map.clone(),
-			sens: value.sens.clone(),
+			sens: *value.sens,
 		}
 	}
 }

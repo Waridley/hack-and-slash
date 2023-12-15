@@ -128,6 +128,7 @@ harness = false
 
 [lints.clippy]
 needless_update = "allow" # `..default()` used a lot to allow quick adding/removing of fields
+too_many_arguments = "allow" # Systems often need lots of arguments
 
 # Helps prevent full rebuild when switching between deskop and WASM due to rustflags
 [profile.desktop]

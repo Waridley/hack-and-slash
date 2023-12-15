@@ -1,15 +1,14 @@
-use std::collections::BTreeMap;
-use std::sync::Arc;
-use std::cell::UnsafeCell;
-use std::f64::consts::{FRAC_PI_6, PI, TAU};
-use std::mem::MaybeUninit;
-use std::ops::Range;
-use noise::{NoiseFn, Seedable};
-use noise::core::worley::{distance_functions, ReturnType, worley_2d};
-use noise::permutationtable::PermutationTable;
+use crate::{offloading::wasm_yield, planet::PlanetVec2};
+use noise::{
+	core::worley::{distance_functions, worley_2d, ReturnType},
+	permutationtable::PermutationTable,
+	NoiseFn, Seedable,
+};
 use ordered_float::OrderedFloat;
-use crate::planet::PlanetVec2;
-use crate::offloading::wasm_yield;
+
+use std::f64::consts::PI;
+
+use std::sync::Arc;
 
 type OF64 = OrderedFloat<f64>;
 const KERNEL_WIDTH: usize = 25;
@@ -21,9 +20,7 @@ fn kernel_coef(x: f64, y: f64) -> f64 {
 	let kernel_radius = (KERNEL_WIDTH - 1) as f64 * 0.5;
 	let len = ((x * x) + (y * y)).sqrt();
 	let t = f64::min(len / kernel_radius, 1.0);
-	let cos = ((t * PI).cos() + 1.0)
-		/ (kernel_radius * kernel_radius * ((PI * PI) - 4.0)/ PI);
-	cos
+	((t * PI).cos() + 1.0) / (kernel_radius * kernel_radius * ((PI * PI) - 4.0) / PI)
 }
 
 pub struct ChooseAndSmooth<const N: usize> {
@@ -32,29 +29,28 @@ pub struct ChooseAndSmooth<const N: usize> {
 
 impl<const N: usize> ChooseAndSmooth<N> {
 	pub fn new(sources: [Source; N]) -> Self {
-		Self {
-			sources,
-		}
+		Self { sources }
 	}
-	
+
 	fn strongest_at(&self, point: [f64; 2]) -> usize {
-		self.sources.iter()
+		self.sources
+			.iter()
 			.map(|source| OF64::from(source.strength.get(point)))
 			.enumerate()
 			.max_by_key(|(_, val)| *val)
 			.unwrap()
 			.0
 	}
-	
+
 	// Needs to be async to allow splitting work over multiple frames on WASM
 	pub async fn generate_map(&self, center: PlanetVec2, rows: usize, columns: usize) -> Vec<f32> {
 		// Extra space around edges for blurring
 		let winner_rows = rows + KERNEL_WIDTH - 1;
 		let winner_cols = columns + KERNEL_WIDTH - 1;
-		
+
 		let mut winners = Vec::with_capacity(winner_rows * winner_cols);
 		let mut ret = Vec::with_capacity(rows * columns);
-		
+
 		for x in 0..winner_cols {
 			for y in 0..winner_rows {
 				winners.push(self.strongest_at([
@@ -62,9 +58,11 @@ impl<const N: usize> ChooseAndSmooth<N> {
 					center.y + (y as f64 - (winner_cols as f64 * 0.5)),
 				]) as u8)
 			}
-			if x % 4 == 0 { wasm_yield().await; }
+			if x % 4 == 0 {
+				wasm_yield().await;
+			}
 		}
-		
+
 		for x in 0..columns {
 			for y in 0..rows {
 				let point = [
@@ -73,16 +71,16 @@ impl<const N: usize> ChooseAndSmooth<N> {
 				];
 				let mut value_caches = [None; N];
 				let mut sum = 0.0;
-				
+
 				// Gaussian blur kernel convolution
 				for j in 0..KERNEL_WIDTH {
 					for i in 0..KERNEL_WIDTH {
 						let strongest = winners[((x + j) * winner_rows) + y + i] as usize;
-						
+
 						let i = i as f64;
 						let j = j as f64;
 						let radius = (KERNEL_WIDTH - 1) as f64 * 0.5;
-						
+
 						sum += *value_caches[strongest]
 							.get_or_insert_with(|| self.sources[strongest].noise.get(point))
 							* kernel_coef(i - radius, j - radius)
@@ -90,9 +88,11 @@ impl<const N: usize> ChooseAndSmooth<N> {
 				}
 				ret.push(sum as f32)
 			}
-			if x % 4 == 0 { wasm_yield().await; }
+			if x % 4 == 0 {
+				wasm_yield().await;
+			}
 		}
-		
+
 		ret
 	}
 }
@@ -101,13 +101,13 @@ impl<const N: usize> NoiseFn<f64, 2> for ChooseAndSmooth<N> {
 	fn get(&self, point: [f64; 2]) -> f64 {
 		let mut value_caches = [None; N];
 		let mut sum = 0.0;
-		
+
 		// Gaussian blur kernel convolution
 		for j in -((KERNEL_WIDTH / 2) as isize)..=((KERNEL_WIDTH / 2) as isize) {
 			for i in -((KERNEL_WIDTH / 2) as isize)..=((KERNEL_WIDTH / 2) as isize) {
 				let j = j as f64;
 				let i = i as f64;
-				
+
 				let cell = [point[0] + j, point[1] + i];
 				let strongest = self.strongest_at(cell);
 				sum += *value_caches[strongest]
@@ -125,7 +125,10 @@ pub struct Source {
 }
 
 impl Source {
-	pub fn new(source: impl NoiseFn<f64, 2> + Send + Sync + 'static, strength: impl NoiseFn<f64, 2> + Send + Sync + 'static) -> Self {
+	pub fn new(
+		source: impl NoiseFn<f64, 2> + Send + Sync + 'static,
+		strength: impl NoiseFn<f64, 2> + Send + Sync + 'static,
+	) -> Self {
 		Self {
 			noise: Box::new(source),
 			strength: Box::new(strength),
@@ -137,28 +140,27 @@ impl Source {
 /// Copied from `noise` crate, but with  `Rc<dyn Fn(&[f64], &[f64]) -> f64>` replaced by `Arc<
 /// dyn Fn(&[f64], &[f64]) -> f64 + Send + Sync>`
 pub struct SyncWorley {
-	
 	/// Specifies the distance function to use when calculating the boundaries of
 	/// the cell.
 	pub distance_function: Arc<DistanceFunction>,
-	
+
 	/// Signifies whether the distance from the borders of the cell should be returned, or the
 	/// value for the cell.
 	pub return_type: ReturnType,
-	
+
 	/// Frequency of the seed points.
 	pub frequency: f64,
-	
+
 	seed: u32,
 	perm_table: PermutationTable,
 }
 
-type DistanceFunction = dyn Fn(&[f64], &[f64]) -> f64 + Send + Sync;
+pub type DistanceFunction = dyn Fn(&[f64], &[f64]) -> f64 + Send + Sync;
 
 impl SyncWorley {
 	pub const DEFAULT_SEED: u32 = 0;
 	pub const DEFAULT_FREQUENCY: f64 = 1.0;
-	
+
 	pub fn new(seed: u32) -> Self {
 		Self {
 			perm_table: PermutationTable::new(seed),
@@ -168,18 +170,18 @@ impl SyncWorley {
 			frequency: Self::DEFAULT_FREQUENCY,
 		}
 	}
-	
+
 	/// Sets the distance function used by the Worley cells.
 	pub fn set_distance_function<F>(self, function: F) -> Self
-		where
-			F: Fn(&[f64], &[f64]) -> f64 + Send + Sync + 'static,
+	where
+		F: Fn(&[f64], &[f64]) -> f64 + Send + Sync + 'static,
 	{
 		Self {
 			distance_function: Arc::new(function),
 			..self
 		}
 	}
-	
+
 	/// Enables or disables applying the distance from the nearest seed point
 	/// to the output value.
 	pub fn set_return_type(self, return_type: ReturnType) -> Self {
@@ -188,7 +190,7 @@ impl SyncWorley {
 			..self
 		}
 	}
-	
+
 	/// Sets the frequency of the seed points.
 	pub fn set_frequency(self, frequency: f64) -> Self {
 		Self { frequency, ..self }
@@ -208,7 +210,7 @@ impl Seedable for SyncWorley {
 		if self.seed == seed {
 			return self;
 		}
-		
+
 		// Otherwise, regenerate the permutation table based on the new seed.
 		Self {
 			perm_table: PermutationTable::new(seed),
@@ -216,7 +218,7 @@ impl Seedable for SyncWorley {
 			..self
 		}
 	}
-	
+
 	fn seed(&self) -> u32 {
 		self.seed
 	}
@@ -236,7 +238,7 @@ impl NoiseFn<f64, 2> for SyncWorley {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	
+
 	#[test]
 	fn kernel_integral_1() {
 		let offset = (KERNEL_WIDTH - 1) as f64 * 0.5;

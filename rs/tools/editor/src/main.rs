@@ -1,6 +1,5 @@
 use async_process::{Child, Command, Stdio};
-use bevy::prelude::*;
-use bevy::tasks::IoTaskPool;
+use bevy::{prelude::*, tasks::IoTaskPool};
 use futures_lite::{io::BufReader, AsyncBufReadExt, StreamExt};
 
 #[bevy_main]

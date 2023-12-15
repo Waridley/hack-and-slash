@@ -1,25 +1,23 @@
 use bevy::prelude::*;
 use fixedbitset::FixedBitSet;
 use petgraph::visit::{
-	Data, EdgeRef, GraphBase, GraphRef, IntoEdgeReferences, IntoEdges, IntoNeighbors, VisitMap,
-	Visitable,
+	Data, EdgeRef, GraphBase, GraphRef, IntoEdgeReferences, IntoEdges, IntoNeighbors, Visitable,
 };
 use rapier3d::prelude::*;
-use std::f32::consts::SQRT_2;
-use std::ops::Range;
+use std::{f32::consts::SQRT_2, ops::Range};
 
 pub struct NavGraph {
-	chunks: Vec<NavChunk>,
-	seams: Vec<Seam>,
+	_chunks: Vec<NavChunk>,
+	_seams: Vec<Seam>,
 }
 
 pub struct NavMesh {
-	vertices: Vec<Vec3>,
-	triangle_indices: Vec<[usize; 3]>,
+	_vertices: Vec<Vec3>,
+	_triangle_indices: Vec<[usize; 3]>,
 }
 
 pub struct NavVolume {
-	shape: TypedShape<'static>,
+	_shape: TypedShape<'static>,
 }
 
 pub enum NavChunk {
@@ -71,10 +69,10 @@ impl<'a, F: FnMut(TriPair) -> bool + Copy> HeightmapNavGraph<'a, F> {
 	}
 }
 
-pub fn height_field_graph_with_max_climb<'a>(
-	heights: &'a HeightField,
+pub fn height_field_graph_with_max_climb(
+	heights: &HeightField,
 	max_climb_radians: f32,
-) -> HeightmapNavGraph<'a, impl FnMut(TriPair) -> bool + Copy + 'a> {
+) -> HeightmapNavGraph<impl FnMut(TriPair) -> bool + Copy + '_> {
 	HeightmapNavGraph {
 		heights,
 		filter: move |pair: TriPair| {
@@ -116,11 +114,7 @@ pub fn height_field_graph_with_max_climb<'a>(
 				let dot = dir.dot(tnorm.into());
 				if dot < 0.0 {
 					// Against normal, so uphill
-					if tnorm.angle(&Vec3::Y.into()) > max_climb_radians {
-						false
-					} else {
-						true
-					}
+					tnorm.angle(&Vec3::Y.into()) <= max_climb_radians
 				} else {
 					// Normal is pointing away from us, so downhill
 					true
@@ -173,11 +167,11 @@ impl<F: FnMut(TriPair) -> bool + Copy> GraphBase for HeightmapNavGraph<'_, F> {
 impl<F: FnMut(TriPair) -> bool + Copy> Visitable for HeightmapNavGraph<'_, F> {
 	type Map = FixedBitSet;
 
-	fn visit_map(self: &Self) -> Self::Map {
+	fn visit_map(&self) -> Self::Map {
 		FixedBitSet::with_capacity(self.heights.nrows() * self.heights.ncols())
 	}
 
-	fn reset_map(self: &Self, map: &mut Self::Map) {
+	fn reset_map(&self, map: &mut Self::Map) {
 		if map.len() != self.heights.nrows() * self.heights.nrows() {
 			*map = FixedBitSet::with_capacity(self.heights.nrows() * self.heights.ncols())
 		} else {

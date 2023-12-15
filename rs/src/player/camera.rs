@@ -2,13 +2,16 @@ use super::{
 	player_entity::{Cam, CamPivot},
 	BelongsToPlayer, G1,
 };
-use crate::player::PlayerId;
-use crate::settings::Settings;
-use bevy::core_pipeline::fxaa::Fxaa;
+use crate::{planet::sky::SkyShader, player::PlayerId, settings::Settings};
+
 use bevy::{
-	core_pipeline::{bloom::BloomSettings, clear_color::ClearColorConfig},
+	core_pipeline::{bloom::BloomSettings, clear_color::ClearColorConfig, fxaa::Fxaa, Skybox},
 	ecs::system::{EntityCommands, Res},
 	prelude::*,
+	render::render_resource::{
+		Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
+		TextureViewDescriptor, TextureViewDimension,
+	},
 	transform::components::{GlobalTransform, Transform},
 };
 use bevy_rapier3d::{
@@ -19,10 +22,6 @@ use bevy_rapier3d::{
 };
 use enum_components::{ERef, EntityEnumCommands};
 use std::f32::consts::FRAC_PI_2;
-use bevy::core_pipeline::bloom::BloomPrefilterSettings;
-use bevy::render::render_resource::{Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureViewDescriptor, TextureViewDimension};
-use bevy::core_pipeline::Skybox;
-use crate::planet::sky::SkyShader;
 
 pub const CAM_ACCEL: f32 = 12.0;
 const MAX_CAM_DIST: f32 = 24.0;
@@ -35,7 +34,6 @@ pub fn spawn_camera<'w, 's, 'a>(
 	images: &mut Assets<Image>,
 	asset_server: &AssetServer,
 ) -> EntityCommands<'w, 's, 'a> {
-	
 	let (sky_texture, sky_diffuse) = {
 		let size = Extent3d {
 			width: 16,
@@ -63,7 +61,7 @@ pub fn spawn_camera<'w, 's, 'a>(
 			..default()
 		};
 		tex.resize(size);
-		
+
 		let size = Extent3d {
 			width: 1,
 			height: 6,
@@ -83,7 +81,7 @@ pub fn spawn_camera<'w, 's, 'a>(
 			..tex.clone()
 		};
 		diffuse.resize(size);
-		
+
 		for chunk in tex.data.chunks_mut(4) {
 			// Displays fuchsia if shader/custom pipeline aren't working
 			chunk.copy_from_slice(&Color::FUCHSIA.as_rgba_u8());
@@ -92,15 +90,15 @@ pub fn spawn_camera<'w, 's, 'a>(
 		// for chunk in diffuse.data.chunks_mut(4) {
 		// 	chunk.copy_from_slice(&Color::rgb(0.24, 0.08, 0.48).as_rgba_u8());
 		// }
-		
+
 		tex.reinterpret_stacked_2d_as_array(6);
 		diffuse.reinterpret_stacked_2d_as_array(6);
-		
+
 		(images.add(tex), images.add(diffuse))
 	};
-	
+
 	let skybox_shader = asset_server.load::<Shader>("shaders/skybox.wgsl");
-	
+
 	let mut cmds = cmds.spawn((
 		BelongsToPlayer::with_id(player_id),
 		TransformBundle::default(),
