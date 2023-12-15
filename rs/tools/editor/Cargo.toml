@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 game = { package = "sond-has-dylib", path = "../../game-dylib" }
 
-bevy = { workspace = true }
+bevy = { workspace = true, features = ["file_watcher"] }
 
 async-process = "1.6.0"
 futures-lite = "1.12.0"

@@ -1,7 +1,10 @@
 use crate::{
 	mats::BubbleMaterial,
 	pickups::pickup::PickupItem,
-	player::{player_entity::Arm, RotVel},
+	player::{
+		player_entity::{Arm, Arms},
+		RotVel,
+	},
 };
 use bevy::{
 	math::Vec3Swizzles,
@@ -34,7 +37,7 @@ pub struct PopSfx(pub Handle<AudioSource>);
 
 pub fn setup(mut cmds: Commands, mut meshes: ResMut<Assets<Mesh>>, asset_server: Res<AssetServer>) {
 	cmds.insert_resource(SpawnTimer(Timer::new(
-		Duration::from_secs(5),
+		Duration::from_secs(8),
 		TimerMode::Repeating,
 	)));
 
@@ -83,9 +86,9 @@ pub fn spawn_pickups(
 ) {
 	if timer.tick(t.delta()).finished() {
 		let transform = Transform::from_translation(Vec3::new(
-			rng.generate::<f32>() * 640.0 - 320.0,
-			rng.generate::<f32>() * 640.0 - 320.0,
-			-212.0,
+			rng.generate::<f32>() * 2048.0 - 1024.0,
+			rng.generate::<f32>() * 2048.0 - 1024.0,
+			-768.0,
 		));
 		let points = transform.translation.xy().length() * 0.1 + 10.0;
 
@@ -113,7 +116,8 @@ pub fn spawn_pickups(
 pub fn collect(
 	mut cmds: Commands,
 	ctx: Res<RapierContext>,
-	arms: Query<&RotVel, ERef<Arm>>,
+	arms_q: Query<&RotVel, ERef<Arms>>,
+	arm_q: Query<(), ERef<Arm>>,
 	pickups: Query<(Entity, Pickup, &GlobalTransform, &Collider)>,
 	sfx: Res<PopSfx>,
 	audio: Res<Audio>,
@@ -126,7 +130,8 @@ pub fn collect(
 			col,
 			QueryFilter::exclude_fixed().exclude_rigid_body(id),
 			|other| {
-				if let Ok(rvel) = arms.get(other) {
+				if let Ok(()) = arm_q.get(other) {
+					let rvel = arms_q.single();
 					if **rvel >= 16.0 {
 						audio.play(sfx.0.clone()).with_volume(0.3);
 						match pickup {
@@ -180,12 +185,12 @@ pub struct MissSfx(Handle<AudioSource>);
 pub fn miss(
 	mut cmds: Commands,
 	q: Query<(Entity, &GlobalTransform, Pickup)>,
-	miss_sfx: Res<MissSfx>,
-	audio: Res<Audio>,
+	_miss_sfx: Res<MissSfx>,
+	_audio: Res<Audio>,
 ) {
 	for (id, xform, pickup) in &q {
 		if xform.translation().z > 512.0 {
-			audio.play((**miss_sfx).clone()).with_volume(0.1);
+			// audio.play((**miss_sfx).clone()).with_volume(0.1);
 			match pickup {
 				PickupItem::Health(val) => {
 					let val = (val.0 / 2.0) as i64;

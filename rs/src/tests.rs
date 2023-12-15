@@ -1,10 +1,11 @@
-use crate::util::FnPluginExt;
-use bevy::utils::HashMap;
-use bevy::{app::AppExit, prelude::*};
+use crate::{util::FnPluginExt, DT};
+use bevy::{app::AppExit, prelude::*, utils::HashMap};
 use bevy_rapier3d::prelude::*;
 use colored::Colorize;
-use std::fmt::Formatter;
-use std::{error::Error, fmt::Display};
+use std::{
+	error::Error,
+	fmt::{Display, Formatter},
+};
 
 #[derive(Event)]
 pub struct TestEvent {
@@ -44,12 +45,16 @@ pub fn app() -> App {
 	app.add_plugins(DefaultPlugins);
 	#[cfg(not(feature = "vis_test"))]
 	app.add_plugins(MinimalPlugins)
-		.add_plugin(bevy::log::LogPlugin::default());
+		.add_plugins(bevy::log::LogPlugin::default());
 
 	app.add_event::<TestEvent>()
 		.insert_resource(RunningTests::default())
 		.insert_resource(RapierConfiguration {
 			gravity: Vect::NEG_Z * 9.81,
+			timestep_mode: TimestepMode::Fixed {
+				dt: DT,
+				substeps: 1,
+			},
 			..default()
 		})
 		.add_plugins(RapierPhysicsPlugin::<()>::default())
@@ -58,7 +63,8 @@ pub fn app() -> App {
 		.add_systems(Update, check_test_results);
 
 	app.fn_plugin(app_started)
-		.fn_plugin(slope_angles::angle_stability);
+		.fn_plugin(slope_angles::angle_stability)
+		.add_systems(Startup, crate::offloading::tests::spawning);
 
 	app
 }
@@ -127,8 +133,10 @@ pub mod slope_angles {
 	use super::*;
 	use crate::tests::slope_angles::Error::{AngleChanged, ShouldClimb};
 	use bevy::core_pipeline::clear_color::ClearColorConfig;
-	use std::f32::consts::{FRAC_PI_3, TAU};
-	use std::time::Duration;
+	use std::{
+		f32::consts::{FRAC_PI_3, TAU},
+		time::Duration,
+	};
 
 	const CLIMB: f32 = FRAC_PI_3;
 	const SLIDE: f32 = FRAC_PI_3;
@@ -265,12 +273,14 @@ pub mod slope_angles {
 	) {
 		let Ok(out) = q.get_single() else { return };
 
-		let Some((id, angle)) = out.collisions.first().map(|col| {
-			(
-				col.entity,
-				rapier3d::math::Vector::from(col.toi.normal1)
-					.angle(&rapier3d::math::Vector::from(Vec3::Z)),
-			)
+		let Some((id, angle)) = out.collisions.first().and_then(|col| {
+			col.toi.details.as_ref().map(|details| {
+				(
+					col.entity,
+					rapier3d::math::Vector::from(details.normal1)
+						.angle(&rapier3d::math::Vector::from(Vec3::Z)),
+				)
+			})
 		}) else {
 			return;
 		};
@@ -278,11 +288,11 @@ pub mod slope_angles {
 		if out.effective_translation.length() < 1.0e-3 {
 			if angle < CLIMB - 1.0e-4 {
 				warn!("{:?}", ShouldClimb { angle });
-				// // FIXME: Too flaky
-				// events.send(TestEvent {
-				// 	name: "slope_angles::angle_stability",
-				// 	status: TestStatus::Failed(ShouldClimb { angle }.into()),
-				// })
+			// // FIXME: Too flaky
+			// events.send(TestEvent {
+			// 	name: "slope_angles::angle_stability",
+			// 	status: TestStatus::Failed(ShouldClimb { angle }.into()),
+			// })
 			} else {
 				tracker.stuck_time += t.delta();
 				if tracker.stuck_time > Duration::from_secs(3) {

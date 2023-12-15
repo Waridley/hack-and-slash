@@ -4,7 +4,6 @@ use crate::{
 		player_entity::{Controller, Root},
 		BelongsToPlayer, G1, HOVER_HEIGHT, PLAYER_GRAVITY, SLIDE_ANGLE,
 	},
-	util::quantize,
 	UP,
 };
 use bevy::prelude::*;
@@ -12,7 +11,7 @@ use bevy_rapier3d::prelude::*;
 use enum_components::ERef;
 use leafwing_abilities::prelude::*;
 
-#[derive(Component)]
+#[derive(Component, Default)]
 pub struct CtrlState {
 	pub grounded: bool,
 }
@@ -31,57 +30,96 @@ pub fn repel_ground(
 			&GlobalTransform,
 			&mut CtrlVel,
 			&mut KinematicCharacterControllerOutput,
+			&mut CtrlState,
 		),
 		ERef<Controller>,
 	>,
 	t: Res<Time>,
 ) {
-	for (body_id, global, mut ctrl_vel, mut state) in &mut q {
+	for (body_id, global, mut ctrl_vel, mut state, mut ctrl_state) in &mut q {
 		let global = global.compute_transform();
 		let col = Collider::ball(1.0);
 
+		let max_toi = HOVER_HEIGHT;
 		let result = ctx.cast_shape(
 			global.translation + (global.rotation.mul_vec3(ctrl_vel.linvel) * t.delta_seconds()), // predict next frame
 			global.rotation,
 			-UP,
 			&col,
-			HOVER_HEIGHT,
+			max_toi,
+			true,
 			QueryFilter::new()
 				.exclude_sensors()
 				.exclude_rigid_body(**body_id)
 				.groups(CollisionGroups::new(G1, !G1)),
 		);
 
-		if let Some((_, toi)) = result {
-			let angle = quantize::<10>(toi.normal1.angle_between(UP));
-			let dist = HOVER_HEIGHT - toi.toi;
+		if let Some((
+			_,
+			Toi {
+				toi,
+				details: Some(details),
+				..
+			},
+		)) = result
+		{
+			let angle = details.normal1.angle_between(UP);
+			let x = max_toi - toi; // Spring compression distance
 			if angle < SLIDE_ANGLE {
+				ctrl_state.grounded = true;
 				state.grounded = true;
-				let repel_accel = dist * dist * 64.0 - ctrl_vel.linvel.z;
-				ctrl_vel.linvel.z += repel_accel * f32::min(t.delta_seconds() * 2.0, 0.256);
+
+				// Empirically decided
+				let stiffness = 256.0;
+				let damping = 0.98;
+
+				// Think of the antigrav spring as radiating out in a spherical cone (sector),
+				// so the spring coefficient for a constant-area contact patch follows the inverse square law,
+				// not a constant like typical hooke's law springs.
+				let repel_accel = x * x * stiffness;
+
+				ctrl_vel.linvel.z += (PLAYER_GRAVITY * t.delta_seconds()) // Resist gravity for this frame
+					+ repel_accel * f32::min(t.delta_seconds(), 0.125); // don't let low framerate eject player
+
+				ctrl_vel.linvel.z *= damping;
 			} else {
+				ctrl_state.grounded = false;
 				state.grounded = false;
-				let repel_dir = global.rotation.inverse().mul_vec3(toi.normal1); // convert to local space
-				let repel_dir = Vec3 {
-					z: f32::min(-(1.0 - repel_dir.z) + ctrl_vel.linvel.z, 0.0),
-					..repel_dir
+
+				if ctrl_vel.linvel.z < 0.0 {
+					let norm = global.rotation.inverse() * details.normal1; // To player's local space
+					let v_dot_norm = ctrl_vel.linvel.dot(norm);
+					if v_dot_norm < 0.0 {
+						// Player is moving "into" the slope
+
+						ctrl_vel.linvel -= v_dot_norm * norm; // Remove the penetrating part
+
+						if ctrl_vel.linvel.z > 0.0 {
+							// Remove any upwards sliding
+							ctrl_vel.linvel.z = 0.0;
+						}
+					}
+				} else {
+					// Let player keep sliding up until gravity stops them
 				}
-				.normalize();
-				let repel_speed = 32.0;
-				ctrl_vel.linvel = repel_dir * repel_speed;
 			}
+		} else {
+			ctrl_state.grounded = false;
 		}
 	}
 }
 
-pub fn reset_jump_on_ground(
-	mut q: Query<(
-		AbilityState<PlayerAction>,
-		&KinematicCharacterControllerOutput,
-	)>,
-) {
-	for (mut state, out) in &mut q {
-		if out.grounded {
+pub fn reset_jump_on_ground(mut q: Query<(AbilityState<PlayerAction>, &CtrlState)>) {
+	for (mut state, ctrl_state) in &mut q {
+		if ctrl_state.grounded
+			&& state
+				.cooldowns
+				.get(PlayerAction::Jump)
+				.as_ref()
+				.unwrap()
+				.ready()
+				.is_ok()
+		{
 			let charges = state.charges.get_mut(PlayerAction::Jump).as_mut().unwrap();
 			charges.set_charges(charges.max_charges());
 		}
@@ -91,14 +129,9 @@ pub fn reset_jump_on_ground(
 pub fn gravity(mut q: Query<(&mut CtrlVel, &KinematicCharacterControllerOutput)>, t: Res<Time>) {
 	for (mut ctrl_vel, out) in q.iter_mut() {
 		if out.grounded {
+			// Only when actual collider is grounded, not the antigrav pulses.
+			// Let `repel_ground` handle counteracting gravity when hovering.
 			ctrl_vel.linvel.z = f32::max(ctrl_vel.linvel.z, 0.0)
-		}
-
-		let mut info = [(TOIStatus::Converged, Vect::NAN, Vect::NAN); 4];
-		for (i, col) in out.collisions.iter().enumerate() {
-			if let Some(slot) = info.get_mut(i) {
-				*slot = (col.toi.status, col.translation_remaining, col.toi.normal1)
-			}
 		}
 
 		let decr = PLAYER_GRAVITY * t.delta_seconds();
