@@ -51,6 +51,10 @@ pub fn app() -> App {
 		.insert_resource(RunningTests::default())
 		.insert_resource(RapierConfiguration {
 			gravity: Vect::NEG_Z * 9.81,
+			timestep_mode: TimestepMode::Fixed {
+				dt: DT,
+				substeps: 1,
+			},
 			..default()
 		})
 		.add_plugins(RapierPhysicsPlugin::<()>::default())
