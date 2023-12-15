@@ -10,6 +10,7 @@ use player::ctrl::CtrlVel;
 use std::{f32::consts::*, fmt::Debug, time::Duration};
 use util::FnPluginExt;
 
+pub mod offloading;
 pub mod enemies;
 pub mod mats;
 pub mod nav;
@@ -64,6 +65,7 @@ pub fn run() {
 			FrameTimeDiagnosticsPlugin,
 			AudioPlugin,
 			ParticlesPlugin,
+			offloading::OffloadingPlugin,
 		))
 		.insert_resource(PkvStore::new_with_qualifier(
 			"studio",

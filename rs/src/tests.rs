@@ -5,6 +5,7 @@ use bevy_rapier3d::prelude::*;
 use colored::Colorize;
 use std::fmt::Formatter;
 use std::{error::Error, fmt::Display};
+use crate::DT;
 
 #[derive(Event)]
 pub struct TestEvent {
@@ -58,7 +59,8 @@ pub fn app() -> App {
 		.add_systems(Update, check_test_results);
 
 	app.fn_plugin(app_started)
-		.fn_plugin(slope_angles::angle_stability);
+		.fn_plugin(slope_angles::angle_stability)
+		.add_systems(Startup, crate::offloading::tests::spawning);
 
 	app
 }
