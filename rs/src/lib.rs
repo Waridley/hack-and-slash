@@ -65,6 +65,7 @@ pub fn run() {
 			AudioPlugin,
 			ParticlesPlugin,
 			offloading::OffloadingPlugin,
+			planet::sky::SkyPlugin,
 		))
 		.insert_resource(PkvStore::new_with_qualifier(
 			"studio",
