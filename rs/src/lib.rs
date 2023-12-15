@@ -18,7 +18,6 @@ pub mod pickups;
 pub mod planet;
 pub mod player;
 pub mod settings;
-pub mod terrain;
 #[cfg(feature = "testing")]
 pub mod tests;
 pub mod ui;
@@ -76,7 +75,7 @@ pub fn run() {
 		.fn_plugin(player::plugin)
 		.fn_plugin(pickups::plugin)
 		.fn_plugin(settings::plugin)
-		.fn_plugin(terrain::plugin)
+		.fn_plugin(planet::terrain::plugin)
 		.fn_plugin(ui::plugin)
 		.add_plugins((
 			RonAssetPlugin::<BubbleMaterial>::new(&["mat.ron"]),

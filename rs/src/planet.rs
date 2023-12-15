@@ -6,6 +6,7 @@ use bevy_rapier3d::na::Vector2;
 use serde::{Deserialize, Serialize};
 
 pub mod chunks;
+pub mod terrain;
 
 #[derive(Component, Default, Debug, Copy, Clone, Deref, DerefMut, PartialEq, Serialize, Deserialize)]
 pub struct PlanetVec3(pub Vector<f64>);

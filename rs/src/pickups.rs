@@ -37,7 +37,7 @@ pub struct PopSfx(pub Handle<AudioSource>);
 
 pub fn setup(mut cmds: Commands, mut meshes: ResMut<Assets<Mesh>>, asset_server: Res<AssetServer>) {
 	cmds.insert_resource(SpawnTimer(Timer::new(
-		Duration::from_secs(5),
+		Duration::from_secs(8),
 		TimerMode::Repeating,
 	)));
 
@@ -86,9 +86,9 @@ pub fn spawn_pickups(
 ) {
 	if timer.tick(t.delta()).finished() {
 		let transform = Transform::from_translation(Vec3::new(
-			rng.generate::<f32>() * 1280.0 - 640.0,
-			rng.generate::<f32>() * 1280.0 - 640.0,
-			-848.0,
+			rng.generate::<f32>() * 2048.0 - 1024.0,
+			rng.generate::<f32>() * 2048.0 - 1024.0,
+			-768.0,
 		));
 		let points = transform.translation.xy().length() * 0.1 + 10.0;
 
@@ -190,7 +190,7 @@ pub fn miss(
 ) {
 	for (id, xform, pickup) in &q {
 		if xform.translation().z > 512.0 {
-			audio.play((**miss_sfx).clone()).with_volume(0.1);
+			// audio.play((**miss_sfx).clone()).with_volume(0.1);
 			match pickup {
 				PickupItem::Health(val) => {
 					let val = (val.0 / 2.0) as i64;
