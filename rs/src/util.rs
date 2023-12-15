@@ -1,3 +1,4 @@
+use std::ops::{Add, Mul, Sub};
 use bevy::ecs::event::Event;
 use bevy::ecs::system::{EntityCommands, StaticSystemParam, SystemParam, SystemParamItem};
 use bevy::prelude::*;
@@ -57,12 +58,20 @@ pub fn consume_spawn_events<T: Spawnable>(
 	}
 }
 
-pub trait Lerp {
-	fn lerp(self, rhs: Self, t: f32) -> Self;
-}
-
-impl Lerp for f32 {
-	fn lerp(self, rhs: Self, t: f32) -> Self {
-		((rhs - self) * t) + self
+pub trait Lerp<R, T>
+where Self: Clone,
+      R: Sub<Self>,
+      <R as Sub<Self>>::Output: Mul<T>,
+      <<R as Sub<Self>>::Output as Mul<T>>::Output: Add<Self>,
+{
+	#[inline(always)]
+	fn lerp(self, rhs: R, t: T) -> <<<R as Sub<Self>>::Output as Mul<T>>::Output as Add<Self>>::Output {
+		((rhs - self.clone()) * t) + self
 	}
 }
+
+impl<This, R, T> Lerp<R, T> for This
+where This: Clone,
+      R: Sub<This>,
+      <R as Sub<This>>::Output: Mul<T>,
+      <<R as Sub<This>>::Output as Mul<T>>::Output: Add<This>, {}
