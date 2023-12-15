@@ -1,28 +1,34 @@
 use bevy::math::Vec3;
-use bevy::prelude::{Component, Deref, DerefMut};
+use bevy::prelude::{Component, Deref, DerefMut, Vec2};
 use bevy_rapier3d::parry::math::Vector;
 use std::ops::{Add, Sub};
+use bevy_rapier3d::na::Vector2;
+use serde::{Deserialize, Serialize};
 
 pub mod chunks;
 
-#[derive(Component, Default, Debug, Copy, Clone, Deref, DerefMut, PartialEq)]
-pub struct PlanetPoint(pub Vector<f64>);
+#[derive(Component, Default, Debug, Copy, Clone, Deref, DerefMut, PartialEq, Serialize, Deserialize)]
+pub struct PlanetVec3(pub Vector<f64>);
 
-impl PlanetPoint {
+impl PlanetVec3 {
+	pub fn new(x: f64, y: f64, z: f64) -> Self {
+		Self(Vector::new(x, y, z))
+	}
+	
 	pub fn relative_to(self, other: Self) -> Vec3 {
 		let diff = self - other;
 		diff.into()
 	}
 }
 
-impl From<Vec3> for PlanetPoint {
+impl From<Vec3> for PlanetVec3 {
 	fn from(value: Vec3) -> Self {
 		Self(Vector::new(value.x as f64, value.y as f64, value.z as f64))
 	}
 }
 
-impl From<PlanetPoint> for Vec3 {
-	fn from(value: PlanetPoint) -> Self {
+impl From<PlanetVec3> for Vec3 {
+	fn from(value: PlanetVec3) -> Self {
 		Vec3 {
 			x: value.x as f32,
 			y: value.y as f32,
@@ -31,7 +37,7 @@ impl From<PlanetPoint> for Vec3 {
 	}
 }
 
-impl Add<PlanetPoint> for PlanetPoint {
+impl Add<PlanetVec3> for PlanetVec3 {
 	type Output = Self;
 
 	fn add(self, rhs: Self) -> Self::Output {
@@ -39,7 +45,7 @@ impl Add<PlanetPoint> for PlanetPoint {
 	}
 }
 
-impl Add<Vec3> for PlanetPoint {
+impl Add<Vec3> for PlanetVec3 {
 	type Output = Self;
 
 	fn add(self, rhs: Vec3) -> Self::Output {
@@ -48,7 +54,7 @@ impl Add<Vec3> for PlanetPoint {
 	}
 }
 
-impl Sub<PlanetPoint> for PlanetPoint {
+impl Sub<PlanetVec3> for PlanetVec3 {
 	type Output = Self;
 
 	fn sub(self, rhs: Self) -> Self::Output {
@@ -56,11 +62,75 @@ impl Sub<PlanetPoint> for PlanetPoint {
 	}
 }
 
-impl Sub<Vec3> for PlanetPoint {
+impl Sub<Vec3> for PlanetVec3 {
 	type Output = Self;
 
 	fn sub(self, rhs: Vec3) -> Self::Output {
 		let rhs = Vector::new(rhs.x as f64, rhs.y as f64, rhs.z as f64);
+		Self(*self - rhs)
+	}
+}
+
+#[derive(Component, Default, Debug, Copy, Clone, Deref, DerefMut, PartialEq, Serialize, Deserialize)]
+pub struct PlanetVec2(pub Vector2<f64>);
+
+
+impl PlanetVec2 {
+	pub fn new(x: f64, y: f64) -> Self {
+		Self(Vector2::new(x, y))
+	}
+	
+	pub fn relative_to(self, other: Self) -> Vec2 {
+		let diff = self - other;
+		diff.into()
+	}
+}
+
+impl From<Vec2> for PlanetVec2 {
+	fn from(value: Vec2) -> Self {
+		Self(Vector2::new(value.x as f64, value.y as f64))
+	}
+}
+
+impl From<PlanetVec2> for Vec2 {
+	fn from(value: PlanetVec2) -> Self {
+		Vec2 {
+			x: value.x as f32,
+			y: value.y as f32,
+		}
+	}
+}
+
+impl Add<PlanetVec2> for PlanetVec2 {
+	type Output = Self;
+	
+	fn add(self, rhs: Self) -> Self::Output {
+		Self(*self + *rhs)
+	}
+}
+
+impl Add<Vec2> for PlanetVec2 {
+	type Output = Self;
+	
+	fn add(self, rhs: Vec2) -> Self::Output {
+		let rhs = Vector2::new(rhs.x as f64, rhs.y as f64);
+		Self(*self + rhs)
+	}
+}
+
+impl Sub<PlanetVec2> for PlanetVec2 {
+	type Output = Self;
+	
+	fn sub(self, rhs: Self) -> Self::Output {
+		Self(*self - *rhs)
+	}
+}
+
+impl Sub<Vec2> for PlanetVec2 {
+	type Output = Self;
+	
+	fn sub(self, rhs: Vec2) -> Self::Output {
+		let rhs = Vector2::new(rhs.x as f64, rhs.y as f64);
 		Self(*self - rhs)
 	}
 }
