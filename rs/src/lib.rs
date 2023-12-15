@@ -24,9 +24,9 @@ pub mod ui;
 pub mod util;
 
 /// Epsilon
-pub const E: f32 = 1.0e-5;
+pub const EPS: f32 = 1.0e-5;
 /// Rotational epsilon in radians
-pub const R_E: f32 = TAU / (360.0 * 4.0);
+pub const R_EPS: f32 = TAU / (360.0 * 4.0);
 /// Fixed delta time
 pub const DT: f32 = 1.0 / 64.0;
 /// Up vector
@@ -83,8 +83,8 @@ pub fn run() {
 			MaterialPlugin::<BubbleMaterial>::default(),
 		))
 		.add_systems(Startup, startup)
-		.add_systems(Update, terminal_velocity)
-		.add_systems(Update, fullscreen);
+		.add_systems(Update, (terminal_velocity, fullscreen))
+		.add_systems(PostUpdate, (despawn_oob,));
 
 	#[cfg(all(debug_assertions, feature = "render"))]
 	{
@@ -95,9 +95,35 @@ pub fn run() {
 	app.run()
 }
 
+/// The absolute furthest any entity can be away from the origin before being forcibly despawned.
+/// Helps prevent crashes from `inf` translations or other bugs, as well as avoiding processing
+/// irrelevant entities.
 #[derive(Resource)]
 pub struct AbsoluteBounds {
-	extents: f32,
+	pub extents: f32,
+}
+
+impl AbsoluteBounds {
+	fn test(&self, point: Vec3) -> InBounds {
+		point.x.abs() <= self.extents
+			&& point.y.abs() <= self.extents
+			&& point.z.abs() <= self.extents
+	}
+}
+
+pub type InBounds = bool;
+
+fn despawn_oob(
+	mut cmds: Commands,
+	bounds: Res<AbsoluteBounds>,
+	q: Query<(Entity, &Transform)>,
+) {
+	for (id, xform) in &q {
+		if !bounds.test(xform.translation) {
+			bevy::log::warn!("Entity {id:?} is way out of bounds. Despawning.");
+			cmds.entity(id).despawn()
+		}
+	}
 }
 
 #[derive(Component, Deref, DerefMut, Debug, Default, Reflect)]
@@ -153,23 +179,14 @@ fn startup(
 		dbg_render_ctx.enabled = false;
 	}
 
-	cmds.insert_resource(AbsoluteBounds { extents: 2048.0 });
+	cmds.insert_resource(AbsoluteBounds { extents: 65536.0 });
 
-	cmds.spawn(DirectionalLightBundle {
-		directional_light: DirectionalLight {
-			illuminance: 1000.0,
-			..default()
-		},
-		transform: Transform::from_rotation(Quat::from_rotation_arc(
-			Vec3::NEG_Z,
-			Vec3::new(-1.0, 0.5, -1.0).normalize(),
-		)),
-		..default()
-	});
 
 	cmds.insert_resource(AmbientLight {
 		color: Color::rgb(0.64, 0.32, 1.0),
 		brightness: 0.1,
+		// // If using EnvironmentLight diffuse instead, must still insert ambient light so a default one is not used
+		// brightness: 0.0,
 	});
 }
 

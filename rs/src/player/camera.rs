@@ -19,6 +19,10 @@ use bevy_rapier3d::{
 };
 use enum_components::{ERef, EntityEnumCommands};
 use std::f32::consts::FRAC_PI_2;
+use bevy::core_pipeline::bloom::BloomPrefilterSettings;
+use bevy::render::render_resource::{Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureViewDescriptor, TextureViewDimension};
+use bevy::core_pipeline::Skybox;
+use crate::planet::sky::SkyShader;
 
 pub const CAM_ACCEL: f32 = 12.0;
 const MAX_CAM_DIST: f32 = 24.0;
@@ -28,7 +32,75 @@ pub fn spawn_camera<'w, 's, 'a>(
 	cmds: &'a mut Commands<'w, 's>,
 	player_id: PlayerId,
 	settings: &Settings,
+	images: &mut Assets<Image>,
+	asset_server: &AssetServer,
 ) -> EntityCommands<'w, 's, 'a> {
+	
+	let (sky_texture, sky_diffuse) = {
+		let size = Extent3d {
+			width: 16,
+			height: 96,
+			depth_or_array_layers: 1,
+		};
+		let mut tex = Image {
+			texture_descriptor: TextureDescriptor {
+				label: Some("skybox_texture"),
+				size,
+				dimension: TextureDimension::D2,
+				format: TextureFormat::Rgba32Float,
+				mip_level_count: 1,
+				sample_count: 1,
+				usage: TextureUsages::TEXTURE_BINDING
+					| TextureUsages::COPY_DST
+					| TextureUsages::RENDER_ATTACHMENT,
+				view_formats: &[],
+			},
+			texture_view_descriptor: Some(TextureViewDescriptor {
+				label: Some("skybox_view"),
+				dimension: Some(TextureViewDimension::Cube),
+				..default()
+			}),
+			..default()
+		};
+		tex.resize(size);
+		
+		let size = Extent3d {
+			width: 1,
+			height: 6,
+			depth_or_array_layers: 1,
+		};
+		let mut diffuse = Image {
+			texture_descriptor: TextureDescriptor {
+				label: Some("skybox_specular"),
+				size,
+				format: TextureFormat::Rgba8Unorm,
+				..tex.texture_descriptor.clone()
+			},
+			texture_view_descriptor: Some(TextureViewDescriptor {
+				label: Some("skybox_specular_view"),
+				..tex.texture_view_descriptor.clone().unwrap()
+			}),
+			..tex.clone()
+		};
+		diffuse.resize(size);
+		
+		for chunk in tex.data.chunks_mut(4) {
+			// Displays fuchsia if shader/custom pipeline aren't working
+			chunk.copy_from_slice(&Color::FUCHSIA.as_rgba_u8());
+		}
+		/* Looks washed out. Using AmbientLight instead. */
+		// for chunk in diffuse.data.chunks_mut(4) {
+		// 	chunk.copy_from_slice(&Color::rgb(0.24, 0.08, 0.48).as_rgba_u8());
+		// }
+		
+		tex.reinterpret_stacked_2d_as_array(6);
+		diffuse.reinterpret_stacked_2d_as_array(6);
+		
+		(images.add(tex), images.add(diffuse))
+	};
+	
+	let skybox_shader = asset_server.load::<Shader>("shaders/skybox.wgsl");
+	
 	let mut cmds = cmds.spawn((
 		BelongsToPlayer::with_id(player_id),
 		TransformBundle::default(),
@@ -54,6 +126,12 @@ pub fn spawn_camera<'w, 's, 'a>(
 					..default()
 				},
 				..default()
+			},
+			Skybox(sky_texture.clone()),
+			SkyShader(skybox_shader),
+			EnvironmentMapLight {
+				diffuse_map: sky_diffuse.clone(),
+				specular_map: sky_texture.clone(),
 			},
 			BloomSettings {
 				intensity: 0.1,

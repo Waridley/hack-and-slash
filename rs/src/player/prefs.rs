@@ -11,6 +11,7 @@ pub struct PlayerPrefs {
 	pub invert_camera: InvertCamera,
 	pub fov: Fov,
 	pub input_map: InputMap<PlayerAction>,
+	pub sens: LookSensitivity,
 }
 
 impl<'w> From<PlayerPrefsQuery<'w>> for PlayerPrefs {
@@ -19,6 +20,7 @@ impl<'w> From<PlayerPrefsQuery<'w>> for PlayerPrefs {
 			invert_camera: *value.invert_camera,
 			fov: *value.fov,
 			input_map: value.input_map.clone(),
+			sens: value.sens.clone(),
 		}
 	}
 }
@@ -29,6 +31,7 @@ pub struct PlayerPrefsQuery<'w> {
 	pub invert_camera: &'w mut InvertCamera,
 	pub fov: &'w mut Fov,
 	pub input_map: &'w mut InputMap<PlayerAction>,
+	pub sens: &'w mut LookSensitivity,
 }
 
 impl Default for PlayerPrefs {
@@ -42,6 +45,7 @@ impl Default for PlayerPrefs {
 				(KeyCode::E, AoE),
 				(KeyCode::Escape, Pause),
 			]),
+			sens: default(),
 		}
 	}
 }
@@ -65,5 +69,14 @@ pub struct Fov(f32);
 impl Default for Fov {
 	fn default() -> Self {
 		Self(90.0)
+	}
+}
+
+#[derive(Component, Debug, Clone, Copy, PartialEq, Deref, DerefMut, Serialize, Deserialize)]
+pub struct LookSensitivity(Vec2);
+
+impl Default for LookSensitivity {
+	fn default() -> Self {
+		Self(Vec2::new(-0.005, -0.005))
 	}
 }

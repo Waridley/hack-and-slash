@@ -1,15 +1,11 @@
 use crate::player::player_entity::Arms;
 use crate::util::Lerp;
-use crate::{
-	player::{
-		camera::CameraVertSlider,
-		ctrl::CtrlVel,
-		player_entity::{Arm, CamPivot},
-		BelongsToPlayer, RotVel, ACCEL, JUMP_VEL, MAX_JUMPS, MAX_SPEED,
-	},
-	terminal_velocity,
-	// ui::pause_menu::PauseMenuAction,
-};
+use crate::{EPS, player::{
+	camera::CameraVertSlider,
+	ctrl::CtrlVel,
+	player_entity::{Arm, CamPivot},
+	BelongsToPlayer, RotVel, ACCEL, JUMP_VEL, MAX_JUMPS, MAX_SPEED,
+}, terminal_velocity};
 use bevy::{math::Vec3Swizzles, prelude::*};
 use bevy_kira_audio::prelude::{Audio, AudioSource, *};
 use enum_components::ERef;
@@ -21,6 +17,10 @@ use std::{
 	f32::consts::{PI, TAU},
 	time::Duration,
 };
+use std::f32::consts::FRAC_PI_3;
+use bevy::input::mouse::MouseMotion;
+use bevy::window::CursorGrabMode;
+use crate::player::prefs::LookSensitivity;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugins((
@@ -28,19 +28,23 @@ pub fn plugin(app: &mut App) -> &mut App {
 		AbilityPlugin::<PlayerAction>::default(),
 	))
 	.add_systems(First, setup)
-	.add_systems(Update, abilities)
-	.add_systems(Update, jump.before(terminal_velocity))
+	.add_systems(Update, (
+		grab_mouse,
+		abilities,
+		look_input.before(terminal_velocity),
+		jump.before(terminal_velocity),
+	))
 }
 
 fn setup(
 	mut cmds: Commands,
-	q: Query<Entity, (With<ActionState<PlayerAction>>, Without<InputStorageTime>)>,
+	q: Query<Entity, (With<ActionState<PlayerAction>>, Without<InputStorageTimer>)>,
 ) {
 	for id in q.iter() {
-		let duration = Duration::from_millis(120);
+		let duration = Duration::from_millis(64);
 		let mut timer = Timer::new(duration, TimerMode::Once);
 		timer.set_elapsed(duration);
-		cmds.entity(id).insert(InputStorageTime(timer));
+		cmds.entity(id).insert(InputStorageTimer(timer));
 	}
 }
 
@@ -70,7 +74,7 @@ impl PlayerAction {
 		use PlayerAction::*;
 
 		let secs = match *self {
-			Jump => 2.0,
+			Jump => 0.128, // debouncing
 			AoE => 2.5,
 			Pause => return None,
 		};
@@ -145,11 +149,12 @@ pub fn abilities(
 		for mut rvel in &mut arms_q {
 			**rvel = **rvel + (rvel.quiescent - **rvel) * t.delta_seconds();
 		}
-		for (mut arm, mut spewer) in &mut arm_q {
+		for (i, (mut arm, mut spewer)) in arm_q.iter_mut().enumerate() {
+			let resting = Quat::from_rotation_z(i as f32 * FRAC_PI_3 * 2.0) * Vec3::X * 2.0;
 			// TODO: Filter by player
 			arm.translation = arm
 				.translation
-				.lerp(arm.translation.normalize() * 2.0, t.delta_seconds() * 2.0);
+				.lerp(resting, t.delta_seconds() * 2.0);
 			arm.scale = arm.scale.lerp(Vec3::ONE, t.delta_seconds() * 2.0);
 			spewer.interval = Duration::from_secs_f32(
 				spewer.interval.as_secs_f32().lerp(0.001, t.delta_seconds()),
@@ -159,53 +164,78 @@ pub fn abilities(
 	}
 }
 
-#[derive(Component, Resource, Reflect, Default, Debug, Clone)]
-struct InputStorageTime(Timer);
+#[derive(Component, Resource, Reflect, Default, Debug, Clone, Deref, DerefMut)]
+struct InputStorageTimer(Timer);
 
-fn jump(
+pub fn jump(
 	mut q: Query<(
 		AbilityState<PlayerAction>,
 		&mut CtrlVel,
-		&mut InputStorageTime,
+		&mut InputStorageTimer,
 	)>,
 	t: Res<Time>,
 ) {
 	for (mut state, mut vel, mut storage) in q.iter_mut() {
-		storage.0.tick(t.delta());
-		let triggered = if storage.0.finished() {
-			if state.action_state.just_pressed(PlayerAction::Jump) {
-				if state.trigger(PlayerAction::Jump).is_ok() {
-					true
+		storage.tick(t.delta());
+		let triggered = if state.cooldowns.get(PlayerAction::Jump).as_ref().unwrap().ready().is_ok() {
+			if storage.finished() {
+				// No storage timer is set right now
+				if state.action_state.just_pressed(PlayerAction::Jump) {
+					match state.trigger(PlayerAction::Jump) {
+						Ok(()) => true,
+						Err(CannotUseAbility::OnCooldown) => false, // Debounce
+						Err(CannotUseAbility::NoCharges) => {
+							// Couldn't trigger right now, keep trying over next few frames
+							storage.reset();
+							false
+						},
+						Err(e) => { bevy::log::error!("Not sure how to handle {e:?}"); false },
+					}
 				} else {
-					storage.0.reset();
 					false
 				}
 			} else {
-				false
+				// Keep trying until storage timer runs out
+				state.trigger(PlayerAction::Jump).is_ok()
 			}
 		} else {
-			state.trigger(PlayerAction::Jump).is_ok()
+			false
 		};
 
 		if triggered {
+			let dur = storage.duration();
+			storage.tick(dur); // tick makes sure it finishes, unlike set_elapsed
+			// FIXME: Debouncing isn't working for some reason
+			let cd_triggered = state.cooldowns.get_mut(PlayerAction::Jump).as_mut().unwrap().trigger().is_ok();
+			if !cd_triggered {
+				bevy::log::error!("How did we trigger Jump if the cooldown hadn't elapsed???");
+			}
 			vel.linvel.z = JUMP_VEL
 		}
 	}
 }
 
 pub fn look_input(
-	mut player_q: Query<(&mut CtrlVel, &BelongsToPlayer)>,
+	mut player_q: Query<(&mut CtrlVel, &BelongsToPlayer, &LookSensitivity)>,
 	mut camera_pivot_q: Query<
 		(&mut Transform, &mut CameraVertSlider, &BelongsToPlayer),
 		ERef<CamPivot>,
 	>,
 	kb: Res<Input<KeyCode>>,
+	mut mouse: EventReader<MouseMotion>,
+	windows: Query<&Window>,
 	t: Res<Time>,
 ) {
-	for (mut vel, player_id) in player_q.iter_mut() {
+	for (mut vel, player_id, sens) in player_q.iter_mut() {
 		let delta = (TAU / 0.5/* seconds to max angvel */) * t.delta_seconds();
+		
+		let mouse = if windows.single().cursor.grab_mode == CursorGrabMode::Locked {
+			mouse.read().fold(Vec2::ZERO, |acc, delta| acc + delta.delta * **sens)
+		} else {
+			Vec2::ZERO
+		};
 
-		let mut x_input = false;
+		let mut x_input = mouse.x.abs() > 0.0;
 		if kb.pressed(KeyCode::Left) {
 			x_input = true;
 			vel.angvel.z = (-TAU).max(vel.angvel.z - delta);
@@ -214,7 +244,9 @@ pub fn look_input(
 			x_input = true;
 			vel.angvel.z = TAU.min(vel.angvel.z + delta);
 		}
-		if !x_input {
+		if x_input {
+			vel.angvel.z += mouse.x;
+		} else {
 			vel.angvel.z *= 0.8
 		}
 
@@ -228,8 +260,11 @@ pub fn look_input(
 		if kb.pressed(KeyCode::Down) {
 			slider.0 = (slider.0 + delta * 0.1).min(1.0);
 		}
+		if mouse.y.abs() > 0.0 {
+			slider.0 = (slider.0 + mouse.y * 0.1).clamp(0.0, 1.0);
+		}
 
-		let angle = (-PI) + ((PI * 0.9) * slider.0);
+		let angle = (-PI).lerp(-PI * 0.1, slider.0);
 		xform.rotation = xform.rotation.slerp(Quat::from_rotation_x(angle), delta);
 	}
 }
@@ -265,5 +300,22 @@ pub fn movement_input(mut q: Query<&mut CtrlVel>, kb: Res<Input<KeyCode>>, t: Re
 		if ctrl_vel.linvel.y != y {
 			ctrl_vel.linvel.y = y
 		}
+	}
+}
+fn grab_mouse(
+	mut windows: Query<&mut Window>,
+	mouse: Res<Input<MouseButton>>,
+	key: Res<Input<KeyCode>>,
+) {
+	let mut window = windows.single_mut();
+	
+	if mouse.just_pressed(MouseButton::Left) {
+		window.cursor.visible = false;
+		window.cursor.grab_mode = CursorGrabMode::Locked;
+	}
+	
+	if key.just_pressed(KeyCode::Escape) {
+		window.cursor.visible = true;
+		window.cursor.grab_mode = CursorGrabMode::None;
 	}
 }

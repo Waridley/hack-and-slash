@@ -1,4 +1,4 @@
-use crate::{terminal_velocity, AbsoluteBounds, TerminalVelocity, R_E};
+use crate::{terminal_velocity, AbsoluteBounds, TerminalVelocity, R_EPS};
 use bevy::utils::HashSet;
 use bevy::{
 	ecs::system::EntityCommands,
@@ -30,6 +30,9 @@ use std::{
 	ops::{Deref, DerefMut},
 	time::Duration,
 };
+use bevy::input::keyboard::KeyboardInput;
+use rapier3d::math::Point;
+use rapier3d::prelude::Aabb;
 
 pub mod camera;
 pub mod ctrl;
@@ -41,8 +44,8 @@ pub const ACCEL: f32 = 3.0;
 pub const PLAYER_GRAVITY: f32 = 64.0;
 pub const MAX_JUMPS: f32 = 2.0;
 pub const JUMP_VEL: f32 = 64.0;
-pub const CLIMB_ANGLE: f32 = FRAC_PI_3 - R_E;
-pub const SLIDE_ANGLE: f32 = FRAC_PI_3 - R_E;
+pub const CLIMB_ANGLE: f32 = FRAC_PI_3 - R_EPS;
+pub const SLIDE_ANGLE: f32 = FRAC_PI_3 - R_EPS;
 pub const HOVER_HEIGHT: f32 = 2.0;
 const G1: Group = Group::GROUP_1;
 
@@ -50,39 +53,41 @@ pub fn plugin(app: &mut App) -> &mut App {
 	app.fn_plugin(input::plugin)
 		.add_systems(Startup, setup)
 		.add_systems(
-			PreUpdate,
+			Update,
 			(
 				ctrl::gravity,
 				ctrl::repel_ground.after(ctrl::gravity),
-				ctrl::reset_jump_on_ground,
-			),
-		)
-		.add_systems(
-			Update,
-			(
+				ctrl::reset_jump_on_ground.after(ctrl::repel_ground),
 				input::movement_input.before(terminal_velocity),
-				input::look_input.before(terminal_velocity),
-				camera::position_target.after(input::look_input),
+				camera::position_target.after(terminal_velocity),
 				camera::follow_target.after(camera::position_target),
 				ctrl::move_player.after(terminal_velocity),
 				idle,
 			),
 		)
-		.add_systems(Last, (reset_oob, countdown_respawn, spawn_players))
+		.add_systems(Last, (reset_oob, countdown_respawn, spawn_players, kill_on_key))
 		.add_event::<PlayerSpawnEvent>();
 	app
 }
 
-fn setup(
+pub fn setup(
 	mut cmds: Commands,
 	mut materials: ResMut<Assets<StandardMaterial>>,
 	mut meshes: ResMut<Assets<Mesh>>,
+	mut images: ResMut<Assets<Image>>,
 	asset_server: Res<AssetServer>,
 	settings: Res<Settings>,
 	mut spawn_events: EventWriter<PlayerSpawnEvent>,
 ) {
+	cmds.insert_resource(PlayerBounds {
+		aabb: Aabb::new(
+			Point::new(-16384.0, -16384.0, -8192.0),
+			Point::new(16384.0, 16384.0, 8192.0),
+		),
+	});
+	
 	let id = unsafe { PlayerId::new_unchecked(1) };
-	spawn_camera(&mut cmds, id, &settings);
+	spawn_camera(&mut cmds, id, &settings, &mut images, &asset_server);
 
 	let aoe_sfx = asset_server.load("sfx/SFX_-_magic_spell_03.ogg");
 	cmds.insert_resource(AoESound(aoe_sfx));
@@ -177,6 +182,7 @@ use crate::{
 	util::FnPluginExt,
 };
 use player_entity::*;
+use crate::player::ctrl::CtrlState;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum PlayerArm {
@@ -314,6 +320,9 @@ fn build_player_scene(
 
 fn player_controller(root: &mut EntityCommands, owner: BelongsToPlayer, char_collider: Collider) {
 	root.with_children(|builder| {
+		let PlayerPrefs {
+			invert_camera, fov, input_map, sens
+		} = PlayerPrefs::default();
 		builder
 			.spawn((
 				owner,
@@ -332,10 +341,12 @@ fn player_controller(root: &mut EntityCommands, owner: BelongsToPlayer, char_col
 					..default()
 				},
 				InputManagerBundle::<PlayerAction> {
-					input_map: PlayerPrefs::default().input_map,
+					input_map,
 					..default()
 				},
 				PlayerAction::abilities_bundle(),
+				CtrlState::default(),
+				(invert_camera, fov, sens),
 			))
 			.set_enum(Controller);
 	});
@@ -433,7 +444,7 @@ fn player_vis(
 					builder.spawn(PointLightBundle {
 						point_light: PointLight {
 							color: Color::rgb(0.0, 1.0, 0.6),
-							intensity: 1000.0,
+							intensity: 2048.0,
 							range: 12.0,
 							shadows_enabled: false,
 							..default()
@@ -551,15 +562,13 @@ pub fn reset_oob(
 	mut cmds: Commands,
 	q: Query<(Entity, &GlobalTransform, PlayerEntity, &BelongsToPlayer)>,
 	player_root_nodes: Query<(Entity, &BelongsToPlayer), ERef<Root>>,
-	bounds: Res<AbsoluteBounds>,
+	bounds: Res<PlayerBounds>,
 ) {
 	let mut to_respawn = HashSet::new();
 	for (_id, xform, which, owner) in &q {
 		if let PlayerEntityItem::Root(..) = which {
-			if xform.translation().x.abs() > bounds.extents
-				|| xform.translation().y.abs() > bounds.extents
-				|| xform.translation().z.abs() > bounds.extents
-			{
+			if !bounds.aabb.contains_local_point(&xform.translation().into()) {
+				bevy::log::error!("Player {owner:?} is out of bounds. Respawning.");
 				to_respawn.insert(owner);
 			}
 		}
@@ -573,6 +582,11 @@ pub fn reset_oob(
 			});
 		}
 	}
+}
+
+#[derive(Resource, Debug, Deref, DerefMut)]
+pub struct PlayerBounds {
+	pub aabb: Aabb,
 }
 
 pub fn idle(
@@ -597,7 +611,7 @@ pub fn idle(
 				+ ((s * 15.3) + phase).sin() * 0.3
 				+ ((s * 15.7) + phase).sin() * 0.3,
 			..xform.translation
-		}
+		};
 	}
 }
 
@@ -624,6 +638,22 @@ pub fn countdown_respawn(
 		if data.just_finished() {
 			cmds.entity(id).despawn();
 			spawn_events.send(PlayerSpawnEvent { id: data.id });
+		}
+	}
+}
+
+pub fn kill_on_key(
+	mut cmds: Commands,
+	mut q: Query<(Entity, &BelongsToPlayer), ERef<Root>>,
+	input: Res<Input<KeyCode>>,
+) {
+	if input.just_pressed(KeyCode::K) {
+		for (id, owner) in &mut q {
+			cmds.entity(id).despawn_recursive();
+			cmds.spawn(PlayerRespawnTimer {
+				id: owner.0,
+				timer: Timer::new(Duration::from_secs(2), TimerMode::Once),
+			});
 		}
 	}
 }
