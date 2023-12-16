@@ -1,0 +1,8 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Cleanup" type="CompoundRunConfigurationType">
+    <toRun name="Visual Tests" type="CargoCommandRunConfiguration" />
+    <toRun name="clippy" type="CargoCommandRunConfiguration" />
+    <toRun name="rustfmt" type="CargoCommandRunConfiguration" />
+    <method v="2" />
+  </configuration>
+</component>
