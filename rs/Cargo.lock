@@ -3968,6 +3968,7 @@ dependencies = [
  "serde",
  "sond-bevy-enum-components",
  "sond-bevy-particles",
+ "sond-has-macros",
  "static_assertions",
 ]
 
@@ -3986,6 +3987,16 @@ dependencies = [
  "bevy",
  "futures-lite 1.13.0",
  "sond-has-dylib",
+]
+
+[[package]]
+name = "sond-has-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro-crate 2.0.0",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.38",
 ]
 
 [[package]]

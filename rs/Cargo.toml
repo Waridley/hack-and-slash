@@ -59,6 +59,7 @@ features = [
 # Mine
 enum_components = { package = "sond-bevy-enum-components", path = "../sond-bevy-enum-components" }
 particles = { package = "sond-bevy-particles", path = "../sond-bevy-particles" }
+macros = { package = "sond-has-macros", path = "tools/macros" }
 
 # Engine
 bevy_rapier3d = { version = "0.23.0", default-features = false, features = ["dim3"] }
@@ -85,6 +86,7 @@ serde = "1"
 # Mine
 enum_components = { package = "sond-bevy-enum-components", workspace = true }
 particles = { workspace = true }
+macros = { workspace = true }
 
 # Engine
 bevy = { workspace = true }

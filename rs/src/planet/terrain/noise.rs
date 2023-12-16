@@ -1,27 +1,16 @@
 use crate::{offloading::wasm_yield, planet::PlanetVec2};
+use macros::convolution_kernel;
 use noise::{
 	core::worley::{distance_functions, worley_2d, ReturnType},
 	permutationtable::PermutationTable,
 	NoiseFn, Seedable,
 };
 use ordered_float::OrderedFloat;
-
-use std::f64::consts::PI;
-
 use std::sync::Arc;
 
 type OF64 = OrderedFloat<f64>;
-const KERNEL_WIDTH: usize = 25;
 
-/// Approximation of a gaussian function for the convolution kernel, using cosine to force
-/// a definite integral of as close to 1 as possible with `f64` math for the whole kernel.
-// TODO: Generate kernel in a macro to get more accuracy and potentially performance
-fn kernel_coef(x: f64, y: f64) -> f64 {
-	let kernel_radius = (KERNEL_WIDTH - 1) as f64 * 0.5;
-	let len = ((x * x) + (y * y)).sqrt();
-	let t = f64::min(len / kernel_radius, 1.0);
-	((t * PI).cos() + 1.0) / (kernel_radius * kernel_radius * ((PI * PI) - 4.0) / PI)
-}
+const KERNEL: [[f64; 25]; 25] = convolution_kernel!(Cosine, 25);
 
 pub struct ChooseAndSmooth<const N: usize> {
 	pub sources: [Source; N],
@@ -45,8 +34,8 @@ impl<const N: usize> ChooseAndSmooth<N> {
 	// Needs to be async to allow splitting work over multiple frames on WASM
 	pub async fn generate_map(&self, center: PlanetVec2, rows: usize, columns: usize) -> Vec<f32> {
 		// Extra space around edges for blurring
-		let winner_rows = rows + KERNEL_WIDTH - 1;
-		let winner_cols = columns + KERNEL_WIDTH - 1;
+		let winner_rows = rows + KERNEL.len() - 1;
+		let winner_cols = columns + KERNEL.len() - 1;
 
 		let mut winners = Vec::with_capacity(winner_rows * winner_cols);
 		let mut ret = Vec::with_capacity(rows * columns);
@@ -73,17 +62,12 @@ impl<const N: usize> ChooseAndSmooth<N> {
 				let mut sum = 0.0;
 
 				// Gaussian blur kernel convolution
-				for j in 0..KERNEL_WIDTH {
-					for i in 0..KERNEL_WIDTH {
+				for j in 0..KERNEL.len() {
+					for i in 0..KERNEL.len() {
 						let strongest = winners[((x + j) * winner_rows) + y + i] as usize;
-
-						let i = i as f64;
-						let j = j as f64;
-						let radius = (KERNEL_WIDTH - 1) as f64 * 0.5;
-
 						sum += *value_caches[strongest]
 							.get_or_insert_with(|| self.sources[strongest].noise.get(point))
-							* kernel_coef(i - radius, j - radius)
+							* KERNEL[i][j]
 					}
 				}
 				ret.push(sum as f32)
@@ -103,16 +87,14 @@ impl<const N: usize> NoiseFn<f64, 2> for ChooseAndSmooth<N> {
 		let mut sum = 0.0;
 
 		// Gaussian blur kernel convolution
-		for j in -((KERNEL_WIDTH / 2) as isize)..=((KERNEL_WIDTH / 2) as isize) {
-			for i in -((KERNEL_WIDTH / 2) as isize)..=((KERNEL_WIDTH / 2) as isize) {
-				let j = j as f64;
-				let i = i as f64;
-
-				let cell = [point[0] + j, point[1] + i];
+		let r = (KERNEL.len() - 1) as f64;
+		for (j, col) in KERNEL.iter().enumerate() {
+			for (i, value) in col.iter().enumerate() {
+				let cell = [point[0] + j as f64 - r, point[1] + i as f64 - r];
 				let strongest = self.strongest_at(cell);
 				sum += *value_caches[strongest]
 					.get_or_insert_with(|| self.sources[strongest].noise.get(point))
-					/ kernel_coef(i, j)
+					/ value
 			}
 		}
 		sum
@@ -241,16 +223,8 @@ mod tests {
 
 	#[test]
 	fn kernel_integral_1() {
-		let offset = (KERNEL_WIDTH - 1) as f64 * 0.5;
-		let mut sum = 0.0;
-		for x in 0..KERNEL_WIDTH {
-			for y in 0..=KERNEL_WIDTH {
-				let y = y as f64 - offset;
-				let x = x as f64 - offset;
-				sum += kernel_coef(x, y);
-			}
-		}
+		let sum: f64 = KERNEL.iter().flatten().sum();
 		let diff = (sum - 1.0).abs();
-		assert!(diff < 1.0e-3, "{sum}");
+		assert!(diff < 1.0e-10, "{KERNEL:?}\nΣ={sum}");
 	}
 }
