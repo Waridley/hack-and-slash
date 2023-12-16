@@ -38,7 +38,9 @@ use bevy::{
 
 use bevy::{prelude::*, render::camera::ExtractedCamera};
 
+use crate::planet::day_night::DayNightCycle;
 use bevy::render::{
+	extract_resource::ExtractResourcePlugin,
 	globals::{GlobalsBuffer, GlobalsUniform},
 	render_graph::{
 		NodeRunError, OutputSlotError, RenderGraphApp, RenderGraphContext, SlotLabel, ViewNode,
@@ -57,16 +59,11 @@ pub struct SkyPlugin;
 
 impl Plugin for SkyPlugin {
 	fn build(&self, app: &mut App) {
-		// /// Copied from Bevy source since it's not public
-		// const SKYBOX_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(55594763423201);
-		// let mut shaders = app.world.resource_mut::<Assets<Shader>>();
-		// shaders.insert(SKYBOX_SHADER_HANDLE, Shader::from_wgsl(
-		// 	include_str!("skybox.wgsl"),
-		// 	"skybox.wgsl",
-		// ));
-
-		app.add_plugins((ExtractComponentPlugin::<SkyShader>::default(),))
-			.add_systems(Update, notify_skybox_changed);
+		app.add_plugins((
+			ExtractComponentPlugin::<SkyShader>::default(),
+			ExtractResourcePlugin::<DayNightCycle>::default(),
+		))
+		.add_systems(Update, notify_skybox_changed);
 
 		let render_app = app.get_sub_app_mut(RenderApp).unwrap();
 		render_app
@@ -326,6 +323,7 @@ fn prepare_sky_bind_groups(
 	fallback_image: Res<FallbackImage>,
 	render_device: Res<RenderDevice>,
 	views: Query<(Entity, &Skybox)>,
+	day_night: Res<DayNightCycle>,
 	t: Res<Time>,
 ) {
 	let s = t.elapsed_seconds_wrapped();
@@ -352,6 +350,10 @@ fn prepare_sky_bind_groups(
 					face_width: skybox.size.x,
 					face_rotation: FACE_ROTATIONS[i],
 					rotation: cube_rotation,
+					time_of_day: day_night.time_of_day as f32,
+					daylight: day_night.daylight as f32,
+					sun_position: day_night.sun_position,
+					moon_position: day_night.moon_position,
 				}
 				.unprepared_bind_group(
 					&SkyCubeUniforms::bind_group_layout(&render_device),
@@ -398,4 +400,12 @@ pub struct SkyCubeUniforms {
 	face_rotation: Mat3,
 	#[uniform(0)]
 	rotation: Mat3,
+	#[uniform(0)]
+	time_of_day: f32,
+	#[uniform(0)]
+	daylight: f32,
+	#[uniform(0)]
+	sun_position: Vec3,
+	#[uniform(0)]
+	moon_position: Vec3,
 }

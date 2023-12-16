@@ -6,6 +6,10 @@ struct SkyCube {
 	face_width: f32,
 	face_rotation: mat3x3<f32>,
 	rotation: mat3x3<f32>,
+	time_of_day: f32,
+	daylight: f32,
+	sun_position: vec3<f32>,
+	moon_position: vec3<f32>,
 }
 
 @group(0) @binding(0) var<uniform> cube: SkyCube;
@@ -48,8 +52,7 @@ fn vertex(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
 	let ray_dir = ray_dir(in.position.xy);
 	let sample_dir = cube.rotation * ray_dir;
-	let daytime = (sin(globals.time * 0.01) + 1.0) * 0.707;
-	let sample_color = vec4(normalize((sample_dir + vec3(1.0))) * (daytime * daytime), 1.0);
+	let sample_color = vec4(normalize((sample_dir + vec3(1.0))) * (cube.daylight), 1.0);
 
 	return sample_color;
 }

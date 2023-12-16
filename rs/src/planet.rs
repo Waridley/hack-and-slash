@@ -1,14 +1,18 @@
-use bevy::{
-	math::Vec3,
-	prelude::{Component, Deref, DerefMut, Vec2},
-};
+use crate::{planet::day_night::DayNightCycle, util::IntoFnPlugin};
+use bevy::prelude::*;
 use bevy_rapier3d::{na::Vector2, parry::math::Vector};
 use serde::{Deserialize, Serialize};
 use std::ops::{Add, Sub};
 
 pub mod chunks;
+pub mod day_night;
 pub mod sky;
 pub mod terrain;
+
+pub fn plugin(app: &mut App) -> &mut App {
+	app.add_plugins((terrain::plugin.plugfn(), day_night::plugin.plugfn()))
+		.init_resource::<DayNightCycle>()
+}
 
 #[derive(
 	Component, Default, Debug, Copy, Clone, Deref, DerefMut, PartialEq, Serialize, Deserialize,

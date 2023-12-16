@@ -71,7 +71,7 @@ pub fn run() {
 			player::plugin.plugfn(),
 			pickups::plugin.plugfn(),
 			settings::plugin.plugfn(),
-			planet::terrain::plugin.plugfn(),
+			planet::plugin.plugfn(),
 			ui::plugin.plugfn(),
 		))
 		.insert_resource(PkvStore::new_with_qualifier(
