@@ -84,7 +84,7 @@ serde = "1"
 
 [dependencies]
 # Mine
-enum_components = { package = "sond-bevy-enum-components", workspace = true }
+enum_components = { workspace = true }
 particles = { workspace = true }
 macros = { workspace = true }
 
