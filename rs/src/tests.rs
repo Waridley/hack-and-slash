@@ -1,4 +1,4 @@
-use crate::{util::FnPluginExt, DT};
+use crate::{util::IntoFnPlugin, DT};
 use bevy::{app::AppExit, prelude::*, utils::HashMap};
 use bevy_rapier3d::prelude::*;
 use colored::Colorize;
@@ -62,8 +62,7 @@ pub fn app() -> App {
 		.add_systems(Update, timeout)
 		.add_systems(Update, check_test_results);
 
-	app.fn_plugin(app_started)
-		.fn_plugin(slope_angles::angle_stability)
+	app.add_plugins((app_started.plugfn(), slope_angles::angle_stability.plugfn()))
 		.add_systems(Startup, crate::offloading::tests::spawning);
 
 	app

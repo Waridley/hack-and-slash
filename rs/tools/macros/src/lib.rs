@@ -2,11 +2,12 @@ use proc_macro::TokenStream;
 use proc_macro2::Ident;
 use quote::quote;
 use std::f64::consts::{PI, TAU};
-use syn::parse::{Parse, ParseStream};
-use syn::spanned::Spanned;
 use syn::{
-	braced, parse_macro_input, parse_quote, Error, Expr, ExprLit, FieldValue, Lit, LitInt, Member,
-	Path, Token,
+	braced,
+	parse::{Parse, ParseStream},
+	parse_macro_input, parse_quote,
+	spanned::Spanned,
+	Error, Expr, ExprLit, FieldValue, Lit, LitInt, Member, Path, Token,
 };
 
 /// Generates a kernel for 2-dimensional convolutional blurring of type `[[f64; SIZE]; SIZE]`.

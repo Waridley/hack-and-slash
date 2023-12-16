@@ -9,7 +9,7 @@ use bevy_rapier3d::prelude::*;
 use particles::ParticlesPlugin;
 use player::ctrl::CtrlVel;
 use std::{f32::consts::*, fmt::Debug, time::Duration};
-use util::FnPluginExt;
+use util::IntoFnPlugin;
 
 pub mod enemies;
 pub mod mats;
@@ -67,18 +67,18 @@ pub fn run() {
 			ParticlesPlugin,
 			offloading::OffloadingPlugin,
 			planet::sky::SkyPlugin,
+			enemies::plugin.plugfn(),
+			player::plugin.plugfn(),
+			pickups::plugin.plugfn(),
+			settings::plugin.plugfn(),
+			planet::terrain::plugin.plugfn(),
+			ui::plugin.plugfn(),
 		))
 		.insert_resource(PkvStore::new_with_qualifier(
 			"studio",
 			"sonday",
 			env!("CARGO_PKG_NAME"),
 		))
-		.fn_plugin(enemies::plugin)
-		.fn_plugin(player::plugin)
-		.fn_plugin(pickups::plugin)
-		.fn_plugin(settings::plugin)
-		.fn_plugin(planet::terrain::plugin)
-		.fn_plugin(ui::plugin)
 		.add_plugins((
 			RonAssetPlugin::<BubbleMaterial>::new(&["mat.ron"]),
 			MaterialPlugin::<BubbleMaterial>::default(),

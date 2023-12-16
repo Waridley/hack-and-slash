@@ -49,7 +49,7 @@ pub const HOVER_HEIGHT: f32 = 2.0;
 const G1: Group = Group::GROUP_1;
 
 pub fn plugin(app: &mut App) -> &mut App {
-	app.fn_plugin(input::plugin)
+	app.add_plugins(input::plugin.plugfn())
 		.add_systems(Startup, setup)
 		.add_systems(
 			Update,
@@ -182,7 +182,7 @@ use crate::{
 		prefs::PlayerPrefs,
 	},
 	settings::Settings,
-	util::FnPluginExt,
+	util::IntoFnPlugin,
 };
 use player_entity::*;
 

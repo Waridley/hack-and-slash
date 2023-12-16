@@ -1,4 +1,4 @@
-use crate::util::FnPluginExt;
+use crate::util::IntoFnPlugin;
 use bevy::prelude::*;
 use enum_components::EnumComponent;
 
@@ -6,7 +6,7 @@ pub mod aa;
 pub mod dummy;
 
 pub fn plugin(app: &mut App) -> &mut App {
-	app.fn_plugin(dummy::plugin)
+	app.add_plugins(dummy::plugin.plugfn())
 }
 
 #[derive(EnumComponent, Reflect)]

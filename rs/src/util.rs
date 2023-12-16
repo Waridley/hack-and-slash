@@ -16,17 +16,26 @@ pub fn quantize<const BITS: u32>(value: f32) -> f32 {
 	d - t
 }
 
-/// Like [seldom_fn_plugin](https://crates.io/crates/seldom_fn_plugin) but fns must return `&mut App`
-/// just so they don't have to have a semicolon at the end
-pub trait FnPluginExt {
-	fn fn_plugin(&mut self, f: impl FnOnce(&mut App) -> &mut App) -> &mut Self;
-}
+pub struct FnPlugin<F: for<'a> Fn(&'a mut App) -> &'a mut App + Send + Sync + 'static>(F);
 
-impl FnPluginExt for App {
-	fn fn_plugin(&mut self, f: impl FnOnce(&mut App) -> &mut App) -> &mut Self {
-		(f)(self)
+impl<F> Plugin for FnPlugin<F>
+where
+	F: for<'a> Fn(&'a mut App) -> &'a mut App + Send + Sync + 'static,
+{
+	fn build(&self, app: &mut App) {
+		(self.0)(app);
 	}
 }
+
+pub trait IntoFnPlugin:
+	for<'a> Fn(&'a mut App) -> &'a mut App + Sized + Send + Sync + 'static
+{
+	fn plugfn(self) -> FnPlugin<Self> {
+		FnPlugin(self)
+	}
+}
+
+impl<F: for<'a> Fn(&'a mut App) -> &'a mut App + Send + Sync + 'static> IntoFnPlugin for F {}
 
 pub trait Spawnable {
 	type Params: SystemParam + 'static;
