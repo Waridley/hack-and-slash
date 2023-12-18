@@ -20,6 +20,7 @@ use std::{
 	f32::consts::{FRAC_PI_3, PI, TAU},
 	time::Duration,
 };
+use crate::ui::UiHovered;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugins((
@@ -320,14 +321,15 @@ pub fn movement_input(mut q: Query<&mut CtrlVel>, kb: Res<Input<KeyCode>>, t: Re
 		}
 	}
 }
-fn grab_mouse(
+pub fn grab_mouse(
 	mut windows: Query<&mut Window>,
 	mouse: Res<Input<MouseButton>>,
 	key: Res<Input<KeyCode>>,
+	ui_hovered: Res<UiHovered>,
 ) {
 	let mut window = windows.single_mut();
 
-	if mouse.just_pressed(MouseButton::Left) {
+	if mouse.just_pressed(MouseButton::Left) && !**ui_hovered {
 		window.cursor.visible = false;
 		window.cursor.grab_mode = CursorGrabMode::Locked;
 	}

@@ -12,6 +12,7 @@ pub mod terrain;
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugins((terrain::plugin.plugfn(), day_night::plugin.plugfn()))
 		.init_resource::<DayNightCycle>()
+		.register_type::<DayNightCycle>()
 }
 
 #[derive(

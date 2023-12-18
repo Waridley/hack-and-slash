@@ -6,6 +6,7 @@ use bevy::{
 		shape::{Icosphere, RegularPolygon},
 		*,
 	},
+	render::camera::ManualTextureViews,
 	utils::HashSet,
 };
 use bevy_rapier3d::{
@@ -80,6 +81,7 @@ pub fn setup(
 	asset_server: Res<AssetServer>,
 	settings: Res<Settings>,
 	mut spawn_events: EventWriter<PlayerSpawnEvent>,
+	manual_texture_views: Res<ManualTextureViews>,
 ) {
 	cmds.insert_resource(PlayerBounds {
 		aabb: Aabb::new(
@@ -89,7 +91,14 @@ pub fn setup(
 	});
 
 	let id = unsafe { PlayerId::new_unchecked(1) };
-	spawn_camera(&mut cmds, id, &settings, &mut images, &asset_server);
+	spawn_camera(
+		&mut cmds,
+		id,
+		&settings,
+		&mut images,
+		&asset_server,
+		&manual_texture_views,
+	);
 
 	let aoe_sfx = asset_server.load("sfx/SFX_-_magic_spell_03.ogg");
 	cmds.insert_resource(AoESound(aoe_sfx));
@@ -265,6 +274,7 @@ pub fn spawn_players(
 		let owner = BelongsToPlayer::with_id(id);
 		let char_collider = Collider::ball(1.2);
 		let mut root = cmds.spawn((
+			Name::new(format!("Player {} Root", owner.0.get())),
 			owner,
 			TerminalVelocity(Velocity {
 				linvel: Vect::splat(128.0),

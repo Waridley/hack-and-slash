@@ -10,6 +10,7 @@ resolver = "2"
 members = ["tools/*", "game-dylib"]
 
 [features]
+debugging = ["bevy-inspector-egui"]
 vis_test = ["testing", "render"]
 testing = ["colored"]
 render = ["bevy/bevy_render", "bevy/bevy_winit", "bevy_rapier3d/debug-render", "bevy_rapier3d/async-collider"]
@@ -27,6 +28,7 @@ leafwing_abilities = { version = "0.5.0", path = "../leafwing_abilities" }
 version = "0.12.1"
 default-features = false
 features = [
+#    "asset_processor", # only on desktop
     "animation",
     "bevy_asset",
 #    "bevy_audio", # using kira
@@ -39,7 +41,7 @@ features = [
 #    "bevy_render", # not in CI
     "bevy_sprite",
     "bevy_text",
-    "bevy_ui",
+#    "bevy_ui", # Will be making my own game UI
     "multi-threaded",
     "png",
     "hdr",
@@ -51,8 +53,8 @@ features = [
     "bevy_gizmos",
     "android_shared_stdcxx",
     "tonemapping_luts",
-    "default_font",
-    "webgl2",
+#    "default_font", # For editor, but probably not in-game
+    "webgl2", # Needed so it doesn't default to WebGPU
 ]
 
 [workspace.dependencies]
@@ -62,6 +64,7 @@ particles = { package = "sond-bevy-particles", path = "../sond-bevy-particles" }
 macros = { package = "sond-has-macros", path = "tools/macros" }
 
 # Engine
+bevy_dylib = "0.12.1"
 bevy_rapier3d = { version = "0.23.0", default-features = false, features = ["dim3"] }
 rapier3d = { version = "0.17.2", features = ["wasm-bindgen", "serde-serialize"] }
 bevy_kira_audio = "0.18.0"
@@ -73,14 +76,19 @@ bevy_common_assets = { version = "0.8.0", features = ["ron"] }
 # Util
 array-init = "2.1.0"
 bevy_pkv = "0.9.0" # settings
+crossbeam = "0.8.2"
 fixedbitset = "0.4.2" # petgraph edge storage
 futures-lite = "2.1.0" # especially for `yield_now()`
 nanorand = { version = "0.7.0", default-features = false, features = ["std", "wyrand", "getrandom"] } # wasm is broken without std and getrandom
 noise = "0.8.2"
+num-traits = "0.2.17"
 ordered-float = "4.2.0"
 petgraph = { version = "0.6.4", default-features = false } # pathfinding
 static_assertions = "1.1.0"
 serde = "1"
+
+# Debugging/Editor
+bevy-inspector-egui = "0.21.0"
 
 [dependencies]
 # Mine
@@ -90,6 +98,7 @@ macros = { workspace = true }
 
 # Engine
 bevy = { workspace = true }
+bevy_dylib = { workspace = true }
 bevy_rapier3d = { workspace = true }
 rapier3d = { workspace = true }
 bevy_kira_audio = { workspace = true }
@@ -105,10 +114,14 @@ fixedbitset = { workspace = true }
 futures-lite = { workspace = true }
 nanorand = { workspace = true }
 noise = { workspace = true }
+num-traits = { workspace = true }
 ordered-float = { workspace = true }
 petgraph = { workspace = true }
 static_assertions = { workspace = true }
 serde = { workspace = true }
+
+# Debugging
+bevy-inspector-egui = { workspace = true, optional = true }
 
 # Testing
 colored = { version = "2", optional = true }
