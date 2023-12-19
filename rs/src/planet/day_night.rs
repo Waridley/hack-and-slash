@@ -55,16 +55,14 @@ pub fn update_day_night(mut day_night: ResMut<DayNightCycle>, t: Res<Time>) {
 		let dt = t.delta_seconds_f64();
 		(day_night.time_of_day + (dt / day_night.day_length)) % 1.0
 	};
-	let daylight = |tod: f64| {
-		1.0 - ((tod - 0.5).abs() * 2.0)
-	};
-	
+	let daylight = |tod: f64| 1.0 - ((tod - 0.5).abs() * 2.0);
+
 	match day_night.mode {
 		DayNightMode::Running => {
 			day_night.time_of_day = new_tod();
 			day_night.daylight = daylight(day_night.time_of_day);
 		}
-		DayNightMode::Manual => {},
+		DayNightMode::Manual => {}
 		DayNightMode::ManualToD => day_night.daylight = daylight(day_night.time_of_day),
 		DayNightMode::OverrideDaylight => day_night.time_of_day = new_tod(),
 	}

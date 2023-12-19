@@ -1,6 +1,6 @@
 use async_process::{Child, ChildStderr, ChildStdout, Command, Stdio};
 use bevy::{
-	ecs::system::SystemId, prelude::*, render::extract_resource::ExtractResource, tasks::IoTaskPool,
+	ecs::system::SystemId, prelude::*, tasks::IoTaskPool,
 };
 use futures_lite::{io::BufReader, AsyncBufReadExt, StreamExt};
 

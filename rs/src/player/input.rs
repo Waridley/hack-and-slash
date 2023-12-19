@@ -7,6 +7,7 @@ use crate::{
 		BelongsToPlayer, RotVel, ACCEL, JUMP_VEL, MAX_JUMPS, MAX_SPEED,
 	},
 	terminal_velocity,
+	ui::UiHovered,
 	util::Lerp,
 };
 use bevy::{input::mouse::MouseMotion, math::Vec3Swizzles, prelude::*, window::CursorGrabMode};
@@ -20,7 +21,6 @@ use std::{
 	f32::consts::{FRAC_PI_3, PI, TAU},
 	time::Duration,
 };
-use crate::ui::UiHovered;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugins((

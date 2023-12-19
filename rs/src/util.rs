@@ -114,13 +114,13 @@ impl<T> History<T> {
 	/// ```
 	/// # use bevy::prelude::Update;
 	/// # use sond_has::util::History;
-	/// # #[derive(bevy::prelude::Resource)]
+	/// # #[derive(bevy::prelude::Resource, Clone)]
 	/// # struct Foo;
 	/// # let mut app = bevy::app::App::new();
 	/// app
-	/// 	.insert_resource(Foo)
-	/// 	.insert_resource(History::<Foo>::new(1024))
-	/// 	.add_systems(Update, History::<Foo>::track_resource);
+ 	///     .insert_resource(Foo)
+ 	///     .insert_resource(History::<Foo>::new(1024))
+ 	///     .add_systems(Update, History::<Foo>::track_resource);
 	/// ```
 	pub fn track_resource(mut this: ResMut<Self>, curr: Res<T>)
 	where
@@ -133,7 +133,7 @@ impl<T> History<T> {
 	/// ```
 	/// # use bevy::prelude::Update;
 	/// # use sond_has::util::History;
-	/// # #[derive(bevy::prelude::Component)]
+	/// # #[derive(bevy::prelude::Component, Clone)]
 	/// # struct Foo;
 	/// # let mut app = bevy::app::App::new();
 	/// app.add_systems(Update, History::<Foo>::track_components);

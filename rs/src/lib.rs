@@ -11,7 +11,7 @@ use player::ctrl::CtrlVel;
 use std::{f32::consts::*, fmt::Debug, time::Duration};
 use util::IntoFnPlugin;
 
-#[allow(unused_imports)]
+#[allow(unused_imports, clippy::single_component_path_imports)]
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
 use bevy_dylib;
 
@@ -81,7 +81,7 @@ impl Plugin for GameDynPlugin {
 
 pub fn game_plugin(app: &mut App) -> &mut App {
 	app.insert_resource(RapierConfiguration {
-		gravity: Vect::new(0.0, 0.0, -9.81),
+		gravity: Vect::new(0.0, 0.0, -9.80665),
 		timestep_mode: TimestepMode::Interpolated {
 			dt: DT,
 			time_scale: 1.0,

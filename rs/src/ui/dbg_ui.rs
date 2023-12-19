@@ -1,27 +1,29 @@
-use crate::util::{Average, History};
+use crate::{
+	planet::day_night::DayNightCycle,
+	ui::UiHovered,
+	util::{Average, History},
+};
 use bevy::{
 	diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
 	input::common_conditions::input_toggle_active,
 	prelude::*,
+	window::PrimaryWindow,
 };
-use bevy::window::PrimaryWindow;
-use bevy_inspector_egui::prelude::*;
-use bevy_inspector_egui::{egui, inspector_options::std_options::NumberOptions, quick::WorldInspectorPlugin, reflect_inspector::InspectorUi};
-use bevy_inspector_egui::bevy_egui::EguiContext;
-use bevy_rapier3d::plugin::{RapierConfiguration, TimestepMode};
-use bevy_rapier3d::prelude::{DebugRenderContext, RapierDebugRenderPlugin};
-use crate::planet::day_night::DayNightCycle;
-use crate::ui::UiHovered;
+use bevy_inspector_egui::{
+	bevy_egui::EguiContext, egui, inspector_options::std_options::NumberOptions, prelude::*,
+	quick::WorldInspectorPlugin, reflect_inspector::InspectorUi,
+};
+use bevy_rapier3d::{
+	plugin::{RapierConfiguration, TimestepMode},
+	prelude::{DebugRenderContext, RapierDebugRenderPlugin},
+};
 
 pub fn plugin(app: &mut App) -> &mut App {
 	#[cfg(feature = "render")]
 	app.add_plugins(RapierDebugRenderPlugin::default())
 		.add_systems(Update, toggle_physics_wireframes);
 
-	app
-		.add_plugins((
-			WorldInspectorPlugin::new().run_if(dbg_window_toggled(false, KeyCode::I)),
-		))
+	app.add_plugins((WorldInspectorPlugin::new().run_if(dbg_window_toggled(false, KeyCode::I)),))
 		.init_resource::<Fps>()
 		.insert_resource(History::<Fps>::new(240))
 		.add_systems(
@@ -31,12 +33,19 @@ pub fn plugin(app: &mut App) -> &mut App {
 				(
 					// Use `.after(...)` just to keep order consistent
 					update_fps,
-					History::<Fps>::track_resource.after(update_fps).before(dbg_fps),
+					History::<Fps>::track_resource
+						.after(update_fps)
+						.before(dbg_fps),
 					dbg_fps.run_if(dbg_window_toggled(true, KeyCode::F)),
-					dbg_res::<DayNightCycle>.run_if(dbg_window_toggled(true, KeyCode::N)).after(dbg_fps),
-					dbg_proxy::<RapierConfiguration, RapierCfgProxy>.run_if(dbg_window_toggled(false, KeyCode::R))
-				).after(reset_hovered).before(crate::player::input::grab_mouse),
-			)
+					dbg_res::<DayNightCycle>
+						.run_if(dbg_window_toggled(true, KeyCode::N))
+						.after(dbg_fps),
+					dbg_proxy::<RapierConfiguration, RapierCfgProxy>
+						.run_if(dbg_window_toggled(false, KeyCode::R)),
+				)
+					.after(reset_hovered)
+					.before(crate::player::input::grab_mouse),
+			),
 		)
 }
 
@@ -57,64 +66,62 @@ pub fn dbg_fps(
 	mut ui_hovered: ResMut<UiHovered>,
 ) {
 	let mut hovered = false;
-	egui::Window::new("FPS")
-		.fixed_size([144.0, 0.0])
-		.show(
-			egui_contexts.single_mut().get_mut(),
-			|ui| {
-				let type_registry = &*type_registry.read();
-				let mut ctx = default();
-				let mut inspector = InspectorUi::new_no_short_circuit(type_registry, &mut ctx);
-				ui.horizontal(|ui| {
-					ui.label("FPS");
-					ui.add_space(20.0);
-					ui.centered_and_justified(|ui| {
-						inspector.ui_for_reflect_readonly(
-							&fps.iter().map(|fps| &fps.fps).average::<f64, f64, f64>(),
-							ui,
-						)
-					});
+	egui::Window::new("FPS").fixed_size([144.0, 0.0]).show(
+		egui_contexts.single_mut().get_mut(),
+		|ui| {
+			let type_registry = &*type_registry.read();
+			let mut ctx = default();
+			let mut inspector = InspectorUi::new_no_short_circuit(type_registry, &mut ctx);
+			ui.horizontal(|ui| {
+				ui.label("FPS");
+				ui.add_space(20.0);
+				ui.centered_and_justified(|ui| {
+					inspector.ui_for_reflect_readonly(
+						&fps.iter().map(|fps| &fps.fps).average::<f64, f64, f64>(),
+						ui,
+					)
 				});
-				ui.horizontal(|ui| {
-					ui.label("Δt");
-					ui.add_space(26.0);
-					ui.centered_and_justified(|ui| {
-						inspector.ui_for_reflect_readonly(
-							&fps.iter()
-								.map(|fps| &fps.frame_time)
-								.average::<f64, f64, f64>(),
-							ui,
-						)
-					});
+			});
+			ui.horizontal(|ui| {
+				ui.label("Δt");
+				ui.add_space(26.0);
+				ui.centered_and_justified(|ui| {
+					inspector.ui_for_reflect_readonly(
+						&fps.iter()
+							.map(|fps| &fps.frame_time)
+							.average::<f64, f64, f64>(),
+						ui,
+					)
 				});
-				ui.horizontal(|ui| {
-					ui.label("Frame");
-					ui.add_space(4.0);
-					ui.centered_and_justified(|ui| {
-						inspector.ui_for_reflect_readonly(&fps.last().frame_count, ui)
-					});
+			});
+			ui.horizontal(|ui| {
+				ui.label("Frame");
+				ui.add_space(4.0);
+				ui.centered_and_justified(|ui| {
+					inspector.ui_for_reflect_readonly(&fps.last().frame_count, ui)
 				});
-				ui.horizontal(|ui| {
-					ui.label("Avg. over");
-					ui.centered_and_justified(|ui| {
-						let mut size = fps.max_size();
-						let mut opts = NumberOptions::<usize>::default();
-						opts.min = Some(1);
-						opts.suffix = " frames".to_owned();
-						inspector.ui_for_reflect_with_options(
-							&mut size,
-							ui,
-							egui::Id::new("FPS Average Window"),
-							&opts,
-						);
-						// Will do no work if size doesn't change, and change detection happens every frame for history anyway
-						fps.resize(size);
-					});
+			});
+			ui.horizontal(|ui| {
+				ui.label("Avg. over");
+				ui.centered_and_justified(|ui| {
+					let mut size = fps.max_size();
+					let mut opts = NumberOptions::<usize>::default();
+					opts.min = Some(1);
+					opts.suffix = " frames".to_owned();
+					inspector.ui_for_reflect_with_options(
+						&mut size,
+						ui,
+						egui::Id::new("FPS Average Window"),
+						&opts,
+					);
+					// Will do no work if size doesn't change, and change detection happens every frame for history anyway
+					fps.resize(size);
 				});
-				hovered |= ui.ui_contains_pointer();
-			},
-		);
-	
+			});
+			hovered |= ui.ui_contains_pointer();
+		},
+	);
+
 	if **ui_hovered != hovered {
 		**ui_hovered |= hovered;
 	}
@@ -127,21 +134,23 @@ pub fn dbg_res<T: Resource + Reflect>(
 	mut res: ResMut<T>,
 ) {
 	let egui_context = q.get_single_mut();
-	
+
 	let Ok(egui_context) = egui_context else {
 		return;
 	};
 	let mut egui_context = egui_context.clone();
-	
+
 	let mut hovered = false;
-	egui::Window::new(std::any::type_name::<T>().split("::").last().unwrap())
-		.show(egui_context.get_mut(), |ui| {
+	egui::Window::new(std::any::type_name::<T>().split("::").last().unwrap()).show(
+		egui_context.get_mut(),
+		|ui| {
 			let type_registry = &*type_registry.read();
 			let mut ctx = default();
 			let mut inspector = InspectorUi::new_no_short_circuit(type_registry, &mut ctx);
 			inspector.ui_for_reflect(&mut *res, ui);
 			hovered |= ui.ui_contains_pointer();
-		});
+		},
+	);
 	if hovered != **ui_hovered {
 		**ui_hovered |= hovered;
 	}
@@ -154,27 +163,29 @@ pub fn dbg_proxy<T: Resource + From<Proxy>, Proxy: for<'a> From<&'a T> + Partial
 	mut res: ResMut<T>,
 ) {
 	let mut proxy = Proxy::from(&*res);
-	
+
 	let egui_context = q.get_single_mut();
-	
+
 	let Ok(egui_context) = egui_context else {
 		return;
 	};
 	let mut egui_context = egui_context.clone();
-	
+
 	let mut hovered = false;
-	egui::Window::new(std::any::type_name::<T>().split("::").last().unwrap())
-		.show(egui_context.get_mut(), |ui| {
+	egui::Window::new(std::any::type_name::<T>().split("::").last().unwrap()).show(
+		egui_context.get_mut(),
+		|ui| {
 			let type_registry = &*type_registry.read();
 			let mut ctx = default();
 			let mut inspector = InspectorUi::new_no_short_circuit(type_registry, &mut ctx);
 			inspector.ui_for_reflect(&mut proxy, ui);
 			hovered |= ui.ui_contains_pointer();
-		});
+		},
+	);
 	if hovered != **ui_hovered {
 		**ui_hovered |= hovered;
 	}
-	
+
 	if proxy != *res {
 		*res = proxy.into()
 	}
@@ -219,12 +230,12 @@ impl From<RapierCfgProxy> for RapierConfiguration {
 
 impl PartialEq<RapierConfiguration> for RapierCfgProxy {
 	fn eq(&self, other: &RapierConfiguration) -> bool {
-		self.gravity == other.gravity &&
-		self.physics_pipeline_active == other.physics_pipeline_active &&
-		self.query_pipeline_active == other.query_pipeline_active &&
-		self.timestep_mode == (&other.timestep_mode).into() &&
-		self.scaled_shape_subdivision == other.scaled_shape_subdivision &&
-		self.force_update_from_transform_changes == other.force_update_from_transform_changes
+		self.gravity == other.gravity
+			&& self.physics_pipeline_active == other.physics_pipeline_active
+			&& self.query_pipeline_active == other.query_pipeline_active
+			&& self.timestep_mode == (&other.timestep_mode).into()
+			&& self.scaled_shape_subdivision == other.scaled_shape_subdivision
+			&& self.force_update_from_transform_changes == other.force_update_from_transform_changes
 	}
 }
 
@@ -235,21 +246,21 @@ pub enum TimestepModeProxy {
 		#[inspector(min = 0.001)]
 		dt: f32,
 		#[inspector(min = 1)]
-		substeps: usize
+		substeps: usize,
 	},
 	Variable {
 		#[inspector(min = 0.001)]
 		max_dt: f32,
 		time_scale: f32,
 		#[inspector(min = 1)]
-		substeps: usize
+		substeps: usize,
 	},
 	Interpolated {
 		#[inspector(min = 0.001)]
 		dt: f32,
 		time_scale: f32,
 		#[inspector(min = 1)]
-		substeps: usize
+		substeps: usize,
 	},
 }
 
@@ -267,8 +278,24 @@ impl From<&TimestepMode> for TimestepModeProxy {
 	fn from(value: &TimestepMode) -> Self {
 		match *value {
 			TimestepMode::Fixed { dt, substeps } => Self::Fixed { dt, substeps },
-			TimestepMode::Variable { max_dt, time_scale, substeps } => Self::Variable { max_dt, time_scale, substeps},
-			TimestepMode::Interpolated { dt, time_scale, substeps } => Self::Interpolated { dt, time_scale, substeps},
+			TimestepMode::Variable {
+				max_dt,
+				time_scale,
+				substeps,
+			} => Self::Variable {
+				max_dt,
+				time_scale,
+				substeps,
+			},
+			TimestepMode::Interpolated {
+				dt,
+				time_scale,
+				substeps,
+			} => Self::Interpolated {
+				dt,
+				time_scale,
+				substeps,
+			},
 		}
 	}
 }
@@ -277,8 +304,24 @@ impl From<TimestepModeProxy> for TimestepMode {
 	fn from(value: TimestepModeProxy) -> Self {
 		match value {
 			TimestepModeProxy::Fixed { dt, substeps } => Self::Fixed { dt, substeps },
-			TimestepModeProxy::Variable { max_dt, time_scale, substeps } => Self::Variable { max_dt, time_scale, substeps},
-			TimestepModeProxy::Interpolated { dt, time_scale, substeps } => Self::Interpolated { dt, time_scale, substeps},
+			TimestepModeProxy::Variable {
+				max_dt,
+				time_scale,
+				substeps,
+			} => Self::Variable {
+				max_dt,
+				time_scale,
+				substeps,
+			},
+			TimestepModeProxy::Interpolated {
+				dt,
+				time_scale,
+				substeps,
+			} => Self::Interpolated {
+				dt,
+				time_scale,
+				substeps,
+			},
 		}
 	}
 }
