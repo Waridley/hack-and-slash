@@ -8,11 +8,15 @@ use bevy::{
 	core_pipeline::{bloom::BloomSettings, clear_color::ClearColorConfig, fxaa::Fxaa, Skybox},
 	ecs::system::{EntityCommands, Res},
 	prelude::*,
-	render::render_resource::{
-		Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
-		TextureViewDescriptor, TextureViewDimension,
+	render::{
+		camera::{ManualTextureViewHandle, ManualTextureViews, RenderTarget},
+		render_resource::{
+			Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
+			TextureViewDescriptor, TextureViewDimension,
+		},
 	},
 	transform::components::{GlobalTransform, Transform},
+	window::WindowRef,
 };
 use bevy_rapier3d::{
 	geometry::{Collider, CollisionGroups, Group},
@@ -33,6 +37,7 @@ pub fn spawn_camera<'w, 's, 'a>(
 	settings: &Settings,
 	images: &mut Assets<Image>,
 	asset_server: &AssetServer,
+	manual_texture_views: &ManualTextureViews,
 ) -> EntityCommands<'w, 's, 'a> {
 	let (sky_texture, sky_diffuse) = {
 		let size = Extent3d {
@@ -107,12 +112,18 @@ pub fn spawn_camera<'w, 's, 'a>(
 		CamTarget::default(),
 	));
 	cmds.set_enum(Cam).with_children(|builder| {
+		let manual_tv_handle = ManualTextureViewHandle(player_id.get() as u32 - 1);
 		// Adjusting transform of Camera entity causes weird visual glitches,
 		// but parenting handles it properly
 		builder.spawn((
 			Camera3dBundle {
 				camera: Camera {
 					hdr: true,
+					target: if manual_texture_views.contains_key(&manual_tv_handle) {
+						RenderTarget::TextureView(manual_tv_handle)
+					} else {
+						RenderTarget::Window(WindowRef::Primary)
+					},
 					..default()
 				},
 				transform: Transform {

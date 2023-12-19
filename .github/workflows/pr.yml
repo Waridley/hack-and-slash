@@ -126,9 +126,10 @@ jobs:
           rm ./rs/.cargo/config.toml
           rm ./rs/rust-toolchain.toml
 
-      - name: Rustfmt
-        working-directory: ./rs
-        run: cargo fmt --all -- --check
+# Checks ALL crates in project, not just workspace
+#      - name: Rustfmt
+#        working-directory: ./rs
+#        run: cargo fmt --all -- --check
 
       - name: Clippy
         working-directory: ./rs

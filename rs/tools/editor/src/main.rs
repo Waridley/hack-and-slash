@@ -1,18 +1,19 @@
-use async_process::{Child, Command, Stdio};
-use bevy::{prelude::*, tasks::IoTaskPool};
+use async_process::{Child, ChildStderr, ChildStdout, Command, Stdio};
+use bevy::{
+	ecs::system::SystemId, prelude::*, tasks::IoTaskPool,
+};
 use futures_lite::{io::BufReader, AsyncBufReadExt, StreamExt};
 
-#[bevy_main]
 fn main() {
-	App::new()
-		.add_plugins(DefaultPlugins)
-		.add_event::<RunGameEvent>()
-		.insert_resource(RunningGame::default())
+	let mut app = App::new();
+	app.add_plugins(DefaultPlugins)
+		.init_resource::<RunningGame>()
 		.add_systems(Startup, setup)
 		.add_systems(First, clear_running_game)
-		.add_systems(Update, run_game)
-		.add_systems(Update, run_game_btn)
-		.run()
+		.add_systems(Update, run_game_btn);
+	let run_game_system = app.world.register_system(run_game_as_child_process);
+	app.insert_resource(RunGameSystem(run_game_system));
+	app.run()
 }
 
 fn setup(mut cmds: Commands) {
@@ -30,82 +31,92 @@ fn setup(mut cmds: Commands) {
 	});
 }
 
-#[derive(Event)]
-pub struct RunGameEvent;
+#[derive(Resource)]
+struct RunGameSystem(SystemId);
 #[derive(Resource, Default, Debug)]
-pub struct RunningGame(pub Option<Child>);
+struct RunningGame(pub Option<Child>);
 
-fn run_game(mut events: EventReader<RunGameEvent>, mut game: ResMut<RunningGame>) {
-	for _event in events.read() {
-		if game.0.is_some() {
-			warn!("Game is already running");
-			continue;
-		}
-		let result = Command::new("cargo")
-			.arg("run")
-			.arg("--features=bevy/dynamic")
-			.stdout(Stdio::piped())
-			.stderr(Stdio::piped())
-			// .stdin(Stdio::piped())
-			.spawn();
-		match result {
-			Ok(mut child) => {
-				let out = child.stdout.take().unwrap();
-				let err = child.stderr.take().unwrap();
-				game.0 = Some(child);
-				let tasks = IoTaskPool::get();
-				tasks
-					.spawn(async move {
-						let reader = BufReader::new(out);
-						let mut lines = reader.lines();
-						while let Some(line) = lines.next().await {
-							match line {
-								Ok(line) => println!("{line}"),
-								Err(e) => error!("{e}"),
-							}
-						}
-					})
-					.detach();
-				tasks
-					.spawn(async move {
-						let reader = BufReader::new(err);
-						let mut lines = reader.lines();
-						while let Some(line) = lines.next().await {
-							match line {
-								Ok(line) => eprintln!("{line}"),
-								Err(e) => error!("{e}"),
-							}
-						}
-					})
-					.detach();
-			}
-			Err(e) => error!("{e:?}"),
-		};
+#[allow(dead_code)]
+fn run_game_as_child_process(mut game: ResMut<RunningGame>) {
+	info!("Starting game...");
+	if game.0.is_some() {
+		warn!("Game is already running");
+		return;
 	}
+	let result = Command::new("cargo")
+		.arg("run")
+		.arg("--features=bevy/file_watcher,bevy/asset_processor,bevy/bevy_dynamic_plugin,debugging")
+		.arg("--profile=desktop")
+		.arg("--color=always")
+		.stdout(Stdio::piped())
+		.stderr(Stdio::piped())
+		// .stdin(Stdio::piped())
+		.spawn();
+	match result {
+		Ok(mut child) => {
+			let out = child.stdout.take().unwrap();
+			let err = child.stderr.take().unwrap();
+			game.0 = Some(child);
+			pipe_child_outputs(out, err);
+		}
+		Err(e) => error!("{e:?}"),
+	};
 }
 
 fn clear_running_game(mut game: ResMut<RunningGame>) {
 	if let Some(child) = game.0.as_mut() {
 		match child.try_status() {
-			Ok(Some(status)) => {
-				info!("Game finished: {status:?}");
-			}
+			Ok(Some(status)) => info!("Game finished: {status:?}"),
 			Ok(None) => return,
 			Err(e) => {
-				error!("Failed to fetch running game status: {e}")
+				error!("Failed to fetch running game status: {e}");
+				match child.kill() {
+					Ok(()) => info!("Killed child process to avoid indefinite running."),
+					Err(e) => {
+						error!("Failed to kill child process, it might still be running: {e}")
+					}
+				}
 			}
 		}
 	}
-	game.0 = None;
+	game.0 = None
+}
+
+fn pipe_child_outputs(out: ChildStdout, err: ChildStderr) {
+	let pool = IoTaskPool::get();
+	pool.spawn(async move {
+		let reader = BufReader::new(out);
+		let mut lines = reader.lines();
+		while let Some(line) = lines.next().await {
+			match line {
+				Ok(line) => println!(">\t{line}"),
+				Err(e) => error!("{e}"),
+			}
+		}
+	})
+	.detach();
+	pool.spawn(async move {
+		let reader = BufReader::new(err);
+		let mut lines = reader.lines();
+		while let Some(line) = lines.next().await {
+			match line {
+				Ok(line) => eprintln!(">\t{line}"),
+				Err(e) => error!("{e}"),
+			}
+		}
+	})
+	.detach();
 }
 
 fn run_game_btn(
+	mut cmds: Commands,
 	interaction_q: Query<&Interaction, (Changed<Interaction>, With<Button>)>,
-	mut events: EventWriter<RunGameEvent>,
+	run_game_system: Res<RunGameSystem>,
 ) {
 	for interaction in &interaction_q {
 		if *interaction == Interaction::Pressed {
-			events.send(RunGameEvent)
+			info!("Sending run game command");
+			cmds.run_system(run_game_system.0)
 		}
 	}
 }

@@ -352,8 +352,8 @@ fn prepare_sky_bind_groups(
 					rotation: cube_rotation,
 					time_of_day: day_night.time_of_day as f32,
 					daylight: day_night.daylight as f32,
-					sun_position: day_night.sun_position,
-					moon_position: day_night.moon_position,
+					sun_position: day_night.sun_direction.normalize(),
+					moon_position: day_night.moon_direction.normalize(),
 				}
 				.unprepared_bind_group(
 					&SkyCubeUniforms::bind_group_layout(&render_device),

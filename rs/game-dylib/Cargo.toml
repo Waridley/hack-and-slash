@@ -9,4 +9,5 @@ edition = "2021"
 crate-type = ["dylib"]
 
 [dependencies]
-sond-has = { path = ".." }
+sond-has = { path = "..", features = ["debugging"] }
+bevy = { workspace = true, default-features = false }

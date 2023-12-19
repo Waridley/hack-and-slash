@@ -1,6 +1,6 @@
 use crate::mats::BubbleMaterial;
 use bevy::{
-	diagnostic::FrameTimeDiagnosticsPlugin, prelude::*, window::PrimaryWindow, DefaultPlugins,
+	diagnostic::FrameTimeDiagnosticsPlugin, prelude::*, render::RenderPlugin, window::PrimaryWindow,
 };
 use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_kira_audio::AudioPlugin;
@@ -10,6 +10,10 @@ use particles::ParticlesPlugin;
 use player::ctrl::CtrlVel;
 use std::{f32::consts::*, fmt::Debug, time::Duration};
 use util::IntoFnPlugin;
+
+#[allow(unused_imports, clippy::single_component_path_imports)]
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+use bevy_dylib;
 
 pub mod enemies;
 pub mod mats;
@@ -33,67 +37,86 @@ pub const DT: f32 = 1.0 / 64.0;
 /// Up vector
 pub const UP: Vect = Vect::Z;
 
-pub fn run() {
-	let mut app = App::new();
-	let default_plugins = DefaultPlugins.set(WindowPlugin {
-		primary_window: Some(Window {
-			title: "Sonday Hack-and-Slash Game".to_string(),
-			resizable: true,
-			fit_canvas_to_parent: true,
-			canvas: Some("#game_canvas".into()),
-			..default()
-		}),
-		..default()
-	});
+#[derive(DynamicPlugin)]
+#[repr(C)]
+struct GameDynPlugin;
 
-	let default_plugins = default_plugins.set(AssetPlugin {
-		mode: AssetMode::Processed,
-		..default()
-	});
+impl Plugin for GameDynPlugin {
+	fn build(&self, app: &mut App) {
+		app.add_plugins((
+			(
+				bevy::core::TaskPoolPlugin::default(),
+				bevy::core::TypeRegistrationPlugin,
+				bevy::core::FrameCountPlugin,
+				bevy::time::TimePlugin,
+				bevy::transform::TransformPlugin,
+				bevy::hierarchy::HierarchyPlugin,
+				bevy::diagnostic::DiagnosticsPlugin,
+				bevy::input::InputPlugin,
+				// bevy::window::WindowPlugin::default(), // Need to give it the window from the editor
+				bevy::a11y::AccessibilityPlugin,
+				bevy::scene::ScenePlugin,
+			),
+			// bevy::winit::WinitPlugin::default(), // can't init EventLoop more than once
+			(
+				RenderPlugin::default(),
+				ImagePlugin::default(),
+				bevy::render::pipelined_rendering::PipelinedRenderingPlugin,
+				bevy::core_pipeline::CorePipelinePlugin,
+				bevy::sprite::SpritePlugin,
+				bevy::text::TextPlugin,
+				bevy::ui::UiPlugin,
+				bevy::pbr::PbrPlugin::default(),
+				bevy::gltf::GltfPlugin::default(),
+				bevy::audio::AudioPlugin::default(),
+				bevy::gilrs::GilrsPlugin,
+				bevy::animation::AnimationPlugin,
+				bevy::gizmos::GizmoPlugin,
+			),
+		));
 
-	app.add_plugins(default_plugins)
-		.insert_resource(RapierConfiguration {
-			gravity: Vect::new(0.0, 0.0, -9.81),
-			timestep_mode: TimestepMode::Fixed {
-				dt: DT,
-				substeps: 1,
-			},
-			..default()
-		})
-		.add_plugins((
-			RapierPhysicsPlugin::<()>::default(),
-			FrameTimeDiagnosticsPlugin,
-			AudioPlugin,
-			ParticlesPlugin,
-			offloading::OffloadingPlugin,
-			planet::sky::SkyPlugin,
-			enemies::plugin.plugfn(),
-			player::plugin.plugfn(),
-			pickups::plugin.plugfn(),
-			settings::plugin.plugfn(),
-			planet::plugin.plugfn(),
-			ui::plugin.plugfn(),
-		))
-		.insert_resource(PkvStore::new_with_qualifier(
-			"studio",
-			"sonday",
-			env!("CARGO_PKG_NAME"),
-		))
-		.add_plugins((
-			RonAssetPlugin::<BubbleMaterial>::new(&["mat.ron"]),
-			MaterialPlugin::<BubbleMaterial>::default(),
-		))
-		.add_systems(Startup, startup)
-		.add_systems(Update, (terminal_velocity, fullscreen))
-		.add_systems(PostUpdate, (despawn_oob,));
-
-	#[cfg(all(debug_assertions, feature = "render"))]
-	{
-		app.add_plugins(RapierDebugRenderPlugin::default())
-			.add_systems(Update, toggle_debug_rendering);
+		game_plugin(app);
 	}
+}
 
-	app.run()
+pub fn game_plugin(app: &mut App) -> &mut App {
+	app.insert_resource(RapierConfiguration {
+		gravity: Vect::new(0.0, 0.0, -9.80665),
+		timestep_mode: TimestepMode::Interpolated {
+			dt: DT,
+			time_scale: 1.0,
+			substeps: 1,
+		},
+		..default()
+	})
+	.add_plugins((
+		RapierPhysicsPlugin::<()>::default(),
+		FrameTimeDiagnosticsPlugin,
+		AudioPlugin,
+		ParticlesPlugin,
+		offloading::OffloadingPlugin,
+		planet::sky::SkyPlugin,
+		enemies::plugin.plugfn(),
+		player::plugin.plugfn(),
+		pickups::plugin.plugfn(),
+		settings::plugin.plugfn(),
+		planet::plugin.plugfn(),
+		ui::plugin.plugfn(),
+	))
+	.insert_resource(PkvStore::new_with_qualifier(
+		"studio",
+		"sonday",
+		env!("CARGO_PKG_NAME"),
+	))
+	.add_plugins((
+		RonAssetPlugin::<BubbleMaterial>::new(&["mat.ron"]),
+		MaterialPlugin::<BubbleMaterial>::default(),
+	))
+	.add_systems(Startup, startup)
+	.add_systems(Update, (terminal_velocity, fullscreen))
+	.add_systems(PostUpdate, (despawn_oob,));
+
+	app
 }
 
 /// The absolute furthest any entity can be away from the origin before being forcibly despawned.
@@ -164,14 +187,14 @@ pub fn tick_cooldown<A: Ability>(
 
 fn startup(
 	mut cmds: Commands,
-	#[cfg(all(debug_assertions, feature = "render"))] mut dbg_render_ctx: ResMut<
+	#[cfg(all(feature = "debugging", feature = "render"))] mut dbg_render_ctx: ResMut<
 		DebugRenderContext,
 	>,
 ) {
 	#[cfg(target_family = "wasm")]
 	cmds.insert_resource(Msaa::Off);
 
-	#[cfg(all(debug_assertions, feature = "render"))]
+	#[cfg(all(feature = "debugging", feature = "render"))]
 	{
 		dbg_render_ctx.enabled = false;
 	}
@@ -221,12 +244,5 @@ fn fullscreen(kb: Res<Input<KeyCode>>, mut windows: Query<&mut Window, With<Prim
 			Windowed => BorderlessFullscreen,
 			_ => Windowed,
 		};
-	}
-}
-
-#[cfg(all(debug_assertions, feature = "render"))]
-fn toggle_debug_rendering(mut ctx: ResMut<DebugRenderContext>, input: Res<Input<KeyCode>>) {
-	if input.just_pressed(KeyCode::P) {
-		ctx.enabled = !ctx.enabled
 	}
 }

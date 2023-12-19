@@ -7,6 +7,7 @@ use crate::{
 		BelongsToPlayer, RotVel, ACCEL, JUMP_VEL, MAX_JUMPS, MAX_SPEED,
 	},
 	terminal_velocity,
+	ui::UiHovered,
 	util::Lerp,
 };
 use bevy::{input::mouse::MouseMotion, math::Vec3Swizzles, prelude::*, window::CursorGrabMode};
@@ -320,14 +321,15 @@ pub fn movement_input(mut q: Query<&mut CtrlVel>, kb: Res<Input<KeyCode>>, t: Re
 		}
 	}
 }
-fn grab_mouse(
+pub fn grab_mouse(
 	mut windows: Query<&mut Window>,
 	mouse: Res<Input<MouseButton>>,
 	key: Res<Input<KeyCode>>,
+	ui_hovered: Res<UiHovered>,
 ) {
 	let mut window = windows.single_mut();
 
-	if mouse.just_pressed(MouseButton::Left) {
+	if mouse.just_pressed(MouseButton::Left) && !**ui_hovered {
 		window.cursor.visible = false;
 		window.cursor.grab_mode = CursorGrabMode::Locked;
 	}
