@@ -98,7 +98,6 @@ macros = { workspace = true }
 
 # Engine
 bevy = { workspace = true }
-bevy_dylib = { workspace = true }
 bevy_rapier3d = { workspace = true }
 rapier3d = { workspace = true }
 bevy_kira_audio = { workspace = true }
@@ -125,6 +124,9 @@ bevy-inspector-egui = { workspace = true, optional = true }
 
 # Testing
 colored = { version = "2", optional = true }
+
+[target.'cfg(not(target_arch="wasm32"))'.dependencies]
+bevy_dylib = { workspace = true }
 
 [profile.dev]
 opt-level = 1
