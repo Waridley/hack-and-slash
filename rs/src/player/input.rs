@@ -21,6 +21,7 @@ use std::{
 	f32::consts::{FRAC_PI_3, PI, TAU},
 	time::Duration,
 };
+use bevy::prelude::GamepadAxisType::{LeftStickX, LeftStickY, RightStickX, RightStickY};
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugins((
@@ -240,6 +241,8 @@ pub fn look_input(
 	>,
 	kb: Res<Input<KeyCode>>,
 	mut mouse: EventReader<MouseMotion>,
+	gp: Res<Gamepads>,
+	axes: Res<Axis<GamepadAxis>>,
 	windows: Query<&Window>,
 	t: Res<Time>,
 ) {
@@ -254,7 +257,16 @@ pub fn look_input(
 			Vec2::ZERO
 		};
 
+		let gp = gp.iter()
+			.fold(Vec2::ZERO, |Vec2 { x, y }, gamepad| Vec2::new(
+				x + axes.get(GamepadAxis { gamepad, axis_type: RightStickX }).unwrap_or_default(),
+				y + axes.get(GamepadAxis { gamepad, axis_type: RightStickY }).unwrap_or_default(),
+			));
 		let mut x_input = mouse.x.abs() > 0.0;
+		if gp.x.abs() > 0.2 {
+			x_input = true;
+			vel.angvel.z = (gp.x - (gp.x.signum() * 0.2)) * 2.5 * TAU;
+		}
 		if kb.pressed(KeyCode::Left) {
 			x_input = true;
 			vel.angvel.z = (-TAU).max(vel.angvel.z - delta);
@@ -263,6 +275,7 @@ pub fn look_input(
 			x_input = true;
 			vel.angvel.z = TAU.min(vel.angvel.z + delta);
 		}
+		
 		if x_input {
 			vel.angvel.z += mouse.x;
 		} else {
@@ -279,6 +292,10 @@ pub fn look_input(
 		if kb.pressed(KeyCode::Down) {
 			slider.0 = (slider.0 + delta * 0.1).min(1.0);
 		}
+		if gp.y.abs() > 0.2 {
+			let y = -gp.y + (0.2 * gp.y.signum()) * 1.25;
+			slider.0 = (slider.0 + y * delta * 0.1).clamp(0.0, 1.0);
+		}
 		if mouse.y.abs() > 0.0 {
 			slider.0 = (slider.0 + mouse.y * 0.1).clamp(0.0, 1.0);
 		}
@@ -288,7 +305,13 @@ pub fn look_input(
 	}
 }
 
-pub fn movement_input(mut q: Query<&mut CtrlVel>, kb: Res<Input<KeyCode>>, t: Res<Time>) {
+pub fn movement_input(
+	mut q: Query<&mut CtrlVel>,
+	kb: Res<Input<KeyCode>>,
+	gp: Res<Gamepads>,
+	axes: Res<Axis<GamepadAxis>>,
+	t: Res<Time>
+) {
 	for mut ctrl_vel in &mut q {
 		let (mut x, mut y) = (0.0, 0.0);
 
@@ -305,6 +328,18 @@ pub fn movement_input(mut q: Query<&mut CtrlVel>, kb: Res<Input<KeyCode>>, t: Re
 		}
 		if kb.pressed(KeyCode::D) {
 			x += 1.0;
+		}
+		
+		
+		for gamepad in gp.iter() {
+			axes.get(GamepadAxis {
+				gamepad,
+				axis_type: LeftStickX,
+			}).map(|val| x += val);
+			axes.get(GamepadAxis {
+				gamepad,
+				axis_type: LeftStickY,
+			}).map(|val| y+= val);
 		}
 
 		let Vec2 { x, y } = ctrl_vel
