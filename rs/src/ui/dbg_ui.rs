@@ -5,18 +5,25 @@ use crate::{
 };
 use bevy::{
 	diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
+	ecs::{query::ReadOnlyWorldQuery, schedule::SystemConfigs},
 	input::common_conditions::input_toggle_active,
 	prelude::*,
 	window::PrimaryWindow,
 };
 use bevy_inspector_egui::{
-	bevy_egui::EguiContext, egui, inspector_options::std_options::NumberOptions, prelude::*,
-	quick::WorldInspectorPlugin, reflect_inspector::InspectorUi,
+	bevy_egui::EguiContext,
+	egui,
+	egui::{Color32, Ui},
+	inspector_options::std_options::NumberOptions,
+	prelude::*,
+	quick::WorldInspectorPlugin,
+	reflect_inspector::InspectorUi,
 };
 use bevy_rapier3d::{
 	plugin::{RapierConfiguration, TimestepMode},
 	prelude::{DebugRenderContext, RapierDebugRenderPlugin},
 };
+use egui_plot::{Legend, Line, Plot, PlotResponse};
 
 pub fn plugin(app: &mut App) -> &mut App {
 	#[cfg(feature = "render")]
@@ -25,7 +32,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 
 	app.add_plugins((WorldInspectorPlugin::new().run_if(dbg_window_toggled(false, KeyCode::I)),))
 		.init_resource::<Fps>()
-		.insert_resource(History::<Fps>::new(240))
+		.add_systems(Startup, set_egui_style)
 		.add_systems(
 			Update,
 			(
@@ -59,6 +66,12 @@ fn reset_hovered(mut ui_hovered: ResMut<UiHovered>) {
 	}
 }
 
+pub fn set_egui_style(mut egui_contexts: Query<&mut EguiContext, With<PrimaryWindow>>) {
+	egui_contexts.single_mut().get_mut().style_mut(|style| {
+		style.visuals.window_fill = Color32::from_black_alpha(128);
+	});
+}
+
 pub fn dbg_fps(
 	mut fps: ResMut<History<Fps>>,
 	mut egui_contexts: Query<&mut EguiContext, With<PrimaryWindow>>,
@@ -66,9 +79,14 @@ pub fn dbg_fps(
 	mut ui_hovered: ResMut<UiHovered>,
 ) {
 	let mut hovered = false;
-	egui::Window::new("FPS").fixed_size([144.0, 0.0]).show(
-		egui_contexts.single_mut().get_mut(),
-		|ui| {
+	let mut ctx = egui_contexts.single_mut();
+	let ctx = ctx.get_mut();
+	ctx.style_mut(|style| {
+		style.visuals.window_fill = Color32::from_black_alpha(128);
+	});
+	egui::Window::new("FPS")
+		.default_size([144.0, 0.0])
+		.show(ctx, |ui| {
 			let type_registry = &*type_registry.read();
 			let mut ctx = default();
 			let mut inspector = InspectorUi::new_no_short_circuit(type_registry, &mut ctx);
@@ -118,9 +136,25 @@ pub fn dbg_fps(
 					fps.resize(size);
 				});
 			});
+			Plot::new("FPS")
+				.legend(Legend::default())
+				.allow_boxed_zoom(false)
+				.allow_drag(false)
+				.allow_scroll(false)
+				.show(ui, |ui| {
+					let mut t = 0.0;
+					ui.line(Line::new(
+						fps.iter()
+							.map(|fps| {
+								let point = [t, fps.fps];
+								t += fps.frame_time;
+								point
+							})
+							.collect::<Vec<_>>(),
+					))
+				});
 			hovered |= ui.ui_contains_pointer();
-		},
-	);
+		});
 
 	if **ui_hovered != hovered {
 		**ui_hovered |= hovered;
@@ -141,16 +175,13 @@ pub fn dbg_res<T: Resource + Reflect>(
 	let mut egui_context = egui_context.clone();
 
 	let mut hovered = false;
-	egui::Window::new(std::any::type_name::<T>().split("::").last().unwrap()).show(
-		egui_context.get_mut(),
-		|ui| {
-			let type_registry = &*type_registry.read();
-			let mut ctx = default();
-			let mut inspector = InspectorUi::new_no_short_circuit(type_registry, &mut ctx);
-			inspector.ui_for_reflect(&mut *res, ui);
-			hovered |= ui.ui_contains_pointer();
-		},
-	);
+	egui::Window::new(std::any::type_name::<T>()).show(egui_context.get_mut(), |ui| {
+		let type_registry = &*type_registry.read();
+		let mut ctx = default();
+		let mut inspector = InspectorUi::new_no_short_circuit(type_registry, &mut ctx);
+		inspector.ui_for_reflect(&mut *res, ui);
+		hovered |= ui.ui_contains_pointer();
+	});
 	if hovered != **ui_hovered {
 		**ui_hovered |= hovered;
 	}
@@ -356,4 +387,81 @@ pub fn toggle_physics_wireframes(mut ctx: ResMut<DebugRenderContext>, input: Res
 	if input.just_pressed(KeyCode::P) {
 		ctx.enabled = !ctx.enabled
 	}
+}
+
+pub fn plot_res_history<T: Resource, const LINES: usize>(
+	map_fn: impl FnMut((usize, &T)) -> (f64, [f64; LINES]) + Clone + Send + Sync + 'static,
+) -> SystemConfigs {
+	(move |mut egui_contexts: Query<&mut EguiContext, With<PrimaryWindow>>,
+	       mut ui_hovered: ResMut<UiHovered>,
+	       history: Res<History<T>>| {
+		let mut ctx = egui_contexts.single_mut();
+		let ctx = ctx.get_mut();
+		let map_fn = map_fn.clone();
+		egui::Window::new(std::any::type_name::<T>().split("::").last().unwrap())
+			.default_size([f32::min(720.0, history.max_size() as f32 * 2.0), 200.0])
+			.show(ctx, |ui| {
+				plot_history_mapped(ui, &*history, map_fn);
+				let hovered = ui.ui_contains_pointer();
+				if **ui_hovered != hovered {
+					**ui_hovered |= hovered;
+				}
+			});
+	})
+	.run_if(resource_exists::<History<T>>())
+}
+
+pub fn plot_component_history<
+	T: Component,
+	QueryFilter: ReadOnlyWorldQuery + 'static,
+	const LINES: usize,
+>(
+	map_fn: impl FnMut((usize, &T)) -> (f64, [f64; LINES]) + Clone + Send + Sync + 'static,
+) -> SystemConfigs {
+	(move |mut egui_contexts: Query<&mut EguiContext, With<PrimaryWindow>>,
+	       mut ui_hovered: ResMut<UiHovered>,
+	       q: Query<(Entity, &History<T>), QueryFilter>| {
+		let mut hovered = false;
+		let mut ctx = egui_contexts.single_mut();
+		let ctx = ctx.get_mut();
+		for (id, history) in &q {
+			let map_fn = map_fn.clone();
+			egui::Window::new(format!(
+				"{} {id:?}",
+				std::any::type_name::<T>().split("::").last().unwrap()
+			))
+			.default_size([f32::min(720.0, history.max_size() as f32 * 2.0), 200.0])
+			.show(ctx, |ui| {
+				plot_history_mapped(ui, history, map_fn);
+				hovered |= ui.ui_contains_pointer();
+			});
+		}
+		if **ui_hovered != hovered {
+			**ui_hovered |= hovered;
+		}
+	})
+	.into_configs()
+}
+
+pub fn plot_history_mapped<T, const LINES: usize>(
+	ui: &mut Ui,
+	history: &History<T>,
+	map_fn: impl FnMut((usize, &T)) -> (f64, [f64; LINES]),
+) -> PlotResponse<()> {
+	Plot::new(std::any::type_name::<T>())
+		.legend(Legend::default())
+		.allow_boxed_zoom(false)
+		.allow_drag(false)
+		.allow_scroll(false)
+		.show(ui, |ui| {
+			let outputs = history.iter().enumerate().map(map_fn).collect::<Vec<_>>();
+			for i in 0..LINES {
+				ui.line(Line::new(
+					outputs
+						.iter()
+						.map(|outputs| [outputs.0, outputs.1[i]])
+						.collect::<Vec<_>>(),
+				));
+			}
+		})
 }

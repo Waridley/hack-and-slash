@@ -10,7 +10,7 @@ resolver = "2"
 members = ["tools/*", "game-dylib"]
 
 [features]
-debugging = ["bevy-inspector-egui"]
+debugging = ["bevy-inspector-egui", "egui_plot"]
 vis_test = ["testing", "render"]
 testing = ["colored"]
 render = ["bevy/bevy_render", "bevy/bevy_winit", "bevy_rapier3d/debug-render", "bevy_rapier3d/async-collider"]
@@ -89,6 +89,7 @@ serde = "1"
 
 # Debugging/Editor
 bevy-inspector-egui = "0.21.0"
+egui_plot = "0.23"
 
 [dependencies]
 # Mine
@@ -121,6 +122,7 @@ serde = { workspace = true }
 
 # Debugging
 bevy-inspector-egui = { workspace = true, optional = true }
+egui_plot = {workspace = true, optional = true }
 
 # Testing
 colored = { version = "2", optional = true }

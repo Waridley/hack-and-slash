@@ -9,9 +9,12 @@ pub fn plugin(app: &mut App) -> &mut App {
 }
 
 #[derive(Resource, ExtractResource, Clone, Debug, Reflect)]
-#[cfg_attr(feature = "debugging", derive(InspectorOptions))]
 #[reflect(Resource)]
-#[cfg_attr(feature = "debugging", reflect(InspectorOptions))]
+#[cfg_attr(
+	feature = "debugging",
+	derive(InspectorOptions),
+	reflect(InspectorOptions)
+)]
 pub struct DayNightCycle {
 	pub mode: DayNightMode,
 	#[cfg_attr(feature = "debugging", inspector(min = 1.0, speed = 5.0))] // min 1s, 5s increments

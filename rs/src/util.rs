@@ -1,6 +1,7 @@
 use bevy::{
 	ecs::{
 		event::Event,
+		query::ReadOnlyWorldQuery,
 		system::{EntityCommands, StaticSystemParam, SystemParam, SystemParamItem},
 	},
 	prelude::*,
@@ -109,6 +110,12 @@ pub struct History<T> {
 	values: VecDeque<T>,
 }
 
+impl<T> Default for History<T> {
+	fn default() -> Self {
+		Self::new(256)
+	}
+}
+
 impl<T> History<T> {
 	/// A system for tracking resource value history.
 	/// ```
@@ -118,32 +125,45 @@ impl<T> History<T> {
 	/// # struct Foo;
 	/// # let mut app = bevy::app::App::new();
 	/// app
- 	///     .insert_resource(Foo)
- 	///     .insert_resource(History::<Foo>::new(1024))
- 	///     .add_systems(Update, History::<Foo>::track_resource);
+	///     .insert_resource(Foo)
+	///     .insert_resource(History::<Foo>::new(1024))
+	///     .add_systems(Update, History::<Foo>::track_resource);
 	/// ```
-	pub fn track_resource(mut this: ResMut<Self>, curr: Res<T>)
+	pub fn track_resource(mut cmds: Commands, this: Option<ResMut<Self>>, curr: Res<T>)
 	where
 		T: Clone + Resource,
 	{
-		this.update(curr.clone())
+		if let Some(mut this) = this {
+			this.update(curr.clone())
+		} else {
+			cmds.insert_resource(Self::start_with(curr.clone(), 256))
+		}
 	}
 
 	/// A system for tracking component value history.
 	/// ```
-	/// # use bevy::prelude::Update;
+	/// # use bevy::prelude::{Component, Update, With};
 	/// # use sond_has::util::History;
-	/// # #[derive(bevy::prelude::Component, Clone)]
+	/// # #[derive(Component, Clone)]
 	/// # struct Foo;
+	/// # #[derive(Component)]
+	/// # struct IsPlayer;
 	/// # let mut app = bevy::app::App::new();
-	/// app.add_systems(Update, History::<Foo>::track_components);
+	/// app.add_systems(Update, History::<Foo>::track_components::<With<IsPlayer>>);
 	/// ```
-	pub fn track_components(mut q: Query<(&mut Self, &T)>)
-	where
+	pub fn track_components<QueryFilter: ReadOnlyWorldQuery>(
+		mut cmds: Commands,
+		mut q: Query<(Entity, Option<&mut Self>, &T), QueryFilter>,
+	) where
 		T: Clone + Component,
 	{
-		for (mut this, curr) in &mut q {
-			this.update(curr.clone())
+		for (id, this, curr) in &mut q {
+			if let Some(mut this) = this {
+				this.update(curr.clone());
+			} else {
+				cmds.entity(id)
+					.try_insert(Self::start_with(curr.clone(), 256));
+			}
 		}
 	}
 
@@ -204,6 +224,26 @@ impl<T> History<T> {
 
 	pub fn last(&self) -> &T {
 		self.values.back().unwrap()
+	}
+
+	pub fn get(&self, i: usize) -> Option<&T> {
+		self.values.get(i)
+	}
+
+	pub fn get_mut(&mut self, i: usize) -> Option<&mut T> {
+		self.values.get_mut(i)
+	}
+
+	pub fn n_ago(&self, n: usize) -> Option<&T> {
+		self.get(self.values.len() - 1 - n)
+	}
+
+	pub fn n_ago_mut(&mut self, n: usize) -> Option<&mut T> {
+		self.get_mut(self.values.len() - 1 - n)
+	}
+
+	pub fn len(&self) -> usize {
+		self.values.len()
 	}
 
 	pub fn is_empty(&self) -> bool {
