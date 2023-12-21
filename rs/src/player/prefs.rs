@@ -36,15 +36,21 @@ pub struct PlayerPrefsQuery<'w> {
 
 impl Default for PlayerPrefs {
 	fn default() -> Self {
+		let mut input_map = InputMap::new([
+			(KeyCode::Back, Jump),
+			(KeyCode::Space, Jump),
+			(KeyCode::E, AoE),
+			(KeyCode::Escape, Pause),
+		]);
+		input_map.insert_multiple([
+			(GamepadButtonType::South, Jump),
+			(GamepadButtonType::RightTrigger, AoE),
+			(GamepadButtonType::Start, Pause),
+		]);
 		Self {
 			invert_camera: default(),
 			fov: default(),
-			input_map: InputMap::new([
-				(KeyCode::Back, Jump),
-				(KeyCode::Space, Jump),
-				(KeyCode::E, AoE),
-				(KeyCode::Escape, Pause),
-			]),
+			input_map,
 			sens: default(),
 		}
 	}
