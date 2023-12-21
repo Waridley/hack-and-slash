@@ -159,15 +159,16 @@ pub fn spawn_pivot<'w, 's, 'a>(
 	cmds: &'a mut Commands<'w, 's>,
 	owner: BelongsToPlayer,
 ) -> EntityCommands<'w, 's, 'a> {
-	let mut cmds = cmds.spawn((
-		owner,
-		CameraVertSlider(0.4),
-		TransformBundle::from_transform(Transform {
-			translation: Vect::new(0.0, 6.4, 0.0),
-			..default()
-		}),
-	));
-	cmds.set_enum(CamPivot);
+	let cmds = cmds
+		.spawn((
+			owner,
+			CameraVertSlider(0.4),
+			TransformBundle::from_transform(Transform {
+				translation: Vect::new(0.0, 6.4, 0.0),
+				..default()
+			}),
+		))
+		.with_enum(CamPivot);
 	cmds
 }
 

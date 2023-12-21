@@ -6,7 +6,7 @@ use bevy::{
 };
 use bevy_rapier3d::{
 	math::Vect,
-	prelude::{Collider, RigidBody},
+	prelude::{Collider, RigidBody, TransformInterpolation},
 };
 use enum_components::EntityEnumCommands;
 use std::time::Duration;
@@ -49,6 +49,7 @@ struct DummyBundle {
 	mat_mesh: MaterialMeshBundle<StandardMaterial>,
 	body: RigidBody,
 	collider: Collider,
+	interp: TransformInterpolation,
 }
 
 impl Spawnable for Dummy {

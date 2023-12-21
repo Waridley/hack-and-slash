@@ -1855,6 +1855,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "egui_plot"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7f33a00fe8eb1ba56535b3dbacdecc7a1365a328908a97c5f3c81bb466be72b"
+dependencies = [
+ "egui",
+]
+
+[[package]]
 name = "either"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2740,7 +2749,7 @@ version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cde8ae98d45607e4015d0b772d4a234788ebd7a41f09879f408c7f772b81e5bf"
 dependencies = [
- "proc-macro-crate 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "proc-macro-crate 2.0.1",
  "proc-macro2",
  "quote",
  "syn 2.0.41",
@@ -3597,16 +3606,7 @@ dependencies = [
 [[package]]
 name = "proc-macro-crate"
 version = "2.0.1"
-dependencies = [
- "toml_datetime",
- "toml_edit 0.20.2",
-]
-
-[[package]]
-name = "proc-macro-crate"
-version = "2.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97dc5fea232fc28d2f597b37c4876b348a40e33f3b02cc975c8d006d78d94b1a"
+source = "git+https://github.com/Waridley/proc-macro-crate.git?branch=root_workspace_deps#0f3c27ee8e3792d818378dbfee63e34733b0226a"
 dependencies = [
  "toml_datetime",
  "toml_edit 0.20.2",
@@ -4152,6 +4152,7 @@ dependencies = [
  "bevy_pkv",
  "bevy_rapier3d",
  "colored",
+ "egui_plot",
  "fixedbitset",
  "futures-lite 2.1.0",
  "leafwing-input-manager",
@@ -4193,7 +4194,7 @@ dependencies = [
 name = "sond-has-macros"
 version = "0.1.0"
 dependencies = [
- "proc-macro-crate 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "proc-macro-crate 2.0.1",
  "proc-macro2",
  "quote",
  "syn 2.0.41",
