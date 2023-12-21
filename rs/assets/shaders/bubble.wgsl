@@ -1,24 +1,42 @@
-#import bevy_pbr::forward_io::VertexOutput
-#import bevy_pbr::mesh_view_bindings::view
-#import bevy_pbr::mesh_bindings
+#import bevy_pbr::{
+    pbr_fragment::pbr_input_from_standard_material,
+    pbr_functions::{
+    	apply_pbr_lighting,
+    	main_pass_post_lighting_processing,
+    },
+    forward_io::VertexOutput,
+    mesh_view_bindings::view,
+    mesh_bindings,
+    forward_io::FragmentOutput,
+}
 
 struct BubbleMaterial {
-	@location(0) color: vec4<f32>,
-	@location(1) intensity: f32,
+	color: vec4<f32>,
+	intensity: f32,
 };
 
-@group(1) @binding(0)
+@group(1) @binding(100)
 var<uniform> material: BubbleMaterial;
 
 
 @fragment
 fn fragment(
-	in: VertexOutput
-) -> @location(0) vec4<f32> {
+	in: VertexOutput,
+	@builtin(front_facing) is_front: bool,
+) -> FragmentOutput {
+	var pbr_in = pbr_input_from_standard_material(in, is_front);
+
 	var N = normalize(in.world_normal);
 	var V = normalize(view.world_position.xyz - in.world_position.xyz);
 	var NdotV = max(dot(N, V), 0.0001);
-	let glow = (1.0 + material.color.a) - pow(NdotV, material.intensity);
+	let glow = pow(1.0 + material.color.a - pow(NdotV, 0.3), 4.0) * material.intensity;
 
-	return vec4(material.color.xyz * glow, glow);
+	var out: FragmentOutput;
+
+	out.color = apply_pbr_lighting(pbr_in);
+	out.color += vec4(material.color.xyz * glow, 0.0);
+
+	out.color = main_pass_post_lighting_processing(pbr_in, out.color);
+
+	return out;
 }

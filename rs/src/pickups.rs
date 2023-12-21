@@ -8,6 +8,7 @@ use crate::{
 };
 use bevy::{
 	math::Vec3Swizzles,
+	pbr::ExtendedMaterial,
 	prelude::{shape::Icosphere, *},
 };
 use bevy_kira_audio::{Audio, AudioControl, AudioSource};
@@ -35,9 +36,14 @@ pub fn plugin(app: &mut App) -> &mut App {
 #[derive(Resource, Default, Debug, Clone, Deref, DerefMut)]
 pub struct PopSfx(pub Handle<AudioSource>);
 
-pub fn setup(mut cmds: Commands, mut meshes: ResMut<Assets<Mesh>>, asset_server: Res<AssetServer>) {
+pub fn setup(
+	mut cmds: Commands,
+	mut meshes: ResMut<Assets<Mesh>>,
+	mut mats: ResMut<Assets<ExtendedMaterial<StandardMaterial, BubbleMaterial>>>,
+	asset_server: Res<AssetServer>,
+) {
 	cmds.insert_resource(SpawnTimer(Timer::new(
-		Duration::from_secs(8),
+		Duration::from_secs(2),
 		TimerMode::Repeating,
 	)));
 
@@ -53,7 +59,22 @@ pub fn setup(mut cmds: Commands, mut meshes: ResMut<Assets<Mesh>>, asset_server:
 		.expect("create icosphere mesh"),
 	);
 
-	let material = asset_server.load("pickups/pickup_material.mat.ron");
+	let bubble = BubbleMaterial {
+		color: Color::rgba(2.0, 0.8, 0.0, 0.1),
+		intensity: 6.0,
+	};
+	let standard = StandardMaterial {
+		specular_transmission: 1.0,
+		thickness: 8.0,
+		ior: 3.0,
+		perceptual_roughness: 0.3,
+		..default()
+	};
+
+	let material = mats.add(ExtendedMaterial {
+		base: standard,
+		extension: bubble,
+	});
 
 	cmds.insert_resource(PickupAssets { mesh, material })
 }
@@ -68,7 +89,7 @@ pub enum Pickup {
 #[derive(Debug, Clone, Resource, Reflect)]
 pub struct PickupAssets {
 	mesh: Handle<Mesh>,
-	material: Handle<BubbleMaterial>,
+	material: Handle<ExtendedMaterial<StandardMaterial, BubbleMaterial>>,
 }
 
 #[derive(Default, Debug, Clone, Resource, Deref, DerefMut)]
@@ -88,7 +109,7 @@ pub fn spawn_pickups(
 		let transform = Transform::from_translation(Vec3::new(
 			rng.generate::<f32>() * 2048.0 - 1024.0,
 			rng.generate::<f32>() * 2048.0 - 1024.0,
-			-768.0,
+			-512.0,
 		));
 		let points = transform.translation.xy().length() * 0.1 + 10.0;
 
@@ -163,7 +184,7 @@ pub fn movement(mut q: Query<&mut Transform, Pickup>, t: Res<Time>) {
 	let dt = t.delta_seconds();
 	for mut xform in &mut q {
 		let rise_speed = s * (0.9 + ((s * 0.001 + xform.translation.y * 1000.0).sin() * 0.2));
-		xform.translation.z += dt * (4.0 * ((rise_speed + xform.translation.x).sin() + 0.36));
+		xform.translation.z += dt * (8.0 * ((rise_speed + xform.translation.x).sin() + 0.36));
 		if xform.translation.z > 128.0 {
 			xform.translation.z *= 1.003;
 		}

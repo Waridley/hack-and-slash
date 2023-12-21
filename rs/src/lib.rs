@@ -1,6 +1,7 @@
 use crate::mats::BubbleMaterial;
 use bevy::{
-	diagnostic::FrameTimeDiagnosticsPlugin, prelude::*, render::RenderPlugin, window::PrimaryWindow,
+	diagnostic::FrameTimeDiagnosticsPlugin, pbr::ExtendedMaterial, prelude::*,
+	render::RenderPlugin, window::PrimaryWindow,
 };
 use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_kira_audio::AudioPlugin;
@@ -110,7 +111,7 @@ pub fn game_plugin(app: &mut App) -> &mut App {
 	))
 	.add_plugins((
 		RonAssetPlugin::<BubbleMaterial>::new(&["mat.ron"]),
-		MaterialPlugin::<BubbleMaterial>::default(),
+		MaterialPlugin::<ExtendedMaterial<StandardMaterial, BubbleMaterial>>::default(),
 	))
 	.add_systems(Startup, startup)
 	.add_systems(Update, (terminal_velocity, fullscreen))
