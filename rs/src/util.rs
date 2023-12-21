@@ -205,6 +205,10 @@ impl<T> History<T> {
 	pub fn last(&self) -> &T {
 		self.values.back().unwrap()
 	}
+
+	pub fn is_empty(&self) -> bool {
+		self.values.is_empty()
+	}
 }
 
 impl<T> IntoIterator for History<T> {
