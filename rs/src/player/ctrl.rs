@@ -7,7 +7,7 @@ use crate::{
 	UP,
 };
 use bevy::prelude::*;
-use bevy_rapier3d::prelude::*;
+use bevy_rapier3d::{na::Vector3, prelude::*};
 use enum_components::ERef;
 use leafwing_abilities::prelude::*;
 
@@ -23,7 +23,7 @@ pub struct CtrlVel {
 }
 
 pub fn repel_ground(
-	ctx: Res<RapierContext>,
+	mut ctx: ResMut<RapierContext>,
 	mut q: Query<
 		(
 			&Parent,
@@ -42,7 +42,7 @@ pub fn repel_ground(
 
 		let max_toi = HOVER_HEIGHT;
 		let result = ctx.cast_shape(
-			global.translation + (global.rotation.mul_vec3(ctrl_vel.linvel) * t.delta_seconds()), // predict next frame
+			global.translation + ((global.rotation * ctrl_vel.linvel) * t.delta_seconds()), // predict next frame
 			global.rotation,
 			-UP,
 			&col,
@@ -55,7 +55,7 @@ pub fn repel_ground(
 		);
 
 		if let Some((
-			_,
+			id,
 			Toi {
 				toi,
 				details: Some(details),
@@ -65,6 +65,12 @@ pub fn repel_ground(
 		{
 			let angle = details.normal1.angle_between(UP);
 			let x = max_toi - toi; // Spring compression distance
+			let body = ctx.entity2body()[&id];
+			ctx.bodies.get_mut(body).unwrap().apply_impulse_at_point(
+				Vector3::from(global.rotation * details.normal2) * x * 100.0,
+				details.witness1.into(),
+				true,
+			);
 			if angle < SLIDE_ANGLE {
 				ctrl_state.grounded = true;
 				state.grounded = true;
@@ -141,7 +147,8 @@ pub fn gravity(mut q: Query<(&mut CtrlVel, &KinematicCharacterControllerOutput)>
 }
 
 pub fn move_player(
-	mut body_q: Query<(&mut Transform, &BelongsToPlayer), ERef<Root>>,
+	ctx: Res<RapierContext>,
+	mut body_q: Query<(Entity, &mut Transform, &BelongsToPlayer), ERef<Root>>,
 	mut ctrl_q: Query<
 		(
 			&CtrlVel,
@@ -150,21 +157,77 @@ pub fn move_player(
 		),
 		ERef<Controller>,
 	>,
+	_sim_to_render: Res<SimulationToRenderTime>,
 	t: Res<Time>,
 ) {
+	let dt = t.delta_seconds();
 	for (ctrl_vel, mut ctrl, ctrl_owner) in &mut ctrl_q {
-		let mut body_xform = body_q
+		let (id, mut body_xform) = body_q
 			.iter_mut()
-			.find_map(|(xform, owner)| (owner == ctrl_owner).then_some(xform))
+			.find_map(|(id, xform, owner)|
+				// Todo: cache owner->entity map
+				(owner == ctrl_owner).then_some((id, xform)))
 			.unwrap();
 
-		let dt = t.delta_seconds();
+		let Some(&body) = ctx.entity2body().get(&id) else {
+			continue;
+		};
+		let body = &ctx.bodies[body];
+		let _body_rapier_pos = Vec3::from(*body.translation());
 
-		let Vec3 { x, y, z } = ctrl_vel.angvel * dt;
-		let rot = Quat::from_euler(EulerRot::ZXY, z, x, y);
+		// if let Some(end) = ctrl.translation {
+		// 	vis_xform.translation = Vec3::ZERO.lerp(end, (DT + sim_to_render.diff) / DT);
+		// 	// interp.end.map(|end| {
+		// 	// 	let end = iso_to_transform(&end, 1.0);
+		// 	// 	vis_xform.rotation = body_xform.rotation.slerp(end.rotation, (DT + sim_to_render.diff) / DT);
+		// 	// 	vis_xform.translation = body_xform.translation.lerp(end.translation, (DT + sim_to_render.diff) / DT);
+		// 	// 	// *vis_xform = iso_to_transform(&Isometry::default().lerp_slerp(&Isometry {
+		// 	// 	// 	rotation: *Unit::from_ref_unchecked(&(*interp.end.unwrap().rotation * Quaternion::from(-body_xform.rotation))),
+		// 	// 	// 	translation: (interp.end.unwrap().translation.vector - Translation::from(body_xform.translation).vector).into(),
+		// 	// 	// }, sim_to_render.diff), 1.0);
+		// 	// });
+		// } else {
+		// 	vis_xform.translation = Vec3::ZERO;
+		// }
+
+		// if let (Some(start), Some(end)) = (interp.start, interp.end) {
+		// 	kin_interp.start = Some(start);
+		// 	kin_interp.end = Some(end);
+		// }
+		// if let Some(interp) = kin_interp.lerp_slerp((DT + accum.diff) / DT) {
+		// 	let new_xform = iso_to_transform(&interp, 1.0);
+		// 	if *body_xform != new_xform {
+		// 		*body_xform = new_xform;
+		// 	};
+		// }
+
+		let rot = ctrl_vel.angvel * dt;
+		let rot = Quat::from_euler(EulerRot::ZXY, rot.z, rot.x, rot.y);
 		body_xform.rotate_local(rot);
 
-		let slide = body_xform.rotation * (ctrl_vel.linvel * dt);
+		let slide = body_xform.rotation * ctrl_vel.linvel * dt;
 		ctrl.translation = Some(slide);
 	}
 }
+
+pub fn save_tmp_transform(
+	mut cmds: Commands,
+	mut q: Query<(Entity, &Transform, Option<&mut TmpPos>), ERef<Root>>,
+) {
+	for (id, xform, tmp) in &mut q {
+		if let Some(mut tmp) = tmp {
+			**tmp = xform.translation;
+		} else {
+			cmds.entity(id).insert(TmpPos(xform.translation));
+		}
+	}
+}
+
+pub fn load_tmp_transform(mut q: Query<(&mut Transform, &TmpPos), ERef<Root>>) {
+	for (mut xform, tmp) in &mut q {
+		xform.translation = **tmp;
+	}
+}
+
+#[derive(Component, Debug, Default, Deref, DerefMut)]
+pub struct TmpPos(Vec3);

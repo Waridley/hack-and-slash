@@ -33,7 +33,7 @@ pub const EPS: f32 = 1.0e-5;
 /// Rotational epsilon in radians
 pub const R_EPS: f32 = TAU / (360.0 * 4.0);
 /// Fixed delta time
-pub const DT: f32 = 1.0 / 64.0;
+pub const DT: f32 = 1.0 / 128.0;
 /// Up vector
 pub const UP: Vect = Vect::Z;
 
@@ -90,7 +90,7 @@ pub fn game_plugin(app: &mut App) -> &mut App {
 		..default()
 	})
 	.add_plugins((
-		RapierPhysicsPlugin::<()>::default(),
+		RapierPhysicsPlugin::<()>::default().in_schedule(Update),
 		FrameTimeDiagnosticsPlugin,
 		AudioPlugin,
 		ParticlesPlugin,

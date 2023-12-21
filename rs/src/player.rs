@@ -9,11 +9,13 @@ use bevy::{
 	render::camera::ManualTextureViews,
 	utils::HashSet,
 };
+use bevy_kira_audio::{Audio, AudioControl};
 use bevy_rapier3d::{
 	control::KinematicCharacterController,
 	dynamics::{CoefficientCombineRule::Min, Velocity},
 	geometry::{Collider, Friction},
 	math::Vect,
+	plugin::{systems::update_character_controls, PhysicsSet::Writeback},
 	prelude::{RigidBody::KinematicPositionBased, *},
 };
 use camera::spawn_camera;
@@ -61,8 +63,15 @@ pub fn plugin(app: &mut App) -> &mut App {
 				input::movement_input.before(terminal_velocity),
 				camera::position_target.after(terminal_velocity),
 				camera::follow_target.after(camera::position_target),
-				ctrl::move_player.after(terminal_velocity),
+				ctrl::move_player
+					.after(terminal_velocity)
+					.before(update_character_controls),
+				save_tmp_transform
+					.after(update_character_controls)
+					.before(Writeback),
+				load_tmp_transform.after(Writeback),
 				idle,
+				play_death_sound,
 			),
 		)
 		.add_systems(
@@ -185,8 +194,9 @@ pub enum PlayerEntity {
 	Arm(PlayerArm),
 }
 use crate::{
+	pickups::MissSfx,
 	player::{
-		ctrl::CtrlState,
+		ctrl::{load_tmp_transform, save_tmp_transform, CtrlState},
 		input::{AoESound, PlayerAction},
 		prefs::PlayerPrefs,
 	},
@@ -273,23 +283,24 @@ pub fn spawn_players(
 		let id = event.id;
 		let owner = BelongsToPlayer::with_id(id);
 		let char_collider = Collider::ball(1.2);
-		let mut root = cmds.spawn((
-			Name::new(format!("Player {} Root", owner.0.get())),
-			owner,
-			TerminalVelocity(Velocity {
-				linvel: Vect::splat(128.0),
-				angvel: Vect::new(0.0, 0.0, TAU * 60.0), // one rotation per frame at 60 fps
-			}),
-			KinematicPositionBased,
-			TransformBundle::default(),
-			Velocity::default(),
-			Friction {
-				coefficient: 0.0,
-				combine_rule: Min,
-			},
-			VisibilityBundle::default(),
-		));
-		root.set_enum(Root);
+		let mut root = cmds
+			.spawn((
+				Name::new(format!("Player{}", owner.0.get())),
+				owner,
+				TerminalVelocity(Velocity {
+					linvel: Vect::splat(128.0),
+					angvel: Vect::new(0.0, 0.0, TAU * 60.0), // one rotation per frame at 60 fps
+				}),
+				KinematicPositionBased,
+				TransformBundle::default(),
+				Velocity::default(),
+				Friction {
+					coefficient: 0.0,
+					combine_rule: Min,
+				},
+				VisibilityBundle::default(),
+			))
+			.with_enum(Root);
 
 		build_player_scene(
 			&mut root,
@@ -320,12 +331,14 @@ fn build_player_scene(
 	player_vis(root, owner, vis, particle_mesh);
 
 	root.with_children(|builder| {
-		let mut arms = builder.spawn((
-			TransformBundle::default(),
-			VisibilityBundle::default(),
-			RotVel::new(8.0),
-		));
-		arms.set_enum(Arms);
+		let mut arms = builder
+			.spawn((
+				Name::new(format!("Player{}.Arms", owner.0.get())),
+				TransformBundle::default(),
+				VisibilityBundle::default(),
+				RotVel::new(8.0),
+			))
+			.with_enum(Arms);
 		player_arms(&mut arms, owner, arm_meshes, arm_particle_mesh);
 	});
 }
@@ -340,6 +353,7 @@ fn player_controller(root: &mut EntityCommands, owner: BelongsToPlayer, char_col
 		} = PlayerPrefs::default();
 		builder
 			.spawn((
+				Name::new(format!("Player{}.Controller", owner.0.get())),
 				owner,
 				char_collider,
 				TransformBundle::default(),
@@ -363,20 +377,21 @@ fn player_controller(root: &mut EntityCommands, owner: BelongsToPlayer, char_col
 				CtrlState::default(),
 				(invert_camera, fov, sens),
 			))
-			.set_enum(Controller);
+			.with_enum(Controller);
 	});
 }
 
 fn player_vis(
-	cmds: &mut EntityCommands,
+	root: &mut EntityCommands,
 	owner: BelongsToPlayer,
 	vis: SceneBundle,
 	particle_mesh: MaterialMeshBundle<StandardMaterial>,
 ) {
-	let camera_pivot = camera::spawn_pivot(cmds.commands(), owner).id();
-	let ship_center = cmds
+	let camera_pivot = camera::spawn_pivot(root.commands(), owner).id();
+	let ship_center = root
 		.commands()
 		.spawn((
+			Name::new(format!("Player{}.ShipCenter", owner.0.get())),
 			owner,
 			TransformBundle::from_transform(Transform {
 				translation: Vec3::NEG_Z * 0.64,
@@ -391,13 +406,18 @@ fn player_vis(
 			// Mesh is a child so we can apply transform independent of collider to align them
 			builder
 				.spawn((
+					Name::new(format!("Player{}.ShipCenter.Ship", owner.0.get())),
 					owner,
 					TransformBundle::default(),
 					VisibilityBundle::default(),
 				))
 				.set_enum(Ship)
 				.with_children(|builder| {
-					builder.spawn((owner, vis));
+					builder.spawn((
+						Name::new(format!("Player{}.ShipCenter.Ship.Vis", owner.0.get())),
+						owner,
+						vis,
+					));
 
 					let transform = Transform {
 						// rotation: Quat::from_rotation_x(FRAC_PI_2),
@@ -410,6 +430,7 @@ fn player_vis(
 
 					let mut rng = nanorand::WyRand::new();
 					builder.spawn((
+						Name::new(format!("Player{}.ShipCenter.Ship.Particles", owner.0.get())),
 						owner,
 						SpewerBundle {
 							spewer: Spewer {
@@ -456,22 +477,25 @@ fn player_vis(
 						},
 					));
 
-					builder.spawn(PointLightBundle {
-						point_light: PointLight {
-							color: Color::rgb(0.0, 1.0, 0.6),
-							intensity: 2048.0,
-							range: 12.0,
-							shadows_enabled: false,
+					builder.spawn((
+						Name::new(format!("Player{}.ShipCenter.Ship.Glow", owner.0.get())),
+						PointLightBundle {
+							point_light: PointLight {
+								color: Color::rgb(0.0, 1.0, 0.6),
+								intensity: 2048.0,
+								range: 12.0,
+								shadows_enabled: false,
+								..default()
+							},
+							transform: Transform::from_xyz(0.0, -0.5, 0.0),
 							..default()
 						},
-						transform: Transform::from_xyz(0.0, -0.5, 0.0),
-						..default()
-					});
+					));
 				});
 		})
 		.add_child(camera_pivot)
 		.id();
-	cmds.add_child(ship_center);
+	root.add_child(ship_center);
 }
 
 #[derive(Component, Debug, Default, Copy, Clone, Reflect)]
@@ -504,12 +528,12 @@ impl DerefMut for RotVel {
 }
 
 fn player_arms(
-	cmds: &mut EntityCommands,
+	arms_pivot: &mut EntityCommands,
 	owner: BelongsToPlayer,
 	meshes: [(MaterialMeshBundle<StandardMaterial>, PlayerArm); 3],
 	particle_mesh: Handle<Mesh>,
 ) {
-	cmds.with_children(|builder| {
+	arms_pivot.with_children(|builder| {
 		for (arm, which) in meshes {
 			let particle_mesh = particle_mesh.clone();
 			let particle_mat = arm.material.clone();
@@ -558,6 +582,7 @@ fn player_arms(
 			};
 			builder
 				.spawn((
+					Name::new(format!("Player{}.Arms.{which:?}", owner.0.get())),
 					owner,
 					arm,
 					spewer,
@@ -565,10 +590,9 @@ fn player_arms(
 					PreviousGlobalTransform::default(),
 					Collider::ball(0.4),
 					Sensor,
-					KinematicPositionBased,
 					RotVel::new(8.0),
 				))
-				.set_enum(Arm(which));
+				.with_enum(Arm(which));
 		}
 	});
 }
@@ -673,5 +697,15 @@ pub fn kill_on_key(
 				timer: Timer::new(Duration::from_secs(2), TimerMode::Once),
 			});
 		}
+	}
+}
+
+pub fn play_death_sound(
+	timers: Query<(), Added<PlayerRespawnTimer>>,
+	sound: Res<MissSfx>,
+	audio: Res<Audio>,
+) {
+	for _ in timers.iter() {
+		audio.play(sound.0.clone()).with_volume(0.4);
 	}
 }

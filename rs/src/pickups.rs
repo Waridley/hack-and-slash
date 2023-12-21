@@ -180,7 +180,7 @@ pub fn movement(mut q: Query<&mut Transform, Pickup>, t: Res<Time>) {
 }
 
 #[derive(Resource, Debug, Clone, Deref, DerefMut)]
-pub struct MissSfx(Handle<AudioSource>);
+pub struct MissSfx(pub Handle<AudioSource>);
 
 pub fn miss(
 	mut cmds: Commands,
