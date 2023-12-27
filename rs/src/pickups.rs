@@ -59,22 +59,7 @@ pub fn setup(
 		.expect("create icosphere mesh"),
 	);
 
-	let bubble = BubbleMaterial {
-		color: Color::rgba(2.0, 0.8, 0.0, 0.1),
-		intensity: 6.0,
-	};
-	let standard = StandardMaterial {
-		specular_transmission: 1.0,
-		thickness: 8.0,
-		ior: 3.0,
-		perceptual_roughness: 0.3,
-		..default()
-	};
-
-	let material = mats.add(ExtendedMaterial {
-		base: standard,
-		extension: bubble,
-	});
+	let material = asset_server.load("pickups/pickup_material.mat.ron");
 
 	cmds.insert_resource(PickupAssets { mesh, material })
 }

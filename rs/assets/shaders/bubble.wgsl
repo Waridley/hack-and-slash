@@ -12,7 +12,6 @@
 
 struct BubbleMaterial {
 	color: vec4<f32>,
-	intensity: f32,
 };
 
 @group(1) @binding(100)
@@ -29,7 +28,7 @@ fn fragment(
 	var N = normalize(in.world_normal);
 	var V = normalize(view.world_position.xyz - in.world_position.xyz);
 	var NdotV = max(dot(N, V), 0.0001);
-	let glow = pow(1.0 + material.color.a - pow(NdotV, 0.3), 4.0) * material.intensity;
+	let glow = pow(1.0 + material.color.a - pow(NdotV, 0.3), 4.0);
 
 	var out: FragmentOutput;
 

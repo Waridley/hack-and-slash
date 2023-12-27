@@ -13,6 +13,17 @@ use std::{
 	iter::Sum,
 	ops::{Add, Div, Index, IndexMut, Mul, Sub},
 };
+use std::marker::PhantomData;
+use bevy::asset::{AssetLoader, AsyncReadExt, BoxedFuture, LoadContext};
+use bevy::asset::io::Reader;
+use bevy::reflect::serde::TypedReflectDeserializer;
+use bevy::reflect::{DynamicStruct, Typed, TypeRegistration, TypeRegistry, TypeRegistryArc};
+use bevy::scene::SceneLoaderError;
+use bevy::scene::SceneLoaderError::RonSpannedError;
+use futures_lite::StreamExt;
+use ron::de::SpannedError;
+use ron::Error::InvalidValueForType;
+use serde::de::DeserializeSeed;
 
 #[inline(always)]
 pub fn quantize<const BITS: u32>(value: f32) -> f32 {
@@ -301,4 +312,55 @@ where
 	Self: Sized,
 	<Self as IntoIterator>::IntoIter: ExactSizeIterator,
 {
+}
+
+
+#[derive(Clone, Debug)]
+pub enum Todo {}
+
+pub struct RonReflectAssetLoader<T> {
+	pub registry: AppTypeRegistry,
+	pub registration: TypeRegistration,
+	pub extensions: Vec<&'static str>,
+	pub _marker: PhantomData<T>,
+}
+
+impl<T: Reflect + Typed + TypePath> RonReflectAssetLoader<T> {
+	pub fn new(registry: AppTypeRegistry, extensions: Vec<&'static str>) -> Self {
+		Self {
+			registry,
+			registration: TypeRegistration::of::<T>(),
+			extensions,
+			_marker: default(),
+		}
+	}
+}
+
+impl<'this, T: Reflect + FromReflect + Asset> AssetLoader for RonReflectAssetLoader<T> {
+	type Asset = T;
+	type Settings = ();
+	type Error = SceneLoaderError;
+	
+	fn load<'a>(&'a self, reader: &'a mut Reader, _settings: &'a Self::Settings, _load_context: &'a mut LoadContext) -> BoxedFuture<'a, Result<Self::Asset, Self::Error>> {
+		let registration = self.registration.clone();
+		let registry = self.registry.clone();
+		Box::pin(async move {
+			let mut buf = Vec::new();
+			reader.read_to_end(&mut buf).await?;
+			let registry = registry.read();
+			let seed = TypedReflectDeserializer::new(&registration, &*registry);
+			let mut de = ron::Deserializer::from_bytes(&*buf)?;
+			let val = seed.deserialize(&mut de)
+				.map_err(|e| RonSpannedError(de.span_error(e)))?;
+			T::take_from_reflect(val)
+				.map_err(|e| RonSpannedError(de.span_error(InvalidValueForType {
+					expected: T::type_path().into(),
+					found: format!("{e:?}"),
+				})))
+		})
+	}
+	
+	fn extensions(&self) -> &[&str] {
+		&self.extensions
+	}
 }
