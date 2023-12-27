@@ -26,6 +26,7 @@ use bevy_rapier3d::{
 };
 use enum_components::{ERef, EntityEnumCommands};
 use std::f32::consts::FRAC_PI_2;
+use bevy::core_pipeline::tonemapping::Tonemapping;
 
 pub const CAM_ACCEL: f32 = 12.0;
 const MAX_CAM_DIST: f32 = 24.0;
@@ -134,6 +135,7 @@ pub fn spawn_camera<'w, 's, 'a>(
 					clear_color: ClearColorConfig::Custom(Color::rgb(0.024, 0.0, 0.036)),
 					..default()
 				},
+				tonemapping: Tonemapping::BlenderFilmic,
 				..default()
 			},
 			Skybox(sky_texture.clone()),
