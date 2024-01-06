@@ -78,13 +78,12 @@ bevy_common_assets = { version = "0.8.0", features = ["ron"] }
 array-init = "2.1.0"
 bevy_pkv = "0.9.0" # settings
 crossbeam = "0.8.2"
-fixedbitset = "0.4.2" # petgraph edge storage
+fixedbitset = "0.4.2" # navigation graph edge storage
 futures-lite = "2.1.0" # especially for `yield_now()`
 nanorand = { version = "0.7.0", default-features = false, features = ["std", "wyrand", "getrandom"] } # wasm is broken without std and getrandom
 noise = "0.8.2"
 num-traits = "0.2.17"
 ordered-float = "4.2.0"
-petgraph = { version = "0.6.4", default-features = false } # pathfinding
 ron = "0.8.1"
 static_assertions = "1.1.0"
 serde = "1"
@@ -118,7 +117,6 @@ nanorand = { workspace = true }
 noise = { workspace = true }
 num-traits = { workspace = true }
 ordered-float = { workspace = true }
-petgraph = { workspace = true }
 ron = { workspace = true }
 static_assertions = { workspace = true }
 serde = { workspace = true }

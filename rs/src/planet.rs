@@ -1,6 +1,6 @@
 use crate::{planet::day_night::DayNightCycle, util::IntoFnPlugin};
 use bevy::prelude::*;
-use bevy_rapier3d::{na::Vector2, parry::math::Vector};
+use bevy_rapier3d::na::{Vector2, Vector3};
 use serde::{Deserialize, Serialize};
 use std::ops::{Add, Sub};
 
@@ -15,14 +15,12 @@ pub fn plugin(app: &mut App) -> &mut App {
 		.register_type::<DayNightCycle>()
 }
 
-#[derive(
-	Component, Default, Debug, Copy, Clone, Deref, DerefMut, PartialEq, Serialize, Deserialize,
-)]
-pub struct PlanetVec3(pub Vector<f64>);
+#[derive(Default, Debug, Copy, Clone, Deref, DerefMut, PartialEq, Serialize, Deserialize)]
+pub struct PlanetVec3(pub Vector3<f64>);
 
 impl PlanetVec3 {
 	pub fn new(x: f64, y: f64, z: f64) -> Self {
-		Self(Vector::new(x, y, z))
+		Self(Vector3::new(x, y, z))
 	}
 
 	pub fn relative_to(self, other: Self) -> Vec3 {
@@ -33,7 +31,7 @@ impl PlanetVec3 {
 
 impl From<Vec3> for PlanetVec3 {
 	fn from(value: Vec3) -> Self {
-		Self(Vector::new(value.x as f64, value.y as f64, value.z as f64))
+		Self(Vector3::new(value.x as f64, value.y as f64, value.z as f64))
 	}
 }
 
@@ -59,7 +57,7 @@ impl Add<Vec3> for PlanetVec3 {
 	type Output = Self;
 
 	fn add(self, rhs: Vec3) -> Self::Output {
-		let rhs = Vector::new(rhs.x as f64, rhs.y as f64, rhs.z as f64);
+		let rhs = Vector3::new(rhs.x as f64, rhs.y as f64, rhs.z as f64);
 		Self(*self + rhs)
 	}
 }
@@ -76,7 +74,7 @@ impl Sub<Vec3> for PlanetVec3 {
 	type Output = Self;
 
 	fn sub(self, rhs: Vec3) -> Self::Output {
-		let rhs = Vector::new(rhs.x as f64, rhs.y as f64, rhs.z as f64);
+		let rhs = Vector3::new(rhs.x as f64, rhs.y as f64, rhs.z as f64);
 		Self(*self - rhs)
 	}
 }

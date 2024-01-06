@@ -314,8 +314,7 @@ where
 {
 }
 
-
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialOrd, PartialEq, Ord, Eq, Hash)]
 pub enum Todo {}
 
 pub struct RonReflectAssetLoader<T> {
