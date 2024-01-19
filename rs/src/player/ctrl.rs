@@ -1,19 +1,32 @@
-use crate::{
-	player::{
-		input::PlayerAction,
-		player_entity::{Controller, Root},
-		BelongsToPlayer, G1, HOVER_HEIGHT, PLAYER_GRAVITY, SLIDE_ANGLE,
-	},
-	UP,
-};
+use crate::{EPS, player::{
+	input::PlayerAction,
+	player_entity::{Controller, Root},
+	BelongsToPlayer, CHAR_COLLIDER, G1, HOVER_HEIGHT, PLAYER_GRAVITY, SLIDE_ANGLE,
+}, UP};
 use bevy::prelude::*;
+use bevy::render::primitives::{Aabb, Sphere};
 use bevy_rapier3d::{na::Vector3, prelude::*};
+use bevy_rapier3d::na::Translation;
+use bevy_rapier3d::parry::query::{DefaultQueryDispatcher, PersistentQueryDispatcher};
+use bevy_rapier3d::parry::shape::Capsule;
 use enum_components::ERef;
+use rapier3d::math::Isometry;
+use rapier3d::parry::query::ContactManifold;
+use rapier3d::prelude::{ContactManifoldData, ContactData};
 use leafwing_abilities::prelude::*;
+use crate::player::player_entity::ShipCenter;
 
 #[derive(Component, Default)]
 pub struct CtrlState {
-	pub grounded: bool,
+	pub touching_ground: bool,
+	pub bottomed_out: bool,
+}
+
+impl CtrlState {
+	pub fn bottom_out(&mut self) {
+		self.touching_ground = true;
+		self.bottomed_out = true;
+	}
 }
 
 #[derive(Component, Debug, Default, Copy, Clone, Reflect)]
@@ -28,96 +41,118 @@ pub fn repel_ground(
 		(
 			&Parent,
 			&GlobalTransform,
+			&Collider,
 			&mut CtrlVel,
-			&mut KinematicCharacterControllerOutput,
 			&mut CtrlState,
 		),
 		ERef<Controller>,
 	>,
-	t: Res<Time>,
 ) {
-	for (body_id, global, mut ctrl_vel, mut state, mut ctrl_state) in &mut q {
-		let global = global.compute_transform();
-		let col = Collider::ball(1.0);
+	for (
+		body_id,
+		global,
+		col,
+		ctrl_vel,
+		ctrl_state
+	) in &mut q {
+		player_repel_ground(
+			ctx.reborrow(),
+			body_id,
+			global,
+			col,
+			ctrl_vel,
+			ctrl_state,
+			crate::DT,
+		)
+	}
+}
 
-		let max_toi = HOVER_HEIGHT;
-		let result = ctx.cast_shape(
-			global.translation + ((global.rotation * ctrl_vel.linvel) * t.delta_seconds()), // predict next frame
-			global.rotation,
-			-UP,
-			&col,
-			max_toi,
+pub fn player_repel_ground(
+	mut ctx: Mut<RapierContext>,
+	body_id: &Parent,
+	global: &GlobalTransform,
+	col: &Collider,
+	mut ctrl_vel: Mut<CtrlVel>,
+	mut ctrl_state: Mut<CtrlState>,
+	dt: f32,
+) {
+	let global = global.compute_transform();
+	
+	let max_toi = HOVER_HEIGHT;
+	let result = ctx.cast_shape(
+		global.translation,
+		global.rotation,
+		-UP,
+		col,
+		max_toi,
+		true,
+		QueryFilter::new()
+			.exclude_sensors()
+			.exclude_rigid_body(**body_id)
+			.groups(CollisionGroups::new(G1, !G1)),
+	);
+	
+	if let Some((
+		id,
+		Toi {
+			toi,
+			details: Some(details),
+			..
+		},
+	)) = result
+	{
+		let angle = details.normal1.angle_between(UP);
+		let x = max_toi - toi; // Spring compression distance
+		let body = ctx.entity2body()[&id];
+		ctx.bodies.get_mut(body).unwrap().apply_impulse_at_point(
+			Vector3::from(global.rotation * details.normal2) * x * 100.0,
+			details.witness1.into(),
 			true,
-			QueryFilter::new()
-				.exclude_sensors()
-				.exclude_rigid_body(**body_id)
-				.groups(CollisionGroups::new(G1, !G1)),
 		);
-
-		if let Some((
-			id,
-			Toi {
-				toi,
-				details: Some(details),
-				..
-			},
-		)) = result
-		{
-			let angle = details.normal1.angle_between(UP);
-			let x = max_toi - toi; // Spring compression distance
-			let body = ctx.entity2body()[&id];
-			ctx.bodies.get_mut(body).unwrap().apply_impulse_at_point(
-				Vector3::from(global.rotation * details.normal2) * x * 100.0,
-				details.witness1.into(),
-				true,
-			);
-			if angle < SLIDE_ANGLE {
-				ctrl_state.grounded = true;
-				state.grounded = true;
-
-				// Empirically decided
-				let stiffness = 256.0;
-				let damping = 0.98;
-
-				// Think of the antigrav spring as radiating out in a spherical cone (sector),
-				// so the spring coefficient for a constant-area contact patch follows the inverse square law,
-				// not a constant like typical hooke's law springs.
-				let repel_accel = x * x * stiffness;
-
-				ctrl_vel.linvel.z += (PLAYER_GRAVITY * t.delta_seconds()) // Resist gravity for this frame
-					+ repel_accel * f32::min(t.delta_seconds(), 0.125); // don't let low framerate eject player
-
-				ctrl_vel.linvel.z *= damping;
-			} else {
-				ctrl_state.grounded = false;
-				state.grounded = false;
-
-				if ctrl_vel.linvel.z < 0.0 {
-					let norm = global.rotation.inverse() * details.normal1; // To player's local space
-					let v_dot_norm = ctrl_vel.linvel.dot(norm);
-					if v_dot_norm < 0.0 {
-						// Player is moving "into" the slope
-
-						ctrl_vel.linvel -= v_dot_norm * norm; // Remove the penetrating part
-
-						if ctrl_vel.linvel.z > 0.0 {
-							// Remove any upwards sliding
-							ctrl_vel.linvel.z = 0.0;
-						}
-					}
-				} else {
-					// Let player keep sliding up until gravity stops them
-				}
-			}
+		if angle < SLIDE_ANGLE {
+			ctrl_state.touching_ground = true;
+			
+			// Empirically decided
+			let stiffness = 256.0;
+			let damping = 4.0;
+			
+			// Think of the antigrav spring as radiating out in a spherical cone (sector),
+			// so the spring coefficient for a constant-area contact patch follows the inverse square law,
+			// not a constant like typical hooke's law springs.
+			let repel_accel = x * x * stiffness;
+			
+			ctrl_vel.linvel.z += (PLAYER_GRAVITY * dt) // Resist gravity for this frame
+				+ repel_accel * f32::min(dt, 0.125); // don't let low framerate eject player
+			
+			ctrl_vel.linvel.z *= 1.0 - (damping * dt);
 		} else {
-			ctrl_state.grounded = false;
+			ctrl_state.touching_ground = false;
+			
+			if ctrl_vel.linvel.z < 0.0 {
+				let norm = global.rotation.inverse() * details.normal1; // To player's local space
+				let v_dot_norm = ctrl_vel.linvel.dot(norm);
+				if v_dot_norm < 0.0 {
+					// Player is moving "into" the slope
+					
+					ctrl_vel.linvel -= v_dot_norm * norm; // Remove the penetrating part
+					
+					if ctrl_vel.linvel.z > 0.0 {
+						// Remove any upwards sliding
+						ctrl_vel.linvel.z = 0.0;
+					}
+				}
+			} else {
+				// Let player keep sliding up until gravity stops them
+			}
 		}
+	} else {
+		ctrl_state.touching_ground = false;
 	}
 }
 
 pub fn reset_jump_on_ground(mut q: Query<(AbilityState<PlayerAction>, &CtrlState)>) {
 	for (mut state, ctrl_state) in &mut q {
-		if ctrl_state.grounded
+		if ctrl_state.touching_ground
 			&& state
 				.cooldowns
 				.get(PlayerAction::Jump)
@@ -132,9 +167,9 @@ pub fn reset_jump_on_ground(mut q: Query<(AbilityState<PlayerAction>, &CtrlState
 	}
 }
 
-pub fn gravity(mut q: Query<(&mut CtrlVel, &KinematicCharacterControllerOutput)>, t: Res<Time>) {
-	for (mut ctrl_vel, out) in q.iter_mut() {
-		if out.grounded {
+pub fn gravity(mut q: Query<(&mut CtrlVel, &CtrlState)>, t: Res<Time>) {
+	for (mut ctrl_vel, state) in q.iter_mut() {
+		if state.bottomed_out {
 			// Only when actual collider is grounded, not the antigrav pulses.
 			// Let `repel_ground` handle counteracting gravity when hovering.
 			ctrl_vel.linvel.z = f32::max(ctrl_vel.linvel.z, 0.0)
@@ -147,87 +182,228 @@ pub fn gravity(mut q: Query<(&mut CtrlVel, &KinematicCharacterControllerOutput)>
 }
 
 pub fn move_player(
-	ctx: Res<RapierContext>,
-	mut body_q: Query<(Entity, &mut Transform, &BelongsToPlayer), ERef<Root>>,
+	mut ctx: ResMut<RapierContext>,
+	mut body_q: Query<(Entity, &mut Transform, &GlobalTransform, &BelongsToPlayer), ERef<Root>>,
 	mut ctrl_q: Query<
 		(
-			&CtrlVel,
-			&mut KinematicCharacterController,
+			Entity,
+			&Parent,
+			&GlobalTransform,
+			&mut CtrlVel,
+			&Collider,
 			&BelongsToPlayer,
+			&mut CtrlState,
 		),
 		ERef<Controller>,
 	>,
-	_sim_to_render: Res<SimulationToRenderTime>,
+	mut vis_q: Query<(&mut Transform, &mut TransformInterpolation, &BelongsToPlayer), ERef<ShipCenter>>,
+	sim_to_render: Res<SimulationToRenderTime>,
 	t: Res<Time>,
 ) {
-	let dt = t.delta_seconds();
-	for (ctrl_vel, mut ctrl, ctrl_owner) in &mut ctrl_q {
-		let (id, mut body_xform) = body_q
-			.iter_mut()
-			.find_map(|(id, xform, owner)|
-				// Todo: cache owner->entity map
-				(owner == ctrl_owner).then_some((id, xform)))
-			.unwrap();
-
-		let Some(&body) = ctx.entity2body().get(&id) else {
-			continue;
-		};
-		let body = &ctx.bodies[body];
-		let _body_rapier_pos = Vec3::from(*body.translation());
-
-		// if let Some(end) = ctrl.translation {
-		// 	vis_xform.translation = Vec3::ZERO.lerp(end, (DT + sim_to_render.diff) / DT);
-		// 	// interp.end.map(|end| {
-		// 	// 	let end = iso_to_transform(&end, 1.0);
-		// 	// 	vis_xform.rotation = body_xform.rotation.slerp(end.rotation, (DT + sim_to_render.diff) / DT);
-		// 	// 	vis_xform.translation = body_xform.translation.lerp(end.translation, (DT + sim_to_render.diff) / DT);
-		// 	// 	// *vis_xform = iso_to_transform(&Isometry::default().lerp_slerp(&Isometry {
-		// 	// 	// 	rotation: *Unit::from_ref_unchecked(&(*interp.end.unwrap().rotation * Quaternion::from(-body_xform.rotation))),
-		// 	// 	// 	translation: (interp.end.unwrap().translation.vector - Translation::from(body_xform.translation).vector).into(),
-		// 	// 	// }, sim_to_render.diff), 1.0);
-		// 	// });
-		// } else {
-		// 	vis_xform.translation = Vec3::ZERO;
-		// }
-
-		// if let (Some(start), Some(end)) = (interp.start, interp.end) {
-		// 	kin_interp.start = Some(start);
-		// 	kin_interp.end = Some(end);
-		// }
-		// if let Some(interp) = kin_interp.lerp_slerp((DT + accum.diff) / DT) {
-		// 	let new_xform = iso_to_transform(&interp, 1.0);
-		// 	if *body_xform != new_xform {
-		// 		*body_xform = new_xform;
-		// 	};
-		// }
-
-		let rot = ctrl_vel.angvel * dt;
-		let rot = Quat::from_euler(EulerRot::ZXY, rot.z, rot.x, rot.y);
-		body_xform.rotate_local(rot);
-
-		let slide = body_xform.rotation * ctrl_vel.linvel * dt;
-		ctrl.translation = Some(slide);
+	let dt = crate::DT;
+	let mut diff = sim_to_render.diff + t.delta_seconds();
+	let mut iters = 4;
+	while diff > 0.0 && iters > 0 {
+		diff -= dt;
+		iters -= 1;
+		
+		for (col_id, body_id, global, mut ctrl_vel, col, ctrl_owner, mut ctrl_state) in &mut ctrl_q {
+			let Some(&body_handle) = ctx.entity2body().get(&body_id) else { continue };
+			player_repel_ground(ctx.reborrow(), body_id, global, col, ctrl_vel.reborrow(), ctrl_state.reborrow(), dt);
+			
+			let Some((body_id, mut body_xform, body_global)) = body_q
+				.iter_mut()
+				.find_map(|(id, xform, global, owner)|
+					// Todo: cache owner->entity map
+					(owner == ctrl_owner).then_some((id, xform, global.compute_transform())))
+				else { return };
+			let (mut vis_xform, mut vis_interp) = vis_q
+				.iter_mut()
+				.find_map(|(xform, interp, owner)| (owner == ctrl_owner).then_some((xform, interp)))
+				.unwrap();
+			
+			let rot = ctrl_vel.angvel * dt;
+			let rot = Quat::from_euler(EulerRot::ZXY, rot.z, rot.x, rot.y);
+			body_xform.rotate_local(rot);
+			
+			let vel = body_xform.rotation * ctrl_vel.linvel;
+			
+			let filter = QueryFilter {
+				flags: QueryFilterFlags::EXCLUDE_SENSORS,
+				groups: Some(CollisionGroups::new(G1, !G1)),
+				exclude_collider: None,
+				exclude_rigid_body: Some(body_id),
+				predicate: None,
+			};
+			
+			const BUFFER: f32 = 0.1;
+			
+			let mut rem = dt;
+			let mut result = Vec3::ZERO;
+			let mut dir = vel;
+			let mut manifolds: Vec<ContactManifold<ContactManifoldData, ContactData>> = vec![];
+			let mut contacts = vec![];
+			let mut pen_fix_iters = 20;
+			while rem > dt * BUFFER {
+				// Using custom shape casting because of too many bugs/design choices I don't want with rapier's character controller.
+				match ctx.cast_shape(
+					body_global.translation + result,
+					body_global.rotation,
+					dir,
+					col,
+					rem * (1.0 + BUFFER),
+					true,
+					filter,
+				) {
+					Some((_, Toi { toi, details: Some(hit), status: _status })) => {
+						let safe_toi = (toi - (dt * BUFFER)).clamp(0.0, rem);
+						let penetrating_part = dir * ((rem - toi) / rem);
+						let reaction = -penetrating_part.dot(hit.normal1) * (hit.normal1 * 1.01);
+						let slide_dir = penetrating_part + reaction;
+						
+						let angle = hit.normal1.angle_between(UP);
+						if angle < SLIDE_ANGLE {
+							ctrl_state.bottom_out();
+							// Let player slide like normal
+							result += dir * safe_toi;
+							dir = slide_dir;
+							rem -= toi;
+						} else {
+							ctrl_state.bottomed_out = false;
+							
+							let already_moving_up = vel.z > BUFFER;
+							
+							let v_dot_norm = dir.dot(hit.normal1);
+							if v_dot_norm <= 0.0 {
+								// Player is moving "into" the slope
+								
+								let slide_dir = if !already_moving_up && hit.normal1.z > -BUFFER {
+									// Don't slide up a steep slope.
+									Vec3::new(slide_dir.x, slide_dir.y, f32::min(0.0, slide_dir.z))
+								} else {
+									// Either let player keep moving up due to their existing velocity,
+									// or let player slide down the slope.
+									slide_dir
+								};
+								result += dir * safe_toi;
+								dir = slide_dir;
+								rem -= toi;
+							} else {
+								// I don't think this can happen if `details` exists, but if it does, it means the Player is moving
+								// away from the slope, probably penetrating, and so we want to get out of that state.
+								#[cfg(debug_assertions)]
+								warn!("I thought this was unreachable. Status: {_status:?}");
+								result += dir * rem;
+								rem = 0.0;
+								dir = Vec3::ZERO;
+							}
+						}
+					}
+					Some((_, Toi { status: TOIStatus::Penetrating, .. })) => {
+						let q = DefaultQueryDispatcher;
+						contacts.clear();
+						let pos = body_global.translation + result;
+						let iso = Isometry::new(pos.into(), UP.into());
+						let ball = col.as_ball().unwrap();
+						let aabb = Aabb::from(Sphere { center: pos.into(), radius: ball.raw.radius + (vel * dt).length() });
+						
+						// Attempt to prevent tunnelling by using an extruded sphere (capsule) instead
+						let capsule = Capsule::new((-vel * dt).into(), Vec3::ZERO.into(), ball.raw.radius);
+						
+						ctx.colliders_with_aabb_intersecting_aabb(aabb, |handle| {
+							if handle == col_id { return true }
+							let Some(handle) = ctx.entity2collider().get(&handle) else { return true };
+							if let Some(other_col) = ctx.colliders.get(*handle) {
+								manifolds.clear();
+								let rel = iso.inv_mul(other_col.position());
+								if q.contact_manifolds(&rel, &capsule, other_col.shape(), BUFFER, &mut manifolds, &mut None).is_err() {
+									warn!("Cannot check if player is penetrating {:?}", other_col.shape().shape_type())
+								}
+								for manifold in &manifolds {
+									let Some(contact) = manifold.find_deepest_contact() else { continue };
+									let mut dist = contact.dist;
+									if dist >= 0.0 {
+										continue
+									}
+									let mut norm = Vec3::from(manifold.local_n1);
+									if norm.angle_between(UP) < SLIDE_ANGLE {
+										// Any shallow-enough slope bottoms us out
+										ctrl_state.bottom_out()
+									} else {
+										// // Don't push player up steep slope
+										// norm.z = f32::min(0.0, norm.z);
+										// let len = norm.length();
+										// dist /= len;
+										// norm /= len;
+									}
+									contacts.push((norm, dist));
+								}
+							}
+							true
+						});
+						let mut fix = Vec3::ZERO;
+						for (dir, dist) in contacts.drain(..) {
+							fix += dir * f32::min(dt, dist * (1.0 + BUFFER));
+						}
+						if fix.angle_between(UP) < SLIDE_ANGLE {
+							// Even if individual surfaces were all too steep, getting stuck in a V should still bottom us out.
+							ctrl_state.bottom_out()
+						}
+						result += dbg!(fix);
+						pen_fix_iters -= 1;
+						if pen_fix_iters == 0 {
+							rem = 0.0;
+						}
+					}
+					toi => {
+						if let Some(toi) = toi { dbg!(toi); }
+						ctrl_state.bottomed_out = false;
+						result += dir * rem;
+						rem = 0.0;
+						dir = Vec3::ZERO;
+					}
+				}
+			}
+			let body = ctx.bodies.get_mut(body_handle).unwrap();
+			body.set_rotation(body_xform.rotation.into(), true);
+			if result.length() > 0.0 {
+				vis_xform.translation -= result;
+				let end = vis_interp.end.unwrap();
+				vis_interp.start = Some(Isometry::new(end.translation.vector - Vector3::from(body_xform.rotation.inverse() * result), (Quat::from(end.rotation) * rot).to_scaled_axis().into()));
+				body_xform.translation += result;
+				body.set_translation(body_xform.translation.into(), true);
+			}
+		}
+	}
+	for (mut xform, interp, _) in &mut vis_q {
+		let new = interp.lerp_slerp(1.0 + diff / dt).unwrap_or_else(|| interp.end.unwrap());
+		xform.translation = new.translation.into();
+		xform.rotation = new.rotation.into();
 	}
 }
 
+/// Hack to work around `bevy_rapier` overwriting transform changes
 pub fn save_tmp_transform(
 	mut cmds: Commands,
-	mut q: Query<(Entity, &Transform, Option<&mut TmpPos>), ERef<Root>>,
+	mut q: Query<(Entity, &Transform, Option<&mut TmpXform>), ERef<Root>>,
 ) {
 	for (id, xform, tmp) in &mut q {
 		if let Some(mut tmp) = tmp {
-			**tmp = xform.translation;
+			tmp.0 = xform.translation;
+			tmp.1 = xform.rotation;
 		} else {
-			cmds.entity(id).insert(TmpPos(xform.translation));
+			cmds.entity(id).insert(TmpXform(xform.translation, xform.rotation));
 		}
 	}
 }
 
-pub fn load_tmp_transform(mut q: Query<(&mut Transform, &TmpPos), ERef<Root>>) {
+/// Hack to work around `bevy_rapier` overwriting transform changes
+pub fn load_tmp_transform(mut q: Query<(&mut Transform, &TmpXform), ERef<Root>>) {
 	for (mut xform, tmp) in &mut q {
-		xform.translation = **tmp;
+		xform.translation = tmp.0;
+		xform.rotation = tmp.1;
 	}
 }
 
-#[derive(Component, Debug, Default, Deref, DerefMut)]
-pub struct TmpPos(Vec3);
+#[derive(Component, Debug, Default)]
+pub struct TmpXform(Vec3, Quat);

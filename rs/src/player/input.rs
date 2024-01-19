@@ -29,6 +29,7 @@ use std::{
 	f32::consts::{FRAC_PI_3, PI, TAU},
 	time::Duration,
 };
+use std::f32::consts::FRAC_PI_2;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugins((
@@ -320,7 +321,7 @@ pub fn look_input(
 			slider.0 = (slider.0 + mouse.y * 0.1).clamp(0.0, 1.0);
 		}
 
-		let angle = (-PI).lerp(-PI * 0.1, slider.0);
+		let angle = (-FRAC_PI_2).lerp(FRAC_PI_2 * 0.9, slider.0);
 		xform.rotation = xform.rotation.slerp(Quat::from_rotation_x(angle), delta);
 	}
 }

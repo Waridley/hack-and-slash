@@ -1,5 +1,6 @@
 use crate::{terminal_velocity, TerminalVelocity, R_EPS};
 
+use crate::{pickups::MissSfx, settings::Settings, util::IntoFnPlugin};
 use bevy::{
 	ecs::system::EntityCommands,
 	prelude::{
@@ -19,8 +20,9 @@ use bevy_rapier3d::{
 	prelude::{RigidBody::KinematicPositionBased, *},
 };
 use camera::spawn_camera;
-use ctrl::CtrlVel;
+use ctrl::{CtrlState, CtrlVel};
 use enum_components::{ERef, EntityEnumCommands, EnumComponent};
+use input::{AoESound, PlayerAction};
 use leafwing_input_manager::prelude::*;
 use nanorand::Rng;
 use particles::{
@@ -28,13 +30,21 @@ use particles::{
 	InitialGlobalTransform, InitialTransform, Lifetime, ParticleBundle, PreviousGlobalTransform,
 	PreviousTransform, Spewer, SpewerBundle,
 };
-use rapier3d::{math::Point, prelude::Aabb};
+use prefs::PlayerPrefs;
+use rapier3d::{
+	math::Point,
+	prelude::{Aabb, Ball, SharedShape},
+};
 use std::{
 	f32::consts::*,
 	num::NonZeroU8,
 	ops::{Deref, DerefMut},
 	time::Duration,
 };
+use bevy::transform::systems::{propagate_transforms, sync_simple_transforms};
+use bevy_rapier3d::na::Vector3;
+use bevy_rapier3d::parry::math::Isometry;
+use bevy_rapier3d::plugin::PhysicsSet::StepSimulation;
 
 pub mod camera;
 pub mod ctrl;
@@ -51,29 +61,38 @@ pub const SLIDE_ANGLE: f32 = FRAC_PI_3 - R_EPS;
 pub const HOVER_HEIGHT: f32 = 2.0;
 const G1: Group = Group::GROUP_1;
 
+pub const CHAR_COLLIDER: Ball = Ball { radius: 1.2 };
+
+#[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
+pub enum InterpolatedXforms {
+	Propagate,
+	Sync
+}
+
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugins(input::plugin.plugfn())
 		.add_systems(Startup, setup)
 		.add_systems(
 			Update,
 			(
-				ctrl::gravity,
-				ctrl::repel_ground.after(ctrl::gravity),
-				ctrl::reset_jump_on_ground.after(ctrl::repel_ground),
+				ctrl::gravity.before(terminal_velocity),
+				// ctrl::repel_ground.after(ctrl::gravity),
 				input::movement_input.before(terminal_velocity),
 				camera::position_target.after(terminal_velocity),
 				camera::follow_target.after(camera::position_target),
-				ctrl::move_player
-					.after(terminal_velocity)
-					.before(update_character_controls),
-				save_tmp_transform
-					.after(update_character_controls)
-					.before(Writeback),
-				load_tmp_transform.after(Writeback),
+				ctrl::move_player.before(StepSimulation).after(terminal_velocity),
+				ctrl::reset_jump_on_ground.after(ctrl::move_player),
+				// propagate_transforms.in_set(InterpolatedXforms::Propagate),
+				// sync_simple_transforms.in_set(InterpolatedXforms::Sync),
+				// ctrl::save_tmp_transform
+				// 	.after(ctrl::move_player)
+				// 	.before(Writeback),
+				// ctrl::load_tmp_transform.after(Writeback),
 				idle,
 				play_death_sound,
 			),
 		)
+		// .configure_sets(Update, (InterpolatedXforms::Propagate, InterpolatedXforms::Sync).chain().after(ctrl::move_player))
 		.add_systems(
 			Last,
 			(reset_oob, countdown_respawn, spawn_players, kill_on_key),
@@ -193,16 +212,6 @@ pub enum PlayerEntity {
 	Arms,
 	Arm(PlayerArm),
 }
-use crate::{
-	pickups::MissSfx,
-	player::{
-		ctrl::{load_tmp_transform, save_tmp_transform, CtrlState},
-		input::{AoESound, PlayerAction},
-		prefs::PlayerPrefs,
-	},
-	settings::Settings,
-	util::IntoFnPlugin,
-};
 use player_entity::*;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -282,14 +291,14 @@ pub fn spawn_players(
 
 		let id = event.id;
 		let owner = BelongsToPlayer::with_id(id);
-		let char_collider = Collider::ball(1.2);
+		let char_collider = Collider::from(SharedShape::new(CHAR_COLLIDER));
 		let mut root = cmds
 			.spawn((
 				Name::new(format!("Player{}", owner.0.get())),
 				owner,
 				TerminalVelocity(Velocity {
-					linvel: Vect::splat(128.0),
-					angvel: Vect::new(0.0, 0.0, TAU * 60.0), // one rotation per frame at 60 fps
+					linvel: Vect::splat(96.0),
+					angvel: Vect::new(0.0, 0.0, PI / crate::DT), // Half a rotation per physics tick
 				}),
 				KinematicPositionBased,
 				TransformBundle::default(),
@@ -328,19 +337,7 @@ fn build_player_scene(
 	arm_particle_mesh: Handle<Mesh>,
 ) {
 	player_controller(root, owner, char_collider);
-	player_vis(root, owner, vis, particle_mesh);
-
-	root.with_children(|builder| {
-		let mut arms = builder
-			.spawn((
-				Name::new(format!("Player{}.Arms", owner.0.get())),
-				TransformBundle::default(),
-				VisibilityBundle::default(),
-				RotVel::new(8.0),
-			))
-			.with_enum(Arms);
-		player_arms(&mut arms, owner, arm_meshes, arm_particle_mesh);
-	});
+	player_vis(root, owner, vis, particle_mesh, arm_meshes, arm_particle_mesh);
 }
 
 fn player_controller(root: &mut EntityCommands, owner: BelongsToPlayer, char_collider: Collider) {
@@ -356,19 +353,21 @@ fn player_controller(root: &mut EntityCommands, owner: BelongsToPlayer, char_col
 				Name::new(format!("Player{}.Controller", owner.0.get())),
 				owner,
 				char_collider,
+				Restitution::new(0.5),
+				Ccd::enabled(),
 				TransformBundle::default(),
 				CtrlVel::default(),
 				CollisionGroups::new(Group::GROUP_1, !Group::GROUP_1),
-				KinematicCharacterController {
-					up: Vect::Z,
-					snap_to_ground: None,
-					autostep: None,
-					max_slope_climb_angle: CLIMB_ANGLE,
-					min_slope_slide_angle: SLIDE_ANGLE,
-					filter_flags: QueryFilterFlags::EXCLUDE_SENSORS,
-					filter_groups: Some(CollisionGroups::new(G1, !G1)),
-					..default()
-				},
+				// KinematicCharacterController {
+				// 	up: Vect::Z,
+				// 	snap_to_ground: None,
+				// 	autostep: None,
+				// 	max_slope_climb_angle: CLIMB_ANGLE,
+				// 	min_slope_slide_angle: SLIDE_ANGLE,
+				// 	filter_flags: QueryFilterFlags::EXCLUDE_SENSORS,
+				// 	filter_groups: Some(CollisionGroups::new(G1, !G1)),
+				// 	..default()
+				// },
 				InputManagerBundle::<PlayerAction> {
 					input_map,
 					..default()
@@ -386,6 +385,8 @@ fn player_vis(
 	owner: BelongsToPlayer,
 	vis: SceneBundle,
 	particle_mesh: MaterialMeshBundle<StandardMaterial>,
+	arm_meshes: [(MaterialMeshBundle<StandardMaterial>, PlayerArm); 3],
+	arm_particle_mesh: Handle<Mesh>,
 ) {
 	let camera_pivot = camera::spawn_pivot(root.commands(), owner).id();
 	let ship_center = root
@@ -393,12 +394,8 @@ fn player_vis(
 		.spawn((
 			Name::new(format!("Player{}.ShipCenter", owner.0.get())),
 			owner,
-			TransformBundle::from_transform(Transform {
-				translation: Vec3::NEG_Z * 0.64,
-				rotation: Quat::from_rotation_x(FRAC_PI_2),
-				..default()
-			}),
-			// TransformBundle::default(),
+			TransformBundle::from_transform(Transform::from_translation(Vec3::NEG_Z * 0.64)),
+			TransformInterpolation { start: None, end: Some(Isometry::new(Vector3::new(0.0, 0.0, -0.64), Vector3::default())) },
 			VisibilityBundle::default(), // for children ComputedVisibility
 		))
 		.set_enum(ShipCenter)
@@ -408,7 +405,7 @@ fn player_vis(
 				.spawn((
 					Name::new(format!("Player{}.ShipCenter.Ship", owner.0.get())),
 					owner,
-					TransformBundle::default(),
+					TransformBundle::from_transform(Transform::from_rotation(Quat::from_rotation_x(FRAC_PI_2))),
 					VisibilityBundle::default(),
 				))
 				.set_enum(Ship)
@@ -492,6 +489,17 @@ fn player_vis(
 						},
 					));
 				});
+		})
+		.with_children(|builder| {
+			let mut arms = builder
+				.spawn((
+					Name::new(format!("Player{}.ShipCenter.Arms", owner.0.get())),
+					TransformBundle::from_transform(Transform::from_translation(Vec3::Z * 0.64)),
+					VisibilityBundle::default(),
+					RotVel::new(8.0),
+				))
+				.with_enum(Arms);
+			player_arms(&mut arms, owner, arm_meshes, arm_particle_mesh);
 		})
 		.add_child(camera_pivot)
 		.id();
@@ -582,7 +590,7 @@ fn player_arms(
 			};
 			builder
 				.spawn((
-					Name::new(format!("Player{}.Arms.{which:?}", owner.0.get())),
+					Name::new(format!("Player{}.ShipCenter.Arms.{which:?}", owner.0.get())),
 					owner,
 					arm,
 					spewer,

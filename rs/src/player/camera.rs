@@ -5,7 +5,10 @@ use super::{
 use crate::{planet::sky::SkyShader, player::PlayerId, settings::Settings};
 
 use bevy::{
-	core_pipeline::{bloom::BloomSettings, clear_color::ClearColorConfig, fxaa::Fxaa, Skybox},
+	core_pipeline::{
+		bloom::BloomSettings, clear_color::ClearColorConfig, fxaa::Fxaa, tonemapping::Tonemapping,
+		Skybox,
+	},
 	ecs::system::{EntityCommands, Res},
 	prelude::*,
 	render::{
@@ -26,7 +29,6 @@ use bevy_rapier3d::{
 };
 use enum_components::{ERef, EntityEnumCommands};
 use std::f32::consts::FRAC_PI_2;
-use bevy::core_pipeline::tonemapping::Tonemapping;
 
 pub const CAM_ACCEL: f32 = 12.0;
 const MAX_CAM_DIST: f32 = 24.0;
@@ -166,7 +168,7 @@ pub fn spawn_pivot<'w, 's, 'a>(
 			owner,
 			CameraVertSlider(0.4),
 			TransformBundle::from_transform(Transform {
-				translation: Vect::new(0.0, 6.4, 0.0),
+				translation: Vect::new(0.0, 0.0, 6.4),
 				..default()
 			}),
 		))
