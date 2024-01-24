@@ -2,7 +2,7 @@ use super::{
 	player_entity::{Cam, CamPivot},
 	BelongsToPlayer, G1,
 };
-use crate::{planet::sky::SkyShader, player::PlayerId, settings::Settings};
+use crate::{NeverDespawn, planet::sky::SkyShader, player::PlayerId, settings::Settings};
 
 use bevy::{
 	core_pipeline::{
@@ -113,6 +113,7 @@ pub fn spawn_camera<'w, 's, 'a>(
 		Collider::ball(2.0),
 		CollisionGroups::new(Group::empty(), Group::empty()),
 		CamTarget::default(),
+		NeverDespawn,
 	));
 	cmds.set_enum(Cam).with_children(|builder| {
 		let manual_tv_handle = ManualTextureViewHandle(player_id.get() as u32 - 1);
@@ -154,6 +155,7 @@ pub fn spawn_camera<'w, 's, 'a>(
 				enabled: settings.fxaa,
 				..default()
 			},
+			NeverDespawn,
 		));
 	});
 	cmds

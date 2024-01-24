@@ -1,6 +1,6 @@
 #![cfg_attr(
-all(not(debug_assertions), target_os = "windows"),
-windows_subsystem = "windows"
+	all(not(debug_assertions), target_os = "windows"),
+	windows_subsystem = "windows"
 )]
 
 use crate::mats::BubbleMaterial;
@@ -119,7 +119,10 @@ pub fn game_plugin(app: &mut App) -> &mut App {
 		MaterialPlugin::<ExtendedMaterial<StandardMaterial, BubbleMaterial>>::default(),
 	))
 	.add_systems(Startup, startup)
-	.add_systems(Update, (terminal_velocity.before(StepSimulation), fullscreen))
+	.add_systems(
+		Update,
+		(terminal_velocity.before(StepSimulation), fullscreen),
+	)
 	.add_systems(PostUpdate, (despawn_oob,));
 	type BubbleMatExt = ExtendedMaterial<StandardMaterial, BubbleMaterial>;
 	let registry = app.world.get_resource::<AppTypeRegistry>().unwrap().clone();
@@ -153,11 +156,20 @@ impl AbsoluteBounds {
 
 pub type InBounds = bool;
 
-fn despawn_oob(mut cmds: Commands, bounds: Res<AbsoluteBounds>, q: Query<(Entity, &Transform)>) {
-	for (id, xform) in &q {
-		if !bounds.test(xform.translation) {
-			bevy::log::warn!("Entity {id:?} is way out of bounds. Despawning.");
-			cmds.entity(id).despawn()
+#[derive(Component, Debug)]
+pub struct NeverDespawn;
+
+fn despawn_oob(mut cmds: Commands, bounds: Res<AbsoluteBounds>, mut q: Query<(Entity, &mut GlobalTransform, Has<NeverDespawn>)>) {
+	for (id, mut xform, never_despawn) in &mut q {
+		if !bounds.test(xform.translation()) {
+			let plan = if never_despawn {
+				*xform = GlobalTransform::default();
+				"Resetting transform to zero"
+			} else {
+				cmds.entity(id).despawn();
+				"Despawning"
+			};
+			bevy::log::warn!("Entity {id:?} is way out of bounds. {plan}...");
 		}
 	}
 }
