@@ -2,7 +2,7 @@ use super::{
 	player_entity::{Cam, CamPivot},
 	BelongsToPlayer, G1,
 };
-use crate::{NeverDespawn, planet::sky::SkyShader, player::PlayerId, settings::Settings};
+use crate::{planet::sky::SkyShader, player::PlayerId, settings::Settings, NeverDespawn};
 
 use bevy::{
 	core_pipeline::{

@@ -385,7 +385,8 @@ pub fn grab_mouse(
 	key: Res<Input<KeyCode>>,
 	ui_hovered: Res<UiHovered>,
 ) {
-	let Ok(mut window) = windows.get_single_mut() else { // probably exiting if window is missing
+	let Ok(mut window) = windows.get_single_mut() else {
+		// probably exiting if window is missing
 		return;
 	};
 

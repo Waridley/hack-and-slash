@@ -21,6 +21,8 @@ use util::{IntoFnPlugin, RonReflectAssetLoader};
 use bevy_dylib;
 use bevy_rapier3d::plugin::PhysicsSet::StepSimulation;
 
+pub mod abilities;
+pub mod anim;
 pub mod enemies;
 pub mod mats;
 pub mod nav;
@@ -159,7 +161,11 @@ pub type InBounds = bool;
 #[derive(Component, Debug)]
 pub struct NeverDespawn;
 
-fn despawn_oob(mut cmds: Commands, bounds: Res<AbsoluteBounds>, mut q: Query<(Entity, &mut GlobalTransform, Has<NeverDespawn>)>) {
+fn despawn_oob(
+	mut cmds: Commands,
+	bounds: Res<AbsoluteBounds>,
+	mut q: Query<(Entity, &mut GlobalTransform, Has<NeverDespawn>)>,
+) {
 	for (id, mut xform, never_despawn) in &mut q {
 		if !bounds.test(xform.translation()) {
 			let plan = if never_despawn {
