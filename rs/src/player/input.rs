@@ -26,10 +26,9 @@ use leafwing_input_manager::prelude::*;
 use particles::Spewer;
 use serde::{Deserialize, Serialize};
 use std::{
-	f32::consts::{FRAC_PI_3, PI, TAU},
+	f32::consts::{FRAC_PI_2, FRAC_PI_3, PI, TAU},
 	time::Duration,
 };
-use std::f32::consts::FRAC_PI_2;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugins((
@@ -386,7 +385,9 @@ pub fn grab_mouse(
 	key: Res<Input<KeyCode>>,
 	ui_hovered: Res<UiHovered>,
 ) {
-	let mut window = windows.single_mut();
+	let Ok(mut window) = windows.get_single_mut() else { // probably exiting if window is missing
+		return;
+	};
 
 	if mouse.just_pressed(MouseButton::Left) && !**ui_hovered {
 		window.cursor.visible = false;

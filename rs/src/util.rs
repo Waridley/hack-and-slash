@@ -85,19 +85,21 @@ pub fn consume_spawn_events<T: Spawnable>(
 	}
 }
 
-pub trait Lerp<R, T>
+pub trait Lerp<Rhs, T>
 where
 	Self: Clone,
-	R: Sub<Self>,
-	<R as Sub<Self>>::Output: Mul<T>,
-	<<R as Sub<Self>>::Output as Mul<T>>::Output: Add<Self>,
+	Rhs: Sub<Self>,
+	<Rhs as Sub<Self>>::Output: Mul<T>,
+	<<Rhs as Sub<Self>>::Output as Mul<T>>::Output: Add<Self>,
 {
+	type Output;
+
 	#[inline(always)]
 	fn lerp(
 		self,
-		rhs: R,
+		rhs: Rhs,
 		t: T,
-	) -> <<<R as Sub<Self>>::Output as Mul<T>>::Output as Add<Self>>::Output {
+	) -> <<<Rhs as Sub<Self>>::Output as Mul<T>>::Output as Add<Self>>::Output {
 		((rhs - self.clone()) * t) + self
 	}
 }
@@ -109,6 +111,7 @@ where
 	<R as Sub<This>>::Output: Mul<T>,
 	<<R as Sub<This>>::Output as Mul<T>>::Output: Add<This>,
 {
+	type Output = <<<R as Sub<This>>::Output as Mul<T>>::Output as Add<This>>::Output;
 }
 
 #[derive(Resource, Component)]

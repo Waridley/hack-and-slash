@@ -12,11 +12,12 @@ use bevy::{
 };
 use bevy_kira_audio::{Audio, AudioControl};
 use bevy_rapier3d::{
-	control::KinematicCharacterController,
 	dynamics::{CoefficientCombineRule::Min, Velocity},
 	geometry::{Collider, Friction},
 	math::Vect,
-	plugin::{systems::update_character_controls, PhysicsSet::Writeback},
+	na::Vector3,
+	parry::math::Isometry,
+	plugin::PhysicsSet::StepSimulation,
 	prelude::{RigidBody::KinematicPositionBased, *},
 };
 use camera::spawn_camera;
@@ -41,10 +42,6 @@ use std::{
 	ops::{Deref, DerefMut},
 	time::Duration,
 };
-use bevy::transform::systems::{propagate_transforms, sync_simple_transforms};
-use bevy_rapier3d::na::Vector3;
-use bevy_rapier3d::parry::math::Isometry;
-use bevy_rapier3d::plugin::PhysicsSet::StepSimulation;
 
 pub mod camera;
 pub mod ctrl;
@@ -66,7 +63,7 @@ pub const CHAR_COLLIDER: Ball = Ball { radius: 1.2 };
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
 pub enum InterpolatedXforms {
 	Propagate,
-	Sync
+	Sync,
 }
 
 pub fn plugin(app: &mut App) -> &mut App {
@@ -80,7 +77,9 @@ pub fn plugin(app: &mut App) -> &mut App {
 				input::movement_input.before(terminal_velocity),
 				camera::position_target.after(terminal_velocity),
 				camera::follow_target.after(camera::position_target),
-				ctrl::move_player.before(StepSimulation).after(terminal_velocity),
+				ctrl::move_player
+					.before(StepSimulation)
+					.after(terminal_velocity),
 				ctrl::reset_jump_on_ground.after(ctrl::move_player),
 				// propagate_transforms.in_set(InterpolatedXforms::Propagate),
 				// sync_simple_transforms.in_set(InterpolatedXforms::Sync),
@@ -337,7 +336,14 @@ fn build_player_scene(
 	arm_particle_mesh: Handle<Mesh>,
 ) {
 	player_controller(root, owner, char_collider);
-	player_vis(root, owner, vis, particle_mesh, arm_meshes, arm_particle_mesh);
+	player_vis(
+		root,
+		owner,
+		vis,
+		particle_mesh,
+		arm_meshes,
+		arm_particle_mesh,
+	);
 }
 
 fn player_controller(root: &mut EntityCommands, owner: BelongsToPlayer, char_collider: Collider) {
@@ -395,7 +401,13 @@ fn player_vis(
 			Name::new(format!("Player{}.ShipCenter", owner.0.get())),
 			owner,
 			TransformBundle::from_transform(Transform::from_translation(Vec3::NEG_Z * 0.64)),
-			TransformInterpolation { start: None, end: Some(Isometry::new(Vector3::new(0.0, 0.0, -0.64), Vector3::default())) },
+			TransformInterpolation {
+				start: None,
+				end: Some(Isometry::new(
+					Vector3::new(0.0, 0.0, -0.64),
+					Vector3::default(),
+				)),
+			},
 			VisibilityBundle::default(), // for children ComputedVisibility
 		))
 		.set_enum(ShipCenter)
@@ -405,7 +417,9 @@ fn player_vis(
 				.spawn((
 					Name::new(format!("Player{}.ShipCenter.Ship", owner.0.get())),
 					owner,
-					TransformBundle::from_transform(Transform::from_rotation(Quat::from_rotation_x(FRAC_PI_2))),
+					TransformBundle::from_transform(Transform::from_rotation(
+						Quat::from_rotation_x(FRAC_PI_2),
+					)),
 					VisibilityBundle::default(),
 				))
 				.set_enum(Ship)

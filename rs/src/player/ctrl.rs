@@ -1,20 +1,30 @@
-use crate::{EPS, player::{
-	input::PlayerAction,
-	player_entity::{Controller, Root},
-	BelongsToPlayer, CHAR_COLLIDER, G1, HOVER_HEIGHT, PLAYER_GRAVITY, SLIDE_ANGLE,
-}, UP};
-use bevy::prelude::*;
-use bevy::render::primitives::{Aabb, Sphere};
-use bevy_rapier3d::{na::Vector3, prelude::*};
-use bevy_rapier3d::na::Translation;
-use bevy_rapier3d::parry::query::{DefaultQueryDispatcher, PersistentQueryDispatcher};
-use bevy_rapier3d::parry::shape::Capsule;
+use crate::{
+	player::{
+		input::PlayerAction,
+		player_entity::{Controller, Root, ShipCenter},
+		BelongsToPlayer, CHAR_COLLIDER, G1, HOVER_HEIGHT, PLAYER_GRAVITY, SLIDE_ANGLE,
+	},
+	EPS, UP,
+};
+use bevy::{
+	prelude::*,
+	render::primitives::{Aabb, Sphere},
+};
+use bevy_rapier3d::{
+	na::{Translation, Vector3},
+	parry::{
+		query::{DefaultQueryDispatcher, PersistentQueryDispatcher},
+		shape::Capsule,
+	},
+	prelude::*,
+};
 use enum_components::ERef;
-use rapier3d::math::Isometry;
-use rapier3d::parry::query::ContactManifold;
-use rapier3d::prelude::{ContactManifoldData, ContactData};
 use leafwing_abilities::prelude::*;
-use crate::player::player_entity::ShipCenter;
+use rapier3d::{
+	math::Isometry,
+	parry::query::ContactManifold,
+	prelude::{ContactData, ContactManifoldData},
+};
 
 #[derive(Component, Default)]
 pub struct CtrlState {
@@ -48,13 +58,7 @@ pub fn repel_ground(
 		ERef<Controller>,
 	>,
 ) {
-	for (
-		body_id,
-		global,
-		col,
-		ctrl_vel,
-		ctrl_state
-	) in &mut q {
+	for (body_id, global, col, ctrl_vel, ctrl_state) in &mut q {
 		player_repel_ground(
 			ctx.reborrow(),
 			body_id,
@@ -77,7 +81,7 @@ pub fn player_repel_ground(
 	dt: f32,
 ) {
 	let global = global.compute_transform();
-	
+
 	let max_toi = HOVER_HEIGHT;
 	let result = ctx.cast_shape(
 		global.translation,
@@ -91,7 +95,7 @@ pub fn player_repel_ground(
 			.exclude_rigid_body(**body_id)
 			.groups(CollisionGroups::new(G1, !G1)),
 	);
-	
+
 	if let Some((
 		id,
 		Toi {
@@ -111,31 +115,31 @@ pub fn player_repel_ground(
 		);
 		if angle < SLIDE_ANGLE {
 			ctrl_state.touching_ground = true;
-			
+
 			// Empirically decided
 			let stiffness = 256.0;
 			let damping = 4.0;
-			
+
 			// Think of the antigrav spring as radiating out in a spherical cone (sector),
 			// so the spring coefficient for a constant-area contact patch follows the inverse square law,
 			// not a constant like typical hooke's law springs.
 			let repel_accel = x * x * stiffness;
-			
+
 			ctrl_vel.linvel.z += (PLAYER_GRAVITY * dt) // Resist gravity for this frame
 				+ repel_accel * f32::min(dt, 0.125); // don't let low framerate eject player
-			
+
 			ctrl_vel.linvel.z *= 1.0 - (damping * dt);
 		} else {
 			ctrl_state.touching_ground = false;
-			
+
 			if ctrl_vel.linvel.z < 0.0 {
 				let norm = global.rotation.inverse() * details.normal1; // To player's local space
 				let v_dot_norm = ctrl_vel.linvel.dot(norm);
 				if v_dot_norm < 0.0 {
 					// Player is moving "into" the slope
-					
+
 					ctrl_vel.linvel -= v_dot_norm * norm; // Remove the penetrating part
-					
+
 					if ctrl_vel.linvel.z > 0.0 {
 						// Remove any upwards sliding
 						ctrl_vel.linvel.z = 0.0;
@@ -196,7 +200,14 @@ pub fn move_player(
 		),
 		ERef<Controller>,
 	>,
-	mut vis_q: Query<(&mut Transform, &mut TransformInterpolation, &BelongsToPlayer), ERef<ShipCenter>>,
+	mut vis_q: Query<
+		(
+			&mut Transform,
+			&mut TransformInterpolation,
+			&BelongsToPlayer,
+		),
+		ERef<ShipCenter>,
+	>,
 	sim_to_render: Res<SimulationToRenderTime>,
 	t: Res<Time>,
 ) {
@@ -206,28 +217,40 @@ pub fn move_player(
 	while diff > 0.0 && iters > 0 {
 		diff -= dt;
 		iters -= 1;
-		
-		for (col_id, body_id, global, mut ctrl_vel, col, ctrl_owner, mut ctrl_state) in &mut ctrl_q {
-			let Some(&body_handle) = ctx.entity2body().get(&body_id) else { continue };
-			player_repel_ground(ctx.reborrow(), body_id, global, col, ctrl_vel.reborrow(), ctrl_state.reborrow(), dt);
-			
-			let Some((body_id, mut body_xform, body_global)) = body_q
-				.iter_mut()
-				.find_map(|(id, xform, global, owner)|
+
+		for (col_id, body_id, global, mut ctrl_vel, col, ctrl_owner, mut ctrl_state) in &mut ctrl_q
+		{
+			let Some(&body_handle) = ctx.entity2body().get(&body_id) else {
+				continue;
+			};
+			player_repel_ground(
+				ctx.reborrow(),
+				body_id,
+				global,
+				col,
+				ctrl_vel.reborrow(),
+				ctrl_state.reborrow(),
+				dt,
+			);
+
+			let Some((body_id, mut body_xform, body_global)) =
+				body_q.iter_mut().find_map(|(id, xform, global, owner)|
 					// Todo: cache owner->entity map
 					(owner == ctrl_owner).then_some((id, xform, global.compute_transform())))
-				else { return };
+			else {
+				return;
+			};
 			let (mut vis_xform, mut vis_interp) = vis_q
 				.iter_mut()
 				.find_map(|(xform, interp, owner)| (owner == ctrl_owner).then_some((xform, interp)))
 				.unwrap();
-			
+
 			let rot = ctrl_vel.angvel * dt;
 			let rot = Quat::from_euler(EulerRot::ZXY, rot.z, rot.x, rot.y);
 			body_xform.rotate_local(rot);
-			
+
 			let vel = body_xform.rotation * ctrl_vel.linvel;
-			
+
 			let filter = QueryFilter {
 				flags: QueryFilterFlags::EXCLUDE_SENSORS,
 				groups: Some(CollisionGroups::new(G1, !G1)),
@@ -235,9 +258,9 @@ pub fn move_player(
 				exclude_rigid_body: Some(body_id),
 				predicate: None,
 			};
-			
+
 			const BUFFER: f32 = 0.1;
-			
+
 			let mut rem = dt;
 			let mut result = Vec3::ZERO;
 			let mut dir = vel;
@@ -255,12 +278,19 @@ pub fn move_player(
 					true,
 					filter,
 				) {
-					Some((_, Toi { toi, details: Some(hit), status: _status })) => {
+					Some((
+						_,
+						Toi {
+							toi,
+							details: Some(hit),
+							status: _status,
+						},
+					)) => {
 						let safe_toi = (toi - (dt * BUFFER)).clamp(0.0, rem);
 						let penetrating_part = dir * ((rem - toi) / rem);
 						let reaction = -penetrating_part.dot(hit.normal1) * (hit.normal1 * 1.01);
 						let slide_dir = penetrating_part + reaction;
-						
+
 						let angle = hit.normal1.angle_between(UP);
 						if angle < SLIDE_ANGLE {
 							ctrl_state.bottom_out();
@@ -270,13 +300,13 @@ pub fn move_player(
 							rem -= toi;
 						} else {
 							ctrl_state.bottomed_out = false;
-							
+
 							let already_moving_up = vel.z > BUFFER;
-							
+
 							let v_dot_norm = dir.dot(hit.normal1);
 							if v_dot_norm <= 0.0 {
 								// Player is moving "into" the slope
-								
+
 								let slide_dir = if !already_moving_up && hit.normal1.z > -BUFFER {
 									// Don't slide up a steep slope.
 									Vec3::new(slide_dir.x, slide_dir.y, f32::min(0.0, slide_dir.z))
@@ -299,31 +329,59 @@ pub fn move_player(
 							}
 						}
 					}
-					Some((_, Toi { status: TOIStatus::Penetrating, .. })) => {
+					Some((
+						_,
+						Toi {
+							status: TOIStatus::Penetrating,
+							..
+						},
+					)) => {
 						let q = DefaultQueryDispatcher;
 						contacts.clear();
 						let pos = body_global.translation + result;
 						let iso = Isometry::new(pos.into(), UP.into());
 						let ball = col.as_ball().unwrap();
-						let aabb = Aabb::from(Sphere { center: pos.into(), radius: ball.raw.radius + (vel * dt).length() });
-						
+						let aabb = Aabb::from(Sphere {
+							center: pos.into(),
+							radius: ball.raw.radius + (vel * dt).length(),
+						});
+
 						// Attempt to prevent tunnelling by using an extruded sphere (capsule) instead
-						let capsule = Capsule::new((-vel * dt).into(), Vec3::ZERO.into(), ball.raw.radius);
-						
+						let capsule =
+							Capsule::new((-vel * dt).into(), Vec3::ZERO.into(), ball.raw.radius);
+
 						ctx.colliders_with_aabb_intersecting_aabb(aabb, |handle| {
-							if handle == col_id { return true }
-							let Some(handle) = ctx.entity2collider().get(&handle) else { return true };
+							if handle == col_id {
+								return true;
+							}
+							let Some(handle) = ctx.entity2collider().get(&handle) else {
+								return true;
+							};
 							if let Some(other_col) = ctx.colliders.get(*handle) {
 								manifolds.clear();
 								let rel = iso.inv_mul(other_col.position());
-								if q.contact_manifolds(&rel, &capsule, other_col.shape(), BUFFER, &mut manifolds, &mut None).is_err() {
-									warn!("Cannot check if player is penetrating {:?}", other_col.shape().shape_type())
+								if q.contact_manifolds(
+									&rel,
+									&capsule,
+									other_col.shape(),
+									BUFFER,
+									&mut manifolds,
+									&mut None,
+								)
+								.is_err()
+								{
+									warn!(
+										"Cannot check if player is penetrating {:?}",
+										other_col.shape().shape_type()
+									)
 								}
 								for manifold in &manifolds {
-									let Some(contact) = manifold.find_deepest_contact() else { continue };
+									let Some(contact) = manifold.find_deepest_contact() else {
+										continue;
+									};
 									let mut dist = contact.dist;
 									if dist >= 0.0 {
-										continue
+										continue;
 									}
 									let mut norm = Vec3::from(manifold.local_n1);
 									if norm.angle_between(UP) < SLIDE_ANGLE {
@@ -356,7 +414,9 @@ pub fn move_player(
 						}
 					}
 					toi => {
-						if let Some(toi) = toi { dbg!(toi); }
+						if let Some(toi) = toi {
+							dbg!(toi);
+						}
 						ctrl_state.bottomed_out = false;
 						result += dir * rem;
 						rem = 0.0;
@@ -369,14 +429,19 @@ pub fn move_player(
 			if result.length() > 0.0 {
 				vis_xform.translation -= result;
 				let end = vis_interp.end.unwrap();
-				vis_interp.start = Some(Isometry::new(end.translation.vector - Vector3::from(body_xform.rotation.inverse() * result), (Quat::from(end.rotation) * rot).to_scaled_axis().into()));
+				vis_interp.start = Some(Isometry::new(
+					end.translation.vector - Vector3::from(body_xform.rotation.inverse() * result),
+					(Quat::from(end.rotation) * rot).to_scaled_axis().into(),
+				));
 				body_xform.translation += result;
 				body.set_translation(body_xform.translation.into(), true);
 			}
 		}
 	}
 	for (mut xform, interp, _) in &mut vis_q {
-		let new = interp.lerp_slerp(1.0 + diff / dt).unwrap_or_else(|| interp.end.unwrap());
+		let new = interp
+			.lerp_slerp(1.0 + diff / dt)
+			.unwrap_or_else(|| interp.end.unwrap());
 		xform.translation = new.translation.into();
 		xform.rotation = new.rotation.into();
 	}
@@ -392,7 +457,8 @@ pub fn save_tmp_transform(
 			tmp.0 = xform.translation;
 			tmp.1 = xform.rotation;
 		} else {
-			cmds.entity(id).insert(TmpXform(xform.translation, xform.rotation));
+			cmds.entity(id)
+				.insert(TmpXform(xform.translation, xform.rotation));
 		}
 	}
 }
