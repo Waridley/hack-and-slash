@@ -7,6 +7,7 @@ use noise::{
 };
 use ordered_float::OrderedFloat;
 use std::sync::Arc;
+use web_time::{Duration, Instant};
 
 type OF64 = OrderedFloat<f64>;
 
@@ -33,6 +34,8 @@ impl<const N: usize> ChooseAndSmooth<N> {
 
 	// Needs to be async to allow splitting work over multiple frames on WASM
 	pub async fn generate_map(&self, center: PlanetVec2, rows: usize, columns: usize) -> Vec<f32> {
+		let mut last_await = Instant::now();
+
 		// Extra space around edges for blurring
 		let winner_rows = rows + KERNEL.len() - 1;
 		let winner_cols = columns + KERNEL.len() - 1;
@@ -40,23 +43,31 @@ impl<const N: usize> ChooseAndSmooth<N> {
 		let mut winners = Vec::with_capacity(winner_rows * winner_cols);
 		let mut ret = Vec::with_capacity(rows * columns);
 
+		// map range to eliminate seams.
+		// e.g. `[0, 128) => [-64.0, 64.0]`
+		let stretch = PlanetVec2::new(
+			(columns as f64) / ((columns - 1) as f64),
+			(rows as f64) / ((rows - 1) as f64),
+		);
+
 		for x in 0..winner_cols {
 			for y in 0..winner_rows {
 				winners.push(self.strongest_at([
-					center.x + (x as f64 - (winner_rows as f64 * 0.5)),
-					center.y + (y as f64 - (winner_cols as f64 * 0.5)),
+					center.x + (x as f64 * stretch.x) - (winner_cols as f64 * 0.5),
+					center.y + (-(y as f64) * stretch.y) + (winner_rows as f64 * 0.5),
 				]) as u8)
 			}
-			if x % 4 == 0 {
+			if Instant::now().duration_since(last_await) > Duration::from_micros(500) {
 				wasm_yield().await;
+				last_await = Instant::now();
 			}
 		}
 
 		for x in 0..columns {
 			for y in 0..rows {
 				let point = [
-					center.x + (x as f64 - (rows as f64 * 0.5)),
-					center.y + (y as f64 - (columns as f64 * 0.5)),
+					center.x + (x as f64 * stretch.x) - (columns as f64 * 0.5),
+					center.y + (-(y as f64) * stretch.y) + (rows as f64 * 0.5),
 				];
 				let mut value_caches = [None; N];
 				let mut sum = 0.0;
@@ -64,7 +75,7 @@ impl<const N: usize> ChooseAndSmooth<N> {
 				// Gaussian blur kernel convolution
 				for j in 0..KERNEL.len() {
 					for i in 0..KERNEL.len() {
-						let strongest = winners[((x + j) * winner_rows) + y + i] as usize;
+						let strongest = winners[((x + j) * winner_cols) + y + i] as usize;
 						sum += *value_caches[strongest]
 							.get_or_insert_with(|| self.sources[strongest].noise.get(point))
 							* KERNEL[i][j]
@@ -72,8 +83,9 @@ impl<const N: usize> ChooseAndSmooth<N> {
 				}
 				ret.push(sum as f32)
 			}
-			if x % 4 == 0 {
+			if Instant::now().duration_since(last_await) > Duration::from_micros(500) {
 				wasm_yield().await;
+				last_await = Instant::now();
 			}
 		}
 
