@@ -29,6 +29,7 @@ use std::{
 	f32::consts::{FRAC_PI_2, FRAC_PI_3, TAU},
 	time::Duration,
 };
+use crate::player::input::PlayerAction::Move;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugins((
@@ -44,7 +45,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 			look_input
 				.before(terminal_velocity)
 				.before(super::ctrl::move_player),
-			jump.before(terminal_velocity),
+			// jump.before(terminal_velocity),
 		),
 	)
 }
@@ -77,8 +78,11 @@ fn setup(
 	Deserialize,
 )]
 pub enum PlayerAction {
+	Move,
+	Look,
 	Jump,
 	AoE,
+	Dash,
 	Pause,
 }
 
@@ -87,9 +91,10 @@ impl PlayerAction {
 		use PlayerAction::*;
 
 		let secs = match *self {
-			Jump => 0.128, // debouncing
+			Move | Look | Pause => return None,
+			Jump => 0.128,
 			AoE => 2.5,
-			Pause => return None,
+			Dash => 0.128,
 		};
 
 		Some(Cooldown::from_secs(secs))

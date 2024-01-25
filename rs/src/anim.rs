@@ -564,10 +564,7 @@ where
 }
 
 pub trait StartAnimation<'w, 's, 'a> {
-	fn start_mut_animation<T: Component>(
-		&'a mut self,
-		tick: impl CurveMut<T>,
-	) -> Entity;
+	fn start_mut_animation<T: Component>(&'a mut self, tick: impl CurveMut<T>) -> Entity;
 	fn start_blendable_animation<
 		T: Component + Add<D, Output = T> + PartialEq + Clone,
 		D: Add<Output = D> + Mul<f32, Output = D> + 'static,
@@ -578,10 +575,7 @@ pub trait StartAnimation<'w, 's, 'a> {
 }
 
 impl<'w, 's, 'a> StartAnimation<'w, 's, 'a> for EntityCommands<'w, 's, 'a> {
-	fn start_mut_animation<T: Component>(
-		&'a mut self,
-		tick: impl CurveMut<T>,
-	) -> Entity {
+	fn start_mut_animation<T: Component>(&'a mut self, tick: impl CurveMut<T>) -> Entity {
 		let id = self.id();
 		self.commands().spawn(MutAnimation::new(id, tick)).id()
 	}
@@ -594,7 +588,9 @@ impl<'w, 's, 'a> StartAnimation<'w, 's, 'a> for EntityCommands<'w, 's, 'a> {
 		tick: impl BlendableCurve<T, D>,
 	) -> Entity {
 		let id = self.id();
-		self.commands().spawn(BlendableAnimation::new(id, tick)).id()
+		self.commands()
+			.spawn(BlendableAnimation::new(id, tick))
+			.id()
 	}
 }
 

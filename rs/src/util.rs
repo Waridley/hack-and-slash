@@ -396,3 +396,28 @@ impl<T: Sub<Output = D> + Clone, D> Diff for &T {
 		(*self).clone() - (*rhs).clone()
 	}
 }
+
+#[derive(Component, Resource, Deref, DerefMut)]
+pub struct Prev<T>(T);
+
+impl<T: Clone> Prev<T> {
+	pub fn update_component(mut cmds: Commands, mut q: Query<(Entity, &T, Option<&mut Self>), Changed<T>>) where T: Component {
+		for (id, curr, mut prev) in &mut q {
+			if let Some(mut prev) = prev {
+				**prev = curr.clone();
+			} else {
+				cmds.entity(id).insert(Self(curr.clone()));
+			}
+		}
+	}
+	
+	pub fn update_res(mut cmds: Commands, curr: Res<T>, prev: Option<ResMut<Self>>) where T: Resource {
+		if curr.is_changed() {
+			if let Some(mut prev) = prev {
+				**prev = curr.clone();
+			} else {
+				cmds.insert_resource(Self(curr.clone()));
+			}
+		}
+	}
+}

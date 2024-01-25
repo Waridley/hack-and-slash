@@ -20,6 +20,9 @@ use util::{IntoFnPlugin, RonReflectAssetLoader};
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
 use bevy_dylib;
 use bevy_rapier3d::plugin::PhysicsSet::StepSimulation;
+use offloading::OffloadingPlugin;
+use planet::sky::SkyPlugin;
+use crate::abilities::AbilitiesPlugin;
 
 pub mod abilities;
 pub mod anim;
@@ -102,8 +105,9 @@ pub fn game_plugin(app: &mut App) -> &mut App {
 		FrameTimeDiagnosticsPlugin,
 		AudioPlugin,
 		ParticlesPlugin,
-		offloading::OffloadingPlugin,
-		planet::sky::SkyPlugin,
+		AbilitiesPlugin,
+		OffloadingPlugin,
+		SkyPlugin,
 		enemies::plugin.plugfn(),
 		player::plugin.plugfn(),
 		pickups::plugin.plugfn(),
@@ -243,28 +247,29 @@ fn startup(
 	});
 }
 
-fn terminal_velocity(mut q: Query<(&mut CtrlVel, &TerminalVelocity)>) {
+fn terminal_velocity(mut q: Query<(&mut CtrlVel, &TerminalVelocity)>, t: Res<Time>) {
+	let dt = t.delta_seconds();
 	for (mut vel, term_vel) in q.iter_mut() {
 		// Don't trigger vel.deref_mut if not necessary
 		let term = term_vel.linvel;
 		if vel.linvel.x.abs() > term.x {
-			vel.linvel.x = term.x * vel.linvel.x.signum()
+			vel.linvel.x -= dt * vel.linvel.x.signum()
 		}
 		if vel.linvel.y.abs() > term.y {
-			vel.linvel.y = term.y * vel.linvel.y.signum()
+			vel.linvel.y -= dt * vel.linvel.y.signum()
 		}
 		if vel.linvel.z.abs() > term.z {
-			vel.linvel.z = term.z * vel.linvel.z.signum()
+			vel.linvel.z -= dt * vel.linvel.z.signum()
 		}
 		let term = term_vel.angvel;
 		if vel.angvel.x.abs() > term.x {
-			vel.angvel.x = term.x * vel.angvel.x.signum()
+			vel.angvel.x -= dt * vel.angvel.x.signum()
 		}
 		if vel.angvel.y.abs() > term.y {
-			vel.angvel.y = term.y * vel.angvel.y.signum()
+			vel.angvel.y -= dt * vel.angvel.y.signum()
 		}
 		if vel.angvel.z.abs() > term.z {
-			vel.angvel.z = term.z * vel.angvel.z.signum()
+			vel.angvel.z -= dt * vel.angvel.z.signum()
 		}
 	}
 }

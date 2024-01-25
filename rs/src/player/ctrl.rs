@@ -25,8 +25,9 @@ use rapier3d::{
 	parry::query::ContactManifold,
 	prelude::{ContactData, ContactManifoldData},
 };
+use crate::abilities::BoosterCharge;
 
-#[derive(Component, Default)]
+#[derive(Component, Default, Clone, Debug)]
 pub struct CtrlState {
 	pub touching_ground: bool,
 	pub bottomed_out: bool,
@@ -154,8 +155,8 @@ pub fn player_repel_ground(
 	}
 }
 
-pub fn reset_jump_on_ground(mut q: Query<(AbilityState<PlayerAction>, &CtrlState)>) {
-	for (mut state, ctrl_state) in &mut q {
+pub fn reset_jump_on_ground(mut q: Query<(AbilityState<PlayerAction>, &CtrlState, &mut BoosterCharge), Changed<CtrlState>>) {
+	for (mut state, ctrl_state, mut charge) in &mut q {
 		if ctrl_state.touching_ground
 			&& state
 				.cooldowns
@@ -167,6 +168,10 @@ pub fn reset_jump_on_ground(mut q: Query<(AbilityState<PlayerAction>, &CtrlState
 		{
 			let charges = state.charges.get_mut(PlayerAction::Jump).as_mut().unwrap();
 			charges.set_charges(charges.max_charges());
+		}
+		
+		if ctrl_state.touching_ground && *charge < BoosterCharge::default() {
+			*charge = BoosterCharge::default()
 		}
 	}
 }
