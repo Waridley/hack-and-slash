@@ -85,7 +85,7 @@ pub fn consume_spawn_events<T: Spawnable>(
 	}
 }
 
-pub trait Lerp<Rhs, T> {
+pub trait Lerp<Rhs, T = f32> {
 	type Output;
 
 	fn lerp(self, rhs: Rhs, t: T) -> Self::Output;
@@ -384,14 +384,14 @@ impl LerpSlerp for Transform {
 pub trait Diff {
 	/// Type representing the difference between two values of Self.
 	type Delta;
-	
+
 	/// Subtract `rhs` from `self`
 	fn relative_to(&self, rhs: &Self) -> Self::Delta;
 }
 
 impl<T: Sub<Output = D> + Clone, D> Diff for &T {
 	type Delta = D;
-	
+
 	fn relative_to(&self, rhs: &Self) -> Self::Delta {
 		(*self).clone() - (*rhs).clone()
 	}
