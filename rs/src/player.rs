@@ -48,11 +48,15 @@ pub mod ctrl;
 pub mod input;
 pub mod prefs;
 
+// TODO: These should be in a text resource. Maybe const in release builds.
 pub const MAX_SPEED: f32 = 64.0;
 pub const ACCEL: f32 = 3.0;
 pub const PLAYER_GRAVITY: f32 = 64.0;
 pub const MAX_JUMPS: f32 = 2.0;
 pub const JUMP_VEL: f32 = 64.0;
+pub const JUMP_COST: f32 = 64.0;
+pub const DASH_VEL: f32 = 196.0;
+pub const DASH_COST: f32 = 64.0;
 pub const CLIMB_ANGLE: f32 = FRAC_PI_3 - R_EPS;
 pub const SLIDE_ANGLE: f32 = FRAC_PI_3 - R_EPS;
 pub const HOVER_HEIGHT: f32 = 2.0;
@@ -69,6 +73,7 @@ pub enum InterpolatedXforms {
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugins(input::plugin.plugfn())
 		.add_systems(Startup, setup)
+		.add_systems(First, Prev::<CtrlState>::update_component)
 		.add_systems(
 			Update,
 			(
@@ -212,6 +217,8 @@ pub enum PlayerEntity {
 	Arm(PlayerArm),
 }
 use player_entity::*;
+use crate::abilities::BoosterCharge;
+use crate::util::Prev;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum PlayerArm {
@@ -380,6 +387,7 @@ fn player_controller(root: &mut EntityCommands, owner: BelongsToPlayer, char_col
 				},
 				PlayerAction::abilities_bundle(),
 				CtrlState::default(),
+				BoosterCharge::default(),
 				(invert_camera, fov, sens),
 			))
 			.with_enum(Controller);
