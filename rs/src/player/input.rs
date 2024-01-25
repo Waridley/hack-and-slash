@@ -26,7 +26,7 @@ use leafwing_input_manager::prelude::*;
 use particles::Spewer;
 use serde::{Deserialize, Serialize};
 use std::{
-	f32::consts::{FRAC_PI_2, FRAC_PI_3, PI, TAU},
+	f32::consts::{FRAC_PI_2, FRAC_PI_3, TAU},
 	time::Duration,
 };
 
