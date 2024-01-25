@@ -2,16 +2,16 @@ use crate::{
 	player::{
 		input::PlayerAction,
 		player_entity::{Controller, Root, ShipCenter},
-		BelongsToPlayer, CHAR_COLLIDER, G1, HOVER_HEIGHT, PLAYER_GRAVITY, SLIDE_ANGLE,
+		BelongsToPlayer, G1, HOVER_HEIGHT, PLAYER_GRAVITY, SLIDE_ANGLE,
 	},
-	EPS, UP,
+	UP,
 };
 use bevy::{
 	prelude::*,
 	render::primitives::{Aabb, Sphere},
 };
 use bevy_rapier3d::{
-	na::{Translation, Vector3},
+	na::Vector3,
 	parry::{
 		query::{DefaultQueryDispatcher, PersistentQueryDispatcher},
 		shape::Capsule,
@@ -379,11 +379,11 @@ pub fn move_player(
 									let Some(contact) = manifold.find_deepest_contact() else {
 										continue;
 									};
-									let mut dist = contact.dist;
+									let dist = contact.dist;
 									if dist >= 0.0 {
 										continue;
 									}
-									let mut norm = Vec3::from(manifold.local_n1);
+									let norm = Vec3::from(manifold.local_n1);
 									if norm.angle_between(UP) < SLIDE_ANGLE {
 										// Any shallow-enough slope bottoms us out
 										ctrl_state.bottom_out()

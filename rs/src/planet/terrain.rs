@@ -14,7 +14,6 @@ use ::noise::{
 };
 use bevy::{
 	ecs::system::{EntityCommands, SystemParamItem},
-	input::{keyboard::KeyboardInput, ButtonState},
 	prelude::*,
 	render::{
 		batching::NoAutomaticBatching,
@@ -217,7 +216,7 @@ pub fn generate_chunk<'w, 's>(
 
 			let mut vertices = Vec::with_capacity(heights.num_triangles() * 3);
 			let mut normals = Vec::with_capacity(vertices.len());
-			for (i, tri) in heights.triangles().enumerate() {
+			for tri in heights.triangles() {
 				let tri = [
 					[tri.a.x, tri.a.y, tri.a.z],
 					[tri.b.x, tri.b.y, tri.b.z],

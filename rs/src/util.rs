@@ -88,7 +88,6 @@ pub fn consume_spawn_events<T: Spawnable>(
 pub trait Lerp<Rhs, T> {
 	type Output;
 
-	#[inline(always)]
 	fn lerp(self, rhs: Rhs, t: T) -> Self::Output;
 }
 
@@ -363,5 +362,37 @@ impl<'this, T: Reflect + FromReflect + Asset> AssetLoader for RonReflectAssetLoa
 
 	fn extensions(&self) -> &[&str] {
 		&self.extensions
+	}
+}
+
+pub trait LerpSlerp<Rhs = Self, T = f32> {
+	fn lerp_slerp(self, rhs: Rhs, t: T) -> Self;
+}
+
+impl LerpSlerp for Transform {
+	fn lerp_slerp(self, other: Self, t: f32) -> Self {
+		Transform {
+			translation: self.translation.lerp(other.translation, t),
+			rotation: self.rotation.slerp(other.rotation, t),
+			scale: self.scale.lerp(other.scale, t),
+		}
+	}
+}
+
+/// Works just like `Sub` but takes parameters by reference, the right-hand side can only be Self,
+/// and is specifically intended for animation blending.
+pub trait Diff {
+	/// Type representing the difference between two values of Self.
+	type Delta;
+	
+	/// Subtract `rhs` from `self`
+	fn relative_to(&self, rhs: &Self) -> Self::Delta;
+}
+
+impl<T: Sub<Output = D> + Clone, D> Diff for &T {
+	type Delta = D;
+	
+	fn relative_to(&self, rhs: &Self) -> Self::Delta {
+		(*self).clone() - (*rhs).clone()
 	}
 }
