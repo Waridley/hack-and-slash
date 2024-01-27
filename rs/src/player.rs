@@ -1,4 +1,4 @@
-use crate::{terminal_velocity, TerminalVelocity, R_EPS};
+use crate::{terminal_velocity, TerminalVelocity};
 
 use crate::{pickups::MissSfx, settings::Settings, util::IntoFnPlugin};
 use bevy::{
@@ -10,6 +10,7 @@ use bevy::{
 	render::camera::ManualTextureViews,
 	utils::HashSet,
 };
+use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_kira_audio::{Audio, AudioControl};
 use bevy_rapier3d::{
 	dynamics::{CoefficientCombineRule::Min, Velocity},
@@ -23,7 +24,7 @@ use bevy_rapier3d::{
 use camera::spawn_camera;
 use ctrl::{CtrlState, CtrlVel};
 use enum_components::{ERef, EntityEnumCommands, EnumComponent};
-use input::{AoESound, PlayerAction};
+use input::PlayerAction;
 use leafwing_input_manager::prelude::*;
 use nanorand::Rng;
 use particles::{
@@ -34,7 +35,7 @@ use particles::{
 use prefs::PlayerPrefs;
 use rapier3d::{
 	math::Point,
-	prelude::{Aabb, Ball, SharedShape},
+	prelude::{Aabb, SharedShape},
 };
 use std::{
 	f32::consts::*,
@@ -47,22 +48,9 @@ pub mod camera;
 pub mod ctrl;
 pub mod input;
 pub mod prefs;
+pub mod tune;
 
-// TODO: These should be in a text resource. Maybe const in release builds.
-pub const MAX_SPEED: f32 = 64.0;
-pub const ACCEL: f32 = 3.0;
-pub const PLAYER_GRAVITY: f32 = 64.0;
-pub const MAX_JUMPS: f32 = 2.0;
-pub const JUMP_VEL: f32 = 64.0;
-pub const JUMP_COST: f32 = 64.0;
-pub const DASH_VEL: f32 = 196.0;
-pub const DASH_COST: f32 = 64.0;
-pub const CLIMB_ANGLE: f32 = FRAC_PI_3 - R_EPS;
-pub const SLIDE_ANGLE: f32 = FRAC_PI_3 - R_EPS;
-pub const HOVER_HEIGHT: f32 = 2.0;
 const G1: Group = Group::GROUP_1;
-
-pub const CHAR_COLLIDER: Ball = Ball { radius: 1.2 };
 
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
 pub enum InterpolatedXforms {
@@ -71,37 +59,58 @@ pub enum InterpolatedXforms {
 }
 
 pub fn plugin(app: &mut App) -> &mut App {
-	app.add_plugins(input::plugin.plugfn())
-		.add_systems(Startup, setup)
-		.add_systems(First, Prev::<CtrlState>::update_component)
-		.add_systems(
-			Update,
-			(
-				ctrl::gravity.before(terminal_velocity),
-				// ctrl::repel_ground.after(ctrl::gravity),
-				input::movement_input.before(terminal_velocity),
-				camera::position_target.after(terminal_velocity),
-				camera::follow_target.after(camera::position_target),
-				ctrl::move_player
-					.before(StepSimulation)
-					.after(terminal_velocity),
-				ctrl::reset_jump_on_ground.after(ctrl::move_player),
-				// propagate_transforms.in_set(InterpolatedXforms::Propagate),
-				// sync_simple_transforms.in_set(InterpolatedXforms::Sync),
-				// ctrl::save_tmp_transform
-				// 	.after(ctrl::move_player)
-				// 	.before(Writeback),
-				// ctrl::load_tmp_transform.after(Writeback),
-				idle,
-				play_death_sound,
-			),
-		)
-		// .configure_sets(Update, (InterpolatedXforms::Propagate, InterpolatedXforms::Sync).chain().after(ctrl::move_player))
-		.add_systems(
-			Last,
-			(reset_oob, countdown_respawn, spawn_players, kill_on_key),
-		)
-		.add_event::<PlayerSpawnEvent>();
+	app.add_plugins((
+		input::plugin.plugfn(),
+		RonAssetPlugin::<PlayerParams>::new(&["ron"]),
+	))
+	.add_systems(Startup, setup)
+	.add_systems(
+		First,
+		(
+			Prev::<CtrlState>::update_component,
+			tune::extract_loaded_params,
+		),
+	)
+	.add_systems(
+		Update,
+		(
+			ctrl::gravity
+				.before(terminal_velocity)
+				.run_if(resource_exists::<PlayerParams>()),
+			// ctrl::repel_ground.after(ctrl::gravity),
+			input::movement_input
+				.before(terminal_velocity)
+				.run_if(resource_exists::<PlayerParams>()),
+			camera::position_target.after(terminal_velocity),
+			camera::follow_target.after(camera::position_target),
+			ctrl::move_player
+				.before(StepSimulation)
+				.after(terminal_velocity)
+				.run_if(resource_exists::<PlayerParams>()),
+			ctrl::reset_jump_on_ground
+				.after(ctrl::move_player)
+				.run_if(resource_exists::<PlayerParams>()),
+			// propagate_transforms.in_set(InterpolatedXforms::Propagate),
+			// sync_simple_transforms.in_set(InterpolatedXforms::Sync),
+			// ctrl::save_tmp_transform
+			// 	.after(ctrl::move_player)
+			// 	.before(Writeback),
+			// ctrl::load_tmp_transform.after(Writeback),
+			idle,
+			play_death_sound,
+		),
+	)
+	// .configure_sets(Update, (InterpolatedXforms::Propagate, InterpolatedXforms::Sync).chain().after(ctrl::move_player))
+	.add_systems(
+		Last,
+		(
+			reset_oob,
+			countdown_respawn,
+			spawn_players.run_if(resource_exists::<PlayerParams>()),
+			kill_on_key,
+		),
+	)
+	.add_event::<PlayerSpawnEvent>();
 	app
 }
 
@@ -115,6 +124,10 @@ pub fn setup(
 	mut spawn_events: EventWriter<PlayerSpawnEvent>,
 	manual_texture_views: Res<ManualTextureViews>,
 ) {
+	Box::leak(Box::new(
+		asset_server.load::<PlayerParams>("tune/player_params.ron"),
+	));
+
 	cmds.insert_resource(PlayerBounds {
 		aabb: Aabb::new(
 			Point::new(-16384.0, -16384.0, -8192.0),
@@ -216,9 +229,12 @@ pub enum PlayerEntity {
 	Arms,
 	Arm(PlayerArm),
 }
+use crate::{
+	abilities::{AoESound, BoosterCharge, WeaponCharge},
+	player::tune::PlayerParams,
+	util::Prev,
+};
 use player_entity::*;
-use crate::abilities::BoosterCharge;
-use crate::util::Prev;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum PlayerArm {
@@ -249,6 +265,7 @@ impl BelongsToPlayer {
 pub fn spawn_players(
 	mut cmds: Commands,
 	spawn_data: Res<PlayerSpawnData>,
+	params: Res<PlayerParams>,
 	mut events: ResMut<Events<PlayerSpawnEvent>>,
 ) {
 	for event in events.drain() {
@@ -297,7 +314,7 @@ pub fn spawn_players(
 
 		let id = event.id;
 		let owner = BelongsToPlayer::with_id(id);
-		let char_collider = Collider::from(SharedShape::new(CHAR_COLLIDER));
+		let char_collider = Collider::from(SharedShape::new(params.phys.collider));
 		let mut root = cmds
 			.spawn((
 				Name::new(format!("Player{}", owner.0.get())),
@@ -371,23 +388,13 @@ fn player_controller(root: &mut EntityCommands, owner: BelongsToPlayer, char_col
 				TransformBundle::default(),
 				CtrlVel::default(),
 				CollisionGroups::new(Group::GROUP_1, !Group::GROUP_1),
-				// KinematicCharacterController {
-				// 	up: Vect::Z,
-				// 	snap_to_ground: None,
-				// 	autostep: None,
-				// 	max_slope_climb_angle: CLIMB_ANGLE,
-				// 	min_slope_slide_angle: SLIDE_ANGLE,
-				// 	filter_flags: QueryFilterFlags::EXCLUDE_SENSORS,
-				// 	filter_groups: Some(CollisionGroups::new(G1, !G1)),
-				// 	..default()
-				// },
 				InputManagerBundle::<PlayerAction> {
 					input_map,
 					..default()
 				},
-				PlayerAction::abilities_bundle(),
 				CtrlState::default(),
 				BoosterCharge::default(),
+				WeaponCharge::default(),
 				(invert_camera, fov, sens),
 			))
 			.with_enum(Controller);

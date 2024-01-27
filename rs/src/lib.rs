@@ -16,13 +16,13 @@ use player::ctrl::CtrlVel;
 use std::{f32::consts::*, fmt::Debug, time::Duration};
 use util::{IntoFnPlugin, RonReflectAssetLoader};
 
+use crate::abilities::AbilitiesPlugin;
 #[allow(unused_imports, clippy::single_component_path_imports)]
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
 use bevy_dylib;
 use bevy_rapier3d::plugin::PhysicsSet::StepSimulation;
 use offloading::OffloadingPlugin;
 use planet::sky::SkyPlugin;
-use crate::abilities::AbilitiesPlugin;
 
 pub mod abilities;
 pub mod anim;

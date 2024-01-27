@@ -1,8 +1,10 @@
 use crate::{
+	abilities::BoosterCharge,
 	player::{
 		input::PlayerAction,
 		player_entity::{Controller, Root, ShipCenter},
-		BelongsToPlayer, G1, HOVER_HEIGHT, PLAYER_GRAVITY, SLIDE_ANGLE,
+		tune::PlayerParams,
+		BelongsToPlayer, G1,
 	},
 	UP,
 };
@@ -25,7 +27,6 @@ use rapier3d::{
 	parry::query::ContactManifold,
 	prelude::{ContactData, ContactManifoldData},
 };
-use crate::abilities::BoosterCharge;
 
 #[derive(Component, Default, Clone, Debug)]
 pub struct CtrlState {
@@ -46,31 +47,33 @@ pub struct CtrlVel {
 	pub angvel: Vect,
 }
 
-pub fn repel_ground(
-	mut ctx: ResMut<RapierContext>,
-	mut q: Query<
-		(
-			&Parent,
-			&GlobalTransform,
-			&Collider,
-			&mut CtrlVel,
-			&mut CtrlState,
-		),
-		ERef<Controller>,
-	>,
-) {
-	for (body_id, global, col, ctrl_vel, ctrl_state) in &mut q {
-		player_repel_ground(
-			ctx.reborrow(),
-			body_id,
-			global,
-			col,
-			ctrl_vel,
-			ctrl_state,
-			crate::DT,
-		)
-	}
-}
+// pub fn repel_ground(
+// 	mut ctx: ResMut<RapierContext>,
+// 	mut q: Query<
+// 		(
+// 			&Parent,
+// 			&GlobalTransform,
+// 			&Collider,
+// 			&mut CtrlVel,
+// 			&mut CtrlState,
+// 		),
+// 		ERef<Controller>,
+// 	>,
+// 	params: Res<PlayerParams>,
+// ) {
+// 	for (body_id, global, col, ctrl_vel, ctrl_state) in &mut q {
+// 		player_repel_ground(
+// 			ctx.reborrow(),
+// 			body_id,
+// 			global,
+// 			col,
+// 			ctrl_vel,
+// 			ctrl_state,
+// 			&*params,
+// 			crate::DT,
+// 		)
+// 	}
+// }
 
 pub fn player_repel_ground(
 	mut ctx: Mut<RapierContext>,
@@ -79,11 +82,12 @@ pub fn player_repel_ground(
 	col: &Collider,
 	mut ctrl_vel: Mut<CtrlVel>,
 	mut ctrl_state: Mut<CtrlState>,
+	params: &PlayerParams,
 	dt: f32,
 ) {
 	let global = global.compute_transform();
 
-	let max_toi = HOVER_HEIGHT;
+	let max_toi = params.phys.hover_height;
 	let result = ctx.cast_shape(
 		global.translation,
 		global.rotation,
@@ -114,7 +118,7 @@ pub fn player_repel_ground(
 			details.witness1.into(),
 			true,
 		);
-		if angle < SLIDE_ANGLE {
+		if angle < params.phys.slide_angle.rad() {
 			ctrl_state.touching_ground = true;
 
 			// Empirically decided
@@ -126,7 +130,7 @@ pub fn player_repel_ground(
 			// not a constant like typical hooke's law springs.
 			let repel_accel = x * x * stiffness;
 
-			ctrl_vel.linvel.z += (PLAYER_GRAVITY * dt) // Resist gravity for this frame
+			ctrl_vel.linvel.z += (params.phys.gravity * dt) // Resist gravity for this frame
 				+ repel_accel * f32::min(dt, 0.125); // don't let low framerate eject player
 
 			ctrl_vel.linvel.z *= 1.0 - (damping * dt);
@@ -155,28 +159,19 @@ pub fn player_repel_ground(
 	}
 }
 
-pub fn reset_jump_on_ground(mut q: Query<(AbilityState<PlayerAction>, &CtrlState, &mut BoosterCharge), Changed<CtrlState>>) {
-	for (mut state, ctrl_state, mut charge) in &mut q {
-		if ctrl_state.touching_ground
-			&& state
-				.cooldowns
-				.get(PlayerAction::Jump)
-				.as_ref()
-				.unwrap()
-				.ready()
-				.is_ok()
-		{
-			let charges = state.charges.get_mut(PlayerAction::Jump).as_mut().unwrap();
-			charges.set_charges(charges.max_charges());
-		}
-		
-		if ctrl_state.touching_ground && *charge < BoosterCharge::default() {
-			*charge = BoosterCharge::default()
+pub fn reset_jump_on_ground(
+	mut q: Query<(&CtrlState, &mut BoosterCharge), Changed<CtrlState>>,
+	params: Res<PlayerParams>,
+) {
+	let grounded_charge = params.abil.grounded_booster_charge;
+	for (ctrl_state, mut charge) in &mut q {
+		if ctrl_state.touching_ground && *charge < grounded_charge {
+			*charge = grounded_charge
 		}
 	}
 }
 
-pub fn gravity(mut q: Query<(&mut CtrlVel, &CtrlState)>, t: Res<Time>) {
+pub fn gravity(mut q: Query<(&mut CtrlVel, &CtrlState)>, params: Res<PlayerParams>, t: Res<Time>) {
 	for (mut ctrl_vel, state) in q.iter_mut() {
 		if state.bottomed_out {
 			// Only when actual collider is grounded, not the antigrav pulses.
@@ -184,7 +179,7 @@ pub fn gravity(mut q: Query<(&mut CtrlVel, &CtrlState)>, t: Res<Time>) {
 			ctrl_vel.linvel.z = f32::max(ctrl_vel.linvel.z, 0.0)
 		}
 
-		let decr = PLAYER_GRAVITY * t.delta_seconds();
+		let decr = params.phys.gravity * t.delta_seconds();
 
 		ctrl_vel.linvel.z -= decr;
 	}
@@ -213,6 +208,7 @@ pub fn move_player(
 		),
 		ERef<ShipCenter>,
 	>,
+	params: Res<PlayerParams>,
 	sim_to_render: Res<SimulationToRenderTime>,
 	t: Res<Time>,
 ) {
@@ -235,6 +231,7 @@ pub fn move_player(
 				col,
 				ctrl_vel.reborrow(),
 				ctrl_state.reborrow(),
+				&*params,
 				dt,
 			);
 
@@ -297,7 +294,7 @@ pub fn move_player(
 						let slide_dir = penetrating_part + reaction;
 
 						let angle = hit.normal1.angle_between(UP);
-						if angle < SLIDE_ANGLE {
+						if angle < params.phys.slide_angle.rad() {
 							ctrl_state.bottom_out();
 							// Let player slide like normal
 							result += dir * safe_toi;
@@ -389,7 +386,7 @@ pub fn move_player(
 										continue;
 									}
 									let norm = Vec3::from(manifold.local_n1);
-									if norm.angle_between(UP) < SLIDE_ANGLE {
+									if norm.angle_between(UP) < params.phys.slide_angle.rad() {
 										// Any shallow-enough slope bottoms us out
 										ctrl_state.bottom_out()
 									} else {
@@ -408,7 +405,7 @@ pub fn move_player(
 						for (dir, dist) in contacts.drain(..) {
 							fix += dir * f32::min(dt, dist * (1.0 + BUFFER));
 						}
-						if fix.angle_between(UP) < SLIDE_ANGLE {
+						if fix.angle_between(UP) < params.phys.slide_angle.rad() {
 							// Even if individual surfaces were all too steep, getting stuck in a V should still bottom us out.
 							ctrl_state.bottom_out()
 						}

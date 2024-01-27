@@ -41,6 +41,7 @@ impl Default for PlayerPrefs {
 			(KeyCode::Space, Jump),
 			(KeyCode::ShiftLeft, Dash),
 			(KeyCode::E, AoE),
+			(KeyCode::PageUp, AoE),
 			(KeyCode::Escape, Pause),
 		]);
 		input_map.insert_multiple([
@@ -57,9 +58,7 @@ impl Default for PlayerPrefs {
 			(GamepadButtonType::RightTrigger, AoE),
 			(GamepadButtonType::Start, Pause),
 		]);
-		input_map.insert_multiple([
-			(MouseButton::Other(5), Dash) // Browser forward
-		]);
+		input_map.insert_multiple([(MouseButton::Other(9), Dash)]);
 		Self {
 			invert_camera: default(),
 			fov: default(),
