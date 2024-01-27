@@ -2,9 +2,11 @@ use crate::{
 	player::{
 		camera::CameraVertSlider,
 		ctrl::CtrlVel,
-		player_entity::{Arm, Arms, CamPivot},
+		input::PlayerAction::Move,
+		player_entity::CamPivot,
 		prefs::LookSensitivity,
-		BelongsToPlayer, RotVel, ACCEL, JUMP_VEL, MAX_JUMPS, MAX_SPEED,
+		tune::{PlayerParams, MAX_JUMPS},
+		BelongsToPlayer,
 	},
 	terminal_velocity,
 	ui::UiHovered,
@@ -19,29 +21,26 @@ use bevy::{
 	},
 	window::CursorGrabMode,
 };
-use bevy_kira_audio::prelude::{Audio, AudioSource, *};
+use bevy_kira_audio::prelude::*;
 use enum_components::ERef;
 use leafwing_abilities::prelude::*;
 use leafwing_input_manager::prelude::*;
-use particles::Spewer;
 use serde::{Deserialize, Serialize};
 use std::{
-	f32::consts::{FRAC_PI_2, FRAC_PI_3, TAU},
+	f32::consts::{FRAC_PI_2, TAU},
 	time::Duration,
 };
-use crate::player::input::PlayerAction::Move;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugins((
 		InputManagerPlugin::<PlayerAction>::default(),
-		AbilityPlugin::<PlayerAction>::default(),
+		// AbilityPlugin::<PlayerAction>::default(),
 	))
 	.add_systems(First, setup)
 	.add_systems(
 		Update,
 		(
 			grab_mouse,
-			abilities,
 			look_input
 				.before(terminal_velocity)
 				.before(super::ctrl::move_player),
@@ -126,126 +125,123 @@ impl PlayerAction {
 	}
 }
 
-#[derive(Debug, Resource, Deref, DerefMut)]
-pub struct AoESound(pub Handle<AudioSource>);
-
-pub fn abilities(
-	mut action_q: Query<AbilityState<PlayerAction>>,
-	mut arms_q: Query<&mut RotVel, ERef<Arms>>,
-	mut arm_q: Query<(&mut Transform, &mut Spewer), ERef<Arm>>,
-	// mut pause_events: EventWriter<PauseMenuAction>,
-	sfx: Res<AoESound>,
-	audio: Res<Audio>,
-	t: Res<Time>,
-) {
-	use PlayerAction::*;
-	for mut state in action_q.iter_mut() {
-		match state.trigger_if_just_pressed(AoE) {
-			Ok(()) => {
-				audio.play(sfx.0.clone()).with_volume(0.5);
-				for mut rvel in &mut arms_q {
-					**rvel = 36.0;
-				}
-				for (mut arm, mut spewer) in &mut arm_q {
-					// TODO: Filter by player
-					arm.translation *= 6.0;
-					arm.scale *= 6.0;
-					spewer.interval = Duration::from_micros(200);
-				}
-			}
-			Err(CannotUseAbility::OnCooldown) => {
-				let cd = state.cooldowns.get(AoE).as_ref().unwrap().remaining();
-				info!("Cooldown: {cd:?}");
-			}
-			_ => {}
-		}
-
-		// if state.trigger_if_just_pressed(Pause).is_ok() {
-		// 	pause_events.send(PauseMenuAction::ShowOrHide)
-		// }
-
-		for mut rvel in &mut arms_q {
-			**rvel = **rvel + (rvel.quiescent - **rvel) * t.delta_seconds();
-		}
-		for (i, (mut arm, mut spewer)) in arm_q.iter_mut().enumerate() {
-			let resting = Quat::from_rotation_z(i as f32 * FRAC_PI_3 * 2.0) * Vec3::X * 2.0;
-			// TODO: Filter by player
-			arm.translation = arm.translation.lerp(resting, t.delta_seconds() * 2.0);
-			arm.scale = arm.scale.lerp(Vec3::ONE, t.delta_seconds() * 2.0);
-			spewer.interval = Duration::from_secs_f32(
-				spewer.interval.as_secs_f32().lerp(0.001, t.delta_seconds()),
-			);
-		}
-		// screen_print!("{:#?}", (&state.action_state, &state.charges, &state.cooldowns))
-	}
-}
+// pub fn abilities(
+// 	mut action_q: Query<AbilityState<PlayerAction>>,
+// 	mut arms_q: Query<&mut RotVel, ERef<Arms>>,
+// 	mut arm_q: Query<(&mut Transform, &mut Spewer), ERef<Arm>>,
+// 	// mut pause_events: EventWriter<PauseMenuAction>,
+// 	sfx: Res<AoESound>,
+// 	audio: Res<Audio>,
+// 	t: Res<Time>,
+// ) {
+// 	use PlayerAction::*;
+// 	for mut state in action_q.iter_mut() {
+// 		match state.trigger_if_just_pressed(AoE) {
+// 			Ok(()) => {
+// 				audio.play(sfx.0.clone()).with_volume(0.5);
+// 				for mut rvel in &mut arms_q {
+// 					**rvel = 36.0;
+// 				}
+// 				for (mut arm, mut spewer) in &mut arm_q {
+// 					// TODO: Filter by player
+// 					arm.translation *= 6.0;
+// 					arm.scale *= 6.0;
+// 					spewer.interval = Duration::from_micros(200);
+// 				}
+// 			}
+// 			Err(CannotUseAbility::OnCooldown) => {
+// 				let cd = state.cooldowns.get(AoE).as_ref().unwrap().remaining();
+// 				info!("Cooldown: {cd:?}");
+// 			}
+// 			_ => {}
+// 		}
+//
+// 		// if state.trigger_if_just_pressed(Pause).is_ok() {
+// 		// 	pause_events.send(PauseMenuAction::ShowOrHide)
+// 		// }
+//
+// 		for mut rvel in &mut arms_q {
+// 			**rvel = **rvel + (rvel.quiescent - **rvel) * t.delta_seconds();
+// 		}
+// 		for (i, (mut arm, mut spewer)) in arm_q.iter_mut().enumerate() {
+// 			let resting = Quat::from_rotation_z(i as f32 * FRAC_PI_3 * 2.0) * Vec3::X * 2.0;
+// 			// TODO: Filter by player
+// 			arm.translation = arm.translation.lerp(resting, t.delta_seconds() * 2.0);
+// 			arm.scale = arm.scale.lerp(Vec3::ONE, t.delta_seconds() * 2.0);
+// 			spewer.interval = Duration::from_secs_f32(
+// 				spewer.interval.as_secs_f32().lerp(0.001, t.delta_seconds()),
+// 			);
+// 		}
+// 		// screen_print!("{:#?}", (&state.action_state, &state.charges, &state.cooldowns))
+// 	}
+// }
 
 #[derive(Component, Resource, Reflect, Default, Debug, Clone, Deref, DerefMut)]
 pub struct InputStorageTimer(Timer);
 
-pub fn jump(
-	mut q: Query<(
-		AbilityState<PlayerAction>,
-		&mut CtrlVel,
-		&mut InputStorageTimer,
-	)>,
-	t: Res<Time>,
-) {
-	for (mut state, mut vel, mut storage) in q.iter_mut() {
-		storage.tick(t.delta());
-		let triggered = if state
-			.cooldowns
-			.get(PlayerAction::Jump)
-			.as_ref()
-			.unwrap()
-			.ready()
-			.is_ok()
-		{
-			if storage.finished() {
-				// No storage timer is set right now
-				if state.action_state.just_pressed(PlayerAction::Jump) {
-					match state.trigger(PlayerAction::Jump) {
-						Ok(()) => true,
-						Err(CannotUseAbility::OnCooldown) => false, // Debounce
-						Err(CannotUseAbility::NoCharges) => {
-							// Couldn't trigger right now, keep trying over next few frames
-							storage.reset();
-							false
-						}
-						Err(e) => {
-							bevy::log::error!("Not sure how to handle {e:?}");
-							false
-						}
-					}
-				} else {
-					false
-				}
-			} else {
-				// Keep trying until storage timer runs out
-				state.trigger(PlayerAction::Jump).is_ok()
-			}
-		} else {
-			false
-		};
-
-		if triggered {
-			let dur = storage.duration();
-			storage.tick(dur); // tick makes sure it finishes, unlike set_elapsed
-				   // FIXME: Debouncing isn't working for some reason
-			let cd_triggered = state
-				.cooldowns
-				.get_mut(PlayerAction::Jump)
-				.as_mut()
-				.unwrap()
-				.trigger()
-				.is_ok();
-			if !cd_triggered {
-				bevy::log::error!("How did we trigger Jump if the cooldown hadn't elapsed???");
-			}
-			vel.linvel.z = JUMP_VEL
-		}
-	}
-}
+// pub fn jump(
+// 	mut q: Query<(
+// 		AbilityState<PlayerAction>,
+// 		&mut CtrlVel,
+// 		&mut InputStorageTimer,
+// 	)>,
+// 	t: Res<Time>,
+// ) {
+// 	for (mut state, mut vel, mut storage) in q.iter_mut() {
+// 		storage.tick(t.delta());
+// 		let triggered = if state
+// 			.cooldowns
+// 			.get(PlayerAction::Jump)
+// 			.as_ref()
+// 			.unwrap()
+// 			.ready()
+// 			.is_ok()
+// 		{
+// 			if storage.finished() {
+// 				// No storage timer is set right now
+// 				if state.action_state.just_pressed(PlayerAction::Jump) {
+// 					match state.trigger(PlayerAction::Jump) {
+// 						Ok(()) => true,
+// 						Err(CannotUseAbility::OnCooldown) => false, // Debounce
+// 						Err(CannotUseAbility::NoCharges) => {
+// 							// Couldn't trigger right now, keep trying over next few frames
+// 							storage.reset();
+// 							false
+// 						}
+// 						Err(e) => {
+// 							bevy::log::error!("Not sure how to handle {e:?}");
+// 							false
+// 						}
+// 					}
+// 				} else {
+// 					false
+// 				}
+// 			} else {
+// 				// Keep trying until storage timer runs out
+// 				state.trigger(PlayerAction::Jump).is_ok()
+// 			}
+// 		} else {
+// 			false
+// 		};
+//
+// 		if triggered {
+// 			let dur = storage.duration();
+// 			storage.tick(dur); // tick makes sure it finishes, unlike set_elapsed
+// 				   // FIXME: Debouncing isn't working for some reason
+// 			let cd_triggered = state
+// 				.cooldowns
+// 				.get_mut(PlayerAction::Jump)
+// 				.as_mut()
+// 				.unwrap()
+// 				.trigger()
+// 				.is_ok();
+// 			if !cd_triggered {
+// 				bevy::log::error!("How did we trigger Jump if the cooldown hadn't elapsed???");
+// 			}
+// 			vel.linvel.z = JUMP_VEL
+// 		}
+// 	}
+// }
 
 pub fn look_input(
 	mut player_q: Query<(&mut CtrlVel, &BelongsToPlayer, &LookSensitivity)>,
@@ -335,6 +331,7 @@ pub fn movement_input(
 	kb: Res<Input<KeyCode>>,
 	gp: Res<Gamepads>,
 	axes: Res<Axis<GamepadAxis>>,
+	params: Res<PlayerParams>,
 	t: Res<Time>,
 ) {
 	for mut ctrl_vel in &mut q {
@@ -370,10 +367,10 @@ pub fn movement_input(
 			}
 		}
 
-		let Vec2 { x, y } = ctrl_vel
-			.linvel
-			.xy()
-			.lerp(Vec2 { x, y }.clamp_length_max(1.0) * MAX_SPEED, ACCEL * dt);
+		let Vec2 { x, y } = ctrl_vel.linvel.xy().lerp(
+			Vec2 { x, y }.clamp_length_max(1.0) * params.phys.max_speed,
+			params.phys.accel * dt,
+		);
 
 		// Only trigger change detection if actually changed
 		if ctrl_vel.linvel.x != x {

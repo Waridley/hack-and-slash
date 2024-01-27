@@ -11,10 +11,11 @@ use bevy::{
 };
 use num_traits::NumCast;
 use ron::Error::InvalidValueForType;
-use serde::de::DeserializeSeed;
+use serde::{de::DeserializeSeed, Deserialize, Serialize};
 use std::{
 	cmp::Ordering,
 	collections::VecDeque,
+	f32::consts::{PI, TAU},
 	hash::Hash,
 	iter::Sum,
 	marker::PhantomData,
@@ -401,7 +402,12 @@ impl<T: Sub<Output = D> + Clone, D> Diff for &T {
 pub struct Prev<T>(T);
 
 impl<T: Clone> Prev<T> {
-	pub fn update_component(mut cmds: Commands, mut q: Query<(Entity, &T, Option<&mut Self>), Changed<T>>) where T: Component {
+	pub fn update_component(
+		mut cmds: Commands,
+		mut q: Query<(Entity, &T, Option<&mut Self>), Changed<T>>,
+	) where
+		T: Component,
+	{
 		for (id, curr, mut prev) in &mut q {
 			if let Some(mut prev) = prev {
 				**prev = curr.clone();
@@ -410,14 +416,55 @@ impl<T: Clone> Prev<T> {
 			}
 		}
 	}
-	
-	pub fn update_res(mut cmds: Commands, curr: Res<T>, prev: Option<ResMut<Self>>) where T: Resource {
+
+	pub fn update_res(mut cmds: Commands, curr: Res<T>, prev: Option<ResMut<Self>>)
+	where
+		T: Resource,
+	{
 		if curr.is_changed() {
 			if let Some(mut prev) = prev {
 				**prev = curr.clone();
 			} else {
 				cmds.insert_resource(Self(curr.clone()));
 			}
+		}
+	}
+}
+
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq)]
+pub enum Angle {
+	Deg(f32),
+	Rad(f32),
+	PiOver(f32),
+	TauOver(f32),
+}
+
+impl Angle {
+	pub fn to_rad(self) -> Self {
+		Angle::Rad(self.rad())
+	}
+
+	pub fn to_deg(self) -> Self {
+		Angle::Deg(self.deg())
+	}
+
+	pub fn rad(self) -> f32 {
+		use Angle::*;
+		match self {
+			Deg(deg) => deg * (TAU / 360.0),
+			Rad(rad) => rad,
+			PiOver(denom) => PI / denom,
+			TauOver(denom) => TAU / denom,
+		}
+	}
+
+	pub fn deg(self) -> f32 {
+		use Angle::*;
+		match self {
+			Deg(deg) => deg,
+			Rad(rad) => rad * (360.0 / TAU),
+			PiOver(denom) => (PI / denom) * (360.0 / TAU),
+			TauOver(denom) => (TAU / denom) * (360.0 / TAU),
 		}
 	}
 }
