@@ -12,6 +12,22 @@ use bevy::ecs::query::QueryEntityError;
 use serde::{Deserialize, Serialize};
 use crate::EPS;
 
+#[derive(Debug, Clone)]
+#[repr(transparent)]
+pub struct Track<F>(pub F);
+
+impl<F> Track<F> {
+	pub fn new_mut<T: Component>(f: F) -> Self
+	where F: FnMut(QueryItem<&'static mut T>, Res<Time>) -> IsFinished + Send + Sync + 'static {
+		Self(f)
+	}
+	
+	pub fn new_blendable<T: Component + Diff>(f: F) -> Self
+	where F:  FnMut(QueryItem<Ref<'static, T>>, Res<Time>) -> BlendableResult<<T as Diff>::Delta, f32> + Send + Sync + 'static {
+		Self(f)
+	}
+}
+
 pub trait TrackMut<T: Component>: Send + Sync + 'static {
 	fn tick_mut(&mut self, val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished;
 	fn chain_mut<B: TrackMut<T> + Sized>(self, other: B) -> ChainTrack<Self, B>
@@ -28,13 +44,10 @@ pub trait TrackMut<T: Component>: Send + Sync + 'static {
 	}
 }
 
-type DynTrackMutFn<T> =
-	dyn FnMut(QueryItem<&'static mut T>, Res<Time>) -> IsFinished + Send + Sync + 'static;
-
-// TODO: Figure out how to remove this box. Closures aren't implementing the Track traits without it.
-impl<T: Component> TrackMut<T> for Box<DynTrackMutFn<T>> {
+impl<T: Component, F> TrackMut<T> for Track<F>
+where F: FnMut(QueryItem<&'static mut T>, Res<Time>) -> IsFinished + Send + Sync + 'static {
 	fn tick_mut(&mut self, val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished {
-		self(val, t)
+		self.0(val, t)
 	}
 }
 
@@ -54,16 +67,11 @@ pub trait BlendableTrack<T: Component, D: 'static = T, P = f32>: Send + Sync + '
 	}
 }
 
-type DynBlendableTrackFn<T, D = T, P = f32> = dyn FnMut(QueryItem<Ref<'static, T>>, Res<Time>) -> BlendableResult<D, P>
-	+ Send
-	+ Sync
-	+ 'static;
-
-impl<T: Component, D: 'static, P: 'static> BlendableTrack<T, D, P>
-	for Box<DynBlendableTrackFn<T, D, P>>
+impl<T: Component, D: 'static, P: 'static, F> BlendableTrack<T, D, P> for Track<F>
+where F: FnMut(QueryItem<Ref<'static, T>>, Res<Time>) -> BlendableResult<D, P> + Send + Sync + 'static
 {
 	fn tick(&mut self, val: QueryItem<Ref<'static, T>>, t: Res<Time>) -> BlendableResult<D, P> {
-		self(val, t)
+		self.0(val, t)
 	}
 }
 
@@ -142,7 +150,7 @@ pub struct LerpTrack<T> {
 	pub end: T,
 	pub duration: Duration,
 	#[serde(skip)]
-	pub curr_t: f32,
+	pub elapsed: f32,
 }
 
 impl<T> LerpTrack<T> {
@@ -151,7 +159,7 @@ impl<T> LerpTrack<T> {
 			start,
 			end,
 			duration,
-			curr_t: 0.0,
+			elapsed: 0.0,
 		}
 	}
 }
@@ -165,14 +173,14 @@ where
 		if dur < EPS {
 			return IsFinished::Yes
 		}
-		let t = (self.curr_t + t.delta_seconds()).clamp(0.0, dur);
-		self.curr_t = t;
+		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
+		self.elapsed = t;
 		let t = t / dur;
 		let new = self.start.clone().lerp(self.end.clone(), t);
 		if *val != new {
 			*val = new;
 		}
-		(self.curr_t == dur).into()
+		(self.elapsed == dur).into()
 	}
 }
 
@@ -197,16 +205,16 @@ where
 				finished: IsFinished::Yes,
 			}
 		}
-		let t = (self.curr_t + t.delta_seconds()).clamp(0.0, dur);
-		self.curr_t = t;
+		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
+		self.elapsed = t;
 		let t = t / dur;
 		let dist = self.end.relative_to(&self.start) * t;
 		let new = self.start.clone() + dist;
 		let delta = new.relative_to(&val);
 		BlendableResult {
 			command: AnimationBlendCommand::SetRelative(delta),
-			progress: Progress::Fraction(self.curr_t / dur),
-			finished: (self.curr_t == dur).into(),
+			progress: Progress::Fraction(self.elapsed / dur),
+			finished: (self.elapsed == dur).into(),
 		}
 	}
 }
@@ -217,7 +225,7 @@ pub struct LerpSlerpTrack<T> {
 	pub end: T,
 	pub duration: Duration,
 	#[serde(skip)]
-	pub curr_t: f32,
+	pub elapsed: f32,
 }
 
 impl<T> LerpSlerpTrack<T> {
@@ -226,7 +234,7 @@ impl<T> LerpSlerpTrack<T> {
 			start,
 			end,
 			duration,
-			curr_t: 0.0,
+			elapsed: 0.0,
 		}
 	}
 }
@@ -237,8 +245,8 @@ impl<T: Component + LerpSlerp + PartialEq + Clone> TrackMut<T> for LerpSlerpTrac
 		if dur < EPS {
 			return IsFinished::Yes
 		}
-		let t = (self.curr_t + t.delta_seconds()).clamp(0.0, dur);
-		self.curr_t = t;
+		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
+		self.elapsed = t;
 		let t = t / dur;
 		let new = self.start.clone().lerp_slerp(self.end.clone(), t);
 		if *val != new {
@@ -262,15 +270,15 @@ impl BlendableTrack<Transform, TransformDelta> for LerpSlerpTrack<Transform> {
 				finished: IsFinished::Yes,
 			}
 		}
-		let t = (self.curr_t + t.delta_seconds()).clamp(0.0, dur);
-		self.curr_t = t;
+		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
+		self.elapsed = t;
 		let t = t / dur;
 		let new = self.start.lerp_slerp(self.end, t);
 		let delta = new.relative_to(&val);
 		BlendableResult {
 			command: AnimationBlendCommand::SetRelative(delta),
-			progress: Progress::Fraction(self.curr_t / dur),
-			finished: (self.curr_t == dur).into(),
+			progress: Progress::Fraction(self.elapsed / dur),
+			finished: (self.elapsed == dur).into(),
 		}
 	}
 }
@@ -280,7 +288,7 @@ pub struct LerpTo<T> {
 	pub end: T,
 	pub duration: Duration,
 	#[serde(skip)]
-	pub curr_t: f32,
+	pub elapsed: f32,
 }
 
 impl<T> LerpTo<T> {
@@ -288,7 +296,7 @@ impl<T> LerpTo<T> {
 		Self {
 			end,
 			duration,
-			curr_t: 0.0,
+			elapsed: 0.0,
 		}
 	}
 }
@@ -299,14 +307,14 @@ impl<T: Component + Lerp<T, Output = T> + PartialEq + Clone> TrackMut<T> for Ler
 		if dur < EPS {
 			return IsFinished::Yes
 		}
-		let t = (self.curr_t + t.delta_seconds()).clamp(0.0, dur);
-		self.curr_t = t;
+		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
+		self.elapsed = t;
 		let t = t / dur;
 		let new = val.clone().lerp(self.end.clone(), t);
 		if *val != new {
 			*val = new;
 		}
-		(self.curr_t == dur).into()
+		(self.elapsed == dur).into()
 	}
 }
 
@@ -331,16 +339,16 @@ where
 				finished: IsFinished::Yes,
 			}
 		}
-		let t = (self.curr_t + t.delta_seconds()).clamp(0.0, dur);
-		self.curr_t = t;
+		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
+		self.elapsed = t;
 		let t = t / dur;
 		let dist = self.end.relative_to(&*val) * t;
 		let new = val.clone() + dist;
 		let delta = new.relative_to(&val);
 		BlendableResult {
 			command: AnimationBlendCommand::SetRelative(delta),
-			progress: Progress::Fraction(self.curr_t / dur),
-			finished: (self.curr_t == dur).into(),
+			progress: Progress::Fraction(self.elapsed / dur),
+			finished: (self.elapsed == dur).into(),
 		}
 	}
 }
@@ -350,7 +358,7 @@ pub struct LerpSlerpTo<T> {
 	pub end: T,
 	pub duration: Duration,
 	#[serde(skip)]
-	pub curr_t: f32,
+	pub elapsed: f32,
 }
 
 impl<T> LerpSlerpTo<T> {
@@ -358,7 +366,7 @@ impl<T> LerpSlerpTo<T> {
 		Self {
 			end,
 			duration,
-			curr_t: 0.0,
+			elapsed: 0.0,
 		}
 	}
 }
@@ -369,8 +377,8 @@ impl<T: Component + LerpSlerp + PartialEq + Clone> TrackMut<T> for LerpSlerpTo<T
 		if dur < EPS {
 			return IsFinished::Yes
 		}
-		let t = (self.curr_t + t.delta_seconds()).clamp(0.0, dur);
-		self.curr_t = t;
+		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
+		self.elapsed = t;
 		let t = t / dur;
 		let new = val.clone().lerp_slerp(self.end.clone(), t);
 		if *val != new {
@@ -394,15 +402,15 @@ impl BlendableTrack<Transform, TransformDelta> for LerpSlerpTo<Transform> {
 				finished: IsFinished::Yes,
 			}
 		}
-		let t = (self.curr_t + t.delta_seconds()).clamp(0.0, dur);
-		self.curr_t = t;
+		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
+		self.elapsed = t;
 		let t = t / dur;
 		let new = val.lerp_slerp(self.end, t);
 		let delta = new.relative_to(&val);
 		BlendableResult {
 			command: AnimationBlendCommand::SetRelative(delta),
-			progress: Progress::Fraction(self.curr_t / dur),
-			finished: (self.curr_t == dur).into(),
+			progress: Progress::Fraction(self.elapsed / dur),
+			finished: (self.elapsed == dur).into(),
 		}
 	}
 }
@@ -413,7 +421,7 @@ pub struct SmoothStepTrack<T> {
 	pub end: T,
 	pub duration: Duration,
 	#[serde(skip)]
-	pub curr_t: f32,
+	pub elapsed: f32,
 }
 
 impl<T> SmoothStepTrack<T> {
@@ -422,7 +430,7 @@ impl<T> SmoothStepTrack<T> {
 			start,
 			end,
 			duration,
-			curr_t: 0.0,
+			elapsed: 0.0,
 		}
 	}
 }
@@ -436,8 +444,8 @@ impl<T> TrackMut<T> for SmoothStepTrack<T>
 		if dur < EPS {
 			return IsFinished::Yes
 		}
-		let t = (self.curr_t + t.delta_seconds()).clamp(0.0, dur);
-		self.curr_t = t;
+		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
+		self.elapsed = t;
 		let prog = t / dur;
 		let t = prog * prog * (3.0 - 2.0 * prog);
 		let new = self.start.clone().lerp(self.end.clone(), t);
@@ -468,8 +476,8 @@ impl<T, D: 'static> BlendableTrack<T, D> for SmoothStepTrack<T>
 				finished: IsFinished::Yes,
 			}
 		}
-		let t = (self.curr_t + t.delta_seconds()).clamp(0.0, dur);
-		self.curr_t = t;
+		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
+		self.elapsed = t;
 		let prog = t / dur;
 		let t = prog * prog * (3.0 - 2.0 * prog);
 		let dist = self.end.relative_to(&self.start) * t;

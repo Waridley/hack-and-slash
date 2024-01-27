@@ -17,10 +17,8 @@ use leafwing_input_manager::{
 };
 use particles::Spewer;
 use serde::{Deserialize, Serialize};
-use std::{f32::consts::FRAC_PI_3, time::Duration};
-use bevy::ecs::query::QueryItem;
-use crate::anim::{BlendableAnimation, BlendableTrack, IsFinished, MutAnimation, SmoothStepTrack, TrackMut};
-use crate::util::Diff;
+use std::time::Duration;
+use crate::anim::{BlendableAnimation, BlendableTrack, IsFinished, LerpSlerpTrack, LerpTrack, MutAnimation, SmoothStepTrack, Track};
 
 pub struct AbilitiesPlugin;
 
@@ -54,7 +52,6 @@ pub fn trigger_player_abilities(
 	sfx: Res<AoESound>,
 	audio: Res<Audio>,
 	params: Res<PlayerParams>,
-	t: Res<Time>,
 ) {
 	// TODO: Cooldowns
 	use PlayerAction::*;
@@ -99,10 +96,10 @@ pub fn trigger_player_abilities(
 					continue
 				}
 				cmds.entity(id).start_blendable_animation::<RotVel, f32>(
-					SmoothStepTrack::new(
+					LerpTrack::new(
 						rvel.quiescent(),
 						rvel.with_current(36.0),
-						Duration::from_millis(128),
+						Duration::from_millis(48),
 					).chain_blendable(SmoothStepTrack::new(
 						rvel.with_current(36.0),
 						rvel.quiescent(),
@@ -119,20 +116,19 @@ pub fn trigger_player_abilities(
 					scale: arm.scale * 6.0,
 					..*arm
 				};
-				dbg!(outer.relative_to(arm) * t.delta_seconds());
 				cmds.entity(id).start_blendable_animation(
-					SmoothStepTrack::new(*arm, outer, Duration::from_millis(128))
+					LerpSlerpTrack::new(*arm, outer, Duration::from_millis(48))
 						.chain_blendable(SmoothStepTrack::new(outer, *arm, Duration::from_secs_f32(1.0)))
 				);
 				
-				let mut curr_t = 0.0;
+				let mut elapsed = 0.0;
 				let end = spewer.interval.as_secs_f32();
-				cmds.entity(id).start_mut_animation(Box::new(move |mut spewer: QueryItem<&'static mut Spewer>, t: Res<Time>| {
-					curr_t += t.delta_seconds();
-					let t = f32::min(1.0, curr_t / 1.128);
-					spewer.interval = Duration::from_secs_f32(0.00005.lerp(end, t));
+				cmds.entity(id).start_mut_animation(Track::new_mut::<Spewer>(move |mut spewer, t| {
+					elapsed += t.delta_seconds();
+					let t = f32::min(1.0, elapsed / 1.048);
+					spewer.interval = Duration::from_secs_f32(0.00001.lerp(end, t));
 					IsFinished::from(t == 1.0)
-				}) as Box<dyn for<'a, 'b> FnMut(Mut<'a, _>, Res<'b, _>) -> IsFinished + Send + Sync + 'static>);
+				}));
 			}
 		}
 	}
