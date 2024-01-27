@@ -408,7 +408,7 @@ impl<T: Clone> Prev<T> {
 	) where
 		T: Component,
 	{
-		for (id, curr, mut prev) in &mut q {
+		for (id, curr, prev) in &mut q {
 			if let Some(mut prev) = prev {
 				**prev = curr.clone();
 			} else {

@@ -6,8 +6,6 @@ use bevy::prelude::*;
 use rapier3d::geometry::Ball;
 use serde::{Deserialize, Serialize};
 
-pub const MAX_JUMPS: f32 = 2.0;
-
 pub fn extract_loaded_params(
 	mut cmds: Commands,
 	params_assets: Res<Assets<PlayerParams>>,
