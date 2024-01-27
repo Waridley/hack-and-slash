@@ -8,15 +8,16 @@ use std::{
 	ops::{Add, Deref, DerefMut, Mul},
 	time::Duration,
 };
+use crate::EPS;
 
-pub trait CurveMut<T: Component>: Send + Sync + 'static {
+pub trait TrackMut<T: Component>: Send + Sync + 'static {
 	fn tick_mut(&mut self, val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished;
-	fn chain<B: CurveMut<T> + Sized>(self, other: B) -> ChainCurve<Self, B>
+	fn chain<B: TrackMut<T> + Sized>(self, other: B) -> ChainTrack<Self, B>
 	where
 		Self: Sized,
 	{
 		use IsFinished::*;
-		ChainCurve {
+		ChainTrack {
 			a: self,
 			b: other,
 			a_finished: No,
@@ -25,23 +26,23 @@ pub trait CurveMut<T: Component>: Send + Sync + 'static {
 	}
 }
 
-type DynCurveMutFn<T> =
+type DynTrackMutFn<T> =
 	dyn FnMut(QueryItem<&'static mut T>, Res<Time>) -> IsFinished + Send + Sync + 'static;
 
-impl<T: Component> CurveMut<T> for DynCurveMutFn<T> {
+impl<T: Component> TrackMut<T> for DynTrackMutFn<T> {
 	fn tick_mut(&mut self, val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished {
 		self(val, t)
 	}
 }
 
-pub trait BlendableCurve<T: Component, D: 'static = T, P = f32>: Send + Sync + 'static {
+pub trait BlendableTrack<T: Component, D: 'static = T, P = f32>: Send + Sync + 'static {
 	fn tick(&mut self, val: QueryItem<Ref<'static, T>>, t: Res<Time>) -> BlendableResult<D, P>;
-	fn chain<B: BlendableCurve<T, D, P> + Sized>(self, other: B) -> ChainCurve<Self, B>
+	fn chain<B: BlendableTrack<T, D, P> + Sized>(self, other: B) -> ChainTrack<Self, B>
 	where
 		Self: Sized,
 	{
 		use IsFinished::*;
-		ChainCurve {
+		ChainTrack {
 			a: self,
 			b: other,
 			a_finished: No,
@@ -50,13 +51,13 @@ pub trait BlendableCurve<T: Component, D: 'static = T, P = f32>: Send + Sync + '
 	}
 }
 
-type DynBlendableCurveFn<T, D = T, P = f32> = dyn FnMut(QueryItem<Ref<'static, T>>, Res<Time>) -> BlendableResult<D, P>
+type DynBlendableTrackFn<T, D = T, P = f32> = dyn FnMut(QueryItem<Ref<'static, T>>, Res<Time>) -> BlendableResult<D, P>
 	+ Send
 	+ Sync
 	+ 'static;
 
-impl<T: Component, D: 'static, P: 'static> BlendableCurve<T, D, P>
-	for DynBlendableCurveFn<T, D, P>
+impl<T: Component, D: 'static, P: 'static> BlendableTrack<T, D, P>
+	for DynBlendableTrackFn<T, D, P>
 {
 	fn tick(&mut self, val: QueryItem<Ref<'static, T>>, t: Res<Time>) -> BlendableResult<D, P> {
 		self(val, t)
@@ -133,14 +134,14 @@ pub enum Progress<Repr = f32> {
 }
 
 #[derive(Debug, Clone)]
-pub struct LerpCurve<T> {
+pub struct LerpTrack<T> {
 	pub start: T,
 	pub end: T,
 	pub duration: Duration,
 	pub curr_t: f32,
 }
 
-impl<T> LerpCurve<T> {
+impl<T> LerpTrack<T> {
 	pub fn new(start: T, end: T, duration: Duration) -> Self {
 		Self {
 			start,
@@ -151,14 +152,18 @@ impl<T> LerpCurve<T> {
 	}
 }
 
-impl<T> CurveMut<T> for LerpCurve<T>
+impl<T> TrackMut<T> for LerpTrack<T>
 where
 	T: Component + Lerp<T, f32, Output = T> + Clone + PartialEq + Send + Sync + 'static,
 {
 	fn tick_mut(&mut self, mut val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished {
 		let dur = self.duration.as_secs_f32();
-		let t = f32::min(dur, self.curr_t + t.delta_seconds());
+		if dur < EPS {
+			return IsFinished::Yes
+		}
+		let t = (self.curr_t + t.delta_seconds()).clamp(0.0, dur);
 		self.curr_t = t;
+		let t = t / dur;
 		let new = self.start.clone().lerp(self.end.clone(), t);
 		if *val != new {
 			*val = new;
@@ -167,7 +172,7 @@ where
 	}
 }
 
-impl<T, D: 'static> BlendableCurve<T, D> for LerpCurve<T>
+impl<T, D: 'static> BlendableTrack<T, D> for LerpTrack<T>
 where
 	T: Component
 		+ Lerp<T, Output = T>
@@ -180,8 +185,16 @@ where
 {
 	fn tick(&mut self, val: QueryItem<Ref<'static, T>>, t: Res<Time>) -> BlendableResult<D> {
 		let dur = self.duration.as_secs_f32();
-		let t = f32::min(dur, self.curr_t + t.delta_seconds());
+		if dur < EPS {
+			return BlendableResult {
+				command: AnimationBlendCommand::SetRelative(self.end.relative_to(&val)),
+				progress: Progress::Fraction(1.0),
+				finished: IsFinished::Yes,
+			}
+		}
+		let t = (self.curr_t + t.delta_seconds()).clamp(0.0, dur);
 		self.curr_t = t;
+		let t = t / dur;
 		let new = self.start.clone().lerp(self.end.clone(), t);
 		let delta = new.relative_to(&val);
 		BlendableResult {
@@ -193,14 +206,14 @@ where
 }
 
 #[derive(Debug, Clone)]
-pub struct LerpSlerpCurve<T> {
+pub struct LerpSlerpTrack<T> {
 	pub start: T,
 	pub end: T,
 	pub duration: Duration,
 	pub curr_t: f32,
 }
 
-impl<T> LerpSlerpCurve<T> {
+impl<T> LerpSlerpTrack<T> {
 	pub fn new(start: T, end: T, duration: Duration) -> Self {
 		Self {
 			start,
@@ -211,10 +224,15 @@ impl<T> LerpSlerpCurve<T> {
 	}
 }
 
-impl<T: Component + LerpSlerp + PartialEq + Clone> CurveMut<T> for LerpSlerpCurve<T> {
+impl<T: Component + LerpSlerp + PartialEq + Clone> TrackMut<T> for LerpSlerpTrack<T> {
 	fn tick_mut(&mut self, mut val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished {
-		let t = f32::min(self.duration.as_secs_f32(), self.curr_t + t.delta_seconds());
+		let dur = self.duration.as_secs_f32();
+		if dur < EPS {
+			return IsFinished::Yes
+		}
+		let t = (self.curr_t + t.delta_seconds()).clamp(0.0, dur);
 		self.curr_t = t;
+		let t = t / dur;
 		let new = self.start.clone().lerp_slerp(self.end.clone(), t);
 		if *val != new {
 			*val = new;
@@ -223,15 +241,23 @@ impl<T: Component + LerpSlerp + PartialEq + Clone> CurveMut<T> for LerpSlerpCurv
 	}
 }
 
-impl BlendableCurve<Transform, TransformDelta> for LerpSlerpCurve<Transform> {
+impl BlendableTrack<Transform, TransformDelta> for LerpSlerpTrack<Transform> {
 	fn tick(
 		&mut self,
 		val: QueryItem<Ref<'static, Transform>>,
 		t: Res<Time>,
 	) -> BlendableResult<TransformDelta> {
 		let dur = self.duration.as_secs_f32();
-		let t = f32::min(dur, self.curr_t + t.delta_seconds());
+		if dur < EPS {
+			return BlendableResult {
+				command: AnimationBlendCommand::SetRelative(self.end.relative_to(&val)),
+				progress: Progress::Fraction(1.0),
+				finished: IsFinished::Yes,
+			}
+		}
+		let t = (self.curr_t + t.delta_seconds()).clamp(0.0, dur);
 		self.curr_t = t;
+		let t = t / dur;
 		let new = self.start.lerp_slerp(self.end, t);
 		let delta = new.relative_to(&val);
 		BlendableResult {
@@ -259,11 +285,15 @@ impl<T> LerpTo<T> {
 	}
 }
 
-impl<T: Component + Lerp<T, Output = T> + PartialEq + Clone> CurveMut<T> for LerpTo<T> {
+impl<T: Component + Lerp<T, Output = T> + PartialEq + Clone> TrackMut<T> for LerpTo<T> {
 	fn tick_mut(&mut self, mut val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished {
 		let dur = self.duration.as_secs_f32();
-		let t = f32::min(dur, self.curr_t + t.delta_seconds());
+		if dur < EPS {
+			return IsFinished::Yes
+		}
+		let t = (self.curr_t + t.delta_seconds()).clamp(0.0, dur);
 		self.curr_t = t;
+		let t = t / dur;
 		let new = val.clone().lerp(self.end.clone(), t);
 		if *val != new {
 			*val = new;
@@ -272,7 +302,7 @@ impl<T: Component + Lerp<T, Output = T> + PartialEq + Clone> CurveMut<T> for Ler
 	}
 }
 
-impl<T, D: 'static> BlendableCurve<T, D> for LerpTo<T>
+impl<T, D: 'static> BlendableTrack<T, D> for LerpTo<T>
 where
 	T: Component
 		+ Lerp<T, Output = T>
@@ -285,8 +315,16 @@ where
 {
 	fn tick(&mut self, val: QueryItem<Ref<'static, T>>, t: Res<Time>) -> BlendableResult<D> {
 		let dur = self.duration.as_secs_f32();
-		let t = f32::min(dur, self.curr_t + t.delta_seconds());
+		if dur < EPS {
+			return BlendableResult {
+				command: AnimationBlendCommand::SetRelative(self.end.relative_to(&val)),
+				progress: Progress::Fraction(1.0),
+				finished: IsFinished::Yes,
+			}
+		}
+		let t = (self.curr_t + t.delta_seconds()).clamp(0.0, dur);
 		self.curr_t = t;
+		let t = t / dur;
 		let new = val.clone().lerp(self.end.clone(), t);
 		let delta = new.relative_to(&val);
 		BlendableResult {
@@ -314,10 +352,15 @@ impl<T> LerpSlerpTo<T> {
 	}
 }
 
-impl<T: Component + LerpSlerp + PartialEq + Clone> CurveMut<T> for LerpSlerpTo<T> {
+impl<T: Component + LerpSlerp + PartialEq + Clone> TrackMut<T> for LerpSlerpTo<T> {
 	fn tick_mut(&mut self, mut val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished {
-		let t = f32::min(self.duration.as_secs_f32(), self.curr_t + t.delta_seconds());
+		let dur = self.duration.as_secs_f32();
+		if dur < EPS {
+			return IsFinished::Yes
+		}
+		let t = (self.curr_t + t.delta_seconds()).clamp(0.0, dur);
 		self.curr_t = t;
+		let t = t / dur;
 		let new = val.clone().lerp_slerp(self.end.clone(), t);
 		if *val != new {
 			*val = new;
@@ -326,15 +369,23 @@ impl<T: Component + LerpSlerp + PartialEq + Clone> CurveMut<T> for LerpSlerpTo<T
 	}
 }
 
-impl BlendableCurve<Transform, TransformDelta> for LerpSlerpTo<Transform> {
+impl BlendableTrack<Transform, TransformDelta> for LerpSlerpTo<Transform> {
 	fn tick(
 		&mut self,
 		val: QueryItem<Ref<'static, Transform>>,
 		t: Res<Time>,
 	) -> BlendableResult<TransformDelta> {
 		let dur = self.duration.as_secs_f32();
-		let t = f32::min(dur, self.curr_t + t.delta_seconds());
+		if dur < EPS {
+			return BlendableResult {
+				command: AnimationBlendCommand::SetRelative(self.end.relative_to(&val)),
+				progress: Progress::Fraction(1.0),
+				finished: IsFinished::Yes,
+			}
+		}
+		let t = (self.curr_t + t.delta_seconds()).clamp(0.0, dur);
 		self.curr_t = t;
+		let t = t / dur;
 		let new = val.lerp_slerp(self.end, t);
 		let delta = new.relative_to(&val);
 		BlendableResult {
@@ -346,14 +397,77 @@ impl BlendableCurve<Transform, TransformDelta> for LerpSlerpTo<Transform> {
 }
 
 #[derive(Debug, Clone)]
-pub struct ChainCurve<A, B> {
+pub struct SmoothStepTrack<T> {
+	pub start: T,
+	pub end: T,
+	pub duration: Duration,
+	pub curr_t: f32,
+}
+
+impl<T> TrackMut<T> for SmoothStepTrack<T>
+	where
+		T: Component + Lerp<T, f32, Output = T> + Clone + PartialEq + Send + Sync + 'static,
+{
+	fn tick_mut(&mut self, mut val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished {
+		let dur = self.duration.as_secs_f32();
+		if dur < EPS {
+			return IsFinished::Yes
+		}
+		let t = (self.curr_t + t.delta_seconds()).clamp(0.0, dur);
+		self.curr_t = t;
+		let t = t / dur;
+		let t = t * t * (3.0 - 2.0 * t);
+		let new = self.start.clone().lerp(self.end.clone(), t);
+		if *val != new {
+			*val = new;
+		}
+		(t == dur).into()
+	}
+}
+
+impl<T, D: 'static> BlendableTrack<T, D> for SmoothStepTrack<T>
+	where
+		T: Component
+		+ Lerp<T, Output = T>
+		+ Diff<Delta = D>
+		+ Clone
+		+ PartialEq
+		+ Send
+		+ Sync
+		+ 'static,
+{
+	fn tick(&mut self, val: QueryItem<Ref<'static, T>>, t: Res<Time>) -> BlendableResult<D> {
+		let dur = self.duration.as_secs_f32();
+		if dur < EPS {
+			return BlendableResult {
+				command: AnimationBlendCommand::SetRelative(self.end.relative_to(&val)),
+				progress: Progress::Fraction(1.0),
+				finished: IsFinished::Yes,
+			}
+		}
+		let t = (self.curr_t + t.delta_seconds()).clamp(0.0, dur);
+		self.curr_t = t;
+		let t = t / dur;
+		let t = t * t * (3.0 - 2.0 * t);
+		let new = self.start.clone().lerp(self.end.clone(), t);
+		let delta = new.relative_to(&val);
+		BlendableResult {
+			command: AnimationBlendCommand::SetRelative(delta),
+			progress: Progress::Fraction(t / dur),
+			finished: (t == dur).into(),
+		}
+	}
+}
+
+#[derive(Debug, Clone)]
+pub struct ChainTrack<A, B> {
 	pub a: A,
 	pub b: B,
 	a_finished: IsFinished,
 	b_finished: IsFinished,
 }
 
-impl<T: Component, A: CurveMut<T>, B: CurveMut<T>> CurveMut<T> for ChainCurve<A, B> {
+impl<T: Component, A: TrackMut<T>, B: TrackMut<T>> TrackMut<T> for ChainTrack<A, B> {
 	fn tick_mut(&mut self, val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished {
 		use IsFinished::*;
 		if *self.b_finished {
@@ -370,12 +484,12 @@ impl<T: Component, A: CurveMut<T>, B: CurveMut<T>> CurveMut<T> for ChainCurve<A,
 	}
 }
 
-impl<T, D, A, B> BlendableCurve<T, D> for ChainCurve<A, B>
+impl<T, D, A, B> BlendableTrack<T, D> for ChainTrack<A, B>
 where
 	T: Component,
 	D: 'static,
-	A: BlendableCurve<T, D>,
-	B: BlendableCurve<T, D>,
+	A: BlendableTrack<T, D>,
+	B: BlendableTrack<T, D>,
 {
 	fn tick(&mut self, val: QueryItem<Ref<'static, T>>, t: Res<Time>) -> BlendableResult<D> {
 		use IsFinished::*;
@@ -422,11 +536,11 @@ where
 #[derive(Component)]
 pub struct MutAnimation<T: Component> {
 	pub entity: Entity,
-	pub curve: Box<dyn CurveMut<T>>,
+	pub curve: Box<dyn TrackMut<T>>,
 }
 
 impl<T: Component + 'static> MutAnimation<T> {
-	pub fn new(entity: Entity, tick: impl CurveMut<T>) -> Self {
+	pub fn new(entity: Entity, tick: impl TrackMut<T>) -> Self {
 		Self {
 			entity,
 			curve: Box::new(tick),
@@ -462,7 +576,7 @@ impl<T: Component + 'static> MutAnimation<T> {
 #[derive(Component)]
 pub struct BlendableAnimation<T: Component, Delta> {
 	pub entity: Entity,
-	pub curve: Box<dyn BlendableCurve<T, Delta>>,
+	pub curve: Box<dyn BlendableTrack<T, Delta>>,
 }
 
 impl<T, D> BlendableAnimation<T, D>
@@ -470,7 +584,7 @@ where
 	T: Component + Add<D, Output = T> + PartialEq + Clone,
 	D: Add<D, Output = D> + Mul<f32, Output = D> + 'static,
 {
-	pub fn new(entity: Entity, tick: impl BlendableCurve<T, D>) -> Self {
+	pub fn new(entity: Entity, tick: impl BlendableTrack<T, D>) -> Self {
 		Self {
 			entity,
 			curve: Box::new(tick),
@@ -564,18 +678,18 @@ where
 }
 
 pub trait StartAnimation<'w, 's, 'a> {
-	fn start_mut_animation<T: Component>(&'a mut self, tick: impl CurveMut<T>) -> Entity;
+	fn start_mut_animation<T: Component>(&'a mut self, tick: impl TrackMut<T>) -> Entity;
 	fn start_blendable_animation<
 		T: Component + Add<D, Output = T> + PartialEq + Clone,
 		D: Add<Output = D> + Mul<f32, Output = D> + 'static,
 	>(
 		&'a mut self,
-		tick: impl BlendableCurve<T, D>,
+		tick: impl BlendableTrack<T, D>,
 	) -> Entity;
 }
 
 impl<'w, 's, 'a> StartAnimation<'w, 's, 'a> for EntityCommands<'w, 's, 'a> {
-	fn start_mut_animation<T: Component>(&'a mut self, tick: impl CurveMut<T>) -> Entity {
+	fn start_mut_animation<T: Component>(&'a mut self, tick: impl TrackMut<T>) -> Entity {
 		let id = self.id();
 		self.commands().spawn(MutAnimation::new(id, tick)).id()
 	}
@@ -585,7 +699,7 @@ impl<'w, 's, 'a> StartAnimation<'w, 's, 'a> for EntityCommands<'w, 's, 'a> {
 		D: Add<Output = D> + Mul<f32, Output = D> + 'static,
 	>(
 		&'a mut self,
-		tick: impl BlendableCurve<T, D>,
+		tick: impl BlendableTrack<T, D>,
 	) -> Entity {
 		let id = self.id();
 		self.commands()
@@ -674,7 +788,7 @@ mod tests {
 		fn spawn_animations(mut cmds: Commands, mut q: Query<(Entity, &Transform)>) {
 			for (id, xform) in &mut q {
 				cmds.entity(id)
-					.start_blendable_animation(LerpSlerpCurve::new(
+					.start_blendable_animation(LerpSlerpTrack::new(
 						*xform,
 						Transform {
 							translation: Vec3::ONE,
