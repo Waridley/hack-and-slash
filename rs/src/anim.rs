@@ -8,11 +8,13 @@ use std::{
 	ops::{Add, Deref, DerefMut, Mul},
 	time::Duration,
 };
+use bevy::ecs::query::QueryEntityError;
+use serde::{Deserialize, Serialize};
 use crate::EPS;
 
 pub trait TrackMut<T: Component>: Send + Sync + 'static {
 	fn tick_mut(&mut self, val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished;
-	fn chain<B: TrackMut<T> + Sized>(self, other: B) -> ChainTrack<Self, B>
+	fn chain_mut<B: TrackMut<T> + Sized>(self, other: B) -> ChainTrack<Self, B>
 	where
 		Self: Sized,
 	{
@@ -29,7 +31,8 @@ pub trait TrackMut<T: Component>: Send + Sync + 'static {
 type DynTrackMutFn<T> =
 	dyn FnMut(QueryItem<&'static mut T>, Res<Time>) -> IsFinished + Send + Sync + 'static;
 
-impl<T: Component> TrackMut<T> for DynTrackMutFn<T> {
+// TODO: Figure out how to remove this box. Closures aren't implementing the Track traits without it.
+impl<T: Component> TrackMut<T> for Box<DynTrackMutFn<T>> {
 	fn tick_mut(&mut self, val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished {
 		self(val, t)
 	}
@@ -37,7 +40,7 @@ impl<T: Component> TrackMut<T> for DynTrackMutFn<T> {
 
 pub trait BlendableTrack<T: Component, D: 'static = T, P = f32>: Send + Sync + 'static {
 	fn tick(&mut self, val: QueryItem<Ref<'static, T>>, t: Res<Time>) -> BlendableResult<D, P>;
-	fn chain<B: BlendableTrack<T, D, P> + Sized>(self, other: B) -> ChainTrack<Self, B>
+	fn chain_blendable<B: BlendableTrack<T, D, P> + Sized>(self, other: B) -> ChainTrack<Self, B>
 	where
 		Self: Sized,
 	{
@@ -57,7 +60,7 @@ type DynBlendableTrackFn<T, D = T, P = f32> = dyn FnMut(QueryItem<Ref<'static, T
 	+ 'static;
 
 impl<T: Component, D: 'static, P: 'static> BlendableTrack<T, D, P>
-	for DynBlendableTrackFn<T, D, P>
+	for Box<DynBlendableTrackFn<T, D, P>>
 {
 	fn tick(&mut self, val: QueryItem<Ref<'static, T>>, t: Res<Time>) -> BlendableResult<D, P> {
 		self(val, t)
@@ -133,11 +136,12 @@ pub enum Progress<Repr = f32> {
 	Indefinite,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LerpTrack<T> {
 	pub start: T,
 	pub end: T,
 	pub duration: Duration,
+	#[serde(skip)]
 	pub curr_t: f32,
 }
 
@@ -168,20 +172,21 @@ where
 		if *val != new {
 			*val = new;
 		}
-		(t == dur).into()
+		(self.curr_t == dur).into()
 	}
 }
 
 impl<T, D: 'static> BlendableTrack<T, D> for LerpTrack<T>
 where
 	T: Component
-		+ Lerp<T, Output = T>
 		+ Diff<Delta = D>
+		+ Add<D, Output = T>
 		+ Clone
 		+ PartialEq
 		+ Send
 		+ Sync
 		+ 'static,
+	D: Mul<f32, Output = D>,
 {
 	fn tick(&mut self, val: QueryItem<Ref<'static, T>>, t: Res<Time>) -> BlendableResult<D> {
 		let dur = self.duration.as_secs_f32();
@@ -195,21 +200,23 @@ where
 		let t = (self.curr_t + t.delta_seconds()).clamp(0.0, dur);
 		self.curr_t = t;
 		let t = t / dur;
-		let new = self.start.clone().lerp(self.end.clone(), t);
+		let dist = self.end.relative_to(&self.start) * t;
+		let new = self.start.clone() + dist;
 		let delta = new.relative_to(&val);
 		BlendableResult {
 			command: AnimationBlendCommand::SetRelative(delta),
-			progress: Progress::Fraction(t / dur),
-			finished: (t == dur).into(),
+			progress: Progress::Fraction(self.curr_t / dur),
+			finished: (self.curr_t == dur).into(),
 		}
 	}
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LerpSlerpTrack<T> {
 	pub start: T,
 	pub end: T,
 	pub duration: Duration,
+	#[serde(skip)]
 	pub curr_t: f32,
 }
 
@@ -262,16 +269,17 @@ impl BlendableTrack<Transform, TransformDelta> for LerpSlerpTrack<Transform> {
 		let delta = new.relative_to(&val);
 		BlendableResult {
 			command: AnimationBlendCommand::SetRelative(delta),
-			progress: Progress::Fraction(t / dur),
-			finished: (t == dur).into(),
+			progress: Progress::Fraction(self.curr_t / dur),
+			finished: (self.curr_t == dur).into(),
 		}
 	}
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LerpTo<T> {
 	pub end: T,
 	pub duration: Duration,
+	#[serde(skip)]
 	pub curr_t: f32,
 }
 
@@ -298,20 +306,21 @@ impl<T: Component + Lerp<T, Output = T> + PartialEq + Clone> TrackMut<T> for Ler
 		if *val != new {
 			*val = new;
 		}
-		(t == dur).into()
+		(self.curr_t == dur).into()
 	}
 }
 
 impl<T, D: 'static> BlendableTrack<T, D> for LerpTo<T>
 where
 	T: Component
-		+ Lerp<T, Output = T>
 		+ Diff<Delta = D>
+		+ Add<D, Output = T>
 		+ Clone
 		+ PartialEq
 		+ Send
 		+ Sync
 		+ 'static,
+	D: Mul<f32, Output = D>,
 {
 	fn tick(&mut self, val: QueryItem<Ref<'static, T>>, t: Res<Time>) -> BlendableResult<D> {
 		let dur = self.duration.as_secs_f32();
@@ -325,20 +334,22 @@ where
 		let t = (self.curr_t + t.delta_seconds()).clamp(0.0, dur);
 		self.curr_t = t;
 		let t = t / dur;
-		let new = val.clone().lerp(self.end.clone(), t);
+		let dist = self.end.relative_to(&*val) * t;
+		let new = val.clone() + dist;
 		let delta = new.relative_to(&val);
 		BlendableResult {
 			command: AnimationBlendCommand::SetRelative(delta),
-			progress: Progress::Fraction(t / dur),
-			finished: (t == dur).into(),
+			progress: Progress::Fraction(self.curr_t / dur),
+			finished: (self.curr_t == dur).into(),
 		}
 	}
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LerpSlerpTo<T> {
 	pub end: T,
 	pub duration: Duration,
+	#[serde(skip)]
 	pub curr_t: f32,
 }
 
@@ -390,18 +401,30 @@ impl BlendableTrack<Transform, TransformDelta> for LerpSlerpTo<Transform> {
 		let delta = new.relative_to(&val);
 		BlendableResult {
 			command: AnimationBlendCommand::SetRelative(delta),
-			progress: Progress::Fraction(t / dur),
-			finished: (t == dur).into(),
+			progress: Progress::Fraction(self.curr_t / dur),
+			finished: (self.curr_t == dur).into(),
 		}
 	}
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SmoothStepTrack<T> {
 	pub start: T,
 	pub end: T,
 	pub duration: Duration,
+	#[serde(skip)]
 	pub curr_t: f32,
+}
+
+impl<T> SmoothStepTrack<T> {
+	pub fn new(start: T, end: T, duration: Duration) -> Self {
+		Self {
+			start,
+			end,
+			duration,
+			curr_t: 0.0,
+		}
+	}
 }
 
 impl<T> TrackMut<T> for SmoothStepTrack<T>
@@ -415,26 +438,26 @@ impl<T> TrackMut<T> for SmoothStepTrack<T>
 		}
 		let t = (self.curr_t + t.delta_seconds()).clamp(0.0, dur);
 		self.curr_t = t;
-		let t = t / dur;
-		let t = t * t * (3.0 - 2.0 * t);
+		let prog = t / dur;
+		let t = prog * prog * (3.0 - 2.0 * prog);
 		let new = self.start.clone().lerp(self.end.clone(), t);
 		if *val != new {
 			*val = new;
 		}
-		(t == dur).into()
+		(prog >= 1.0).into()
 	}
 }
 
 impl<T, D: 'static> BlendableTrack<T, D> for SmoothStepTrack<T>
 	where
 		T: Component
-		+ Lerp<T, Output = T>
 		+ Diff<Delta = D>
+		+ Add<D, Output = T>
 		+ Clone
-		+ PartialEq
 		+ Send
 		+ Sync
 		+ 'static,
+	  D: Mul<f32, Output = D>,
 {
 	fn tick(&mut self, val: QueryItem<Ref<'static, T>>, t: Res<Time>) -> BlendableResult<D> {
 		let dur = self.duration.as_secs_f32();
@@ -447,14 +470,15 @@ impl<T, D: 'static> BlendableTrack<T, D> for SmoothStepTrack<T>
 		}
 		let t = (self.curr_t + t.delta_seconds()).clamp(0.0, dur);
 		self.curr_t = t;
-		let t = t / dur;
-		let t = t * t * (3.0 - 2.0 * t);
-		let new = self.start.clone().lerp(self.end.clone(), t);
+		let prog = t / dur;
+		let t = prog * prog * (3.0 - 2.0 * prog);
+		let dist = self.end.relative_to(&self.start) * t;
+		let new = self.start.clone() + dist;
 		let delta = new.relative_to(&val);
 		BlendableResult {
 			command: AnimationBlendCommand::SetRelative(delta),
-			progress: Progress::Fraction(t / dur),
-			finished: (t == dur).into(),
+			progress: Progress::Fraction(prog),
+			finished: (prog >= 1.0).into(),
 		}
 	}
 }
@@ -567,6 +591,7 @@ impl<T: Component + 'static> MutAnimation<T> {
 						cmds.entity(this_id).despawn()
 					}
 				}
+				Err(QueryEntityError::NoSuchEntity(_)) => cmds.entity(this_id).despawn(),
 				Err(e) => bevy::log::error!("{e}"),
 			}
 		}
@@ -630,6 +655,7 @@ where
 						cmds.entity(this_id).despawn()
 					}
 				}
+				Err(QueryEntityError::NoSuchEntity(_)) => cmds.entity(this_id).despawn(),
 				Err(e) => bevy::log::error!("{e}"),
 			}
 		}
@@ -643,21 +669,17 @@ where
 				.filter(|(progress, _)| match progress {
 					Progress::Fraction(progress) => {
 						sum_progress += *progress;
-						false
+						true
 					}
-					Progress::Indefinite => true,
+					Progress::Indefinite => false,
 				})
 				.count();
-			let avg_progress = if num_fractions == 0 {
-				coef
-			} else {
-				sum_progress / num_fractions as f32
-			};
+			let variable_part = num_fractions as f32 / to_blend.len() as f32;
 			let blended_offsets = to_blend
 				.drain(..)
 				.map(|(progress, value)| {
 					let coef = match progress {
-						Progress::Fraction(progress) => coef * (progress / avg_progress),
+						Progress::Fraction(progress) => variable_part * (progress / sum_progress),
 						Progress::Indefinite => coef,
 					};
 					value * coef
@@ -716,9 +738,9 @@ impl Diff for Transform {
 
 	fn relative_to(&self, rhs: &Self) -> Self::Delta {
 		TransformDelta(Transform {
-			translation: rhs.translation - self.translation,
+			translation: self.translation - rhs.translation,
 			rotation: self.rotation.inverse() * rhs.rotation,
-			scale: rhs.scale - self.scale,
+			scale: self.scale - rhs.scale,
 		})
 	}
 }
@@ -751,7 +773,7 @@ impl Add<TransformDelta> for Transform {
 		Self {
 			translation: self.translation + rhs.0.translation,
 			rotation: self.rotation * rhs.0.rotation,
-			scale: self.scale * Vec3::ONE + rhs.0.scale,
+			scale: self.scale + rhs.0.scale,
 		}
 	}
 }

@@ -43,6 +43,7 @@ use std::{
 	ops::{Deref, DerefMut},
 	time::Duration,
 };
+use std::ops::{Add, Mul, Sub};
 
 pub mod camera;
 pub mod ctrl;
@@ -235,6 +236,7 @@ use crate::{
 	util::Prev,
 };
 use player_entity::*;
+use crate::util::Diff;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum PlayerArm {
@@ -522,6 +524,7 @@ fn player_vis(
 		.with_children(|builder| {
 			let mut arms = builder
 				.spawn((
+					owner,
 					Name::new(format!("Player{}.ShipCenter.Arms", owner.0.get())),
 					TransformBundle::from_transform(Transform::from_translation(Vec3::Z * 0.64)),
 					VisibilityBundle::default(),
@@ -535,9 +538,11 @@ fn player_vis(
 	root.add_child(ship_center);
 }
 
-#[derive(Component, Debug, Default, Copy, Clone, Reflect)]
+#[derive(Component, Debug, Default, Copy, Clone, PartialEq, Reflect, Deref, DerefMut)]
 pub struct RotVel {
+	// TODO: Maybe quiescent should be a newtype component instead of a field
 	pub quiescent: f32,
+	#[deref]
 	pub current: f32,
 }
 
@@ -548,19 +553,37 @@ impl RotVel {
 			current: vel,
 		}
 	}
-}
-
-impl Deref for RotVel {
-	type Target = f32;
-
-	fn deref(&self) -> &Self::Target {
-		&self.current
+	
+	pub fn with_current(self, current: f32) -> Self {
+		Self {
+			current,
+			quiescent: self.quiescent,
+		}
+	}
+	
+	pub fn quiescent(self) -> Self {
+		Self {
+			current: self.quiescent,
+			quiescent: self.quiescent,
+		}
 	}
 }
 
-impl DerefMut for RotVel {
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		&mut self.current
+impl Diff for RotVel {
+	type Delta = f32;
+
+	fn relative_to(&self, rhs: &Self) -> Self::Delta {
+		self.current - rhs.current
+	}
+}
+
+// TODO: derive macro for lerp
+impl Add<f32> for RotVel {
+	type Output = RotVel;
+	
+	fn add(mut self, rhs: f32) -> Self::Output {
+		*self += rhs;
+		self
 	}
 }
 

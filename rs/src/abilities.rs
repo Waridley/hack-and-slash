@@ -1,4 +1,5 @@
 use crate::{
+	anim::StartAnimation,
 	player::{
 		ctrl::CtrlVel,
 		input::PlayerAction,
@@ -17,17 +18,25 @@ use leafwing_input_manager::{
 use particles::Spewer;
 use serde::{Deserialize, Serialize};
 use std::{f32::consts::FRAC_PI_3, time::Duration};
+use bevy::ecs::query::QueryItem;
+use crate::anim::{BlendableAnimation, BlendableTrack, IsFinished, MutAnimation, SmoothStepTrack, TrackMut};
+use crate::util::Diff;
 
 pub struct AbilitiesPlugin;
 
 impl Plugin for AbilitiesPlugin {
 	fn build(&self, app: &mut App) {
-		app.add_systems(
-			Update,
-			(trigger_player_abilities, fill_weapons)
-				.after(update_action_state::<PlayerAction>)
-				.run_if(resource_exists::<PlayerParams>()),
-		);
+		app
+			.add_systems(
+				Update,
+				(
+					(trigger_player_abilities, fill_weapons)
+						.after(update_action_state::<PlayerAction>)
+						.run_if(resource_exists::<PlayerParams>()),
+					BlendableAnimation::<RotVel, f32>::animate,
+					MutAnimation::<Spewer>::animate,
+				)
+			);
 	}
 }
 
@@ -40,8 +49,8 @@ pub fn trigger_player_abilities(
 		&mut CtrlVel,
 		&BelongsToPlayer,
 	)>,
-	mut arms_q: Query<&mut RotVel, ERef<Arms>>,
-	mut arm_q: Query<(&mut Transform, &mut Spewer), ERef<Arm>>,
+	arms_q: Query<(Entity, &RotVel, &BelongsToPlayer), ERef<Arms>>,
+	arm_q: Query<(Entity, &Transform, &Spewer, &BelongsToPlayer), ERef<Arm>>,
 	sfx: Res<AoESound>,
 	audio: Res<Audio>,
 	params: Res<PlayerParams>,
@@ -49,7 +58,7 @@ pub fn trigger_player_abilities(
 ) {
 	// TODO: Cooldowns
 	use PlayerAction::*;
-	for (state, mut boost_charge, mut weap_charge, mut vel, owner) in &mut q {
+	for (state, mut boost_charge, mut weap_charge, mut vel, player) in &mut q {
 		let AbilityParams {
 			jump_cost,
 			jump_vel,
@@ -85,28 +94,46 @@ pub fn trigger_player_abilities(
 		if state.just_pressed(AoE) && *weap_charge >= aoe_cost {
 			**weap_charge -= *aoe_cost;
 			audio.play(sfx.0.clone()).with_volume(0.5);
-			for mut rvel in &mut arms_q {
-				**rvel = 36.0;
+			for (id, rvel, owner) in &arms_q {
+				if owner != player {
+					continue
+				}
+				cmds.entity(id).start_blendable_animation::<RotVel, f32>(
+					SmoothStepTrack::new(
+						rvel.quiescent(),
+						rvel.with_current(36.0),
+						Duration::from_millis(128),
+					).chain_blendable(SmoothStepTrack::new(
+						rvel.with_current(36.0),
+						rvel.quiescent(),
+						Duration::from_secs_f32(1.0),
+					))
+				);
 			}
-			for (mut arm, mut spewer) in &mut arm_q {
-				// TODO: Filter by player
-				arm.translation *= 6.0;
-				arm.scale *= 6.0;
-				spewer.interval = Duration::from_micros(200);
+			for (id, arm, spewer, owner) in &arm_q {
+				if owner != player {
+					continue
+				}
+				let outer = Transform {
+					translation: arm.translation * 6.0,
+					scale: arm.scale * 6.0,
+					..*arm
+				};
+				dbg!(outer.relative_to(arm) * t.delta_seconds());
+				cmds.entity(id).start_blendable_animation(
+					SmoothStepTrack::new(*arm, outer, Duration::from_millis(128))
+						.chain_blendable(SmoothStepTrack::new(outer, *arm, Duration::from_secs_f32(1.0)))
+				);
+				
+				let mut curr_t = 0.0;
+				let end = spewer.interval.as_secs_f32();
+				cmds.entity(id).start_mut_animation(Box::new(move |mut spewer: QueryItem<&'static mut Spewer>, t: Res<Time>| {
+					curr_t += t.delta_seconds();
+					let t = f32::min(1.0, curr_t / 1.128);
+					spewer.interval = Duration::from_secs_f32(0.00005.lerp(end, t));
+					IsFinished::from(t == 1.0)
+				}) as Box<dyn for<'a, 'b> FnMut(Mut<'a, _>, Res<'b, _>) -> IsFinished + Send + Sync + 'static>);
 			}
-		}
-
-		// TODO: Use animation instead of limit lerp
-		for mut rvel in &mut arms_q {
-			**rvel = **rvel + (rvel.quiescent - **rvel) * t.delta_seconds();
-		}
-		for (i, (mut arm, mut spewer)) in arm_q.iter_mut().enumerate() {
-			let resting = Quat::from_rotation_z(i as f32 * FRAC_PI_3 * 2.0) * Vec3::X * 2.0;
-			arm.translation = arm.translation.lerp(resting, t.delta_seconds() * 2.0);
-			arm.scale = arm.scale.lerp(Vec3::ONE, t.delta_seconds() * 2.0);
-			spewer.interval = Duration::from_secs_f32(
-				spewer.interval.as_secs_f32().lerp(0.001, t.delta_seconds()),
-			);
 		}
 	}
 }

@@ -127,7 +127,12 @@ pub fn game_plugin(app: &mut App) -> &mut App {
 	.add_systems(Startup, startup)
 	.add_systems(
 		Update,
-		(terminal_velocity.before(StepSimulation), fullscreen),
+		(
+			terminal_velocity.before(StepSimulation),
+			fullscreen,
+			anim::MutAnimation::<Transform>::animate,
+			anim::BlendableAnimation::<Transform, anim::TransformDelta>::animate,
+		),
 	)
 	.add_systems(PostUpdate, (despawn_oob,));
 	type BubbleMatExt = ExtendedMaterial<StandardMaterial, BubbleMaterial>;
