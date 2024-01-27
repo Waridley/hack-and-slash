@@ -1,7 +1,6 @@
 use crate::{
 	abilities::BoosterCharge,
 	player::{
-		input::PlayerAction,
 		player_entity::{Controller, Root, ShipCenter},
 		tune::PlayerParams,
 		BelongsToPlayer, G1,
@@ -21,7 +20,6 @@ use bevy_rapier3d::{
 	prelude::*,
 };
 use enum_components::ERef;
-use leafwing_abilities::prelude::*;
 use rapier3d::{
 	math::Isometry,
 	parry::query::ContactManifold,
