@@ -40,10 +40,9 @@ use rapier3d::{
 use std::{
 	f32::consts::*,
 	num::NonZeroU8,
-	ops::{Deref, DerefMut},
+	ops::{Add, Deref, DerefMut, Mul, Sub},
 	time::Duration,
 };
-use std::ops::{Add, Mul, Sub};
 
 pub mod camera;
 pub mod ctrl;
@@ -233,10 +232,9 @@ pub enum PlayerEntity {
 use crate::{
 	abilities::{AoESound, BoosterCharge, WeaponCharge},
 	player::tune::PlayerParams,
-	util::Prev,
+	util::{Diff, Prev},
 };
 use player_entity::*;
-use crate::util::Diff;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum PlayerArm {
@@ -553,14 +551,14 @@ impl RotVel {
 			current: vel,
 		}
 	}
-	
+
 	pub fn with_current(self, current: f32) -> Self {
 		Self {
 			current,
 			quiescent: self.quiescent,
 		}
 	}
-	
+
 	pub fn quiescent(self) -> Self {
 		Self {
 			current: self.quiescent,
@@ -580,7 +578,7 @@ impl Diff for RotVel {
 // TODO: derive macro for lerp
 impl Add<f32> for RotVel {
 	type Output = RotVel;
-	
+
 	fn add(mut self, rhs: f32) -> Self::Output {
 		*self += rhs;
 		self

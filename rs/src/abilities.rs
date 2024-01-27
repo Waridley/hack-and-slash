@@ -1,5 +1,8 @@
 use crate::{
-	anim::StartAnimation,
+	anim::{
+		BlendableAnimation, BlendableTrack, IsFinished, LerpSlerpTrack, LerpTrack, MutAnimation,
+		SmoothStepTrack, StartAnimation, Track,
+	},
 	player::{
 		ctrl::CtrlVel,
 		input::PlayerAction,
@@ -18,23 +21,21 @@ use leafwing_input_manager::{
 use particles::Spewer;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use crate::anim::{BlendableAnimation, BlendableTrack, IsFinished, LerpSlerpTrack, LerpTrack, MutAnimation, SmoothStepTrack, Track};
 
 pub struct AbilitiesPlugin;
 
 impl Plugin for AbilitiesPlugin {
 	fn build(&self, app: &mut App) {
-		app
-			.add_systems(
-				Update,
-				(
-					(trigger_player_abilities, fill_weapons)
-						.after(update_action_state::<PlayerAction>)
-						.run_if(resource_exists::<PlayerParams>()),
-					BlendableAnimation::<RotVel, f32>::animate,
-					MutAnimation::<Spewer>::animate,
-				)
-			);
+		app.add_systems(
+			Update,
+			(
+				(trigger_player_abilities, fill_weapons)
+					.after(update_action_state::<PlayerAction>)
+					.run_if(resource_exists::<PlayerParams>()),
+				BlendableAnimation::<RotVel, f32>::animate,
+				MutAnimation::<Spewer>::animate,
+			),
+		);
 	}
 }
 
@@ -93,23 +94,24 @@ pub fn trigger_player_abilities(
 			audio.play(sfx.0.clone()).with_volume(0.5);
 			for (id, rvel, owner) in &arms_q {
 				if owner != player {
-					continue
+					continue;
 				}
 				cmds.entity(id).start_blendable_animation::<RotVel, f32>(
 					LerpTrack::new(
 						rvel.quiescent(),
 						rvel.with_current(36.0),
 						Duration::from_millis(48),
-					).chain_blendable(SmoothStepTrack::new(
+					)
+					.chain_blendable(SmoothStepTrack::new(
 						rvel.with_current(36.0),
 						rvel.quiescent(),
 						Duration::from_secs_f32(1.0),
-					))
+					)),
 				);
 			}
 			for (id, arm, spewer, owner) in &arm_q {
 				if owner != player {
-					continue
+					continue;
 				}
 				let outer = Transform {
 					translation: arm.translation * 6.0,
@@ -117,18 +119,20 @@ pub fn trigger_player_abilities(
 					..*arm
 				};
 				cmds.entity(id).start_blendable_animation(
-					LerpSlerpTrack::new(*arm, outer, Duration::from_millis(48))
-						.chain_blendable(SmoothStepTrack::new(outer, *arm, Duration::from_secs_f32(1.0)))
+					LerpSlerpTrack::new(*arm, outer, Duration::from_millis(48)).chain_blendable(
+						SmoothStepTrack::new(outer, *arm, Duration::from_secs_f32(1.0)),
+					),
 				);
-				
+
 				let mut elapsed = 0.0;
 				let end = spewer.interval.as_secs_f32();
-				cmds.entity(id).start_mut_animation(Track::new_mut::<Spewer>(move |mut spewer, t| {
-					elapsed += t.delta_seconds();
-					let t = f32::min(1.0, elapsed / 1.048);
-					spewer.interval = Duration::from_secs_f32(0.00001.lerp(end, t));
-					IsFinished::from(t == 1.0)
-				}));
+				cmds.entity(id)
+					.start_mut_animation(Track::new_mut::<Spewer>(move |mut spewer, t| {
+						elapsed += t.delta_seconds();
+						let t = f32::min(1.0, elapsed / 1.048);
+						spewer.interval = Duration::from_secs_f32(0.00001.lerp(end, t));
+						IsFinished::from(t == 1.0)
+					}));
 			}
 		}
 	}

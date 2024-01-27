@@ -1,16 +1,20 @@
-use crate::util::{Diff, Lerp, LerpSlerp};
+use crate::{
+	util::{Diff, Lerp, LerpSlerp},
+	EPS,
+};
 use bevy::{
-	ecs::{query::QueryItem, system::EntityCommands},
+	ecs::{
+		query::{QueryEntityError, QueryItem},
+		system::EntityCommands,
+	},
 	prelude::*,
 	utils::HashMap,
 };
+use serde::{Deserialize, Serialize};
 use std::{
 	ops::{Add, Deref, DerefMut, Mul},
 	time::Duration,
 };
-use bevy::ecs::query::QueryEntityError;
-use serde::{Deserialize, Serialize};
-use crate::EPS;
 
 #[derive(Debug, Clone)]
 #[repr(transparent)]
@@ -18,12 +22,19 @@ pub struct Track<F>(pub F);
 
 impl<F> Track<F> {
 	pub fn new_mut<T: Component>(f: F) -> Self
-	where F: FnMut(QueryItem<&'static mut T>, Res<Time>) -> IsFinished + Send + Sync + 'static {
+	where
+		F: FnMut(QueryItem<&'static mut T>, Res<Time>) -> IsFinished + Send + Sync + 'static,
+	{
 		Self(f)
 	}
-	
+
 	pub fn new_blendable<T: Component + Diff>(f: F) -> Self
-	where F:  FnMut(QueryItem<Ref<'static, T>>, Res<Time>) -> BlendableResult<<T as Diff>::Delta, f32> + Send + Sync + 'static {
+	where
+		F: FnMut(QueryItem<Ref<'static, T>>, Res<Time>) -> BlendableResult<<T as Diff>::Delta, f32>
+			+ Send
+			+ Sync
+			+ 'static,
+	{
 		Self(f)
 	}
 }
@@ -45,7 +56,9 @@ pub trait TrackMut<T: Component>: Send + Sync + 'static {
 }
 
 impl<T: Component, F> TrackMut<T> for Track<F>
-where F: FnMut(QueryItem<&'static mut T>, Res<Time>) -> IsFinished + Send + Sync + 'static {
+where
+	F: FnMut(QueryItem<&'static mut T>, Res<Time>) -> IsFinished + Send + Sync + 'static,
+{
 	fn tick_mut(&mut self, val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished {
 		self.0(val, t)
 	}
@@ -68,7 +81,11 @@ pub trait BlendableTrack<T: Component, D: 'static = T, P = f32>: Send + Sync + '
 }
 
 impl<T: Component, D: 'static, P: 'static, F> BlendableTrack<T, D, P> for Track<F>
-where F: FnMut(QueryItem<Ref<'static, T>>, Res<Time>) -> BlendableResult<D, P> + Send + Sync + 'static
+where
+	F: FnMut(QueryItem<Ref<'static, T>>, Res<Time>) -> BlendableResult<D, P>
+		+ Send
+		+ Sync
+		+ 'static,
 {
 	fn tick(&mut self, val: QueryItem<Ref<'static, T>>, t: Res<Time>) -> BlendableResult<D, P> {
 		self.0(val, t)
@@ -171,7 +188,7 @@ where
 	fn tick_mut(&mut self, mut val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished {
 		let dur = self.duration.as_secs_f32();
 		if dur < EPS {
-			return IsFinished::Yes
+			return IsFinished::Yes;
 		}
 		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
 		self.elapsed = t;
@@ -186,14 +203,7 @@ where
 
 impl<T, D: 'static> BlendableTrack<T, D> for LerpTrack<T>
 where
-	T: Component
-		+ Diff<Delta = D>
-		+ Add<D, Output = T>
-		+ Clone
-		+ PartialEq
-		+ Send
-		+ Sync
-		+ 'static,
+	T: Component + Diff<Delta = D> + Add<D, Output = T> + Clone + PartialEq + Send + Sync + 'static,
 	D: Mul<f32, Output = D>,
 {
 	fn tick(&mut self, val: QueryItem<Ref<'static, T>>, t: Res<Time>) -> BlendableResult<D> {
@@ -203,7 +213,7 @@ where
 				command: AnimationBlendCommand::SetRelative(self.end.relative_to(&val)),
 				progress: Progress::Fraction(1.0),
 				finished: IsFinished::Yes,
-			}
+			};
 		}
 		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
 		self.elapsed = t;
@@ -243,7 +253,7 @@ impl<T: Component + LerpSlerp + PartialEq + Clone> TrackMut<T> for LerpSlerpTrac
 	fn tick_mut(&mut self, mut val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished {
 		let dur = self.duration.as_secs_f32();
 		if dur < EPS {
-			return IsFinished::Yes
+			return IsFinished::Yes;
 		}
 		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
 		self.elapsed = t;
@@ -268,7 +278,7 @@ impl BlendableTrack<Transform, TransformDelta> for LerpSlerpTrack<Transform> {
 				command: AnimationBlendCommand::SetRelative(self.end.relative_to(&val)),
 				progress: Progress::Fraction(1.0),
 				finished: IsFinished::Yes,
-			}
+			};
 		}
 		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
 		self.elapsed = t;
@@ -305,7 +315,7 @@ impl<T: Component + Lerp<T, Output = T> + PartialEq + Clone> TrackMut<T> for Ler
 	fn tick_mut(&mut self, mut val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished {
 		let dur = self.duration.as_secs_f32();
 		if dur < EPS {
-			return IsFinished::Yes
+			return IsFinished::Yes;
 		}
 		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
 		self.elapsed = t;
@@ -320,14 +330,7 @@ impl<T: Component + Lerp<T, Output = T> + PartialEq + Clone> TrackMut<T> for Ler
 
 impl<T, D: 'static> BlendableTrack<T, D> for LerpTo<T>
 where
-	T: Component
-		+ Diff<Delta = D>
-		+ Add<D, Output = T>
-		+ Clone
-		+ PartialEq
-		+ Send
-		+ Sync
-		+ 'static,
+	T: Component + Diff<Delta = D> + Add<D, Output = T> + Clone + PartialEq + Send + Sync + 'static,
 	D: Mul<f32, Output = D>,
 {
 	fn tick(&mut self, val: QueryItem<Ref<'static, T>>, t: Res<Time>) -> BlendableResult<D> {
@@ -337,7 +340,7 @@ where
 				command: AnimationBlendCommand::SetRelative(self.end.relative_to(&val)),
 				progress: Progress::Fraction(1.0),
 				finished: IsFinished::Yes,
-			}
+			};
 		}
 		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
 		self.elapsed = t;
@@ -375,7 +378,7 @@ impl<T: Component + LerpSlerp + PartialEq + Clone> TrackMut<T> for LerpSlerpTo<T
 	fn tick_mut(&mut self, mut val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished {
 		let dur = self.duration.as_secs_f32();
 		if dur < EPS {
-			return IsFinished::Yes
+			return IsFinished::Yes;
 		}
 		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
 		self.elapsed = t;
@@ -400,7 +403,7 @@ impl BlendableTrack<Transform, TransformDelta> for LerpSlerpTo<Transform> {
 				command: AnimationBlendCommand::SetRelative(self.end.relative_to(&val)),
 				progress: Progress::Fraction(1.0),
 				finished: IsFinished::Yes,
-			}
+			};
 		}
 		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
 		self.elapsed = t;
@@ -436,13 +439,13 @@ impl<T> SmoothStepTrack<T> {
 }
 
 impl<T> TrackMut<T> for SmoothStepTrack<T>
-	where
-		T: Component + Lerp<T, f32, Output = T> + Clone + PartialEq + Send + Sync + 'static,
+where
+	T: Component + Lerp<T, f32, Output = T> + Clone + PartialEq + Send + Sync + 'static,
 {
 	fn tick_mut(&mut self, mut val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished {
 		let dur = self.duration.as_secs_f32();
 		if dur < EPS {
-			return IsFinished::Yes
+			return IsFinished::Yes;
 		}
 		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
 		self.elapsed = t;
@@ -457,15 +460,9 @@ impl<T> TrackMut<T> for SmoothStepTrack<T>
 }
 
 impl<T, D: 'static> BlendableTrack<T, D> for SmoothStepTrack<T>
-	where
-		T: Component
-		+ Diff<Delta = D>
-		+ Add<D, Output = T>
-		+ Clone
-		+ Send
-		+ Sync
-		+ 'static,
-	  D: Mul<f32, Output = D>,
+where
+	T: Component + Diff<Delta = D> + Add<D, Output = T> + Clone + Send + Sync + 'static,
+	D: Mul<f32, Output = D>,
 {
 	fn tick(&mut self, val: QueryItem<Ref<'static, T>>, t: Res<Time>) -> BlendableResult<D> {
 		let dur = self.duration.as_secs_f32();
@@ -474,7 +471,7 @@ impl<T, D: 'static> BlendableTrack<T, D> for SmoothStepTrack<T>
 				command: AnimationBlendCommand::SetRelative(self.end.relative_to(&val)),
 				progress: Progress::Fraction(1.0),
 				finished: IsFinished::Yes,
-			}
+			};
 		}
 		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
 		self.elapsed = t;
@@ -709,6 +706,12 @@ where
 
 pub trait StartAnimation<'w, 's, 'a> {
 	fn start_mut_animation<T: Component>(&'a mut self, tick: impl TrackMut<T>) -> Entity;
+	fn with_mut_animation<T: Component>(
+		&'a mut self,
+		tick: impl TrackMut<T>,
+		f: impl FnOnce(&mut EntityCommands<'w, 's, 'a>),
+	) -> Entity;
+
 	fn start_blendable_animation<
 		T: Component + Add<D, Output = T> + PartialEq + Clone,
 		D: Add<Output = D> + Mul<f32, Output = D> + 'static,
@@ -716,12 +719,31 @@ pub trait StartAnimation<'w, 's, 'a> {
 		&'a mut self,
 		tick: impl BlendableTrack<T, D>,
 	) -> Entity;
+	fn with_blendable_animation<
+		T: Component + Add<D, Output = T> + PartialEq + Clone,
+		D: Add<Output = D> + Mul<f32, Output = D> + 'static,
+	>(
+		&'a mut self,
+		tick: impl BlendableTrack<T, D>,
+		f: impl FnOnce(&mut EntityCommands<'w, 's, 'a>),
+	) -> Entity;
 }
 
 impl<'w, 's, 'a> StartAnimation<'w, 's, 'a> for EntityCommands<'w, 's, 'a> {
 	fn start_mut_animation<T: Component>(&'a mut self, tick: impl TrackMut<T>) -> Entity {
 		let id = self.id();
 		self.commands().spawn(MutAnimation::new(id, tick)).id()
+	}
+
+	fn with_mut_animation<T: Component>(
+		&'a mut self,
+		tick: impl TrackMut<T>,
+		f: impl FnOnce(&mut EntityCommands<'w, 's, 'a>),
+	) -> Entity {
+		let id = self.id();
+		let mut cmds = self.commands().spawn(MutAnimation::new(id, tick));
+		f(&mut cmds);
+		cmds.id()
 	}
 
 	fn start_blendable_animation<
@@ -735,6 +757,20 @@ impl<'w, 's, 'a> StartAnimation<'w, 's, 'a> for EntityCommands<'w, 's, 'a> {
 		self.commands()
 			.spawn(BlendableAnimation::new(id, tick))
 			.id()
+	}
+
+	fn with_blendable_animation<
+		T: Component + Add<D, Output = T> + PartialEq + Clone,
+		D: Add<Output = D> + Mul<f32, Output = D> + 'static,
+	>(
+		&'a mut self,
+		tick: impl BlendableTrack<T, D>,
+		f: impl FnOnce(&mut EntityCommands<'w, 's, 'a>),
+	) -> Entity {
+		let id = self.id();
+		let mut cmds = self.commands().spawn(BlendableAnimation::new(id, tick));
+		f(&mut cmds);
+		cmds.id()
 	}
 }
 

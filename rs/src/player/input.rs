@@ -1,11 +1,7 @@
 use crate::{
 	player::{
-		camera::CameraVertSlider,
-		ctrl::CtrlVel,
-		player_entity::CamPivot,
-		prefs::LookSensitivity,
-		tune::PlayerParams,
-		BelongsToPlayer,
+		camera::CameraVertSlider, ctrl::CtrlVel, player_entity::CamPivot, prefs::LookSensitivity,
+		tune::PlayerParams, BelongsToPlayer,
 	},
 	terminal_velocity,
 	ui::UiHovered,
@@ -29,19 +25,17 @@ use std::{
 };
 
 pub fn plugin(app: &mut App) -> &mut App {
-	app.add_plugins((
-		InputManagerPlugin::<PlayerAction>::default(),
-	))
-	.add_systems(First, setup)
-	.add_systems(
-		Update,
-		(
-			grab_mouse,
-			look_input
-				.before(terminal_velocity)
-				.before(super::ctrl::move_player),
-		),
-	)
+	app.add_plugins((InputManagerPlugin::<PlayerAction>::default(),))
+		.add_systems(First, setup)
+		.add_systems(
+			Update,
+			(
+				grab_mouse,
+				look_input
+					.before(terminal_velocity)
+					.before(super::ctrl::move_player),
+			),
+		)
 }
 
 fn setup(
