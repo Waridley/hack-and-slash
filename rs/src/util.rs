@@ -471,7 +471,7 @@ impl Diff for Transform {
 	fn delta_from(&self, rhs: &Self) -> Self::Delta {
 		TransformDelta(Transform {
 			translation: self.translation - rhs.translation,
-			rotation: (self.rotation.inverse() * rhs.rotation).normalize(),
+			rotation: (rhs.rotation.inverse() * self.rotation).normalize(),
 			scale: self.scale - rhs.scale,
 		})
 	}
@@ -505,6 +505,33 @@ impl Add<TransformDelta> for Transform {
 			scale: self.scale + rhs.0.scale,
 		}
 	}
+}
+
+#[cfg(test)]
+#[test]
+fn xform_delta_add() {
+	let xform1 = Transform {
+		translation: Vec3::new(1.0, 2.0, 3.0),
+		rotation: Quat::from_rotation_arc(Vec3::Y, Vec3::new(1.0, 1.0, 1.0).normalize()),
+		scale: Vec3::ONE,
+	};
+	let xform2 = Transform {
+		translation: Vec3::new(4.0, 5.0, 6.0),
+		rotation: Quat::from_rotation_arc(Vec3::Y, Vec3::new(-1.0, 1.0, 1.0).normalize()),
+		scale: Vec3::splat(2.0),
+	};
+	let diff = xform2.delta_from(&xform1);
+	let xform1_plus_diff = xform1 + diff;
+	assert_eq!(xform2.translation, xform1_plus_diff.translation);
+	assert_eq!(xform2.scale, xform1_plus_diff.scale);
+	let rot2 = xform2.rotation;
+	let rot1d = xform1_plus_diff.rotation;
+	let e = f32::EPSILON;
+	assert!(rot2.x >= rot1d.x - e && rot2.x <= rot1d.x + e, "\n{rot2}\n{rot1d}");
+	assert!(rot2.y >= rot1d.y - e && rot2.y <= rot1d.y + e, "\n{rot2}\n{rot1d}");
+	assert!(rot2.z >= rot1d.z - e && rot2.z <= rot1d.z + e, "\n{rot2}\n{rot1d}");
+	assert!(rot2.w >= rot1d.w - e && rot2.w <= rot1d.w + e, "\n{rot2}\n{rot1d}");
+	
 }
 
 impl Mul<f32> for TransformDelta {
