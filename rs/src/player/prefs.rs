@@ -7,20 +7,31 @@ use serde::{Deserialize, Serialize};
 /// Player-specific preferences.
 /// Should be shared across devices, but may differ between local players.
 #[derive(Bundle, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct PlayerPrefs {
+	pub camera: CameraPrefs,
+	pub input_map: InputMap<PlayerAction>,
+}
+
+#[derive(Bundle, Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CameraPrefs {
 	pub invert_camera: InvertCamera,
 	pub fov: Fov,
-	pub input_map: InputMap<PlayerAction>,
 	pub sens: LookSensitivity,
+	pub smoothing: CamSmoothing,
 }
 
 impl<'w> From<PlayerPrefsQuery<'w>> for PlayerPrefs {
 	fn from(value: PlayerPrefsQuery<'w>) -> Self {
 		Self {
-			invert_camera: *value.invert_camera,
-			fov: *value.fov,
+			camera: CameraPrefs {
+				invert_camera: *value.invert_camera,
+				fov: *value.fov,
+				sens: *value.sens,
+				smoothing: *value.cam_smoothing,
+			},
 			input_map: value.input_map.clone(),
-			sens: *value.sens,
 		}
 	}
 }
@@ -32,6 +43,7 @@ pub struct PlayerPrefsQuery<'w> {
 	pub fov: &'w mut Fov,
 	pub input_map: &'w mut InputMap<PlayerAction>,
 	pub sens: &'w mut LookSensitivity,
+	pub cam_smoothing: &'w mut CamSmoothing,
 }
 
 impl Default for PlayerPrefs {
@@ -62,10 +74,8 @@ impl Default for PlayerPrefs {
 		]);
 		input_map.insert_multiple([(MouseButton::Left, FireA), (MouseButton::Other(9), Dash)]);
 		Self {
-			invert_camera: default(),
-			fov: default(),
 			input_map,
-			sens: default(),
+			camera: default(),
 		}
 	}
 }
@@ -84,6 +94,7 @@ impl Default for InvertCamera {
 }
 
 #[derive(Component, Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Fov(f32);
 
 impl Default for Fov {
@@ -93,10 +104,21 @@ impl Default for Fov {
 }
 
 #[derive(Component, Debug, Clone, Copy, PartialEq, Deref, DerefMut, Serialize, Deserialize)]
+#[serde(default)]
 pub struct LookSensitivity(Vec2);
 
 impl Default for LookSensitivity {
 	fn default() -> Self {
 		Self(Vec2::new(-0.005, -0.005))
+	}
+}
+
+#[derive(Component, Debug, Clone, Copy, PartialEq, Deref, DerefMut, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CamSmoothing(f32);
+
+impl Default for CamSmoothing {
+	fn default() -> Self {
+		Self(0.32)
 	}
 }

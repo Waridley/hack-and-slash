@@ -20,13 +20,13 @@ use player::ctrl::CtrlVel;
 use std::{f32::consts::*, fmt::Debug, time::Duration};
 use util::{IntoFnPlugin, RonReflectAssetLoader};
 
-use player::abilities::AbilitiesPlugin;
 #[allow(unused_imports, clippy::single_component_path_imports)]
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
 use bevy_dylib;
 use bevy_rapier3d::plugin::PhysicsSet::StepSimulation;
 use offloading::OffloadingPlugin;
 use planet::sky::SkyPlugin;
+use player::abilities::AbilitiesPlugin;
 
 pub mod anim;
 pub mod enemies;
@@ -125,9 +125,9 @@ pub fn game_plugin(app: &mut App) -> &mut App {
 		ui::plugin.plugfn(),
 	))
 	.insert_resource(PkvStore::new_with_qualifier("studio", "sonday", "has"))
-	.add_plugins((
-		MaterialPlugin::<ExtendedMaterial<StandardMaterial, BubbleMaterial>>::default(),
-	))
+	.add_plugins((MaterialPlugin::<
+		ExtendedMaterial<StandardMaterial, BubbleMaterial>,
+	>::default(),))
 	.add_systems(Startup, startup)
 	.add_systems(
 		Update,

@@ -73,7 +73,9 @@ impl<T: Resource> Plugin for ResAnimationPlugin<T> {
 
 #[derive(SystemSet)]
 pub struct AnimationSet<T>(PhantomData<T>);
-
+impl<T> AnimationSet<T> {
+	pub const SET: Self = Self(PhantomData);
+}
 impl<T> Copy for AnimationSet<T> {}
 impl<T> Clone for AnimationSet<T> {
 	fn clone(&self) -> Self {
@@ -220,6 +222,8 @@ impl<T: Component> ComponentDelta<T> {
 		})
 	}
 
+	/// A delta for an animation with an indefinite progress. `progress` will always be `f32::NAN`,
+	/// so the animation will be non-blendable and always run before all blendable animations.
 	pub fn indefinite(target: Entity, apply: impl FnOnce(Mut<T>) + Send + Sync + 'static) -> Self {
 		Self {
 			target,
@@ -230,6 +234,20 @@ impl<T: Component> ComponentDelta<T> {
 		}
 	}
 
+	/// A delta for a "default" animation. `progress` will always be `0.0`, so the animation will be blended,
+	/// but will only contribute any change if there are no running animations with `progress > 0.0`. The
+	/// coefficient passed to `apply` will be nonzero if and only if no other animations have made any progress.
+	///
+	/// Usually there will be only one default animation for a component on an entity, so the coefficient will
+	/// be either `0.0` or `1.0`. However, multiple "default" animations technically can be blended together.
+	pub fn default_animation(
+		target: Entity,
+		apply: impl FnOnce(Mut<T>, f32) + Send + Sync + 'static,
+	) -> Self {
+		Self::new(target, 0.0, apply)
+	}
+
+	/// A delta for a component that implements `Diff`.
 	pub fn diffable(target: Entity, progress: f32, new_value: T) -> Self
 	where
 		T: Diff + Clone + Add<<T as Diff>::Delta, Output = T>,
@@ -241,6 +259,15 @@ impl<T: Component> ComponentDelta<T> {
 				*val = val.clone() + diff;
 			}
 		})
+	}
+
+	/// See [Self::default_animation] and [Self::diffable].
+	pub fn default_diffable(target: Entity, new_value: T) -> Self
+	where
+		T: Diff + Clone + Add<<T as Diff>::Delta, Output = T>,
+		<T as Diff>::Delta: Mul<f32, Output = <T as Diff>::Delta> + Default + PartialEq,
+	{
+		Self::diffable(target, 0.0, new_value)
 	}
 }
 

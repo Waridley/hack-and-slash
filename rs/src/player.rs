@@ -1,4 +1,4 @@
-use crate::{terminal_velocity, NeverDespawn, TerminalVelocity};
+use crate::{anim, terminal_velocity, NeverDespawn, TerminalVelocity};
 
 use crate::{pickups::MissSfx, settings::Settings, util::IntoFnPlugin};
 use bevy::{
@@ -246,9 +246,11 @@ pub enum PlayerEntity {
 	Orb(PlayerArm),
 }
 use crate::{
-	player::abilities::{BoosterCharge, HurtboxFilter, Sfx, WeaponCharge},
 	anim::ComponentDelta,
-	player::tune::PlayerParams,
+	player::{
+		abilities::{BoosterCharge, HurtboxFilter, Sfx, WeaponCharge},
+		tune::PlayerParams,
+	},
 	util::{Diff, Prev, TransformDelta},
 };
 use player_entity::*;
@@ -395,10 +397,8 @@ fn build_player_scene(
 fn player_controller(root: &mut EntityCommands, owner: BelongsToPlayer, char_collider: Collider) {
 	root.with_children(|builder| {
 		let PlayerPrefs {
-			invert_camera,
-			fov,
+			camera: cam_prefs,
 			input_map,
-			sens,
 		} = PlayerPrefs::default();
 		builder
 			.spawn((
@@ -417,7 +417,7 @@ fn player_controller(root: &mut EntityCommands, owner: BelongsToPlayer, char_col
 				CtrlState::default(),
 				BoosterCharge::default(),
 				WeaponCharge::default(),
-				(invert_camera, fov, sens),
+				cam_prefs,
 			))
 			.with_enum(Controller);
 	});

@@ -527,20 +527,32 @@ fn xform_delta_add() {
 	let rot2 = xform2.rotation;
 	let rot1d = xform1_plus_diff.rotation;
 	let e = f32::EPSILON;
-	assert!(rot2.x >= rot1d.x - e && rot2.x <= rot1d.x + e, "\n{rot2}\n{rot1d}");
-	assert!(rot2.y >= rot1d.y - e && rot2.y <= rot1d.y + e, "\n{rot2}\n{rot1d}");
-	assert!(rot2.z >= rot1d.z - e && rot2.z <= rot1d.z + e, "\n{rot2}\n{rot1d}");
-	assert!(rot2.w >= rot1d.w - e && rot2.w <= rot1d.w + e, "\n{rot2}\n{rot1d}");
-	
+	assert!(
+		rot2.x >= rot1d.x - e && rot2.x <= rot1d.x + e,
+		"\n{rot2}\n{rot1d}"
+	);
+	assert!(
+		rot2.y >= rot1d.y - e && rot2.y <= rot1d.y + e,
+		"\n{rot2}\n{rot1d}"
+	);
+	assert!(
+		rot2.z >= rot1d.z - e && rot2.z <= rot1d.z + e,
+		"\n{rot2}\n{rot1d}"
+	);
+	assert!(
+		rot2.w >= rot1d.w - e && rot2.w <= rot1d.w + e,
+		"\n{rot2}\n{rot1d}"
+	);
 }
 
 impl Mul<f32> for TransformDelta {
 	type Output = Self;
 
 	fn mul(self, rhs: f32) -> Self::Output {
+		let (axis, angle) = self.0.rotation.to_axis_angle();
 		Self(Transform {
 			translation: self.0.translation * rhs,
-			rotation: Quat::IDENTITY.slerp(self.0.rotation, rhs),
+			rotation: Quat::from_axis_angle(axis, angle * rhs),
 			scale: self.0.scale * rhs,
 		})
 	}

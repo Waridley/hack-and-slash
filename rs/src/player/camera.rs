@@ -4,6 +4,7 @@ use super::{
 };
 use crate::{planet::sky::SkyShader, player::PlayerId, settings::Settings, NeverDespawn};
 
+use crate::{anim::ComponentDelta, player::prefs::CamSmoothing, util::LerpSlerp};
 use bevy::{
 	core_pipeline::{
 		bloom::BloomSettings, clear_color::ClearColorConfig, fxaa::Fxaa, tonemapping::Tonemapping,
@@ -30,9 +31,9 @@ use bevy_rapier3d::{
 use enum_components::{ERef, EntityEnumCommands};
 use std::f32::consts::FRAC_PI_2;
 
-pub const CAM_ACCEL: f32 = 12.0;
-const MAX_CAM_DIST: f32 = 24.0;
-const MIN_CAM_DIST: f32 = 6.4;
+const CAM_SMOOTHING: f32 = 0.33;
+const MAX_CAM_DIST: f32 = 32.0;
+const MIN_CAM_DIST: f32 = 9.6;
 
 pub fn spawn_camera<'w, 's, 'a>(
 	cmds: &'a mut Commands<'w, 's>,
@@ -171,7 +172,7 @@ pub fn spawn_pivot<'w, 's, 'a>(
 			owner,
 			CameraVertSlider(0.4),
 			TransformBundle::from_transform(Transform {
-				translation: Vect::new(0.0, 0.0, 6.4),
+				translation: Vect::new(0.0, 0.0, MIN_CAM_DIST),
 				..default()
 			}),
 		))
@@ -255,15 +256,26 @@ pub fn position_target(
 	}
 }
 
-pub fn follow_target(mut cam_q: Query<(&mut Transform, &CamTarget), ERef<Cam>>, t: Res<Time>) {
+pub fn follow_target(
+	player_q: Query<(&CamSmoothing, &BelongsToPlayer)>,
+	mut cam_q: Query<(Entity, &mut Transform, &CamTarget, &BelongsToPlayer), ERef<Cam>>,
+	t: Res<Time>,
+	mut sender: EventWriter<ComponentDelta<Transform>>,
+) {
 	let dt = t.delta_seconds();
-	for (mut cam_xform, target_xform) in &mut cam_q {
-		// TODO: Maybe always aim towards pivot, rather than immediately assuming final rotation
-		cam_xform.translation = cam_xform
-			.translation
-			.lerp(target_xform.translation, CAM_ACCEL * dt);
-		cam_xform.rotation = cam_xform
-			.rotation
-			.slerp(target_xform.rotation, CAM_ACCEL * dt);
+	for (id, mut cam_xform, target_xform, owner) in &mut cam_q {
+		let Some(smoothing) = player_q
+			.iter()
+			.find_map(|(smoothing, id)| (*id == *owner).then_some(*smoothing))
+		else {
+			continue;
+		};
+		let s = if *smoothing <= dt {
+			1.0
+		} else {
+			(1.0 / *smoothing) * dt
+		};
+		let new = cam_xform.lerp_slerp(**target_xform, s);
+		sender.send(ComponentDelta::<Transform>::default_diffable(id, new))
 	}
 }
