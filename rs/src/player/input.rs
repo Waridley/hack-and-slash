@@ -24,6 +24,9 @@ use std::{
 	time::Duration,
 };
 
+#[derive(SystemSet, Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct InputSystems;
+
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugins((InputManagerPlugin::<PlayerAction>::default(),))
 		.add_systems(First, setup)
@@ -31,9 +34,12 @@ pub fn plugin(app: &mut App) -> &mut App {
 			Update,
 			(
 				grab_mouse,
-				look_input
+				(
+					look_input.ambiguous_with(movement_input),
+					movement_input.run_if(resource_exists::<PlayerParams>()),
+				)
 					.before(terminal_velocity)
-					.before(super::ctrl::move_player),
+					.in_set(InputSystems),
 			),
 		)
 }
@@ -68,6 +74,9 @@ pub enum PlayerAction {
 	Move,
 	Look,
 	Jump,
+	FireA,
+	FireB,
+	FireC,
 	AoE,
 	Dash,
 	Pause,

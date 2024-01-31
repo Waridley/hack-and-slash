@@ -5,13 +5,17 @@
 
 use crate::mats::BubbleMaterial;
 use bevy::{
-	diagnostic::FrameTimeDiagnosticsPlugin, pbr::ExtendedMaterial, prelude::*,
-	render::RenderPlugin, window::PrimaryWindow,
+	diagnostic::FrameTimeDiagnosticsPlugin,
+	ecs::schedule::{LogLevel, ScheduleBuildSettings},
+	pbr::ExtendedMaterial,
+	prelude::*,
+	render::RenderPlugin,
+	window::PrimaryWindow,
 };
 use bevy_kira_audio::AudioPlugin;
 use bevy_pkv::PkvStore;
 use bevy_rapier3d::prelude::*;
-use particles::ParticlesPlugin;
+use particles::{ParticlesPlugin, Spewer};
 use player::ctrl::CtrlVel;
 use std::{f32::consts::*, fmt::Debug, time::Duration};
 use util::{IntoFnPlugin, RonReflectAssetLoader};
@@ -85,7 +89,11 @@ impl Plugin for GameDynPlugin {
 				bevy::gizmos::GizmoPlugin,
 			),
 		));
-
+		#[cfg(feature = "debugging")]
+		app.configure_schedules(ScheduleBuildSettings {
+			ambiguity_detection: LogLevel::Warn,
+			..default()
+		});
 		game_plugin(app);
 	}
 }
@@ -108,6 +116,8 @@ pub fn game_plugin(app: &mut App) -> &mut App {
 		AbilitiesPlugin,
 		OffloadingPlugin,
 		SkyPlugin,
+		anim::BuiltinAnimations,
+		anim::AnimationPlugin::<Spewer>::default(),
 		enemies::plugin.plugfn(),
 		player::plugin.plugfn(),
 		pickups::plugin.plugfn(),
@@ -115,24 +125,14 @@ pub fn game_plugin(app: &mut App) -> &mut App {
 		planet::plugin.plugfn(),
 		ui::plugin.plugfn(),
 	))
-	.insert_resource(PkvStore::new_with_qualifier(
-		"studio",
-		"sonday",
-		env!("CARGO_PKG_NAME"),
-	))
+	.insert_resource(PkvStore::new_with_qualifier("studio", "sonday", "has"))
 	.add_plugins((
-		// RonAssetPlugin::<BubbleMaterial>::new(&["mat.ron"]),
 		MaterialPlugin::<ExtendedMaterial<StandardMaterial, BubbleMaterial>>::default(),
 	))
 	.add_systems(Startup, startup)
 	.add_systems(
 		Update,
-		(
-			terminal_velocity.before(StepSimulation),
-			fullscreen,
-			anim::MutAnimation::<Transform>::animate,
-			anim::BlendableAnimation::<Transform, anim::TransformDelta>::animate,
-		),
+		(terminal_velocity.before(StepSimulation), fullscreen),
 	)
 	.add_systems(PostUpdate, (despawn_oob,));
 	type BubbleMatExt = ExtendedMaterial<StandardMaterial, BubbleMaterial>;

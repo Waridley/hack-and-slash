@@ -2,7 +2,7 @@ use bevy::{
 	asset::{io::Reader, AssetLoader, AsyncReadExt, BoxedFuture, LoadContext},
 	ecs::{
 		event::Event,
-		query::ReadOnlyWorldQuery,
+		query::{QueryEntityError, ReadOnlyWorldQuery},
 		system::{EntityCommands, StaticSystemParam, SystemParam, SystemParamItem},
 	},
 	prelude::*,
@@ -20,6 +20,7 @@ use std::{
 	iter::Sum,
 	marker::PhantomData,
 	ops::{Add, Div, Index, IndexMut, Mul, Sub},
+	time::Duration,
 };
 
 #[inline(always)]
@@ -380,6 +381,13 @@ impl LerpSlerp for Transform {
 	}
 }
 
+// impl LerpSlerp for GlobalTransform {
+// 	fn lerp_slerp(self, rhs: Self, t: f32) -> Self {
+// 		self * (Transform::IDENTITY
+// 			+ (self.reparented_to(&rhs).relative_to(&Transform::IDENTITY) * t))
+// 	}
+// }
+
 /// Works just like `Sub` but takes parameters by reference, the right-hand side can only be Self,
 /// and is specifically intended for animation blending.
 pub trait Diff {
@@ -387,14 +395,190 @@ pub trait Diff {
 	type Delta;
 
 	/// Subtract `rhs` from `self`
-	fn relative_to(&self, rhs: &Self) -> Self::Delta;
+	fn delta_from(&self, rhs: &Self) -> Self::Delta;
+}
+
+impl Diff for f32 {
+	type Delta = f32;
+
+	fn delta_from(&self, rhs: &Self) -> Self::Delta {
+		*self - *rhs
+	}
+}
+
+impl Diff for f64 {
+	type Delta = f64;
+
+	fn delta_from(&self, rhs: &Self) -> Self::Delta {
+		*self - *rhs
+	}
+}
+
+macro_rules! impl_diff_for_uint {
+	($u:ty : $i:ty) => {
+		impl Diff for $u {
+			type Delta = $i;
+			fn delta_from(&self, rhs: &Self) -> Self::Delta {
+				<$i as TryFrom<$u>>::try_from(*self)
+					.expect(concat!("value is too large to fit into ", stringify!($i)))
+					.checked_sub_unsigned(*rhs)
+					.expect(concat!(
+						"rhs is too larget to subtract from ",
+						stringify!($u)
+					))
+			}
+		}
+	};
+}
+
+impl_diff_for_uint!(u8: i8);
+impl_diff_for_uint!(u16: i16);
+impl_diff_for_uint!(u32: i32);
+impl_diff_for_uint!(u64: i64);
+impl_diff_for_uint!(u128: i128);
+
+macro_rules! impl_diff_for_int {
+	($t:ty) => {
+		impl Diff for $t {
+			type Delta = Self;
+			fn delta_from(&self, rhs: &Self) -> Self::Delta {
+				*self - *rhs
+			}
+		}
+	};
+}
+
+impl_diff_for_int!(i8);
+impl_diff_for_int!(i16);
+impl_diff_for_int!(i32);
+impl_diff_for_int!(i64);
+impl_diff_for_int!(i128);
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct TransformDelta(Transform);
+
+impl TransformDelta {
+	pub const ZERO: Self = Self(Transform {
+		translation: Vec3::ZERO,
+		rotation: Quat::IDENTITY,
+		scale: Vec3::ZERO,
+	});
+}
+
+impl Diff for Transform {
+	type Delta = TransformDelta;
+
+	fn delta_from(&self, rhs: &Self) -> Self::Delta {
+		TransformDelta(Transform {
+			translation: self.translation - rhs.translation,
+			rotation: (self.rotation.inverse() * rhs.rotation).normalize(),
+			scale: self.scale - rhs.scale,
+		})
+	}
+}
+
+impl Default for TransformDelta {
+	fn default() -> Self {
+		Self::ZERO
+	}
+}
+
+impl Add for TransformDelta {
+	type Output = Self;
+
+	fn add(self, rhs: Self) -> Self::Output {
+		Self(Transform {
+			translation: self.0.translation + rhs.0.translation,
+			rotation: (self.0.rotation * rhs.0.rotation).normalize(),
+			scale: self.0.scale + rhs.0.scale,
+		})
+	}
+}
+
+impl Add<TransformDelta> for Transform {
+	type Output = Self;
+
+	fn add(self, rhs: TransformDelta) -> Self::Output {
+		Self {
+			translation: self.translation + rhs.0.translation,
+			rotation: (self.rotation * rhs.0.rotation).normalize(),
+			scale: self.scale + rhs.0.scale,
+		}
+	}
+}
+
+impl Mul<f32> for TransformDelta {
+	type Output = Self;
+
+	fn mul(self, rhs: f32) -> Self::Output {
+		Self(Transform {
+			translation: self.0.translation * rhs,
+			rotation: Quat::IDENTITY.slerp(self.0.rotation, rhs),
+			scale: self.0.scale * rhs,
+		})
+	}
 }
 
 impl<T: Sub<Output = D> + Clone, D> Diff for &T {
 	type Delta = D;
 
-	fn relative_to(&self, rhs: &Self) -> Self::Delta {
+	fn delta_from(&self, rhs: &Self) -> Self::Delta {
 		(*self).clone() - (*rhs).clone()
+	}
+}
+
+#[derive(Default, Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+pub struct DurationDelta {
+	pub nanos: i128,
+}
+
+impl DurationDelta {
+	pub const ZERO: Self = Self { nanos: 0 };
+}
+
+impl Diff for Duration {
+	type Delta = DurationDelta;
+
+	fn delta_from(&self, rhs: &Self) -> Self::Delta {
+		DurationDelta {
+			nanos: (self.as_nanos() as i128)
+				.checked_sub_unsigned(rhs.as_nanos())
+				.unwrap(),
+		}
+	}
+}
+
+impl Mul<f32> for DurationDelta {
+	type Output = Self;
+
+	fn mul(self, rhs: f32) -> Self::Output {
+		let conj = 1.0 / (rhs as f64);
+		if conj.is_finite() && conj < i128::MAX as f64 {
+			Self {
+				nanos: self
+					.nanos
+					.checked_div(conj as i128)
+					.expect("Overflow when multiplying DurationDelta by f32"),
+			}
+		} else {
+			Self::ZERO
+		}
+	}
+}
+
+impl Add<DurationDelta> for Duration {
+	type Output = Duration;
+
+	fn add(self, rhs: DurationDelta) -> Self::Output {
+		let positive = rhs.nanos.is_positive();
+		let secs = rhs.nanos.abs() / 1_000_000_000;
+		let nanos = rhs.nanos.abs() % 1_000_000_000;
+		let abs = Duration::new(secs as u64, nanos as u32);
+		if positive {
+			self + abs
+		} else {
+			self - abs
+		}
 	}
 }
 
@@ -468,3 +652,73 @@ impl Angle {
 		}
 	}
 }
+
+#[derive(Component, Copy, Clone, Debug)]
+pub enum Target {
+	RelativeTo { entity: Entity, relative: Transform },
+	Local(Transform),
+	Global(GlobalTransform),
+}
+
+impl Target {
+	pub fn global(
+		self,
+		this_entity: Entity,
+		global_xforms: &Query<&GlobalTransform>,
+	) -> Result<GlobalTransform, QueryEntityError> {
+		Ok(match self {
+			Target::RelativeTo { entity, relative } => *global_xforms.get(entity)? * relative,
+			Target::Local(local) => *global_xforms.get(this_entity)? * local,
+			Target::Global(global) => global,
+		})
+	}
+}
+
+pub trait Easings {
+	fn smoothstep(self) -> Self;
+	fn smoothstep_clamped(self) -> Self;
+	fn smootherstep(self) -> Self;
+	fn smootherstep_clamped(self) -> Self;
+	fn ease_in_cubic(self) -> Self;
+	fn ease_out_cubic(self) -> Self;
+}
+
+macro_rules! impl_easings {
+	($T:ty) => {
+		impl Easings for $T {
+			#[inline]
+			fn smoothstep(self) -> Self {
+				self * self * (3.0 - (2.0 * self))
+			}
+
+			#[inline]
+			fn smoothstep_clamped(self) -> Self {
+				self.clamp(0.0, 1.0).smoothstep()
+			}
+
+			#[inline]
+			fn smootherstep(self) -> Self {
+				self * self * self * (self * (6.0 * self - 15.0) + 10.0)
+			}
+
+			#[inline]
+			fn smootherstep_clamped(self) -> Self {
+				self.clamp(0.0, 1.0).smootherstep()
+			}
+
+			#[inline]
+			fn ease_in_cubic(self) -> Self {
+				self * self * self
+			}
+
+			#[inline]
+			fn ease_out_cubic(self) -> Self {
+				let x = 1.0 - self;
+				1.0 - (x * x * x)
+			}
+		}
+	};
+}
+
+impl_easings!(f32);
+impl_easings!(f64);

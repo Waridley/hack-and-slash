@@ -164,8 +164,9 @@ pub fn spawn_camera<'w, 's, 'a>(
 pub fn spawn_pivot<'w, 's, 'a>(
 	cmds: &'a mut Commands<'w, 's>,
 	owner: BelongsToPlayer,
+	crosshair: (Handle<Mesh>, Handle<StandardMaterial>),
 ) -> EntityCommands<'w, 's, 'a> {
-	let cmds = cmds
+	let mut cmds = cmds
 		.spawn((
 			owner,
 			CameraVertSlider(0.4),
@@ -175,6 +176,17 @@ pub fn spawn_pivot<'w, 's, 'a>(
 			}),
 		))
 		.with_enum(CamPivot);
+	cmds.with_children(|builder| {
+		builder.spawn((
+			owner,
+			PbrBundle {
+				mesh: crosshair.0,
+				material: crosshair.1,
+				transform: Transform::from_translation(Vec3::Y * 128.0),
+				..default()
+			},
+		));
+	});
 	cmds
 }
 
@@ -182,7 +194,7 @@ pub fn spawn_pivot<'w, 's, 'a>(
 pub struct CameraVertSlider(pub f32);
 
 #[derive(Debug, Default, Component, Deref, DerefMut)]
-pub struct CamTarget(Transform);
+pub struct CamTarget(pub Transform);
 
 pub fn position_target(
 	ctx: Res<RapierContext>,

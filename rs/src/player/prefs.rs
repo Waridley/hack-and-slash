@@ -40,6 +40,7 @@ impl Default for PlayerPrefs {
 			(KeyCode::Back, Jump),
 			(KeyCode::Space, Jump),
 			(KeyCode::ShiftLeft, Dash),
+			(KeyCode::ShiftRight, FireA),
 			(KeyCode::E, AoE),
 			(KeyCode::PageUp, AoE),
 			(KeyCode::Escape, Pause),
@@ -55,10 +56,11 @@ impl Default for PlayerPrefs {
 		input_map.insert_multiple([
 			(GamepadButtonType::South, Jump),
 			(GamepadButtonType::West, Dash),
+			(GamepadButtonType::RightTrigger2, FireA),
 			(GamepadButtonType::RightTrigger, AoE),
 			(GamepadButtonType::Start, Pause),
 		]);
-		input_map.insert_multiple([(MouseButton::Other(9), Dash)]);
+		input_map.insert_multiple([(MouseButton::Left, FireA), (MouseButton::Other(9), Dash)]);
 		Self {
 			invert_camera: default(),
 			fov: default(),

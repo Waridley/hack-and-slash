@@ -1,836 +1,533 @@
-use crate::{
-	util::{Diff, Lerp, LerpSlerp},
-	EPS,
-};
+use crate::util::{Diff, Target};
 use bevy::{
-	ecs::{
-		query::{QueryEntityError, QueryItem},
-		system::EntityCommands,
-	},
+	ecs::{query::QueryEntityError, system::EntityCommands},
 	prelude::*,
+	transform::TransformSystem::TransformPropagate,
 	utils::HashMap,
 };
-use serde::{Deserialize, Serialize};
 use std::{
-	ops::{Add, Deref, DerefMut, Mul},
+	cmp::Ordering,
+	fmt::{Debug, Formatter},
+	hash::{Hash, Hasher},
+	marker::PhantomData,
+	ops::{Add, Mul},
 	time::Duration,
 };
 
-#[derive(Debug, Clone)]
-#[repr(transparent)]
-pub struct Track<F>(pub F);
+#[derive(Debug)]
+pub struct BuiltinAnimations;
 
-impl<F> Track<F> {
-	pub fn new_mut<T: Component>(f: F) -> Self
-	where
-		F: FnMut(QueryItem<&'static mut T>, Res<Time>) -> IsFinished + Send + Sync + 'static,
-	{
-		Self(f)
+impl Plugin for BuiltinAnimations {
+	fn build(&self, app: &mut App) {
+		app.add_plugins((
+			AnimationPlugin::<Transform>::default(),
+			AnimationPlugin::<GlobalTransform>::default(),
+		))
+		.add_systems(
+			PostUpdate,
+			BlendTargets::animate
+				.before(apply_animations::<Transform>)
+				.in_set(AnimationSet::<Transform>::default()),
+		)
+		.configure_sets(
+			PostUpdate,
+			(
+				AnimationSet::<Transform>::default().before(TransformPropagate),
+				AnimationSet::<GlobalTransform>::default().before(TransformPropagate),
+			),
+		);
+	}
+}
+
+#[derive(Default, Debug)]
+pub struct AnimationPlugin<T: Component>(PhantomData<T>);
+
+impl<T: Component> Plugin for AnimationPlugin<T> {
+	fn build(&self, app: &mut App) {
+		app.add_event::<ComponentDelta<T>>().add_systems(
+			PostUpdate,
+			(
+				DynAnimation::<T>::animate.before(apply_animations::<T>),
+				apply_animations::<T>,
+			)
+				.in_set(AnimationSet::<T>::default()),
+		);
+	}
+}
+
+#[derive(Default, Debug)]
+pub struct ResAnimationPlugin<T: Resource>(PhantomData<T>);
+
+impl<T: Resource> Plugin for ResAnimationPlugin<T> {
+	fn build(&self, app: &mut App) {
+		app.add_event::<Delta<T>>().add_systems(
+			PostUpdate,
+			(
+				DynResAnimation::<T>::animate_res.before(apply_res_animations::<T>),
+				apply_res_animations::<T>,
+			)
+				.in_set(AnimationSet::<T>::default()),
+		);
+	}
+}
+
+#[derive(SystemSet)]
+pub struct AnimationSet<T>(PhantomData<T>);
+
+impl<T> Copy for AnimationSet<T> {}
+impl<T> Clone for AnimationSet<T> {
+	fn clone(&self) -> Self {
+		*self
+	}
+}
+impl<T> Default for AnimationSet<T> {
+	fn default() -> Self {
+		Self(default())
+	}
+}
+impl<T> Debug for AnimationSet<T> {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct(std::any::type_name::<Self>()).finish()
+	}
+}
+impl<T> PartialEq for AnimationSet<T> {
+	fn eq(&self, _other: &Self) -> bool {
+		true
+	}
+}
+impl<T> Eq for AnimationSet<T> {}
+impl<T> PartialOrd for AnimationSet<T> {
+	fn partial_cmp(&self, _other: &Self) -> Option<Ordering> {
+		Some(Ordering::Equal)
+	}
+}
+impl<T> Ord for AnimationSet<T> {
+	fn cmp(&self, _other: &Self) -> Ordering {
+		Ordering::Equal
+	}
+}
+impl<T> Hash for AnimationSet<T> {
+	fn hash<H: Hasher>(&self, state: &mut H) {
+		().hash(state)
+	}
+}
+
+pub fn apply_animations<T: Component>(
+	mut q: Query<&mut T>,
+	mut ticks: ResMut<Events<ComponentDelta<T>>>,
+) {
+	if ticks.len() == 0 {
+		return;
+	}
+	let mut blendable = HashMap::new();
+	for tick in ticks.drain() {
+		if tick.progress.is_finite() {
+			let (ref mut sum_progress, ref mut blendable_deltas) = blendable
+				.entry(tick.target)
+				.or_insert_with(|| (0.0, Vec::new()));
+			*sum_progress += tick.progress;
+			blendable_deltas.push(tick);
+		} else {
+			let ComponentDelta { target, delta, .. } = tick;
+			match q.get_mut(target) {
+				Ok(value) => (delta.apply)(value, 1.0),
+				Err(e) => error!("{e}"),
+			}
+		}
+	}
+	for (_, (sum_progress, blendable_deltas)) in blendable {
+		let num = blendable_deltas.len() as f32;
+		for tick in blendable_deltas {
+			let ComponentDelta {
+				target,
+				delta: Delta { progress, apply },
+			} = tick;
+			let coef = if sum_progress > f32::EPSILON {
+				progress / sum_progress
+			} else {
+				1.0 / num
+			};
+			match q.get_mut(target) {
+				Ok(value) => apply(value, coef),
+				Err(e) => error!("{e}"),
+			}
+		}
+	}
+}
+
+pub fn apply_res_animations<T: Resource>(mut val: ResMut<T>, mut ticks: ResMut<Events<Delta<T>>>) {
+	if ticks.len() == 0 {
+		return;
+	}
+	let mut blendable_ticks = Vec::new();
+	let mut sum_progress = 0.0;
+	for tick in ticks.drain() {
+		if tick.progress.is_finite() {
+			sum_progress += tick.progress;
+			blendable_ticks.push(tick);
+		} else {
+			(tick.apply)(val.reborrow(), 1.0);
+		}
+	}
+	let num = blendable_ticks.len() as f32;
+	for Delta { progress, apply } in blendable_ticks {
+		let coef = if sum_progress > f32::EPSILON {
+			progress / sum_progress
+		} else {
+			1.0 / num
+		};
+		apply(val.reborrow(), coef);
+	}
+}
+
+#[derive(Event, Deref, DerefMut)]
+pub struct ComponentDelta<T: Component> {
+	/// The target entity to be animated.
+	pub target: Entity,
+	#[deref]
+	pub delta: Delta<T>,
+}
+
+impl<T: Component> ComponentDelta<T> {
+	pub fn new(
+		target: Entity,
+		progress: f32,
+		apply: impl FnOnce(Mut<T>, f32) + Send + Sync + 'static,
+	) -> Self {
+		Self {
+			target,
+			delta: Delta {
+				progress,
+				apply: Box::new(apply),
+			},
+		}
 	}
 
-	pub fn new_blendable<T: Component + Diff>(f: F) -> Self
+	/// Like `ComponentDelta::diffable` but uses `Mut::map_unchanged` to enable
+	/// access to individual fields of a component.
+	pub fn mapped<U, F>(target: Entity, progress: f32, new_value: U, f: F) -> Self
 	where
-		F: FnMut(QueryItem<Ref<'static, T>>, Res<Time>) -> BlendableResult<<T as Diff>::Delta, f32>
+		F: FnOnce(&mut T) -> &mut U + Send + Sync + 'static,
+		U: Diff + Clone + Add<<U as Diff>::Delta, Output = U> + Send + Sync + 'static,
+		<U as Diff>::Delta: Mul<f32, Output = <U as Diff>::Delta> + Default + PartialEq,
+	{
+		Self::new(target, progress, move |val, coef| {
+			let mut val = val.map_unchanged(f);
+			let diff = new_value.delta_from(&*val) * coef;
+			if diff != <<U as Diff>::Delta as Default>::default() {
+				*val = val.clone() + diff;
+			}
+		})
+	}
+
+	pub fn indefinite(target: Entity, apply: impl FnOnce(Mut<T>) + Send + Sync + 'static) -> Self {
+		Self {
+			target,
+			delta: Delta {
+				progress: f32::NAN,
+				apply: Box::new(|val, _| apply(val)),
+			},
+		}
+	}
+
+	pub fn diffable(target: Entity, progress: f32, new_value: T) -> Self
+	where
+		T: Diff + Clone + Add<<T as Diff>::Delta, Output = T>,
+		<T as Diff>::Delta: Mul<f32, Output = <T as Diff>::Delta> + Default + PartialEq,
+	{
+		Self::new(target, progress, move |mut val, coef| {
+			let diff = new_value.delta_from(&*val) * coef;
+			if diff != <<T as Diff>::Delta as Default>::default() {
+				*val = val.clone() + diff;
+			}
+		})
+	}
+}
+
+pub struct Delta<T> {
+	/// Current progress the animation has made. Return a finite number if progress can
+	/// be determined and the animation should be blended. Any non-finite number, such
+	/// as `f32::NAN`, will cause the animation to be applied with a coefficient of `1.0`.
+	/// It would be nice to use something like `Option<FiniteF32>`, but currently Rust
+	/// cannot apply the niche optimization to that type, and in this case the non-finite
+	/// values represent an "indefinite" animation, thus values like `inifinity` and `NaN`
+	/// do what you'd expect in this application.
+	pub progress: f32,
+	/// Apply this animation tick to the resource. The `f32` parameter is the coefficient
+	/// that the delta should be multiplied by, if applicable.
+	pub apply: Box<dyn FnOnce(Mut<T>, f32) + Send + Sync + 'static>,
+}
+
+// A `Delta` with no `Entity` is only an `Event` for `Resource`s, not `Component`s.
+impl<T: Resource> Event for Delta<T> {}
+
+impl<T> Delta<T> {
+	pub fn new(progress: f32, apply: impl FnOnce(Mut<T>, f32) + Send + Sync + 'static) -> Self {
+		Self {
+			progress,
+			apply: Box::new(apply),
+		}
+	}
+
+	pub fn indefinite(apply: impl FnOnce(Mut<T>) + Send + Sync + 'static) -> Self {
+		Self {
+			progress: f32::NAN,
+			apply: Box::new(|val, _| apply(val)),
+		}
+	}
+}
+
+pub struct AnimationController<'w, 's, 'a> {
+	cmds: EntityCommands<'w, 's, 'a>,
+}
+
+impl<'w, 's> AnimationController<'w, 's, '_> {
+	pub fn end(&mut self) {
+		self.cmds.despawn();
+	}
+
+	pub fn commands(&mut self) -> &mut Commands<'w, 's> {
+		self.cmds.commands()
+	}
+}
+
+#[derive(Component, Deref, DerefMut)]
+pub struct DynResAnimation<T: Resource>(
+	pub Box<dyn FnMut(Res<T>, Res<Time>, AnimationController) -> Delta<T> + Send + Sync + 'static>,
+);
+
+#[derive(Component)]
+pub struct DynAnimation<T: Component>(
+	pub Entity,
+	pub  Box<
+		dyn FnMut(Entity, Ref<T>, Res<Time>, AnimationController) -> ComponentDelta<T>
 			+ Send
 			+ Sync
 			+ 'static,
-	{
-		Self(f)
-	}
-}
+	>,
+);
 
-pub trait TrackMut<T: Component>: Send + Sync + 'static {
-	fn tick_mut(&mut self, val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished;
-	fn chain_mut<B: TrackMut<T> + Sized>(self, other: B) -> ChainTrack<Self, B>
-	where
-		Self: Sized,
-	{
-		use IsFinished::*;
-		ChainTrack {
-			a: self,
-			b: other,
-			a_finished: No,
-			b_finished: No,
-		}
-	}
-}
-
-impl<T: Component, F> TrackMut<T> for Track<F>
-where
-	F: FnMut(QueryItem<&'static mut T>, Res<Time>) -> IsFinished + Send + Sync + 'static,
-{
-	fn tick_mut(&mut self, val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished {
-		self.0(val, t)
-	}
-}
-
-pub trait BlendableTrack<T: Component, D: 'static = T, P = f32>: Send + Sync + 'static {
-	fn tick(&mut self, val: QueryItem<Ref<'static, T>>, t: Res<Time>) -> BlendableResult<D, P>;
-	fn chain_blendable<B: BlendableTrack<T, D, P> + Sized>(self, other: B) -> ChainTrack<Self, B>
-	where
-		Self: Sized,
-	{
-		use IsFinished::*;
-		ChainTrack {
-			a: self,
-			b: other,
-			a_finished: No,
-			b_finished: No,
-		}
-	}
-}
-
-impl<T: Component, D: 'static, P: 'static, F> BlendableTrack<T, D, P> for Track<F>
-where
-	F: FnMut(QueryItem<Ref<'static, T>>, Res<Time>) -> BlendableResult<D, P>
-		+ Send
-		+ Sync
-		+ 'static,
-{
-	fn tick(&mut self, val: QueryItem<Ref<'static, T>>, t: Res<Time>) -> BlendableResult<D, P> {
-		self.0(val, t)
-	}
-}
-
-#[derive(Copy, Clone, Debug)]
-pub enum AnimationBlendCommand<Delta> {
-	Add(Delta),
-	SetRelative(Delta),
-	NoChange,
-}
-
-#[derive(Copy, Clone, Default, Debug)]
-#[repr(u8)]
-pub enum IsFinished {
-	Yes = true as u8,
-	#[default]
-	No = false as u8,
-}
-
-impl From<IsFinished> for bool {
-	fn from(value: IsFinished) -> Self {
-		// SAFETY: Enums have all the same guarantees as bool,
-		//    `IsFinished` is marked as `#[repr(u8)],
-		//    `bool` and `u8` both have size & alignment 1,
-		//    and the 2 variants are only created from bool values,
-		unsafe { std::mem::transmute(value) }
-	}
-}
-
-impl From<bool> for IsFinished {
-	fn from(value: bool) -> Self {
-		// SAFETY: Enums have all the same guarantees as bool,
-		//    `IsFinished` is marked as `#[repr(u8)],
-		//    `bool` and `u8` both have size & alignment 1,
-		//    and the 2 possible bool values are valid IsFinished values,
-		unsafe { std::mem::transmute(value) }
-	}
-}
-
-impl Deref for IsFinished {
-	type Target = bool;
-
-	fn deref(&self) -> &Self::Target {
-		// SAFETY: Same as `From` impls
-		unsafe { &*(self as *const Self as *const bool) }
-	}
-}
-
-impl DerefMut for IsFinished {
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		// SAFETY: Same as `From` impls
-		unsafe { &mut *(self as *mut Self as *mut bool) }
-	}
-}
-
-pub struct BlendableResult<D, P = f32> {
-	pub command: AnimationBlendCommand<D>,
-	pub progress: Progress<P>,
-	pub finished: IsFinished,
-}
-
-#[derive(Copy, Clone, Debug)]
-pub enum Progress<Repr = f32> {
-	/// The fraction of the full animation that has currently completed.
-	///   - `0.0` represents an animation in its starting state.
-	///   - `1.0` represents an animation that has exhausted its entire defined duration. `IsFinished` may still
-	///     be `No` if, for example, the animation is looping.
-	///   - Values outside the range `0.0..=1.0` may represent extrapolated operations.
-	Fraction(Repr),
-	/// The animation has an indefinite duration and thus it is impossible to measure progress.
-	Indefinite,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LerpTrack<T> {
-	pub start: T,
-	pub end: T,
-	pub duration: Duration,
-	#[serde(skip)]
-	pub elapsed: f32,
-}
-
-impl<T> LerpTrack<T> {
-	pub fn new(start: T, end: T, duration: Duration) -> Self {
-		Self {
-			start,
-			end,
-			duration,
-			elapsed: 0.0,
-		}
-	}
-}
-
-impl<T> TrackMut<T> for LerpTrack<T>
-where
-	T: Component + Lerp<T, f32, Output = T> + Clone + PartialEq + Send + Sync + 'static,
-{
-	fn tick_mut(&mut self, mut val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished {
-		let dur = self.duration.as_secs_f32();
-		if dur < EPS {
-			return IsFinished::Yes;
-		}
-		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
-		self.elapsed = t;
-		let t = t / dur;
-		let new = self.start.clone().lerp(self.end.clone(), t);
-		if *val != new {
-			*val = new;
-		}
-		(self.elapsed == dur).into()
-	}
-}
-
-impl<T, D: 'static> BlendableTrack<T, D> for LerpTrack<T>
-where
-	T: Component + Diff<Delta = D> + Add<D, Output = T> + Clone + PartialEq + Send + Sync + 'static,
-	D: Mul<f32, Output = D>,
-{
-	fn tick(&mut self, val: QueryItem<Ref<'static, T>>, t: Res<Time>) -> BlendableResult<D> {
-		let dur = self.duration.as_secs_f32();
-		if dur < EPS {
-			return BlendableResult {
-				command: AnimationBlendCommand::SetRelative(self.end.relative_to(&val)),
-				progress: Progress::Fraction(1.0),
-				finished: IsFinished::Yes,
-			};
-		}
-		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
-		self.elapsed = t;
-		let t = t / dur;
-		let dist = self.end.relative_to(&self.start) * t;
-		let new = self.start.clone() + dist;
-		let delta = new.relative_to(&val);
-		BlendableResult {
-			command: AnimationBlendCommand::SetRelative(delta),
-			progress: Progress::Fraction(self.elapsed / dur),
-			finished: (self.elapsed == dur).into(),
-		}
-	}
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LerpSlerpTrack<T> {
-	pub start: T,
-	pub end: T,
-	pub duration: Duration,
-	#[serde(skip)]
-	pub elapsed: f32,
-}
-
-impl<T> LerpSlerpTrack<T> {
-	pub fn new(start: T, end: T, duration: Duration) -> Self {
-		Self {
-			start,
-			end,
-			duration,
-			elapsed: 0.0,
-		}
-	}
-}
-
-impl<T: Component + LerpSlerp + PartialEq + Clone> TrackMut<T> for LerpSlerpTrack<T> {
-	fn tick_mut(&mut self, mut val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished {
-		let dur = self.duration.as_secs_f32();
-		if dur < EPS {
-			return IsFinished::Yes;
-		}
-		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
-		self.elapsed = t;
-		let t = t / dur;
-		let new = self.start.clone().lerp_slerp(self.end.clone(), t);
-		if *val != new {
-			*val = new;
-		}
-		(*val == self.end).into()
-	}
-}
-
-impl BlendableTrack<Transform, TransformDelta> for LerpSlerpTrack<Transform> {
-	fn tick(
-		&mut self,
-		val: QueryItem<Ref<'static, Transform>>,
+impl<T: Resource> DynResAnimation<T> {
+	pub fn animate_res(
+		mut cmds: Commands,
+		mut animations: Query<(Entity, &mut Self)>,
+		target: Res<T>,
 		t: Res<Time>,
-	) -> BlendableResult<TransformDelta> {
-		let dur = self.duration.as_secs_f32();
-		if dur < EPS {
-			return BlendableResult {
-				command: AnimationBlendCommand::SetRelative(self.end.relative_to(&val)),
-				progress: Progress::Fraction(1.0),
-				finished: IsFinished::Yes,
-			};
-		}
-		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
-		self.elapsed = t;
-		let t = t / dur;
-		let new = self.start.lerp_slerp(self.end, t);
-		let delta = new.relative_to(&val);
-		BlendableResult {
-			command: AnimationBlendCommand::SetRelative(delta),
-			progress: Progress::Fraction(self.elapsed / dur),
-			finished: (self.elapsed == dur).into(),
-		}
-	}
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LerpTo<T> {
-	pub end: T,
-	pub duration: Duration,
-	#[serde(skip)]
-	pub elapsed: f32,
-}
-
-impl<T> LerpTo<T> {
-	pub fn new(end: T, duration: Duration) -> Self {
-		Self {
-			end,
-			duration,
-			elapsed: 0.0,
-		}
-	}
-}
-
-impl<T: Component + Lerp<T, Output = T> + PartialEq + Clone> TrackMut<T> for LerpTo<T> {
-	fn tick_mut(&mut self, mut val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished {
-		let dur = self.duration.as_secs_f32();
-		if dur < EPS {
-			return IsFinished::Yes;
-		}
-		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
-		self.elapsed = t;
-		let t = t / dur;
-		let new = val.clone().lerp(self.end.clone(), t);
-		if *val != new {
-			*val = new;
-		}
-		(self.elapsed == dur).into()
-	}
-}
-
-impl<T, D: 'static> BlendableTrack<T, D> for LerpTo<T>
-where
-	T: Component + Diff<Delta = D> + Add<D, Output = T> + Clone + PartialEq + Send + Sync + 'static,
-	D: Mul<f32, Output = D>,
-{
-	fn tick(&mut self, val: QueryItem<Ref<'static, T>>, t: Res<Time>) -> BlendableResult<D> {
-		let dur = self.duration.as_secs_f32();
-		if dur < EPS {
-			return BlendableResult {
-				command: AnimationBlendCommand::SetRelative(self.end.relative_to(&val)),
-				progress: Progress::Fraction(1.0),
-				finished: IsFinished::Yes,
-			};
-		}
-		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
-		self.elapsed = t;
-		let t = t / dur;
-		let dist = self.end.relative_to(&*val) * t;
-		let new = val.clone() + dist;
-		let delta = new.relative_to(&val);
-		BlendableResult {
-			command: AnimationBlendCommand::SetRelative(delta),
-			progress: Progress::Fraction(self.elapsed / dur),
-			finished: (self.elapsed == dur).into(),
-		}
-	}
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LerpSlerpTo<T> {
-	pub end: T,
-	pub duration: Duration,
-	#[serde(skip)]
-	pub elapsed: f32,
-}
-
-impl<T> LerpSlerpTo<T> {
-	pub fn new(end: T, duration: Duration) -> Self {
-		Self {
-			end,
-			duration,
-			elapsed: 0.0,
-		}
-	}
-}
-
-impl<T: Component + LerpSlerp + PartialEq + Clone> TrackMut<T> for LerpSlerpTo<T> {
-	fn tick_mut(&mut self, mut val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished {
-		let dur = self.duration.as_secs_f32();
-		if dur < EPS {
-			return IsFinished::Yes;
-		}
-		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
-		self.elapsed = t;
-		let t = t / dur;
-		let new = val.clone().lerp_slerp(self.end.clone(), t);
-		if *val != new {
-			*val = new;
-		}
-		(*val == self.end).into()
-	}
-}
-
-impl BlendableTrack<Transform, TransformDelta> for LerpSlerpTo<Transform> {
-	fn tick(
-		&mut self,
-		val: QueryItem<Ref<'static, Transform>>,
-		t: Res<Time>,
-	) -> BlendableResult<TransformDelta> {
-		let dur = self.duration.as_secs_f32();
-		if dur < EPS {
-			return BlendableResult {
-				command: AnimationBlendCommand::SetRelative(self.end.relative_to(&val)),
-				progress: Progress::Fraction(1.0),
-				finished: IsFinished::Yes,
-			};
-		}
-		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
-		self.elapsed = t;
-		let t = t / dur;
-		let new = val.lerp_slerp(self.end, t);
-		let delta = new.relative_to(&val);
-		BlendableResult {
-			command: AnimationBlendCommand::SetRelative(delta),
-			progress: Progress::Fraction(self.elapsed / dur),
-			finished: (self.elapsed == dur).into(),
-		}
-	}
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SmoothStepTrack<T> {
-	pub start: T,
-	pub end: T,
-	pub duration: Duration,
-	#[serde(skip)]
-	pub elapsed: f32,
-}
-
-impl<T> SmoothStepTrack<T> {
-	pub fn new(start: T, end: T, duration: Duration) -> Self {
-		Self {
-			start,
-			end,
-			duration,
-			elapsed: 0.0,
-		}
-	}
-}
-
-impl<T> TrackMut<T> for SmoothStepTrack<T>
-where
-	T: Component + Lerp<T, f32, Output = T> + Clone + PartialEq + Send + Sync + 'static,
-{
-	fn tick_mut(&mut self, mut val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished {
-		let dur = self.duration.as_secs_f32();
-		if dur < EPS {
-			return IsFinished::Yes;
-		}
-		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
-		self.elapsed = t;
-		let prog = t / dur;
-		let t = prog * prog * (3.0 - 2.0 * prog);
-		let new = self.start.clone().lerp(self.end.clone(), t);
-		if *val != new {
-			*val = new;
-		}
-		(prog >= 1.0).into()
-	}
-}
-
-impl<T, D: 'static> BlendableTrack<T, D> for SmoothStepTrack<T>
-where
-	T: Component + Diff<Delta = D> + Add<D, Output = T> + Clone + Send + Sync + 'static,
-	D: Mul<f32, Output = D>,
-{
-	fn tick(&mut self, val: QueryItem<Ref<'static, T>>, t: Res<Time>) -> BlendableResult<D> {
-		let dur = self.duration.as_secs_f32();
-		if dur < EPS {
-			return BlendableResult {
-				command: AnimationBlendCommand::SetRelative(self.end.relative_to(&val)),
-				progress: Progress::Fraction(1.0),
-				finished: IsFinished::Yes,
-			};
-		}
-		let t = (self.elapsed + t.delta_seconds()).clamp(0.0, dur);
-		self.elapsed = t;
-		let prog = t / dur;
-		let t = prog * prog * (3.0 - 2.0 * prog);
-		let dist = self.end.relative_to(&self.start) * t;
-		let new = self.start.clone() + dist;
-		let delta = new.relative_to(&val);
-		BlendableResult {
-			command: AnimationBlendCommand::SetRelative(delta),
-			progress: Progress::Fraction(prog),
-			finished: (prog >= 1.0).into(),
-		}
-	}
-}
-
-#[derive(Debug, Clone)]
-pub struct ChainTrack<A, B> {
-	pub a: A,
-	pub b: B,
-	a_finished: IsFinished,
-	b_finished: IsFinished,
-}
-
-impl<T: Component, A: TrackMut<T>, B: TrackMut<T>> TrackMut<T> for ChainTrack<A, B> {
-	fn tick_mut(&mut self, val: QueryItem<&'static mut T>, t: Res<Time>) -> IsFinished {
-		use IsFinished::*;
-		if *self.b_finished {
-			return Yes;
-		}
-
-		if *self.a_finished {
-			self.b_finished = self.b.tick_mut(val, t);
-		} else {
-			self.a_finished = self.a.tick_mut(val, t);
-		}
-
-		No
-	}
-}
-
-impl<T, D, A, B> BlendableTrack<T, D> for ChainTrack<A, B>
-where
-	T: Component,
-	D: 'static,
-	A: BlendableTrack<T, D>,
-	B: BlendableTrack<T, D>,
-{
-	fn tick(&mut self, val: QueryItem<Ref<'static, T>>, t: Res<Time>) -> BlendableResult<D> {
-		use IsFinished::*;
-		if *self.a_finished {
-			let BlendableResult {
-				command,
-				progress,
-				finished,
-			} = self.b.tick(val, t);
-			self.b_finished = finished;
-			BlendableResult {
-				command,
-				progress: match progress {
-					Progress::Fraction(t) => Progress::Fraction((t * 0.5) + 0.5),
-					Progress::Indefinite => Progress::Indefinite,
+		mut sender: EventWriter<Delta<T>>,
+	) {
+		for (id, mut this) in &mut animations {
+			sender.send(this(
+				Res::clone(&target),
+				Res::clone(&t),
+				AnimationController {
+					cmds: cmds.entity(id),
 				},
-				finished,
-			}
-		} else {
-			let BlendableResult {
-				command,
-				progress,
-				finished,
-			} = self.a.tick(val, t);
-			self.a_finished = finished;
-			BlendableResult {
-				command,
-				progress: match progress {
-					Progress::Fraction(t) => Progress::Fraction(t * 0.5),
-					Progress::Indefinite => {
-						// TODO: This warning may result in false positives. Perhaps duration should be a separate check,
-						//    so progress can be indefinite yet the duration known to be finite.
-						#[cfg(debug_assertions)]
-						bevy::log::warn!("First animation in chain has indefinite duration. The second may never run.");
-						Progress::Indefinite
-					}
-				},
-				finished: No,
-			}
+			))
 		}
 	}
 }
 
-#[derive(Component)]
-pub struct MutAnimation<T: Component> {
-	pub entity: Entity,
-	pub curve: Box<dyn TrackMut<T>>,
-}
-
-impl<T: Component + 'static> MutAnimation<T> {
-	pub fn new(entity: Entity, tick: impl TrackMut<T>) -> Self {
-		Self {
-			entity,
-			curve: Box::new(tick),
-		}
-	}
-
-	/// System for running all mutating animations for a given component on a given entity.
-	///
-	/// # WARNING
-	/// There is no guarantee in what order animations will be applied. Usually, you will want
-	/// to manually make sure only one animation is actually spawned at a given time.
+impl<T: Component> DynAnimation<T> {
 	pub fn animate(
 		mut cmds: Commands,
-		mut this_q: Query<(Entity, &mut Self)>,
-		mut target_q: Query<&mut T>,
-		time: Res<Time>,
+		mut animations: Query<(Entity, &mut Self)>,
+		targets: Query<(Entity, Ref<T>)>,
+		t: Res<Time>,
+		mut sender: EventWriter<ComponentDelta<T>>,
 	) {
-		for (this_id, mut this) in &mut this_q {
-			let Self { entity, curve } = &mut *this;
-			match target_q.get_mut(*entity) {
-				Ok(target) => {
-					let finished = curve.tick_mut(target, Res::clone(&time));
-					if *finished {
-						cmds.entity(this_id).despawn()
-					}
-				}
-				Err(QueryEntityError::NoSuchEntity(_)) => cmds.entity(this_id).despawn(),
-				Err(e) => bevy::log::error!("{e}"),
-			}
-		}
-	}
-}
-
-#[derive(Component)]
-pub struct BlendableAnimation<T: Component, Delta> {
-	pub entity: Entity,
-	pub curve: Box<dyn BlendableTrack<T, Delta>>,
-}
-
-impl<T, D> BlendableAnimation<T, D>
-where
-	T: Component + Add<D, Output = T> + PartialEq + Clone,
-	D: Add<D, Output = D> + Mul<f32, Output = D> + 'static,
-{
-	pub fn new(entity: Entity, tick: impl BlendableTrack<T, D>) -> Self {
-		Self {
-			entity,
-			curve: Box::new(tick),
-		}
-	}
-
-	/// System for blending all animations for a given component for a given entity.
-	pub fn animate(
-		mut cmds: Commands,
-		mut this_q: Query<(Entity, &mut Self)>,
-		mut target_q: Query<&mut T>,
-		time: Res<Time>,
-	) {
-		use AnimationBlendCommand::*;
-
-		let mut acc = HashMap::<Entity, D>::new();
-		let mut to_blend = HashMap::<Entity, Vec<_>>::new();
-
-		for (this_id, mut this) in &mut this_q {
-			let Self { entity, curve } = &mut *this;
-			match target_q.get_mut(*entity) {
-				Ok(target) => {
-					let BlendableResult {
-						command,
-						progress,
-						finished,
-					} = curve.tick(target.into(), Res::clone(&time));
-					match command {
-						Add(delta) => {
-							let delta = match acc.remove(entity) {
-								Some(curr) => curr + delta,
-								None => delta,
-							};
-							acc.insert(*entity, delta);
-						}
-						SetRelative(value) => to_blend
-							.entry(*entity)
-							.or_insert_with(|| Vec::with_capacity(1))
-							.push((progress, value)),
-						NoChange => {}
-					}
-					if *finished {
-						cmds.entity(this_id).despawn()
-					}
-				}
-				Err(QueryEntityError::NoSuchEntity(_)) => cmds.entity(this_id).despawn(),
-				Err(e) => bevy::log::error!("{e}"),
-			}
-		}
-
-		for (id, mut to_blend) in to_blend.drain() {
-			let mut val = target_q.get_mut(id).unwrap();
-			let coef = 1.0 / to_blend.len() as f32;
-			let mut sum_progress = 0.0;
-			let num_fractions = to_blend
-				.iter()
-				.filter(|(progress, _)| match progress {
-					Progress::Fraction(progress) => {
-						sum_progress += *progress;
-						true
-					}
-					Progress::Indefinite => false,
-				})
-				.count();
-			let variable_part = num_fractions as f32 / to_blend.len() as f32;
-			let blended_offsets = to_blend
-				.drain(..)
-				.map(|(progress, value)| {
-					let coef = match progress {
-						Progress::Fraction(progress) => variable_part * (progress / sum_progress),
-						Progress::Indefinite => coef,
-					};
-					value * coef
-				})
-				.reduce(|acc, item| acc + item)
-				.expect("At least 1 item should exist if this entry in the HasMap exists");
-			let new = val.clone()
-				+ if let Some(acc) = acc.remove(&id) {
-					blended_offsets + acc
+		for (id, mut this) in &mut animations {
+			let Self(target, ref mut apply) = *this;
+			let mut ctrl = AnimationController {
+				cmds: if let Some(cmds) = cmds.get_entity(id) {
+					cmds
 				} else {
-					blended_offsets
-				};
-			if *val != new {
-				*val = new;
+					continue;
+				},
+			};
+			match targets.get(target) {
+				Ok((id, val)) => sender.send(apply(id, val, Res::clone(&t), ctrl)),
+				Err(e) => {
+					error!("{e}");
+					ctrl.end()
+				}
 			}
 		}
 	}
 }
 
-pub trait StartAnimation<'w, 's, 'a> {
-	fn start_mut_animation<T: Component>(&'a mut self, tick: impl TrackMut<T>) -> Entity;
-	fn with_mut_animation<T: Component>(
-		&'a mut self,
-		tick: impl TrackMut<T>,
-		f: impl FnOnce(&mut EntityCommands<'w, 's, 'a>),
-	) -> Entity;
+#[derive(Component)]
+pub struct AnimationHandle<Track>(Entity, PhantomData<Track>);
 
-	fn start_blendable_animation<
-		T: Component + Add<D, Output = T> + PartialEq + Clone,
-		D: Add<Output = D> + Mul<f32, Output = D> + 'static,
-	>(
-		&'a mut self,
-		tick: impl BlendableTrack<T, D>,
-	) -> Entity;
-	fn with_blendable_animation<
-		T: Component + Add<D, Output = T> + PartialEq + Clone,
-		D: Add<Output = D> + Mul<f32, Output = D> + 'static,
-	>(
-		&'a mut self,
-		tick: impl BlendableTrack<T, D>,
-		f: impl FnOnce(&mut EntityCommands<'w, 's, 'a>),
-	) -> Entity;
-}
-
-impl<'w, 's, 'a> StartAnimation<'w, 's, 'a> for EntityCommands<'w, 's, 'a> {
-	fn start_mut_animation<T: Component>(&'a mut self, tick: impl TrackMut<T>) -> Entity {
-		let id = self.id();
-		self.commands().spawn(MutAnimation::new(id, tick)).id()
-	}
-
-	fn with_mut_animation<T: Component>(
-		&'a mut self,
-		tick: impl TrackMut<T>,
-		f: impl FnOnce(&mut EntityCommands<'w, 's, 'a>),
-	) -> Entity {
-		let id = self.id();
-		let mut cmds = self.commands().spawn(MutAnimation::new(id, tick));
-		f(&mut cmds);
-		cmds.id()
-	}
-
-	fn start_blendable_animation<
-		T: Component + Add<D, Output = T> + PartialEq + Clone,
-		D: Add<Output = D> + Mul<f32, Output = D> + 'static,
-	>(
-		&'a mut self,
-		tick: impl BlendableTrack<T, D>,
-	) -> Entity {
-		let id = self.id();
-		self.commands()
-			.spawn(BlendableAnimation::new(id, tick))
-			.id()
-	}
-
-	fn with_blendable_animation<
-		T: Component + Add<D, Output = T> + PartialEq + Clone,
-		D: Add<Output = D> + Mul<f32, Output = D> + 'static,
-	>(
-		&'a mut self,
-		tick: impl BlendableTrack<T, D>,
-		f: impl FnOnce(&mut EntityCommands<'w, 's, 'a>),
-	) -> Entity {
-		let id = self.id();
-		let mut cmds = self.commands().spawn(BlendableAnimation::new(id, tick));
-		f(&mut cmds);
-		cmds.id()
+impl<Track> AnimationHandle<Track> {
+	pub fn id(self) -> Entity {
+		self.0
 	}
 }
 
-#[derive(Copy, Clone, Debug)]
-pub struct TransformDelta(Transform);
-
-impl Diff for Transform {
-	type Delta = TransformDelta;
-
-	fn relative_to(&self, rhs: &Self) -> Self::Delta {
-		TransformDelta(Transform {
-			translation: self.translation - rhs.translation,
-			rotation: self.rotation.inverse() * rhs.rotation,
-			scale: self.scale - rhs.scale,
-		})
+impl<Track> Clone for AnimationHandle<Track> {
+	fn clone(&self) -> Self {
+		*self
 	}
 }
 
-impl Default for TransformDelta {
+impl<Track> Copy for AnimationHandle<Track> {}
+
+impl<Track> Default for AnimationHandle<Track> {
 	fn default() -> Self {
-		Self(Transform {
-			scale: default(),
-			..default()
-		})
+		Self(Entity::PLACEHOLDER, default())
 	}
 }
 
-impl Add for TransformDelta {
-	type Output = Self;
-
-	fn add(self, rhs: Self) -> Self::Output {
-		Self(Transform {
-			translation: self.0.translation + rhs.0.translation,
-			rotation: self.0.rotation * rhs.0.rotation,
-			scale: self.0.scale + rhs.0.scale,
-		})
+impl<Track> Debug for AnimationHandle<Track> {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		f.debug_tuple(std::any::type_name::<Self>())
+			.field(&self.0)
+			.finish()
 	}
 }
 
-impl Add<TransformDelta> for Transform {
-	type Output = Self;
+pub trait StartAnimation {
+	fn start_animation<T: Component>(
+		&mut self,
+		animation: impl FnMut(Entity, Ref<T>, Res<Time>, AnimationController) -> ComponentDelta<T>
+			+ Send
+			+ Sync
+			+ 'static,
+	) -> AnimationHandle<DynAnimation<T>>;
+}
 
-	fn add(self, rhs: TransformDelta) -> Self::Output {
+impl StartAnimation for EntityCommands<'_, '_, '_> {
+	fn start_animation<T: Component>(
+		&mut self,
+		animation: impl FnMut(Entity, Ref<T>, Res<Time>, AnimationController) -> ComponentDelta<T>
+			+ Send
+			+ Sync
+			+ 'static,
+	) -> AnimationHandle<DynAnimation<T>> {
+		let id = self.id();
+		let mut cmds = self.commands().spawn(DynAnimation(id, Box::new(animation)));
+		let handle = AnimationHandle(cmds.id(), default());
+		cmds.insert(handle);
+		handle
+	}
+}
+
+pub trait StartResAnimation {
+	fn start_res_animation<T: Resource>(
+		&mut self,
+		animation: impl FnMut(Res<T>, Res<Time>, AnimationController) -> Delta<T>
+			+ Send
+			+ Sync
+			+ 'static,
+	) -> AnimationHandle<DynResAnimation<T>>;
+}
+
+impl StartResAnimation for Commands<'_, '_> {
+	fn start_res_animation<T: Resource>(
+		&mut self,
+		animation: impl FnMut(Res<T>, Res<Time>, AnimationController) -> Delta<T>
+			+ Send
+			+ Sync
+			+ 'static,
+	) -> AnimationHandle<DynResAnimation<T>> {
+		let mut cmds = self.spawn(DynResAnimation(Box::new(animation)));
+		let handle = AnimationHandle(cmds.id(), default());
+		cmds.insert(handle);
+		handle
+	}
+}
+
+#[derive(Component, Debug)]
+pub struct BlendTargets {
+	pub animated: Entity,
+	pub to: Target,
+	pub from: Target,
+	pub duration: Duration,
+	pub elapsed: Duration,
+	pub easing: Option<fn(f32) -> f32>,
+}
+
+impl BlendTargets {
+	pub fn new(animated: Entity, from: Target, to: Target, duration: Duration) -> Self {
 		Self {
-			translation: self.translation + rhs.0.translation,
-			rotation: self.rotation * rhs.0.rotation,
-			scale: self.scale + rhs.0.scale,
+			animated,
+			to,
+			from,
+			duration,
+			elapsed: Duration::ZERO,
+			easing: None,
 		}
 	}
-}
 
-impl Mul<f32> for TransformDelta {
-	type Output = Self;
+	pub fn with_easing(self, easing: fn(f32) -> f32) -> Self {
+		Self {
+			easing: Some(easing),
+			..self
+		}
+	}
 
-	fn mul(self, rhs: f32) -> Self::Output {
-		Self(Transform {
-			translation: self.0.translation * rhs,
-			rotation: Quat::IDENTITY.slerp(self.0.rotation, rhs),
-			scale: self.0.scale * rhs,
-		})
+	pub fn animate(
+		mut cmds: Commands,
+		global_xforms: Query<&GlobalTransform>,
+		parents: Query<&Parent>,
+		mut animations: Query<(Entity, &mut Self)>,
+		mut sender: EventWriter<ComponentDelta<Transform>>,
+		t: Res<Time>,
+	) {
+		for (id, mut state) in &mut animations {
+			state.elapsed += t.delta();
+			if state.elapsed >= state.duration {
+				state.elapsed = state.duration;
+				cmds.entity(id).despawn();
+			}
+
+			let to_global = match state.to.global(state.animated, &global_xforms) {
+				Ok(global) => global,
+				Err(e) => {
+					error!("{e}");
+					cmds.entity(id).despawn();
+					continue;
+				}
+			}
+			.compute_transform();
+
+			let from_global = match state.from.global(state.animated, &global_xforms) {
+				Ok(global) => global,
+				Err(e) => {
+					error!("{e}");
+					cmds.entity(id).despawn();
+					continue;
+				}
+			}
+			.compute_transform();
+
+			let progress = state.elapsed.as_secs_f32() / state.duration.as_secs_f32();
+			let progress = if let Some(easing) = state.easing {
+				easing(progress)
+			} else {
+				progress
+			};
+			let new_global = from_global + (to_global.delta_from(&from_global) * progress);
+			let new = if let Ok(parent) = parents.get(state.animated) {
+				match global_xforms.get(parent.get()) {
+					Ok(parent_global) => {
+						GlobalTransform::from(new_global).reparented_to(parent_global)
+					}
+					Err(QueryEntityError::QueryDoesNotMatch(_)) => new_global, // Parent has no GlobalTransform
+					Err(e) => {
+						error!("Can't find parent: {e}");
+						new_global
+					}
+				}
+			} else {
+				new_global
+			};
+			sender.send(ComponentDelta::<Transform>::diffable(
+				state.animated,
+				progress,
+				new,
+			))
+		}
 	}
 }
 
@@ -841,27 +538,29 @@ mod tests {
 	#[test]
 	fn animation_api() {
 		let _ = App::new()
-			.add_systems(Startup, spawn_animations)
-			.add_systems(
-				Update,
-				(
-					MutAnimation::<Transform>::animate,
-					BlendableAnimation::<Transform, TransformDelta>::animate
-						.after(MutAnimation::<Transform>::animate),
-				),
-			);
+			.add_plugins(BuiltinAnimations)
+			.add_systems(Update, Slide::tick);
 
-		fn spawn_animations(mut cmds: Commands, mut q: Query<(Entity, &Transform)>) {
-			for (id, xform) in &mut q {
-				cmds.entity(id)
-					.start_blendable_animation(LerpSlerpTrack::new(
-						*xform,
-						Transform {
-							translation: Vec3::ONE,
-							..default()
-						},
-						Duration::from_secs(1),
-					));
+		#[derive(Component, Copy, Clone)]
+		pub struct Slide(Entity, Vec3);
+
+		impl Slide {
+			pub fn tick(
+				q: Query<(), With<Transform>>,
+				animations: Query<&Slide>,
+				mut sender: EventWriter<ComponentDelta<Transform>>,
+				t: Res<Time>,
+			) {
+				let dt = t.delta_seconds();
+				for Slide(target, vel) in animations.iter().copied() {
+					match q.get(target) {
+						Ok(_) => sender.send(ComponentDelta::<Transform>::indefinite(
+							target,
+							move |mut xform| xform.translation += vel * dt,
+						)),
+						Err(e) => error!("{e}"),
+					}
+				}
 			}
 		}
 	}

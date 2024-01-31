@@ -1,11 +1,4 @@
-use crate::{
-	mats::BubbleMaterial,
-	pickups::pickup::PickupItem,
-	player::{
-		player_entity::{Arm, Arms},
-		RotVel,
-	},
-};
+use crate::{abilities::Hurt, mats::BubbleMaterial, pickups::pickup::PickupItem};
 use bevy::{
 	math::Vec3Swizzles,
 	pbr::ExtendedMaterial,
@@ -14,10 +7,9 @@ use bevy::{
 use bevy_kira_audio::{Audio, AudioControl, AudioSource};
 use bevy_rapier3d::{
 	geometry::Collider,
-	plugin::RapierContext,
-	prelude::{QueryFilter, RigidBody::KinematicPositionBased, Sensor},
+	prelude::{RigidBody::KinematicPositionBased, Sensor},
 };
-use enum_components::{ERef, EntityEnumCommands, EnumComponent};
+use enum_components::{EntityEnumCommands, EnumComponent};
 use nanorand::Rng;
 use std::{
 	f32::consts::PI,
@@ -38,7 +30,7 @@ pub struct PopSfx(pub Handle<AudioSource>);
 
 pub fn setup(mut cmds: Commands, mut meshes: ResMut<Assets<Mesh>>, asset_server: Res<AssetServer>) {
 	cmds.insert_resource(SpawnTimer(Timer::new(
-		Duration::from_secs(2),
+		Duration::from_secs(10),
 		TimerMode::Repeating,
 	)));
 
@@ -116,45 +108,29 @@ pub fn spawn_pickups(
 
 pub fn collect(
 	mut cmds: Commands,
-	ctx: Res<RapierContext>,
-	arms_q: Query<&RotVel, ERef<Arms>>,
-	arm_q: Query<(), ERef<Arm>>,
-	pickups: Query<(Entity, Pickup, &GlobalTransform, &Collider)>,
+	pickups: Query<(Entity, Pickup)>,
 	sfx: Res<PopSfx>,
 	audio: Res<Audio>,
+	mut hits: EventReader<Hurt>,
 ) {
-	for (id, pickup, xform, col) in &pickups {
-		let xform = xform.compute_transform();
-		ctx.intersections_with_shape(
-			xform.translation,
-			xform.rotation,
-			col,
-			QueryFilter::exclude_fixed().exclude_rigid_body(id),
-			|other| {
-				if let Ok(()) = arm_q.get(other) {
-					let rvel = arms_q.single();
-					if **rvel >= 16.0 {
-						audio.play(sfx.0.clone()).with_volume(0.3);
-						match pickup {
-							PickupItem::Health(val) => {
-								let val = val.0 as i64;
-								let new = HEALTH.fetch_add(val, Relaxed) + val;
-								info!("Gained {val} health. Current health: {new}");
-							}
-							PickupItem::Shield(val) => {
-								let val = val.0 as i64;
-								let new = SHIELD.fetch_add(val, Relaxed) + val;
-								info!("Gained {val} shield. Current shield: {new}");
-							}
-						}
-						info!("{pickup:?}");
-						cmds.entity(id).despawn();
-						return true;
-					}
+	for hit in hits.read() {
+		if let Ok((id, pickup)) = pickups.get(hit.victim) {
+			audio.play(sfx.0.clone()).with_volume(0.3);
+			match pickup {
+				PickupItem::Health(val) => {
+					let val = val.0 as i64;
+					let new = HEALTH.fetch_add(val, Relaxed) + val;
+					info!("Gained {val} health. Current health: {new}");
 				}
-				false
-			},
-		);
+				PickupItem::Shield(val) => {
+					let val = val.0 as i64;
+					let new = SHIELD.fetch_add(val, Relaxed) + val;
+					info!("Gained {val} shield. Current shield: {new}");
+				}
+			}
+			info!("{pickup:?}");
+			cmds.entity(id).despawn();
+		}
 	}
 }
 

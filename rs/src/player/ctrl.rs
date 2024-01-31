@@ -431,7 +431,9 @@ pub fn move_player(
 				let end = vis_interp.end.unwrap();
 				vis_interp.start = Some(Isometry::new(
 					end.translation.vector - Vector3::from(body_xform.rotation.inverse() * result),
-					(Quat::from(end.rotation) * rot).to_scaled_axis().into(),
+					(Quat::from(end.rotation) * rot.inverse())
+						.to_scaled_axis()
+						.into(),
 				));
 				body_xform.translation += result;
 				body.set_translation(body_xform.translation.into(), true);
@@ -446,30 +448,3 @@ pub fn move_player(
 		xform.rotation = new.rotation.into();
 	}
 }
-
-/// Hack to work around `bevy_rapier` overwriting transform changes
-pub fn save_tmp_transform(
-	mut cmds: Commands,
-	mut q: Query<(Entity, &Transform, Option<&mut TmpXform>), ERef<Root>>,
-) {
-	for (id, xform, tmp) in &mut q {
-		if let Some(mut tmp) = tmp {
-			tmp.0 = xform.translation;
-			tmp.1 = xform.rotation;
-		} else {
-			cmds.entity(id)
-				.insert(TmpXform(xform.translation, xform.rotation));
-		}
-	}
-}
-
-/// Hack to work around `bevy_rapier` overwriting transform changes
-pub fn load_tmp_transform(mut q: Query<(&mut Transform, &TmpXform), ERef<Root>>) {
-	for (mut xform, tmp) in &mut q {
-		xform.translation = tmp.0;
-		xform.rotation = tmp.1;
-	}
-}
-
-#[derive(Component, Debug, Default)]
-pub struct TmpXform(Vec3, Quat);
