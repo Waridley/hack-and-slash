@@ -1,4 +1,4 @@
-use crate::{abilities::Hurt, mats::BubbleMaterial, pickups::pickup::PickupItem};
+use crate::{player::abilities::Hurt, mats::BubbleMaterial, pickups::pickup::PickupItem};
 use bevy::{
 	math::Vec3Swizzles,
 	pbr::ExtendedMaterial,

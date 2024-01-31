@@ -38,6 +38,7 @@ use rapier3d::{
 };
 use std::{f32::consts::*, num::NonZeroU8, ops::Add, time::Duration};
 
+pub mod abilities;
 pub mod camera;
 pub mod ctrl;
 pub mod input;
@@ -245,7 +246,7 @@ pub enum PlayerEntity {
 	Orb(PlayerArm),
 }
 use crate::{
-	abilities::{BoosterCharge, HurtboxFilter, Sfx, WeaponCharge},
+	player::abilities::{BoosterCharge, HurtboxFilter, Sfx, WeaponCharge},
 	anim::ComponentDelta,
 	player::tune::PlayerParams,
 	util::{Diff, Prev, TransformDelta},

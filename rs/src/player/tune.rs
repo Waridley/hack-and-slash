@@ -1,5 +1,5 @@
 use crate::{
-	abilities::{BoosterCharge, WeaponCharge},
+	player::abilities::{BoosterCharge, WeaponCharge},
 	util::Angle,
 };
 use bevy::prelude::*;

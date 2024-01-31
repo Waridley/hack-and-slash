@@ -1,5 +1,5 @@
 use crate::{
-	abilities::BoosterCharge,
+	player::abilities::BoosterCharge,
 	player::{
 		player_entity::{Controller, Root, ShipCenter},
 		tune::PlayerParams,
