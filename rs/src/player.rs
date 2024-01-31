@@ -12,6 +12,7 @@ use bevy::{
 };
 use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_kira_audio::{Audio, AudioControl};
+use bevy_pkv::PkvStore;
 use bevy_rapier3d::{
 	dynamics::{CoefficientCombineRule::Min, Velocity},
 	geometry::{Collider, Friction},
@@ -55,9 +56,10 @@ pub enum InterpolatedXforms {
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugins((
+		prefs::PrefsPlugin,
 		input::plugin.plugfn(),
 		RonAssetPlugin::<PlayerParams>::new(&["ron"]),
-		crate::anim::AnimationPlugin::<RotVel>::default(),
+		crate::anim::AnimationPlugin::<RotVel>::PLUGIN,
 	))
 	.insert_resource(PlayerRespawnTimers::default())
 	.add_systems(Startup, setup)
@@ -286,6 +288,7 @@ pub fn spawn_players(
 	spawn_data: Res<PlayerSpawnData>,
 	params: Res<PlayerParams>,
 	mut events: ResMut<Events<PlayerSpawnEvent>>,
+	mut pkv: ResMut<PkvStore>,
 ) {
 	for event in events.drain() {
 		let PlayerSpawnData {
@@ -336,9 +339,10 @@ pub fn spawn_players(
 		let id = event.id;
 		let owner = BelongsToPlayer::with_id(id);
 		let char_collider = Collider::from(SharedShape::new(params.phys.collider));
+		let username = format!("Player{}", owner.0.get());
 		let mut root = cmds
 			.spawn((
-				Name::new(format!("Player{}", owner.0.get())),
+				Name::new(username.clone()),
 				owner,
 				TerminalVelocity(Velocity {
 					linvel: Vect::splat(96.0),
@@ -355,6 +359,20 @@ pub fn spawn_players(
 			))
 			.with_enum(Root);
 
+		let prefs_key = format!("{username}.prefs");
+		let prefs = match pkv.get(&prefs_key) {
+			Ok(prefs) => prefs,
+			Err(e) => {
+				if !matches!(e, bevy_pkv::GetError::NotFound) {
+					error!("{e}");
+				}
+				let prefs = PlayerPrefs::default();
+				pkv.set(prefs_key, &prefs).unwrap_or_else(|e| error!("{e}"));
+				prefs
+			}
+		};
+		info!("Loaded: {prefs:#?}");
+
 		build_player_scene(
 			&mut root,
 			owner,
@@ -368,6 +386,7 @@ pub fn spawn_players(
 			],
 			arm_particle_mesh,
 			(crosshair_mesh, crosshair_mat),
+			prefs,
 		);
 	}
 }
@@ -381,8 +400,9 @@ fn build_player_scene(
 	arm_meshes: [(MaterialMeshBundle<StandardMaterial>, PlayerArm); 3],
 	arm_particle_mesh: Handle<Mesh>,
 	crosshair: (Handle<Mesh>, Handle<StandardMaterial>),
+	prefs: PlayerPrefs,
 ) {
-	player_controller(root, owner, char_collider);
+	player_controller(root, owner, char_collider, prefs);
 	player_vis(
 		root,
 		owner,
@@ -394,12 +414,17 @@ fn build_player_scene(
 	);
 }
 
-fn player_controller(root: &mut EntityCommands, owner: BelongsToPlayer, char_collider: Collider) {
+fn player_controller(
+	root: &mut EntityCommands,
+	owner: BelongsToPlayer,
+	char_collider: Collider,
+	prefs: PlayerPrefs,
+) {
 	root.with_children(|builder| {
 		let PlayerPrefs {
 			camera: cam_prefs,
 			input_map,
-		} = PlayerPrefs::default();
+		} = prefs;
 		builder
 			.spawn((
 				Name::new(format!("Player{}.Controller", owner.0.get())),

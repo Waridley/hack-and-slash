@@ -20,20 +20,20 @@ pub struct BuiltinAnimations;
 impl Plugin for BuiltinAnimations {
 	fn build(&self, app: &mut App) {
 		app.add_plugins((
-			AnimationPlugin::<Transform>::default(),
-			AnimationPlugin::<GlobalTransform>::default(),
+			AnimationPlugin::<Transform>::PLUGIN,
+			AnimationPlugin::<GlobalTransform>::PLUGIN,
 		))
 		.add_systems(
 			PostUpdate,
 			BlendTargets::animate
 				.before(apply_animations::<Transform>)
-				.in_set(AnimationSet::<Transform>::default()),
+				.in_set(AnimationSet::<Transform>::SET),
 		)
 		.configure_sets(
 			PostUpdate,
 			(
-				AnimationSet::<Transform>::default().before(TransformPropagate),
-				AnimationSet::<GlobalTransform>::default().before(TransformPropagate),
+				AnimationSet::<Transform>::SET.before(TransformPropagate),
+				AnimationSet::<GlobalTransform>::SET.before(TransformPropagate),
 			),
 		);
 	}
@@ -41,6 +41,10 @@ impl Plugin for BuiltinAnimations {
 
 #[derive(Default, Debug)]
 pub struct AnimationPlugin<T: Component>(PhantomData<T>);
+
+impl<T: Component> AnimationPlugin<T> {
+	pub const PLUGIN: Self = Self(PhantomData::<T>);
+}
 
 impl<T: Component> Plugin for AnimationPlugin<T> {
 	fn build(&self, app: &mut App) {

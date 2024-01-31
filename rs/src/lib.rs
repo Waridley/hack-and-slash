@@ -116,7 +116,7 @@ pub fn game_plugin(app: &mut App) -> &mut App {
 		OffloadingPlugin,
 		SkyPlugin,
 		anim::BuiltinAnimations,
-		anim::AnimationPlugin::<Spewer>::default(),
+		anim::AnimationPlugin::<Spewer>::PLUGIN,
 		enemies::plugin.plugfn(),
 		player::plugin.plugfn(),
 		pickups::plugin.plugfn(),

@@ -46,7 +46,7 @@ impl Plugin for AbilitiesPlugin {
 		.add_systems(
 			PostUpdate,
 			(hit_stuff
-				.after(AnimationSet::<Transform>::default())
+				.after(AnimationSet::<Transform>::SET)
 				.after(TransformPropagate),),
 		)
 		.add_event::<Hurt>();
@@ -501,7 +501,6 @@ pub fn hit_stuff(
 		) else {
 			continue;
 		};
-		dbg!(&toi);
 		events.send(Hurt {
 			hurtbox: id,
 			toi,
