@@ -22,6 +22,8 @@ impl Plugin for BuiltinAnimations {
 		app.add_plugins((
 			AnimationPlugin::<Transform>::PLUGIN,
 			AnimationPlugin::<GlobalTransform>::PLUGIN,
+			AnimationPlugin::<Visibility>::PLUGIN,
+			AnimationPlugin::<ViewVisibility>::PLUGIN,
 		))
 		.add_systems(
 			PostUpdate,

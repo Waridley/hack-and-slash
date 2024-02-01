@@ -1,19 +1,16 @@
 use super::input::PlayerAction;
-use crate::player::input::PlayerAction::*;
+use crate::player::{input::PlayerAction::*, player_entity::Root, BelongsToPlayer};
 use bevy::{ecs::query::WorldQuery, prelude::*};
 use bevy_pkv::PkvStore;
 use enum_components::ERef;
 use leafwing_input_manager::prelude::*;
 use serde::{Deserialize, Serialize};
-use crate::player::BelongsToPlayer;
-use crate::player::player_entity::Root;
 
 pub struct PrefsPlugin;
 
 impl Plugin for PrefsPlugin {
 	fn build(&self, app: &mut App) {
-		app
-			.register_type::<InvertCamera>()
+		app.register_type::<InvertCamera>()
 			.register_type::<Fov>()
 			.register_type::<LookSensitivity>()
 			.register_type::<CamSmoothing>()
@@ -48,10 +45,7 @@ pub struct PlayerPrefs {
 	pub input_map: InputMap<PlayerAction>,
 }
 
-pub type ChangedPrefs = Or<(
-	ChangedCameraPrefs,
-	Changed<InputMap<PlayerAction>>,
-)>;
+pub type ChangedPrefs = Or<(ChangedCameraPrefs, Changed<InputMap<PlayerAction>>)>;
 
 pub type ChangedCameraPrefs = Or<(
 	Changed<InvertCamera>,
@@ -164,7 +158,9 @@ impl Default for Fov {
 	}
 }
 
-#[derive(Component, Debug, Clone, Copy, PartialEq, Deref, DerefMut, Serialize, Deserialize, Reflect)]
+#[derive(
+	Component, Debug, Clone, Copy, PartialEq, Deref, DerefMut, Serialize, Deserialize, Reflect,
+)]
 #[serde(default)]
 pub struct LookSensitivity(Vec2);
 
@@ -174,7 +170,9 @@ impl Default for LookSensitivity {
 	}
 }
 
-#[derive(Component, Debug, Clone, Copy, PartialEq, Deref, DerefMut, Serialize, Deserialize, Reflect)]
+#[derive(
+	Component, Debug, Clone, Copy, PartialEq, Deref, DerefMut, Serialize, Deserialize, Reflect,
+)]
 #[serde(default)]
 pub struct CamSmoothing(f32);
 

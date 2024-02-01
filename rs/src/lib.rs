@@ -289,3 +289,6 @@ fn fullscreen(kb: Res<Input<KeyCode>>, mut windows: Query<&mut Window, With<Prim
 		};
 	}
 }
+
+#[derive(Component, Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
+pub struct Alive;
