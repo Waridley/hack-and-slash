@@ -3,14 +3,16 @@ use bevy::prelude::*;
 use bevy_rapier3d::na::{Vector2, Vector3};
 use serde::{Deserialize, Serialize};
 use std::ops::{Add, Sub};
+use crate::planet::frame::PlanetFramePlugin;
 
 pub mod chunks;
 pub mod day_night;
+pub mod frame;
 pub mod sky;
 pub mod terrain;
 
 pub fn plugin(app: &mut App) -> &mut App {
-	app.add_plugins((terrain::plugin.plugfn(), day_night::plugin.plugfn()))
+	app.add_plugins((terrain::plugin.plugfn(), day_night::plugin.plugfn(), PlanetFramePlugin))
 		.init_resource::<DayNightCycle>()
 		.register_type::<DayNightCycle>()
 }

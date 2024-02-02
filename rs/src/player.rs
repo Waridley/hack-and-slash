@@ -349,7 +349,10 @@ pub fn spawn_players(
 					angvel: Vect::new(0.0, 0.0, PI / crate::DT), // Half a rotation per physics tick
 				}),
 				KinematicPositionBased,
-				TransformBundle::default(),
+				TransformBundle::from_transform(Transform {
+					translation: Vec3::Z * 1024.0,
+					..default()
+				}),
 				Velocity::default(),
 				Friction {
 					coefficient: 0.0,

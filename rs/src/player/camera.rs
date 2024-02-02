@@ -170,7 +170,7 @@ pub fn spawn_pivot<'w, 's, 'a>(
 	let mut cmds = cmds
 		.spawn((
 			owner,
-			CameraVertSlider(0.4),
+			CameraVertSlider::default(),
 			TransformBundle::from_transform(Transform {
 				translation: Vect::new(0.0, 0.0, MIN_CAM_DIST),
 				..default()
