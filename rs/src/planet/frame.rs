@@ -6,12 +6,12 @@ use bevy_rapier3d::prelude::TransformInterpolation;
 use enum_components::ERef;
 use particles::{PreviousGlobalTransform, PreviousTransform};
 use serde::{Deserialize, Serialize};
-use crate::planet::chunks::TERRAIN_CELL_SIZE;
+use crate::planet::chunks::{ChunkIndex, TERRAIN_CELL_SIZE};
 use crate::planet::PlanetVec2;
 use crate::player::player_entity::Root;
 use crate::util::Prev;
 
-pub const MIN_FRAME_WIDTH: f32 = 128.0 * TERRAIN_CELL_SIZE.x;
+pub const MIN_FRAME_WIDTH: f32 = 128.0 * TERRAIN_CELL_SIZE;
 
 pub struct PlanetFramePlugin;
 
@@ -27,6 +27,15 @@ impl Plugin for PlanetFramePlugin {
 pub struct Frame {
 	pub center: PlanetVec2,
 	pub trigger_bounds: f32,
+}
+
+impl Frame {
+	pub fn planet_coords_of(&self, point: Vec2) -> PlanetVec2 {
+		self.center + point
+	}
+	pub fn closest_chunk(&self, point: Vec2) -> ChunkIndex {
+		self.planet_coords_of(point).into()
+	}
 }
 
 impl Default for Frame {

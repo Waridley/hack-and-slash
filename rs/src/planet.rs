@@ -3,7 +3,9 @@ use bevy::prelude::*;
 use bevy_rapier3d::na::{Vector2, Vector3};
 use serde::{Deserialize, Serialize};
 use std::ops::{Add, Sub};
+use crate::planet::chunks::{ChunkIndex, LoadedChunks};
 use crate::planet::frame::PlanetFramePlugin;
+use crate::util::Diff;
 
 pub mod chunks;
 pub mod day_night;
@@ -15,6 +17,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugins((terrain::plugin.plugfn(), day_night::plugin.plugfn(), PlanetFramePlugin))
 		.init_resource::<DayNightCycle>()
 		.register_type::<DayNightCycle>()
+		.init_resource::<LoadedChunks>()
 }
 
 #[derive(Default, Debug, Copy, Clone, Deref, DerefMut, PartialEq, Serialize, Deserialize)]
@@ -24,10 +27,13 @@ impl PlanetVec3 {
 	pub fn new(x: f64, y: f64, z: f64) -> Self {
 		Self(Vector3::new(x, y, z))
 	}
+}
 
-	pub fn relative_to(self, other: Self) -> Vec3 {
-		let diff = self - other;
-		diff.into()
+impl Diff for PlanetVec3 {
+	type Delta = Vec3;
+	
+	fn delta_from(&self, rhs: &Self) -> Self::Delta {
+		(*self - *rhs).into()
 	}
 }
 
@@ -91,9 +97,16 @@ impl PlanetVec2 {
 		Self(Vector2::new(x, y))
 	}
 
-	pub fn relative_to(self, other: Self) -> Vec2 {
-		let diff = self - other;
-		diff.into()
+	pub fn closest_chunk(self) -> ChunkIndex {
+		self.into()
+	}
+}
+
+impl Diff for PlanetVec2 {
+	type Delta = Vec2;
+	
+	fn delta_from(&self, rhs: &Self) -> Self::Delta {
+		(*self - *rhs).into()
 	}
 }
 

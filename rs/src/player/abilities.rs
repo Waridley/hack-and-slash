@@ -28,6 +28,9 @@ use particles::{PreviousGlobalTransform, Spewer};
 use rapier3d::pipeline::QueryFilterFlags;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
+use crate::planet::chunks::{ChunkCenter, ChunkIndex, LoadedChunks};
+use crate::planet::frame::Frame;
+use crate::planet::PlanetVec2;
 
 pub struct AbilitiesPlugin;
 
@@ -78,11 +81,14 @@ pub fn trigger_player_abilities(
 		&BelongsToPlayer,
 		ERef<Orb>,
 	)>,
+	chunk_q: Query<&GlobalTransform, With<ChunkIndex>>,
 	cam_pivot_q: Query<(&GlobalTransform, &BelongsToPlayer), ERef<CamPivot>>,
 	antigrav_q: Query<(Entity, &BelongsToPlayer), ERef<AntigravParticles>>,
 	sfx: Res<Sfx>,
 	audio: Res<Audio>,
 	params: Res<PlayerParams>,
+	frame: Res<Frame>,
+	loaded_chunks: Res<LoadedChunks>,
 ) {
 	// TODO: Cooldowns
 	use PlayerAction::*;
@@ -119,7 +125,7 @@ pub fn trigger_player_abilities(
 				.iter()
 				.find_map(|(global, owner)| (**owner == player).then_some(*global))
 				.expect(&*format!("Can't find CamPivot for player {player}"));
-			fire_a(&mut cmds, &*audio, &*sfx, cam_pivot, &arm_q, &orb_q, player)
+			fire_a(&mut cmds, &*audio, &*sfx, cam_pivot, &arm_q, &orb_q, &chunk_q, player, &*frame, &*loaded_chunks)
 		}
 
 		if state.just_pressed(AoE) && *weap_charge >= aoe_cost {
@@ -336,7 +342,10 @@ pub fn fire_a(
 		&BelongsToPlayer,
 		ERef<Orb>,
 	)>,
+	chunk_q: &Query<&GlobalTransform, With<ChunkIndex>>,
 	player: PlayerId,
+	frame: &Frame,
+	loaded_chunks: &LoadedChunks,
 ) {
 	for (id, xform, _, _, owner, which) in orb_q {
 		if **owner != player || which.0 != PlayerArm::A {
@@ -351,11 +360,14 @@ pub fn fire_a(
 		let mut elapsed = Duration::ZERO;
 		let dur = Duration::from_millis(64);
 		let start = *xform;
-		let end = cam_pivot
-			* Transform {
-				translation: Vec3::Y * 128.0,
-				..default()
-			};
+		let end = (cam_pivot * Transform {
+			translation: Vec3::Y * 128.0,
+			..default()
+		});
+		let coords = frame.planet_coords_of(end.translation().xy());
+		let Some((_, chunk_id)) = loaded_chunks.closest_to(coords) else { error!("No chunks are loaded"); return };
+		let chunk_global = chunk_q.get(chunk_id).unwrap();
+		let end_rel = end.reparented_to(chunk_global);
 		let mut cmds = cmds.entity(id);
 		cmds.insert(Hurtbox);
 		cmds.start_animation::<Transform>(move |id, _val, t, mut ctrl| {
@@ -367,7 +379,10 @@ pub fn fire_a(
 				ctrl.commands().spawn(
 					BlendTargets::new(
 						id,
-						Target::Global(end),
+						Target::RelativeTo {
+							entity: chunk_id,
+							relative: end_rel,
+						},
 						Target::RelativeTo {
 							entity: arm_id,
 							relative: Transform::IDENTITY,
@@ -379,7 +394,7 @@ pub fn fire_a(
 			}
 
 			let progress = (elapsed.as_secs_f32() / dur.as_secs_f32()).ease_out_cubic();
-			let new = start.lerp_slerp(end.compute_transform(), progress);
+			let new = start.lerp_slerp(end.compute_transform(), progress); // FIXME: Blend relative to chunk so frame shifting doesn't break it
 			ComponentDelta::<Transform>::diffable(id, progress, new)
 		});
 	}

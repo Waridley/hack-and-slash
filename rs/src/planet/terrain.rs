@@ -24,6 +24,7 @@ use bevy_rapier3d::{parry::shape::SharedShape, prelude::*};
 use rapier3d::{geometry::HeightField, na::DMatrix};
 use std::{f32::consts::*, sync::Arc};
 use web_time::{Duration, Instant};
+use crate::planet::chunks::LoadedChunks;
 
 pub mod noise;
 
@@ -348,6 +349,7 @@ pub fn spawn_loaded_chunks(
 	mut cmds: Commands,
 	mut tasks: ResMut<ChunkLoadingTasks>,
 	mat: Res<TerrainMaterial>,
+	mut loaded_chunks: ResMut<LoadedChunks>,
 ) {
 	tasks.retain_mut(|(index, task)| {
 		// TODO: Relative to current frame
@@ -355,12 +357,12 @@ pub fn spawn_loaded_chunks(
 		let translation = Vec2::from(center.0);
 		if let Some((heights, mesh)) = task.check() {
 			let heights = Arc::new(heights);
-			cmds.spawn((
+			let id = cmds.spawn((
 				TerrainObject {
 					pbr: PbrBundle {
 						mesh,
 						transform: Transform {
-							translation: Vec3::new(translation.x, translation.y, -768.0),
+							translation: Vec3::new(translation.x, translation.y, 0.0),
 							rotation: Quat::from_rotation_x(FRAC_PI_2),
 							..default()
 						},
@@ -374,7 +376,10 @@ pub fn spawn_loaded_chunks(
 				center,
 				Ground { heights },
 				NoAutomaticBatching,
-			));
+			)).id();
+			
+			loaded_chunks.insert(*index, id);
+			
 			// remove from tasks vec
 			false
 		} else {
