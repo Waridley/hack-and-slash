@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::transform::TransformSystem::TransformPropagate;
 use bevy_rapier3d::dynamics::RapierRigidBodyHandle;
 use bevy_rapier3d::na::Vector;
 use bevy_rapier3d::plugin::RapierContext;
@@ -11,22 +12,25 @@ use crate::planet::PlanetVec2;
 use crate::player::player_entity::Root;
 use crate::util::Prev;
 
-pub const MIN_FRAME_WIDTH: f32 = 128.0 * TERRAIN_CELL_SIZE;
+pub const DEFAULT_FRAME_WIDTH: f32 = 128.0 * TERRAIN_CELL_SIZE;
 
 pub struct PlanetFramePlugin;
 
 impl Plugin for PlanetFramePlugin {
 	fn build(&self, app: &mut App) {
-		app.add_systems(First, (shift_frame, reframe_all_entities).chain())
+		app.add_systems(Last, (shift_frame, reframe_all_entities).chain())
 			.insert_resource(Frame::default())
-			.insert_resource(Prev::<Frame>::default());
+			.insert_resource(Prev::<Frame>::default())
+			.register_type::<Frame>();
 	}
 }
 
-#[derive(Resource, Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Resource, Debug, Copy, Clone, PartialEq, Serialize, Deserialize, Reflect)]
+#[reflect(Resource)]
 pub struct Frame {
 	pub center: PlanetVec2,
 	pub trigger_bounds: f32,
+	pub min_width: f32,
 }
 
 impl Frame {
@@ -42,7 +46,8 @@ impl Default for Frame {
 	fn default() -> Self {
 		Self {
 			center: default(),
-			trigger_bounds: MIN_FRAME_WIDTH,
+			trigger_bounds: DEFAULT_FRAME_WIDTH,
+			min_width: DEFAULT_FRAME_WIDTH,
 		}
 	}
 }
@@ -121,7 +126,7 @@ pub fn shift_frame(
 	// Prepare to handle players being too far apart.
 	// Should probably have separate frames for different players if possible, but
 	// this is far easier to implement.
-	const GROW: f32 = 1.512;
+	const GROW: f32 = 1.5;
 	// Should be less than `GROW * 0.5` in order to prevent oscillation when
 	// `*_width` is multiplied by `GROW`
 	const SHRINK_TRIGGER: f32 = 0.5;
@@ -139,7 +144,7 @@ pub fn shift_frame(
 	
 	// Automatically shrink to recover precision
 	if !grew && x_width < frame.trigger_bounds * SHRINK_TRIGGER && y_width < frame.trigger_bounds * SHRINK_TRIGGER {
-		frame.trigger_bounds = f32::max(f32::max(x_width * GROW, y_width * GROW), MIN_FRAME_WIDTH);
+		frame.trigger_bounds = f32::max(f32::max(x_width * GROW, y_width * GROW), frame.min_width);
 	}
 	
 	let midpoint = Vec2::new(
