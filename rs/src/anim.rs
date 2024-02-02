@@ -52,10 +52,8 @@ impl<T: Component> Plugin for AnimationPlugin<T> {
 	fn build(&self, app: &mut App) {
 		app.add_event::<ComponentDelta<T>>().add_systems(
 			PostUpdate,
-			(
-				DynAnimation::<T>::animate.before(apply_animations::<T>),
-				apply_animations::<T>,
-			)
+			(DynAnimation::<T>::animate, apply_animations::<T>)
+				.chain()
 				.in_set(AnimationSet::<T>::default()),
 		);
 	}

@@ -48,12 +48,6 @@ pub mod tune;
 
 const G1: Group = Group::GROUP_1;
 
-#[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
-pub enum InterpolatedXforms {
-	Propagate,
-	Sync,
-}
-
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugins((
 		prefs::PrefsPlugin,
@@ -63,13 +57,8 @@ pub fn plugin(app: &mut App) -> &mut App {
 	))
 	.insert_resource(PlayerRespawnTimers::default())
 	.add_systems(Startup, setup)
-	.add_systems(
-		First,
-		(
-			Prev::<CtrlState>::update_component,
-			tune::extract_loaded_params,
-		),
-	)
+	.add_systems(First, tune::extract_loaded_params)
+	.add_systems(PreUpdate, Prev::<CtrlState>::update_component)
 	.add_systems(
 		Update,
 		(
@@ -88,7 +77,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 				.after(input::InputSystems)
 				.run_if(resource_exists::<PlayerParams>()),
 			idle,
-			orbs_follow_arms,
+			orbs_follow_arms.after(idle),
 		),
 	)
 	.add_systems(
@@ -710,7 +699,10 @@ fn player_arms(
 		let mut orb = arms_pivot
 			.commands()
 			.spawn((
-				Name::new(format!("Player{}.ShipCenter.Arms.{which:?}", owner.0.get())),
+				Name::new(format!(
+					"Player{}.ShipCenter.Arms.{which:?}.Orb",
+					owner.0.get()
+				)),
 				owner,
 				arm,
 				spewer,

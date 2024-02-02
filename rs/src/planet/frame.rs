@@ -1,16 +1,21 @@
-use bevy::prelude::*;
-use bevy::transform::TransformSystem::TransformPropagate;
-use bevy_rapier3d::dynamics::RapierRigidBodyHandle;
-use bevy_rapier3d::na::Vector;
-use bevy_rapier3d::plugin::RapierContext;
-use bevy_rapier3d::prelude::TransformInterpolation;
+use crate::{
+	planet::{
+		chunks::{ChunkIndex, TERRAIN_CELL_SIZE},
+		PlanetVec2,
+	},
+	player::player_entity::Root,
+	util::Prev,
+};
+use bevy::{prelude::*, transform::TransformSystem::TransformPropagate};
+use bevy_rapier3d::{
+	dynamics::RapierRigidBodyHandle, na::Vector, plugin::RapierContext,
+	prelude::TransformInterpolation,
+};
 use enum_components::ERef;
-use particles::{PreviousGlobalTransform, PreviousTransform};
+use particles::{
+	InitialGlobalTransform, InitialTransform, PreviousGlobalTransform, PreviousTransform,
+};
 use serde::{Deserialize, Serialize};
-use crate::planet::chunks::{ChunkIndex, TERRAIN_CELL_SIZE};
-use crate::planet::PlanetVec2;
-use crate::player::player_entity::Root;
-use crate::util::Prev;
 
 pub const DEFAULT_FRAME_WIDTH: f32 = 128.0 * TERRAIN_CELL_SIZE;
 
@@ -18,7 +23,7 @@ pub struct PlanetFramePlugin;
 
 impl Plugin for PlanetFramePlugin {
 	fn build(&self, app: &mut App) {
-		app.add_systems(Last, (shift_frame, reframe_all_entities).chain())
+		app.add_systems(First, (shift_frame, reframe_all_entities).chain())
 			.insert_resource(Frame::default())
 			.insert_resource(Prev::<Frame>::default())
 			.register_type::<Frame>();
@@ -59,12 +64,22 @@ pub fn reframe_all_entities(
 	mut interpolations: Query<&mut TransformInterpolation, Without<Parent>>,
 	mut prev_xforms: Query<&mut Prev<Transform>, Without<Parent>>,
 	mut prev_globals: Query<&mut Prev<GlobalTransform>>,
-	mut prev_particles: Query<(&mut PreviousTransform, &mut PreviousGlobalTransform)>,
+	mut prev_particles: Query<(
+		&mut PreviousTransform,
+		&mut PreviousGlobalTransform,
+		Has<Parent>,
+	)>,
+	mut init_particles: Query<(
+		&mut InitialTransform,
+		&mut InitialGlobalTransform,
+		Has<Parent>,
+	)>,
+	mut bevy_prevs: Query<(&mut bevy::pbr::PreviousGlobalTransform)>,
 	frame: Res<Frame>,
 	prev_frame: Res<Prev<Frame>>,
 ) {
 	if !frame.is_changed() || frame.is_added() || frame.center == prev_frame.center {
-		return
+		return;
 	}
 	info!("{frame:?}");
 	let diff = Vec2::from(frame.center - prev_frame.center);
@@ -73,8 +88,9 @@ pub fn reframe_all_entities(
 		if !has_parent {
 			xform.translation += offset;
 		}
-		let global_xform = global.compute_transform();
-		*global = GlobalTransform::from(Transform { translation: global_xform.translation, ..global_xform });
+		let mut global_xform = global.compute_transform();
+		global_xform.translation += offset;
+		*global = GlobalTransform::from(global_xform);
 	}
 	for mut prev_xform in &mut prev_xforms {
 		prev_xform.translation += offset;
@@ -84,13 +100,27 @@ pub fn reframe_all_entities(
 		computed.translation += offset;
 		**prev_global = GlobalTransform::from(computed);
 	}
-	for (mut prev_xform, mut prev_global) in &mut prev_particles {
-		prev_xform.translation += offset;
+	for (mut prev_xform, mut prev_global, has_parent) in &mut prev_particles {
+		if !has_parent {
+			prev_xform.translation += offset;
+		}
 		let mut computed = prev_global.compute_transform();
 		computed.translation += offset;
 		**prev_global = GlobalTransform::from(computed);
 	}
-	
+	for (mut init_xform, mut init_global, has_parent) in &mut init_particles {
+		if !has_parent {
+			init_xform.translation += offset;
+		}
+		let mut computed = init_global.compute_transform();
+		computed.translation += offset;
+		**init_global = GlobalTransform::from(computed);
+	}
+	for mut prev_global in &mut bevy_prevs {
+		prev_global.0.translation.x += offset.x;
+		prev_global.0.translation.y += offset.y;
+	}
+
 	// Rapier transforms
 	let offset = Vector::from(offset);
 	for body in &bodies {
@@ -100,8 +130,14 @@ pub fn reframe_all_entities(
 		}
 	}
 	for mut interp in &mut interpolations {
-		interp.start.as_mut().map(|start| start.translation.vector += offset);
-		interp.end.as_mut().map(|end| end.translation.vector += offset);
+		interp
+			.start
+			.as_mut()
+			.map(|start| start.translation.vector += offset);
+		interp
+			.end
+			.as_mut()
+			.map(|end| end.translation.vector += offset);
 	}
 }
 
@@ -122,7 +158,7 @@ pub fn shift_frame(
 		min.y = f32::min(min.y, global.y);
 		max.y = f32::max(max.y, global.y);
 	}
-	
+
 	// Prepare to handle players being too far apart.
 	// Should probably have separate frames for different players if possible, but
 	// this is far easier to implement.
@@ -141,17 +177,17 @@ pub fn shift_frame(
 		frame.trigger_bounds = f32::max(frame.trigger_bounds, y_width * GROW);
 		grew = true;
 	}
-	
+
 	// Automatically shrink to recover precision
-	if !grew && x_width < frame.trigger_bounds * SHRINK_TRIGGER && y_width < frame.trigger_bounds * SHRINK_TRIGGER {
+	if !grew
+		&& x_width < frame.trigger_bounds * SHRINK_TRIGGER
+		&& y_width < frame.trigger_bounds * SHRINK_TRIGGER
+	{
 		frame.trigger_bounds = f32::max(f32::max(x_width * GROW, y_width * GROW), frame.min_width);
 	}
-	
-	let midpoint = Vec2::new(
-		(x_width * 0.5) + min.x,
-		(y_width * 0.5) + min.y,
-	);
-	
+
+	let midpoint = Vec2::new((x_width * 0.5) + min.x, (y_width * 0.5) + min.y);
+
 	// Actually move the frame if needed
 	if midpoint.x.abs() >= frame.trigger_bounds {
 		frame.center.x += midpoint.x.signum() as f64 * frame.trigger_bounds as f64;

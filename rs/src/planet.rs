@@ -1,12 +1,18 @@
-use std::any::Any;
-use crate::{planet::day_night::DayNightCycle, util::IntoFnPlugin};
+use crate::{
+	planet::{
+		chunks::{ChunkIndex, LoadedChunks},
+		day_night::DayNightCycle,
+		frame::PlanetFramePlugin,
+	},
+	util::{Diff, IntoFnPlugin},
+};
 use bevy::prelude::*;
 use bevy_rapier3d::na::{Vector2, Vector3};
 use serde::{Deserialize, Serialize};
-use std::ops::{Add, Deref, DerefMut, Sub};
-use crate::planet::chunks::{ChunkIndex, LoadedChunks};
-use crate::planet::frame::PlanetFramePlugin;
-use crate::util::Diff;
+use std::{
+	any::Any,
+	ops::{Add, Deref, DerefMut, Sub},
+};
 
 pub mod chunks;
 pub mod day_night;
@@ -15,13 +21,17 @@ pub mod sky;
 pub mod terrain;
 
 pub fn plugin(app: &mut App) -> &mut App {
-	app.add_plugins((terrain::plugin.plugfn(), day_night::plugin.plugfn(), PlanetFramePlugin))
-		.init_resource::<DayNightCycle>()
-		.register_type::<DayNightCycle>()
-		.init_resource::<LoadedChunks>()
+	app.add_plugins((
+		terrain::plugin.plugfn(),
+		day_night::plugin.plugfn(),
+		PlanetFramePlugin,
+	))
+	.init_resource::<DayNightCycle>()
+	.register_type::<DayNightCycle>()
+	.init_resource::<LoadedChunks>()
 }
 
-#[derive(Default, Debug, Copy, Clone, PartialEq, Serialize, Deserialize, Reflect,)]
+#[derive(Default, Debug, Copy, Clone, PartialEq, Serialize, Deserialize, Reflect)]
 #[repr(C)]
 pub struct PlanetVec3 {
 	x: f64,
@@ -54,7 +64,7 @@ impl From<Vec3> for PlanetVec3 {
 
 impl Deref for PlanetVec3 {
 	type Target = Vector3<f64>;
-	
+
 	fn deref(&self) -> &Self::Target {
 		// SAFETY: Vector3 is `#[repr(C)]` and transmutes to `XY<T> { x: T, y: T, z: T } in `nalgebra::coordinates`
 		unsafe { &*(self as *const Self as *const _) }
@@ -70,7 +80,7 @@ impl DerefMut for PlanetVec3 {
 
 impl Diff for PlanetVec3 {
 	type Delta = Vec3;
-	
+
 	fn delta_from(&self, rhs: &Self) -> Self::Delta {
 		(*self - *rhs).into()
 	}
@@ -120,9 +130,7 @@ impl Sub<Vec3> for PlanetVec3 {
 	}
 }
 
-#[derive(
-	Component, Default, Debug, Copy, Clone, PartialEq, Serialize, Deserialize, Reflect,
-)]
+#[derive(Component, Default, Debug, Copy, Clone, PartialEq, Serialize, Deserialize, Reflect)]
 #[repr(C)]
 pub struct PlanetVec2 {
 	x: f64,
@@ -131,7 +139,7 @@ pub struct PlanetVec2 {
 
 impl Deref for PlanetVec2 {
 	type Target = Vector2<f64>;
-	
+
 	fn deref(&self) -> &Self::Target {
 		// SAFETY: Vector2 is `#[repr(C)]` and transmutes to `XY<T> { x: T, y: T } in `nalgebra::coordinates`
 		unsafe { &*(self as *const Self as *const _) }
@@ -167,7 +175,7 @@ impl PlanetVec2 {
 
 impl Diff for PlanetVec2 {
 	type Delta = Vec2;
-	
+
 	fn delta_from(&self, rhs: &Self) -> Self::Delta {
 		(*self - *rhs).into()
 	}
@@ -175,7 +183,10 @@ impl Diff for PlanetVec2 {
 
 impl From<Vec2> for PlanetVec2 {
 	fn from(value: Vec2) -> Self {
-		Self { x: value.x as f64, y: value.y as f64 }
+		Self {
+			x: value.x as f64,
+			y: value.y as f64,
+		}
 	}
 }
 

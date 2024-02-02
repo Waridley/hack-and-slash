@@ -2,7 +2,7 @@ use crate::{
 	nav::heightmap::FnsThatShouldBePub,
 	offloading::{wasm_yield, Offload, OffloadedTask, TaskHandle, TaskOffloader},
 	planet::{
-		chunks::{ChunkCenter, ChunkIndex, CHUNK_COLS, CHUNK_ROWS, CHUNK_SCALE},
+		chunks::{ChunkCenter, ChunkIndex, LoadedChunks, CHUNK_COLS, CHUNK_ROWS, CHUNK_SCALE},
 		terrain::noise::{ChooseAndSmooth, Source, SyncWorley},
 		PlanetVec2,
 	},
@@ -24,7 +24,6 @@ use bevy_rapier3d::{parry::shape::SharedShape, prelude::*};
 use rapier3d::{geometry::HeightField, na::DMatrix};
 use std::{f32::consts::*, sync::Arc};
 use web_time::{Duration, Instant};
-use crate::planet::chunks::LoadedChunks;
 
 pub mod noise;
 
@@ -357,29 +356,31 @@ pub fn spawn_loaded_chunks(
 		let translation = Vec2::from(center.0);
 		if let Some((heights, mesh)) = task.check() {
 			let heights = Arc::new(heights);
-			let id = cmds.spawn((
-				TerrainObject {
-					pbr: PbrBundle {
-						mesh,
-						transform: Transform {
-							translation: Vec3::new(translation.x, translation.y, 0.0),
-							rotation: Quat::from_rotation_x(FRAC_PI_2),
+			let id = cmds
+				.spawn((
+					TerrainObject {
+						pbr: PbrBundle {
+							mesh,
+							transform: Transform {
+								translation: Vec3::new(translation.x, translation.y, 0.0),
+								rotation: Quat::from_rotation_x(FRAC_PI_2),
+								..default()
+							},
+							material: mat.0.clone(),
 							..default()
 						},
-						material: mat.0.clone(),
+						collider: Collider::from(SharedShape(heights.clone())),
 						..default()
 					},
-					collider: Collider::from(SharedShape(heights.clone())),
-					..default()
-				},
-				*index,
-				center,
-				Ground { heights },
-				NoAutomaticBatching,
-			)).id();
-			
+					*index,
+					center,
+					Ground { heights },
+					NoAutomaticBatching,
+				))
+				.id();
+
 			loaded_chunks.insert(*index, id);
-			
+
 			// remove from tasks vec
 			false
 		} else {

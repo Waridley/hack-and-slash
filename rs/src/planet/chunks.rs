@@ -66,7 +66,7 @@ impl LoadedChunks {
 	pub fn closest_to(&self, point: PlanetVec2) -> Option<(ChunkIndex, Entity)> {
 		let maybe_loaded = ChunkIndex::from(point);
 		if let Some(id) = self.get_by_left(&maybe_loaded) {
-			return Some((maybe_loaded, *id))
+			return Some((maybe_loaded, *id));
 		}
 		self.iter()
 			.map(|(index, id)| (*index, *id))

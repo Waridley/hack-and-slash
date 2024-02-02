@@ -1,5 +1,10 @@
 use crate::{
 	anim::{AnimationSet, BlendTargets, ComponentDelta, StartAnimation},
+	planet::{
+		chunks::{ChunkCenter, ChunkIndex, LoadedChunks},
+		frame::Frame,
+		PlanetVec2,
+	},
 	player::{
 		ctrl,
 		ctrl::CtrlVel,
@@ -28,9 +33,6 @@ use particles::{PreviousGlobalTransform, Spewer};
 use rapier3d::pipeline::QueryFilterFlags;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use crate::planet::chunks::{ChunkCenter, ChunkIndex, LoadedChunks};
-use crate::planet::frame::Frame;
-use crate::planet::PlanetVec2;
 
 pub struct AbilitiesPlugin;
 
@@ -125,7 +127,18 @@ pub fn trigger_player_abilities(
 				.iter()
 				.find_map(|(global, owner)| (**owner == player).then_some(*global))
 				.expect(&*format!("Can't find CamPivot for player {player}"));
-			fire_a(&mut cmds, &*audio, &*sfx, cam_pivot, &arm_q, &orb_q, &chunk_q, player, &*frame, &*loaded_chunks)
+			fire_a(
+				&mut cmds,
+				&*audio,
+				&*sfx,
+				cam_pivot,
+				&arm_q,
+				&orb_q,
+				&chunk_q,
+				player,
+				&*frame,
+				&*loaded_chunks,
+			)
 		}
 
 		if state.just_pressed(AoE) && *weap_charge >= aoe_cost {
@@ -360,12 +373,16 @@ pub fn fire_a(
 		let mut elapsed = Duration::ZERO;
 		let dur = Duration::from_millis(64);
 		let start = *xform;
-		let end = (cam_pivot * Transform {
-			translation: Vec3::Y * 128.0,
-			..default()
-		});
+		let end = (cam_pivot
+			* Transform {
+				translation: Vec3::Y * 128.0,
+				..default()
+			});
 		let coords = frame.planet_coords_of(end.translation().xy());
-		let Some((_, chunk_id)) = loaded_chunks.closest_to(coords) else { error!("No chunks are loaded"); return };
+		let Some((_, chunk_id)) = loaded_chunks.closest_to(coords) else {
+			error!("No chunks are loaded");
+			return;
+		};
 		let chunk_global = chunk_q.get(chunk_id).unwrap();
 		let end_rel = end.reparented_to(chunk_global);
 		let mut cmds = cmds.entity(id);
