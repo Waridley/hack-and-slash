@@ -4,7 +4,9 @@ use super::{
 };
 use crate::{planet::sky::SkyShader, player::PlayerId, settings::Settings, NeverDespawn};
 
-use crate::{anim::ComponentDelta, player::prefs::CamSmoothing, util::LerpSlerp};
+use crate::{
+	anim::ComponentDelta, player::prefs::CamSmoothing, util::LerpSlerp,
+};
 use bevy::{
 	core_pipeline::{
 		bloom::BloomSettings, clear_color::ClearColorConfig, fxaa::Fxaa, tonemapping::Tonemapping,
@@ -133,10 +135,6 @@ pub fn spawn_camera<'w, 's, 'a>(
 				},
 				transform: Transform {
 					rotation: Quat::from_rotation_x(FRAC_PI_2),
-					..default()
-				},
-				camera_3d: Camera3d {
-					clear_color: ClearColorConfig::Custom(Color::rgb(0.024, 0.0, 0.036)),
 					..default()
 				},
 				tonemapping: Tonemapping::BlenderFilmic,

@@ -1,4 +1,5 @@
 use crate::{
+	mats::{DistanceDither, StdMatExt},
 	nav::heightmap::FnsThatShouldBePub,
 	offloading::{wasm_yield, Offload, OffloadedTask, TaskHandle, TaskOffloader},
 	planet::{
@@ -54,12 +55,7 @@ pub fn setup(
 	mut chunk_loading_tasks: ResMut<ChunkLoadingTasks>,
 	mut task_offloader: TaskOffloader,
 ) {
-	let material = assets.add(StandardMaterial {
-		base_color: Color::rgb(0.1, 0.1, 0.1),
-		reflectance: 0.3,
-		perceptual_roughness: 0.0,
-		..default()
-	});
+	let material = assets.load("shaders/terrain.mat.ron");
 
 	cmds.insert_resource(TerrainMaterial(material.clone()));
 
@@ -243,7 +239,7 @@ pub fn generate_chunk<'w, 's>(
 #[derive(Resource, Clone)]
 pub struct TerrainTemplate {
 	pub mesh: Handle<Mesh>,
-	pub material: Handle<StandardMaterial>,
+	pub material: Handle<StdMatExt<DistanceDither>>,
 	pub collider: Collider,
 }
 
@@ -257,7 +253,7 @@ impl Spawnable for TerrainObject {
 		transform: Transform,
 	) -> EntityCommands<'w, 's, 'a> {
 		cmds.spawn(TerrainObject {
-			pbr: PbrBundle {
+			pbr: MaterialMeshBundle {
 				mesh: params.mesh.clone(),
 				material: params.material.clone(),
 				transform,
@@ -271,7 +267,7 @@ impl Spawnable for TerrainObject {
 
 #[derive(Bundle)]
 pub struct TerrainObject {
-	pub pbr: PbrBundle,
+	pub pbr: MaterialMeshBundle<StdMatExt<DistanceDither>>,
 	pub rigid_body: RigidBody,
 	pub collider: Collider,
 	pub restitution: Restitution,
@@ -282,7 +278,7 @@ pub struct TerrainObject {
 impl Default for TerrainObject {
 	fn default() -> Self {
 		Self {
-			pbr: PbrBundle::default(),
+			pbr: MaterialMeshBundle::default(),
 			rigid_body: RigidBody::Fixed,
 			collider: Collider::default(),
 			restitution: Restitution::new(0.5),
@@ -315,7 +311,7 @@ impl PlanetHeightSource {
 pub struct ChunkLoadingTasks(HashMap<ChunkIndex, TaskHandle<(HeightField, Handle<Mesh>)>>);
 
 #[derive(Resource, Clone, Debug, Deref, DerefMut)]
-pub struct TerrainMaterial(Handle<StandardMaterial>);
+pub struct TerrainMaterial(Handle<StdMatExt<DistanceDither>>);
 
 pub fn spawn_loaded_chunks(
 	mut cmds: Commands,
@@ -332,7 +328,7 @@ pub fn spawn_loaded_chunks(
 			let id = cmds
 				.spawn((
 					TerrainObject {
-						pbr: PbrBundle {
+						pbr: MaterialMeshBundle {
 							mesh,
 							transform: Transform {
 								translation: Vec3::new(translation.x, translation.y, 0.0),
