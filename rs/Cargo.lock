@@ -4112,6 +4112,7 @@ name = "sond-has"
 version = "0.1.0"
 dependencies = [
  "array-init",
+ "base64 0.21.7",
  "bevy",
  "bevy-inspector-egui",
  "bevy_common_assets",
@@ -4129,6 +4130,7 @@ dependencies = [
  "noise",
  "num-traits",
  "ordered-float",
+ "rand 0.8.5",
  "rapier3d",
  "ron",
  "serde",

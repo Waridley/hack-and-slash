@@ -4,9 +4,7 @@ use super::{
 };
 use crate::{planet::sky::SkyShader, player::PlayerId, settings::Settings, NeverDespawn};
 
-use crate::{
-	anim::ComponentDelta, player::prefs::CamSmoothing, util::LerpSlerp,
-};
+use crate::{anim::ComponentDelta, player::prefs::CamSmoothing, util::LerpSlerp};
 use bevy::{
 	core_pipeline::{
 		bloom::BloomSettings, clear_color::ClearColorConfig, fxaa::Fxaa, tonemapping::Tonemapping,

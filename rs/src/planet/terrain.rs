@@ -8,6 +8,7 @@ use crate::{
 			TERRAIN_CELL_SIZE,
 		},
 		frame::Frame,
+		seeds::PlanetSeed,
 		terrain::noise::{ChooseAndSmooth, Source, SyncWorley},
 		PlanetVec2,
 	},
@@ -58,6 +59,9 @@ pub fn setup(
 	let material = assets.load("shaders/terrain.mat.ron");
 
 	cmds.insert_resource(TerrainMaterial(material.clone()));
+	let seeds = PlanetSeed::default();
+	info!(name: "seed", seed = %seeds);
+	let seeds = seeds.tera;
 
 	// Add is not Clone, so we'll use a closure to get multiple copies
 	let base = || {
@@ -71,20 +75,23 @@ pub fn setup(
 			Fbm::<Perlin>::default()
 				.set_frequency(0.00128)
 				.set_octaves(2)
-				.set_persistence(0.45),
+				.set_persistence(0.45)
+				.set_seed(seeds.base),
 		)
 	};
 
 	let strength_noise = Fbm::<Perlin>::default()
 		.set_frequency(0.00128)
-		.set_octaves(2);
+		.set_octaves(2)
+		.set_seed(seeds.perlin().strength());
 
 	let perlin = Source::new(
 		Add::new(
 			ScaleBias::new(
 				Fbm::<Perlin>::default()
 					.set_frequency(0.0256)
-					.set_persistence(0.45),
+					.set_persistence(0.45)
+					.set_seed(seeds.perlin().heights()),
 			)
 			.set_scale(0.05),
 			base(),
@@ -95,10 +102,15 @@ pub fn setup(
 
 	let worley = Source::new(
 		Add::new(
-			ScaleBias::new(SyncWorley::default().set_frequency(0.05)).set_scale(0.1),
+			ScaleBias::new(
+				SyncWorley::default()
+					.set_frequency(0.05)
+					.set_seed(seeds.worley().heights()),
+			)
+			.set_scale(0.1),
 			base(),
 		),
-		strength_noise.clone().set_seed(1),
+		strength_noise.clone().set_seed(seeds.worley().strength()),
 		// Constant::new(-1.0),
 	);
 
@@ -107,21 +119,27 @@ pub fn setup(
 			ScaleBias::new(
 				Billow::<Perlin>::default()
 					.set_frequency(0.02)
-					.set_octaves(2),
+					.set_octaves(2)
+					.set_seed(seeds.billow().heights()),
 			)
 			.set_scale(0.04),
 			base(),
 		),
-		strength_noise.clone().set_seed(2),
+		strength_noise.clone().set_seed(seeds.billow().strength()),
 		// Constant::new(-1.0),
 	);
 
 	let ridged = Source::new(
 		Add::new(
-			ScaleBias::new(RidgedMulti::<Perlin>::default().set_frequency(0.02)).set_scale(0.07),
+			ScaleBias::new(
+				RidgedMulti::<Perlin>::default()
+					.set_frequency(0.02)
+					.set_seed(seeds.ridged().heights()),
+			)
+			.set_scale(0.07),
 			base(),
 		),
-		strength_noise.clone().set_seed(3),
+		strength_noise.clone().set_seed(seeds.ridged().strength()),
 		// Constant::new(-1.0),
 	);
 
