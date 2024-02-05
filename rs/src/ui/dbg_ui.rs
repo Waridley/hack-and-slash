@@ -1,5 +1,10 @@
 use crate::{
-	planet::day_night::DayNightCycle,
+	planet::{
+		chunks::{ChunkCenter, LoadedChunks},
+		day_night::DayNightCycle,
+		frame::Frame,
+		terrain::Ground,
+	},
 	ui::UiHovered,
 	util::{Average, History},
 };
@@ -52,6 +57,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 				)
 					.after(reset_hovered)
 					.before(crate::player::input::grab_mouse),
+				height_under_player.run_if(dbg_window_toggled(true, KeyCode::H)),
 			),
 		)
 }
@@ -464,4 +470,28 @@ pub fn plot_history_mapped<T, const LINES: usize>(
 				));
 			}
 		})
+}
+
+pub fn height_under_player(
+	mut egui_contexts: Query<&mut EguiContext, With<PrimaryWindow>>,
+	players: Query<&GlobalTransform, enum_components::ERef<crate::player::player_entity::Root>>,
+	chunks: Query<(&ChunkCenter, &Ground)>,
+	frame: Res<Frame>,
+	loaded_chunks: Res<LoadedChunks>,
+) {
+	let mut ctx = egui_contexts.single_mut();
+	let ctx = ctx.get_mut();
+	ctx.style_mut(|style| {
+		style.visuals.window_fill = Color32::from_black_alpha(128);
+	});
+	egui::Window::new("Terrain Height").show(ctx, |ui| {
+		for global in &players {
+			let pos = frame.planet_coords_of(global.translation().xy());
+			ui.label(format!("At: {:.2?}", pos));
+			ui.label(format!(
+				"Height: {:.2?}",
+				loaded_chunks.height_at(pos, &chunks)
+			));
+		}
+	});
 }
