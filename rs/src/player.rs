@@ -206,7 +206,10 @@ pub fn setup(
 		crosshair_mat,
 	});
 
-	spawn_events.send(PlayerSpawnEvent { id, died_at: PlanetVec2::default() });
+	spawn_events.send(PlayerSpawnEvent {
+		id,
+		died_at: PlanetVec2::default(),
+	});
 }
 
 #[derive(Resource, Clone, Debug)]
@@ -238,6 +241,7 @@ pub enum PlayerEntity {
 }
 use crate::{
 	anim::ComponentDelta,
+	planet::{chunks::ChunkFinder, frame::Frame, PlanetVec2},
 	player::{
 		abilities::{BoosterCharge, HurtboxFilter, Sfx, WeaponCharge},
 		tune::PlayerParams,
@@ -245,9 +249,6 @@ use crate::{
 	util::{Diff, Prev, TransformDelta},
 };
 use player_entity::*;
-use crate::planet::chunks::ChunkFinder;
-use crate::planet::frame::Frame;
-use crate::planet::PlanetVec2;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum PlayerArm {
@@ -289,9 +290,9 @@ pub fn spawn_players(
 		let spawn_point = frame.planet_coords_of(Vec2::ZERO);
 		let Some(z) = chunks.height_at(spawn_point) else {
 			to_retry.push(event);
-			continue
+			continue;
 		};
-		
+
 		let PlayerSpawnData {
 			ship_scene,
 			antigrav_pulse_mesh,
@@ -758,9 +759,17 @@ pub fn reset_oob(
 	for (id, owner) in &player_nodes {
 		if to_respawn.remove(&owner) {
 			cmds.entity(id).despawn_recursive();
-			roots.iter().find_map(|(global, id)| (*id == *owner).then(||
-				respawn_timers.start(**id, frame.planet_coords_of(global.translation().xy()), Duration::from_secs(3)).ok()
-			));
+			roots.iter().find_map(|(global, id)| {
+				(*id == *owner).then(|| {
+					respawn_timers
+						.start(
+							**id,
+							frame.planet_coords_of(global.translation().xy()),
+							Duration::from_secs(3),
+						)
+						.ok()
+				})
+			});
 		}
 	}
 }
@@ -836,7 +845,10 @@ pub fn countdown_respawn(
 	for (&id, (died_at, timer)) in timers.iter_mut() {
 		timer.tick(t.delta());
 		if timer.just_finished() {
-			spawn_events.send(PlayerSpawnEvent { id, died_at: *died_at });
+			spawn_events.send(PlayerSpawnEvent {
+				id,
+				died_at: *died_at,
+			});
 		}
 	}
 }
@@ -852,9 +864,17 @@ pub fn kill_on_key(
 	if input.just_pressed(KeyCode::K) {
 		for (id, owner) in &q {
 			cmds.entity(id).despawn_recursive();
-			roots.iter().find_map(|(global, id)| (*id == *owner).then(||
-				respawn_timers.start(**id, frame.planet_coords_of(global.translation().xy()), Duration::from_secs(2)).ok()
-			));
+			roots.iter().find_map(|(global, id)| {
+				(*id == *owner).then(|| {
+					respawn_timers
+						.start(
+							**id,
+							frame.planet_coords_of(global.translation().xy()),
+							Duration::from_secs(2),
+						)
+						.ok()
+				})
+			});
 		}
 	}
 }
@@ -875,7 +895,12 @@ pub fn play_death_sound(
 pub struct PlayerRespawnTimers(HashMap<PlayerId, (PlanetVec2, Timer)>);
 
 impl PlayerRespawnTimers {
-	pub fn start(&mut self, player: PlayerId, death_point: PlanetVec2, duration: Duration) -> Result<(), Duration> {
+	pub fn start(
+		&mut self,
+		player: PlayerId,
+		death_point: PlanetVec2,
+		duration: Duration,
+	) -> Result<(), Duration> {
 		let (_, timer) = self
 			.0
 			.entry(player)
