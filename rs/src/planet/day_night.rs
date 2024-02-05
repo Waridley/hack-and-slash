@@ -1,6 +1,7 @@
 use bevy::{prelude::*, render::extract_resource::ExtractResource};
 #[cfg(feature = "debugging")]
 use bevy_inspector_egui::prelude::*;
+use std::time::Duration;
 
 const SECS_PER_MIN: f64 = 60.0;
 
@@ -29,11 +30,29 @@ pub struct DayNightCycle {
 
 impl Default for DayNightCycle {
 	fn default() -> Self {
+		let time = web_time::SystemTime::now()
+			.duration_since(web_time::UNIX_EPOCH)
+			.unwrap_or_else(|e| {
+				error!("{e}");
+				Duration::ZERO
+			})
+			.as_secs_f64();
+
+		let tod = (time % Self::DEFAULT_DAY_LENGTH) / Self::DEFAULT_DAY_LENGTH;
+		info!(target: "detected_time", time, tod);
+		Self::from_tod(tod)
+	}
+}
+
+impl DayNightCycle {
+	pub const DEFAULT_DAY_LENGTH: f64 = 10.0 * SECS_PER_MIN;
+
+	pub fn from_tod(time_of_day: f64) -> Self {
 		Self {
 			mode: default(),
-			day_length: 10.0 * SECS_PER_MIN,
-			time_of_day: 0.0,
-			daylight: 0.0,
+			day_length: Self::DEFAULT_DAY_LENGTH,
+			time_of_day,
+			daylight: 1.0 - ((time_of_day - 0.5).abs() * 2.0),
 			sun_direction: Vec3::splat(1.0).normalize(),
 			moon_direction: Vec3::splat(-1.0).normalize(),
 		}
