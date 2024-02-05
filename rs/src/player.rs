@@ -245,10 +245,9 @@ use crate::{
 	util::{Diff, Prev, TransformDelta},
 };
 use player_entity::*;
-use crate::planet::chunks::{ChunkCenter, LoadedChunks};
+use crate::planet::chunks::ChunkFinder;
 use crate::planet::frame::Frame;
 use crate::planet::PlanetVec2;
-use crate::planet::terrain::Ground;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum PlayerArm {
@@ -282,14 +281,13 @@ pub fn spawn_players(
 	params: Res<PlayerParams>,
 	mut events: ResMut<Events<PlayerSpawnEvent>>,
 	mut pkv: ResMut<PkvStore>,
-	loaded_chunks: Res<LoadedChunks>,
-	grounds: Query<(&ChunkCenter, &Ground)>,
+	chunks: ChunkFinder,
 	frame: Res<Frame>,
 ) {
 	let mut to_retry = vec![];
 	for event in events.drain() {
 		let spawn_point = frame.planet_coords_of(Vec2::ZERO);
-		let Some(z) = loaded_chunks.height_at(spawn_point, &grounds) else {
+		let Some(z) = chunks.height_at(spawn_point) else {
 			to_retry.push(event);
 			continue
 		};

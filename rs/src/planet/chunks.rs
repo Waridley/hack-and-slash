@@ -1,3 +1,4 @@
+use bevy::ecs::system::SystemParam;
 use super::terrain::Ground;
 use crate::{
 	nav::heightmap::{FnsThatShouldBePub, TriId},
@@ -110,5 +111,38 @@ impl LoadedChunks {
 		let (center, ground) = grounds.get(*self.get_by_left(&chunk)?).ok()?;
 		let rel = point.delta_from(&**center);
 		ground.tri_and_height_at(rel)
+	}
+}
+
+#[derive(SystemParam)]
+pub struct ChunkFinder<'w, 's> {
+	pub loaded_chunks: Res<'w, LoadedChunks>,
+	pub grounds: Query<'w, 's, (&'static ChunkCenter, &'static Ground)>,
+}
+
+impl ChunkFinder<'_, '_> {
+	pub fn closest_to(&self, point: PlanetVec2) -> Option<(ChunkIndex, Entity)> {
+		self.loaded_chunks.closest_to(point)
+	}
+	
+	pub fn tri_at(
+		&self,
+		point: PlanetVec2,
+	) -> Option<(TriId, Triangle)> {
+		self.loaded_chunks.tri_at(point, &self.grounds)
+	}
+	
+	pub fn height_at(
+		&self,
+		point: PlanetVec2,
+	) -> Option<f32> {
+		self.loaded_chunks.height_at(point, &self.grounds)
+	}
+	
+	pub fn tri_and_height_at(
+		&self,
+		point: PlanetVec2,
+	) -> Option<(TriId, f32)> {
+		self.loaded_chunks.tri_and_height_at(point, &self.grounds)
 	}
 }
