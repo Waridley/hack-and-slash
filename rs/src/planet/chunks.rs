@@ -1,5 +1,9 @@
 use super::terrain::Ground;
-use crate::{nav::heightmap::FnsThatShouldBePub, planet::PlanetVec2, util::Diff};
+use crate::{
+	nav::heightmap::{FnsThatShouldBePub, TriId},
+	planet::PlanetVec2,
+	util::Diff,
+};
 use bevy::prelude::*;
 use bevy_rapier3d::{
 	na::{Point3, Vector3},
@@ -77,70 +81,34 @@ impl LoadedChunks {
 			.min_by_key(|(index, id)| index.manhattan_dist(maybe_loaded))
 	}
 
+	pub fn tri_at(
+		&self,
+		point: PlanetVec2,
+		grounds: &Query<(&ChunkCenter, &Ground)>,
+	) -> Option<(TriId, Triangle)> {
+		let chunk = ChunkIndex::from(point);
+		let (center, ground) = grounds.get(*self.get_by_left(&chunk)?).ok()?;
+		let rel = point.delta_from(&**center);
+		ground.tri_at(rel)
+	}
+
 	pub fn height_at(
 		&self,
 		point: PlanetVec2,
 		grounds: &Query<(&ChunkCenter, &Ground)>,
 	) -> Option<f32> {
+		self.tri_and_height_at(point, grounds)
+			.map(|(_, height)| height)
+	}
+
+	pub fn tri_and_height_at(
+		&self,
+		point: PlanetVec2,
+		grounds: &Query<(&ChunkCenter, &Ground)>,
+	) -> Option<(TriId, f32)> {
 		let chunk = ChunkIndex::from(point);
 		let (center, ground) = grounds.get(*self.get_by_left(&chunk)?).ok()?;
 		let rel = point.delta_from(&**center);
-		let rel = Vec2::new(rel.x, -rel.y);
-		let point = Point3::new(rel.x, 0.0, rel.y);
-		let (i, j) = ground.heights.cell_at_point(&point)?;
-		let (left, right) = ground.heights.triangles_at(i, j);
-		
-		// ZIG-ZAG
-		// a -- c  c
-		// | L / / |
-		// |  / /  |
-		// | / / R |
-		// b  a -- b
-		//
-		// NORMAL
-		// a  a -- c
-		// | \ \ R |
-		// |  \ \  |
-		// | L \ \ |
-		// b -- c  b
-		//
-		let tri = match (left, right) {
-			(Some(left), Some(right)) => {
-				let status = ground.heights.cell_status(i, j);
-				let (l, r) = if status.contains(HeightFieldCellStatus::ZIGZAG_SUBDIVISION) {
-					debug_assert!({
-						let p = left.a - right.a;
-						p.x * p.x + p.y * p.y + p.z * p.z
-					} <= f32::EPSILON);
-					(left.a.xy(), right.b.xy())
-				} else {
-					debug_assert!({
-						let p = left.c - right.c;
-						p.x * p.x + p.y * p.y + p.z * p.z
-					} <= f32::EPSILON);
-					(left.b.xy(), right.c.xy())
-				};
-				// Checking the squared distances to the opposing points is at least as cheap as any other solution.
-				let p = point.xy();
-				let dl = l - p.xy();
-				let dr = r - p.xy();
-				let dl = dl.x * dl.x + dl.y * dl.y;
-				let dr = dr.x * dr.x + dr.y * dr.y;
-				if dl < dr {
-					left
-				} else {
-					right
-				}
-			}
-			(None, Some(right)) => right,
-			(Some(left), None) => left,
-			(None, None) => return None,
-		};
-		
-		let da = TERRAIN_CELL_SIZE - (Vec2::from(tri.a.xz()) - rel).length();
-		let db = TERRAIN_CELL_SIZE - (Vec2::from(tri.b.xz()) - rel).length();
-		let dc = TERRAIN_CELL_SIZE - (Vec2::from(tri.c.xz()) - rel).length();
-		let sum = da + db + dc;
-		Some((da / sum) * tri.a.y + (db / sum) * tri.b.y + (dc / sum) * tri.c.y)
+		ground.tri_and_height_at(rel)
 	}
 }
