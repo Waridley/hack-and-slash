@@ -53,8 +53,8 @@ impl From<ChunkIndex> for ChunkCenter {
 impl From<PlanetVec2> for ChunkIndex {
 	fn from(value: PlanetVec2) -> Self {
 		Self::new(
-			((value.x / (CHUNK_COLS as f64 * TERRAIN_CELL_SIZE as f64)) + 0.5) as i32,
-			((value.y / (CHUNK_ROWS as f64 * TERRAIN_CELL_SIZE as f64)) + 0.5) as i32,
+			(value.x / (CHUNK_COLS as f64 * TERRAIN_CELL_SIZE as f64)).round() as i32,
+			(value.y / (CHUNK_ROWS as f64 * TERRAIN_CELL_SIZE as f64)).round() as i32,
 		)
 	}
 }
