@@ -31,7 +31,7 @@ use bevy_rapier3d::{
 use enum_components::{ERef, EntityEnumCommands};
 use std::f32::consts::FRAC_PI_2;
 
-const CAM_SMOOTHING: f32 = 0.33;
+const CAM_SMOOTHING: f32 = 0.25;
 const MAX_CAM_DIST: f32 = 32.0;
 const MIN_CAM_DIST: f32 = 9.6;
 

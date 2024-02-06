@@ -1,4 +1,10 @@
-use crate::{mats::BubbleMaterial, pickups::pickup::PickupItem, player::abilities::Hurt};
+use crate::{
+	mats::BubbleMaterial,
+	pickups::pickup::PickupItem,
+	planet::{chunks::ChunkFinder, frame::Frame},
+	player::abilities::Hurt,
+	util::Diff,
+};
 use bevy::{
 	math::Vec3Swizzles,
 	pbr::ExtendedMaterial,
@@ -10,18 +16,22 @@ use bevy_rapier3d::{
 	prelude::{RigidBody::KinematicPositionBased, Sensor},
 };
 use enum_components::{EntityEnumCommands, EnumComponent};
-use nanorand::Rng;
+use rand::{Rng, SeedableRng};
+use rand_xorshift::XorShiftRng;
 use std::{
 	f32::consts::PI,
 	sync::atomic::{AtomicI64, Ordering::Relaxed},
 	time::Duration,
 };
 
+pub const RADIUS: f32 = 8.0;
+
 pub static HEALTH: AtomicI64 = AtomicI64::new(0);
 pub static SHIELD: AtomicI64 = AtomicI64::new(0);
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_systems(Startup, setup)
+		.insert_resource(PickupRng(XorShiftRng::from_entropy()))
 		.add_systems(Update, (collect, spawn_pickups, movement, miss))
 }
 
@@ -30,7 +40,7 @@ pub struct PopSfx(pub Handle<AudioSource>);
 
 pub fn setup(mut cmds: Commands, mut meshes: ResMut<Assets<Mesh>>, asset_server: Res<AssetServer>) {
 	cmds.insert_resource(SpawnTimer(Timer::new(
-		Duration::from_secs(10),
+		Duration::from_secs(30),
 		TimerMode::Repeating,
 	)));
 
@@ -39,7 +49,7 @@ pub fn setup(mut cmds: Commands, mut meshes: ResMut<Assets<Mesh>>, asset_server:
 
 	let mesh = meshes.add(
 		Icosphere {
-			radius: 8.0,
+			radius: RADIUS,
 			subdivisions: 0,
 		}
 		.try_into()
@@ -64,8 +74,8 @@ pub struct PickupAssets {
 	material: Handle<ExtendedMaterial<StandardMaterial, BubbleMaterial>>,
 }
 
-#[derive(Default, Debug, Clone, Resource, Deref, DerefMut)]
-pub struct PickupRng(nanorand::WyRand);
+#[derive(Debug, Clone, Resource, Deref, DerefMut)]
+pub struct PickupRng(rand_xorshift::XorShiftRng);
 
 #[derive(Resource, Debug, Clone, Deref, DerefMut)]
 pub struct SpawnTimer(Timer);
@@ -73,19 +83,33 @@ pub struct SpawnTimer(Timer);
 pub fn spawn_pickups(
 	mut cmds: Commands,
 	handles: Res<PickupAssets>,
-	mut rng: Local<PickupRng>,
+	mut rng: ResMut<PickupRng>,
 	mut timer: ResMut<SpawnTimer>,
+	chunks: ChunkFinder,
+	frame: Res<Frame>,
 	t: Res<Time>,
 ) {
 	if timer.tick(t.delta()).finished() {
-		let transform = Transform::from_translation(Vec3::new(
-			rng.generate::<f32>() * 2048.0 - 1024.0,
-			rng.generate::<f32>() * 2048.0 - 1024.0,
-			-512.0,
-		));
-		let points = transform.translation.xy().length() * 0.1 + 10.0;
+		let bounds = frame.trigger_bounds;
+		let x = rng.gen_range(-bounds..=bounds);
+		let y = rng.gen_range(-bounds..=bounds);
+		let frame_coords = Vec2::new(x, y);
+		let planet_coords = frame.planet_coords_of(frame_coords);
+		let Some((chunk_entity, _, chunk_center, ground)) = chunks.closest_to(planet_coords) else {
+			return;
+		};
+		let rel = planet_coords.delta_from(&*chunk_center);
+		let Some((_, tri)) = ground.tri_at(Vec2::new(rel.x, -rel.y)) else {
+			return;
+		};
+		// Try to avoid spawning in the middle of a wall.
+		// Still won't avoid spawning skewered by spikes.
+		// Could either do more checks or just have the bubbles grow from 0 scale before moving up.
+		let point = tri.center() - (*tri.normal().unwrap() * RADIUS * 2.0);
+		let transform = Transform::from_translation(Vec3::new(point.x, -point.z, point.y));
+		let points = rng.gen_range(10.0..=100.0);
 
-		info!("{:?}", &transform.translation.xy());
+		info!("{:?}", &transform.translation);
 
 		let mut cmds = cmds.spawn((
 			MaterialMeshBundle {
@@ -98,11 +122,13 @@ pub fn spawn_pickups(
 			Sensor,
 			KinematicPositionBased,
 		));
-		if rng.generate::<bool>() {
+		if rng.gen::<bool>() {
 			cmds.set_enum(pickup::Health(points));
 		} else {
 			cmds.set_enum(pickup::Shield(points));
 		};
+		let id = cmds.id();
+		cmds.commands().entity(chunk_entity).add_child(id);
 	}
 }
 
@@ -141,7 +167,8 @@ pub fn movement(mut q: Query<&mut Transform, Pickup>, t: Res<Time>) {
 	for mut xform in &mut q {
 		let rise_speed = s * (0.9 + ((s * 0.001 + xform.translation.y * 1000.0).sin() * 0.2));
 		xform.translation.z += dt * (8.0 * ((rise_speed + xform.translation.x).sin() + 0.36));
-		if xform.translation.z > 128.0 {
+		// Todo maybe a timer or check the terrain height
+		if xform.translation.z > 4096.0 {
 			xform.translation.z *= 1.003;
 		}
 		xform.rotation = xform.rotation.slerp(
@@ -166,7 +193,8 @@ pub fn miss(
 	_audio: Res<Audio>,
 ) {
 	for (id, xform, pickup) in &q {
-		if xform.translation().z > 512.0 {
+		// Todo maybe a timer or check the terrain height
+		if xform.translation().z > 6192.0 {
 			// audio.play((**miss_sfx).clone()).with_volume(0.1);
 			match pickup {
 				PickupItem::Health(val) => {

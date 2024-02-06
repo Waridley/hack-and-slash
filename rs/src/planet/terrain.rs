@@ -310,9 +310,9 @@ impl Ground {
 	}
 
 	pub fn tri_and_height_at(&self, local_point: Vec2) -> Option<(TriId, f32)> {
+		let (id, tri) = self.tri_at(local_point)?;
 		// HeightField has to be inverted for chunk indices to follow PlanetVec2
 		let rel = Vec2::new(local_point.x, -local_point.y);
-		let (id, tri) = self.tri_at(local_point)?;
 		let da = TERRAIN_CELL_SIZE - (Vec2::from(tri.a.xz()) - rel).length();
 		let db = TERRAIN_CELL_SIZE - (Vec2::from(tri.b.xz()) - rel).length();
 		let dc = TERRAIN_CELL_SIZE - (Vec2::from(tri.c.xz()) - rel).length();
@@ -448,25 +448,36 @@ pub fn spawn_loaded_chunks(
 			let heights = Arc::new(heights);
 			let id = cmds
 				.spawn((
-					TerrainObject {
-						pbr: MaterialMeshBundle {
-							mesh,
-							transform: Transform {
-								translation: Vec3::new(translation.x, translation.y, 0.0),
-								rotation: Quat::from_rotation_x(FRAC_PI_2),
-								..default()
-							},
-							material: mat.0.clone(),
-							..default()
-						},
-						collider: Collider::from(SharedShape(heights.clone())),
-						..default()
-					},
+					TransformBundle::from_transform(Transform::from_translation(Vec3::new(
+						translation.x,
+						translation.y,
+						0.0,
+					))),
+					VisibilityBundle::default(),
 					*index,
 					center,
-					Ground { heights },
-					NoAutomaticBatching,
+					Ground {
+						heights: heights.clone(),
+					},
 				))
+				.with_children(|builder| {
+					builder.spawn((
+						TerrainObject {
+							pbr: MaterialMeshBundle {
+								mesh,
+								transform: Transform {
+									rotation: Quat::from_rotation_x(FRAC_PI_2),
+									..default()
+								},
+								material: mat.0.clone(),
+								..default()
+							},
+							collider: Collider::from(SharedShape(heights)),
+							..default()
+						},
+						NoAutomaticBatching,
+					));
+				})
 				.id();
 
 			loaded_chunks.insert(*index, id);

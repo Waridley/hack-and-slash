@@ -28,7 +28,7 @@ pub struct ChunkBundle {
 	pub ground: Ground,
 }
 
-#[derive(Component, Debug, Default, Deref, DerefMut)]
+#[derive(Component, Debug, Default, Copy, Clone, Deref, DerefMut)]
 pub struct ChunkCenter(pub PlanetVec2);
 
 #[derive(Component, Copy, Clone, Default, Debug, Hash, PartialEq, Eq)]
@@ -85,11 +85,13 @@ impl LoadedChunks {
 		&self,
 		point: PlanetVec2,
 		grounds: &Query<(&ChunkCenter, &Ground)>,
-	) -> Option<(TriId, Triangle)> {
+	) -> Option<(ChunkIndex, ChunkCenter, TriId, Triangle)> {
 		let chunk = ChunkIndex::from(point);
 		let (center, ground) = grounds.get(*self.get_by_left(&chunk)?).ok()?;
 		let rel = point.delta_from(&**center);
-		ground.tri_at(rel)
+		ground
+			.tri_at(rel)
+			.map(|(id, tri)| (chunk, *center, id, tri))
 	}
 
 	pub fn height_at(
@@ -120,11 +122,21 @@ pub struct ChunkFinder<'w, 's> {
 }
 
 impl ChunkFinder<'_, '_> {
-	pub fn closest_to(&self, point: PlanetVec2) -> Option<(ChunkIndex, Entity)> {
-		self.loaded_chunks.closest_to(point)
+	pub fn closest_to(
+		&self,
+		point: PlanetVec2,
+	) -> Option<(Entity, ChunkIndex, ChunkCenter, Ground)> {
+		self.loaded_chunks
+			.closest_to(point)
+			.and_then(|(index, entity)| {
+				self.grounds
+					.get(entity)
+					.map(|(center, ground)| (entity, index, *center, ground.clone()))
+					.ok()
+			})
 	}
 
-	pub fn tri_at(&self, point: PlanetVec2) -> Option<(TriId, Triangle)> {
+	pub fn tri_at(&self, point: PlanetVec2) -> Option<(ChunkIndex, ChunkCenter, TriId, Triangle)> {
 		self.loaded_chunks.tri_at(point, &self.grounds)
 	}
 
