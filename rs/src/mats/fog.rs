@@ -76,18 +76,19 @@ impl Plugin for MatterPlugin {
 #[reflect(Default)]
 #[uuid = "ff77386c-1d31-4afd-b52f-481b0845de0d"]
 pub struct DistanceDither {
+	/// Distance from the camera at which the mesh starts to fade into the background.
 	#[uniform(100)]
-	pub start: f32,
+	pub far_start: f32,
+	/// Distance from the camera at which the mesh is fully discarded.
 	#[uniform(100)]
-	pub end: f32,
+	pub far_end: f32,
 	
-	// Public just to allow `DistanceDither { ..default() }` construction
-	/// Padding to force 16-byte alignment on WASM
+	/// Distance from the camera at which the mesh starts to fade away.
 	#[uniform(100)]
-	pub _pad_12b: u32,
-	/// Padding to force 16-byte alignment on WASM
+	pub near_start: f32,
+	/// Distance from the camera at which the mesh is fully discarded.
 	#[uniform(100)]
-	pub _pad_16b: u32,
+	pub near_end: f32,
 
 	#[serde(skip)]
 	#[texture(101)]
@@ -98,10 +99,10 @@ pub struct DistanceDither {
 impl DistanceDither {
 	pub fn new(start: f32, end: f32, matrix: Handle<Image>) -> Self {
 		Self {
-			start,
-			end,
-			_pad_12b: 0,
-			_pad_16b: 0,
+			far_start: start,
+			far_end: end,
+			near_start: 32.0,
+			near_end: 0.0,
 			matrix
 		}
 	}
@@ -131,8 +132,8 @@ pub fn update_matter_globals(mut materials: ResMut<Assets<Matter>>, fog: Res<Wea
 	}
 
 	for (_, mat) in materials.iter_mut() {
-		mat.extension.start = fog.fog_start;
-		mat.extension.end = fog.fog_end;
+		mat.extension.far_start = fog.fog_start;
+		mat.extension.far_end = fog.fog_end;
 	}
 }
 
@@ -145,7 +146,7 @@ pub fn update_matter_extensions<M: MaterialExtension>(
 	}
 
 	for (_, mat) in materials.iter_mut() {
-		mat.base.extension.start = fog.fog_start;
-		mat.base.extension.end = fog.fog_end;
+		mat.base.extension.far_start = fog.fog_start;
+		mat.base.extension.far_end = fog.fog_end;
 	}
 }

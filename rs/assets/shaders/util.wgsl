@@ -17,10 +17,10 @@
 #endif
 
 struct DistanceDither {
-	start: f32,
-	end: f32,
-	_pad_12b: u32,
-	_pad_16b: u32,
+	far_start: f32,
+	far_end: f32,
+	near_start: f32,
+	near_end: f32,
 };
 
 @group(1) @binding(100)
@@ -36,9 +36,16 @@ fn distance_dither(
 	let world_dist = length(view.world_position.xyz - in.world_position.xyz);
 	let uv = in.position.xy / 16.0;
 	let thresh = textureSample(matrix_texture, matrix_sampler, uv).x;
-	let d = world_dist - material.start;
-	let range = material.end - material.start;
-	if d > thresh * range {
+
+	let d_far = world_dist - material.far_start;
+	let far_range = material.far_end - material.far_start;
+	if d_far > thresh * far_range {
+		discard;
+	}
+
+	let d_near = world_dist - material.near_end;
+	let near_range = material.near_start - material.near_end;
+	if d_near < thresh * near_range {
 		discard;
 	}
 }
