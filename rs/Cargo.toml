@@ -125,7 +125,7 @@ web-time = { workspace = true }
 
 # Debugging
 bevy-inspector-egui = { workspace = true, optional = true }
-egui_plot = {workspace = true, optional = true }
+egui_plot = { workspace = true, optional = true }
 
 # Testing
 colored = { version = "2", optional = true }
@@ -171,3 +171,7 @@ opt-level = 3
 lto = true
 debug = true
 split-debuginfo = "packed"
+
+# Prevents full rebuild just for profiling when enabling and disabling `bevy/trace_tracy`
+[profile.profiling]
+inherits = "desktop-release"
