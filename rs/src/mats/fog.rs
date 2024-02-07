@@ -80,6 +80,14 @@ pub struct DistanceDither {
 	pub start: f32,
 	#[uniform(100)]
 	pub end: f32,
+	
+	// Public just to allow `DistanceDither { ..default() }` construction
+	/// Padding to force 16-byte alignment on WASM
+	#[uniform(100)]
+	pub _pad_12b: u32,
+	/// Padding to force 16-byte alignment on WASM
+	#[uniform(100)]
+	pub _pad_16b: u32,
 
 	#[serde(skip)]
 	#[texture(101)]
@@ -89,7 +97,13 @@ pub struct DistanceDither {
 
 impl DistanceDither {
 	pub fn new(start: f32, end: f32, matrix: Handle<Image>) -> Self {
-		Self { start, end, matrix }
+		Self {
+			start,
+			end,
+			_pad_12b: 0,
+			_pad_16b: 0,
+			matrix
+		}
 	}
 }
 

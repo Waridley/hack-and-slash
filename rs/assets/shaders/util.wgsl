@@ -19,6 +19,8 @@
 struct DistanceDither {
 	start: f32,
 	end: f32,
+	_pad_12b: u32,
+	_pad_16b: u32,
 };
 
 @group(1) @binding(100)
