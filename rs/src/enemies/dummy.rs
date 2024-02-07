@@ -19,7 +19,7 @@ use bevy_rapier3d::{
 	math::Vect,
 	na::Vector3,
 	plugin::RapierContext,
-	prelude::{Collider, RigidBody, TOIStatus, TransformInterpolation},
+	prelude::{Collider, RigidBody, TransformInterpolation},
 };
 use enum_components::{ERef, EntityEnumCommands};
 use rand::Rng;
@@ -51,7 +51,9 @@ fn setup(
 	);
 	let material = materials.add(Color::YELLOW.into());
 	let collider = Collider::capsule(Vect::NEG_Y * 2.0, Vect::Y * 2.0, 2.0);
-	let locked_axes = LockedAxes::ROTATION_LOCKED;
+	let locked_axes = LockedAxes::ROTATION_LOCKED
+		| LockedAxes::TRANSLATION_LOCKED_X
+		| LockedAxes::TRANSLATION_LOCKED_Y;
 	cmds.insert_resource(DummyTemplate {
 		mesh,
 		material,

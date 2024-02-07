@@ -45,7 +45,7 @@ impl Default for DayNightCycle {
 }
 
 impl DayNightCycle {
-	pub const DEFAULT_DAY_LENGTH: f64 = 10.0 * SECS_PER_MIN;
+	pub const DEFAULT_DAY_LENGTH: f64 = 20.0 * SECS_PER_MIN;
 
 	pub fn from_tod(time_of_day: f64) -> Self {
 		Self {

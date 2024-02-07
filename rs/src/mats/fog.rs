@@ -8,7 +8,7 @@ use bevy::{
 	prelude::*,
 	reflect::TypeUuid,
 	render::{
-		extract_resource::{ExtractResource, ExtractResourcePlugin},
+		extract_resource::ExtractResourcePlugin,
 		render_resource::{AsBindGroup, ShaderRef},
 		texture::{
 			ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor, ImageType,
@@ -19,6 +19,12 @@ use serde::{Deserialize, Serialize};
 
 pub type ExtMat<M> = ExtendedMaterial<Matter, M>;
 pub type Matter = ExtendedMaterial<StandardMaterial, DistanceDither>;
+
+/// Function instead of a constant because it uses floating-point math.
+#[inline(always)]
+pub fn max_fog_distance() -> f32 {
+	(CHUNK_SCALE.x.powi(2) + CHUNK_SCALE.y.powi(2)).sqrt() * 1.5
+}
 
 pub struct MatterPlugin;
 
@@ -113,13 +119,30 @@ pub const BAYER_HANDLE: Handle<Image> =
 
 impl Default for DistanceDither {
 	fn default() -> Self {
-		Self::new(CHUNK_SCALE.x, CHUNK_SCALE.x * 2.0, BAYER_HANDLE.clone())
+		Self::new(
+			max_fog_distance() * 0.5,
+			max_fog_distance(),
+			BAYER_HANDLE.clone(),
+		)
 	}
 }
 
 impl MaterialExtension for DistanceDither {
 	fn fragment_shader() -> ShaderRef {
 		"shaders/dist_dither.wgsl".into()
+	}
+}
+
+pub trait IntoMatter {
+	fn into_matter(self) -> Matter;
+}
+
+impl<T: Into<StandardMaterial>> IntoMatter for T {
+	fn into_matter(self) -> Matter {
+		Matter {
+			base: self.into(),
+			extension: default(),
+		}
 	}
 }
 

@@ -1,5 +1,5 @@
 use crate::{
-	mats::fog::{DistanceDither, Matter},
+	mats::fog::Matter,
 	nav::heightmap::{FnsThatShouldBePub, TriId},
 	offloading::{wasm_yield, Offload, OffloadedTask, TaskHandle, TaskOffloader},
 	planet::{
@@ -19,8 +19,7 @@ use crate::{
 	util::{Diff, Factory, Spawnable},
 };
 use ::noise::{
-	Add, Billow, Fbm, HybridMulti, MultiFractal, NoiseFn, Perlin, RidgedMulti, ScaleBias, Seedable,
-	Value,
+	Add, Billow, Fbm, HybridMulti, MultiFractal, Perlin, RidgedMulti, ScaleBias, Seedable, Value,
 };
 use bevy::{
 	ecs::system::{EntityCommands, SystemParamItem},
@@ -39,7 +38,7 @@ use bevy_rapier3d::{
 };
 use enum_components::ERef;
 use rapier3d::{geometry::HeightField, na::DMatrix};
-use std::{f32::consts::*, ops::DerefMut, sync::Arc};
+use std::{f32::consts::*, sync::Arc};
 use web_time::{Duration, Instant};
 
 pub mod noise;
@@ -494,13 +493,13 @@ pub fn spawn_loaded_chunks(
 // Pattern ensures that there are always at least 2 chunks beyond the player in any direction.
 #[rustfmt::skip]
 const NEARBY: [(i32, i32); 37] = [
-	                    (-1, -3), (0, -3), ( 1, -3),
-	          (-2, -2), (-1, -2), (0, -2), ( 1, -2), ( 2, -2),
-	(-3, -1), (-2, -1), (-1, -1), (0, -1), ( 1, -1), ( 2, -1), ( 3, -1),
-	(-3,  0), (-2,  0), (-1,  0), (0,  0), ( 1,  0), ( 2,  0), ( 3,  0),
-	(-3,  1), (-2,  1), (-1,  1), (0,  1), ( 1,  1), ( 2,  1), ( 3,  1),
-	          (-2,  2), (-1,  2), (0,  2), ( 1,  2), ( 2,  2),
-	                    (-1,  3), (0,  3), ( 1,  3),
+	                (-1,-3),( 0,-3),( 1,-3),
+	        (-2,-2),(-1,-2),( 0,-2),( 1,-2),( 2,-2),
+	(-3,-1),(-2,-1),(-1,-1),( 0,-1),( 1,-1),( 2,-1),( 3,-1),
+	(-3, 0),(-2, 0),(-1, 0),( 0, 0),( 1, 0),( 2, 0),( 3, 0),
+	(-3, 1),(-2, 1),(-1, 1),( 0, 1),( 1, 1),( 2, 1),( 3, 1),
+	        (-2, 2),(-1, 2),( 0, 2),( 1, 2),( 2, 2),
+	                (-1, 3),( 0, 3),( 1, 3),
 ];
 
 pub fn load_nearby_chunks(
@@ -575,7 +574,7 @@ pub fn unload_distant_chunks(
 pub struct UnloadDistance(f32);
 
 mod seeds {
-	use crate::planet::{seeds::PlanetSeed, terrain};
+	use crate::planet::seeds::PlanetSeed;
 	use bevy::utils::RandomState;
 	use std::hash::{BuildHasher, Hasher};
 

@@ -1,16 +1,8 @@
 use super::terrain::Ground;
-use crate::{
-	nav::heightmap::{FnsThatShouldBePub, TriId},
-	planet::PlanetVec2,
-	util::Diff,
-};
+use crate::{nav::heightmap::TriId, planet::PlanetVec2, util::Diff};
 use bevy::{ecs::system::SystemParam, prelude::*};
-use bevy_rapier3d::{
-	na::{Point3, Vector3},
-	parry::{query::PointQuery, shape::Triangle},
-};
+use bevy_rapier3d::{na::Vector3, parry::shape::Triangle};
 use bimap::BiMap;
-use rapier3d::prelude::HeightFieldCellStatus;
 
 pub const CHUNK_ROWS: usize = 64;
 pub const CHUNK_COLS: usize = 64;
@@ -78,7 +70,7 @@ impl LoadedChunks {
 		}
 		self.iter()
 			.map(|(index, id)| (*index, *id))
-			.min_by_key(|(index, id)| index.manhattan_dist(maybe_loaded))
+			.min_by_key(|(index, _)| index.manhattan_dist(maybe_loaded))
 	}
 
 	pub fn tri_at(

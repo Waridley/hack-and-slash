@@ -1,4 +1,4 @@
-use crate::{anim, terminal_velocity, NeverDespawn, TerminalVelocity};
+use crate::{terminal_velocity, NeverDespawn, TerminalVelocity};
 
 use crate::{pickups::MissSfx, settings::Settings, util::IntoFnPlugin};
 use bevy::{

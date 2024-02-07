@@ -1,5 +1,5 @@
 use crate::{
-	mats::fog::{update_matter_extensions, MatterPlugin, ExtMat},
+	mats::fog::{update_matter_extensions, ExtMat, MatterPlugin},
 	util::RonReflectAssetLoader,
 };
 use bevy::{

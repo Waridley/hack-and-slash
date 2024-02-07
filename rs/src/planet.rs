@@ -9,10 +9,7 @@ use crate::{
 use bevy::prelude::*;
 use bevy_rapier3d::na::{Vector2, Vector3};
 use serde::{Deserialize, Serialize};
-use std::{
-	any::Any,
-	ops::{Add, Deref, DerefMut, Sub},
-};
+use std::ops::{Add, Deref, DerefMut, Sub};
 
 pub mod chunks;
 pub mod day_night;
@@ -236,15 +233,12 @@ impl Sub<Vec2> for PlanetVec2 {
 
 pub mod seeds {
 	use base64::{engine::general_purpose::URL_SAFE, prelude::*, DecodeSliceError};
-	use bevy::{
-		prelude::Resource,
-		utils::{AHasher, RandomState},
-	};
+	use bevy::{prelude::Resource, utils::RandomState};
 	use rand::{distributions::Standard, prelude::Distribution, Rng};
 	use std::{
 		borrow::Cow,
 		fmt::{Display, Formatter},
-		hash::{BuildHasher, Hash, Hasher},
+		hash::{BuildHasher, Hasher},
 	};
 
 	#[derive(Resource, Debug, Clone)]

@@ -1,9 +1,8 @@
 use crate::{
 	anim::{AnimationSet, BlendTargets, ComponentDelta, StartAnimation},
 	planet::{
-		chunks::{ChunkCenter, ChunkIndex, LoadedChunks},
+		chunks::{ChunkIndex, LoadedChunks},
 		frame::Frame,
-		PlanetVec2,
 	},
 	player::{
 		ctrl,
@@ -373,11 +372,11 @@ pub fn fire_a(
 		let mut elapsed = Duration::ZERO;
 		let dur = Duration::from_millis(64);
 		let start = *xform;
-		let end = (cam_pivot
+		let end = cam_pivot
 			* Transform {
 				translation: Vec3::Y * 128.0,
 				..default()
-			});
+			};
 		let coords = frame.planet_coords_of(end.translation().xy());
 		let Some((_, chunk_id)) = loaded_chunks.closest_to(coords) else {
 			error!("No chunks are loaded");

@@ -6,10 +6,7 @@ use crate::{planet::sky::SkyShader, player::PlayerId, settings::Settings, NeverD
 
 use crate::{anim::ComponentDelta, player::prefs::CamSmoothing, util::LerpSlerp};
 use bevy::{
-	core_pipeline::{
-		bloom::BloomSettings, clear_color::ClearColorConfig, fxaa::Fxaa, tonemapping::Tonemapping,
-		Skybox,
-	},
+	core_pipeline::{bloom::BloomSettings, fxaa::Fxaa, tonemapping::Tonemapping, Skybox},
 	ecs::system::{EntityCommands, Res},
 	prelude::*,
 	render::{
@@ -31,7 +28,6 @@ use bevy_rapier3d::{
 use enum_components::{ERef, EntityEnumCommands};
 use std::f32::consts::FRAC_PI_2;
 
-const CAM_SMOOTHING: f32 = 0.25;
 const MAX_CAM_DIST: f32 = 32.0;
 const MIN_CAM_DIST: f32 = 9.6;
 
@@ -260,7 +256,7 @@ pub fn follow_target(
 	mut sender: EventWriter<ComponentDelta<Transform>>,
 ) {
 	let dt = t.delta_seconds();
-	for (id, mut cam_xform, target_xform, owner) in &mut cam_q {
+	for (id, cam_xform, target_xform, owner) in &mut cam_q {
 		let Some(smoothing) = player_q
 			.iter()
 			.find_map(|(smoothing, id)| (*id == *owner).then_some(*smoothing))
