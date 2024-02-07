@@ -1,5 +1,5 @@
 use crate::{
-	mats::{DistanceDither, StdMatExt},
+	mats::fog::{DistanceDither, Matter},
 	nav::heightmap::{FnsThatShouldBePub, TriId},
 	offloading::{wasm_yield, Offload, OffloadedTask, TaskHandle, TaskOffloader},
 	planet::{
@@ -183,7 +183,7 @@ pub fn generate_chunk<'w, 's>(
 #[derive(Resource, Clone)]
 pub struct TerrainTemplate {
 	pub mesh: Handle<Mesh>,
-	pub material: Handle<StdMatExt<DistanceDither>>,
+	pub material: Handle<Matter>,
 	pub collider: Collider,
 }
 
@@ -211,7 +211,7 @@ impl Spawnable for TerrainObject {
 
 #[derive(Bundle)]
 pub struct TerrainObject {
-	pub pbr: MaterialMeshBundle<StdMatExt<DistanceDither>>,
+	pub pbr: MaterialMeshBundle<Matter>,
 	pub rigid_body: RigidBody,
 	pub collider: Collider,
 	pub restitution: Restitution,
@@ -432,7 +432,7 @@ impl PlanetHeightSource {
 pub struct ChunkLoadingTasks(HashMap<ChunkIndex, TaskHandle<(HeightField, Handle<Mesh>)>>);
 
 #[derive(Resource, Clone, Debug, Deref, DerefMut)]
-pub struct TerrainMaterial(Handle<StdMatExt<DistanceDither>>);
+pub struct TerrainMaterial(Handle<Matter>);
 
 pub fn spawn_loaded_chunks(
 	mut cmds: Commands,

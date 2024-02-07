@@ -10,19 +10,22 @@
     forward_io::FragmentOutput,
 }
 
+#import sond_has::util::distance_dither;
+
 struct BubbleMaterial {
 	color: vec4<f32>,
 };
 
-@group(1) @binding(100)
+@group(1) @binding(200)
 var<uniform> material: BubbleMaterial;
-
 
 @fragment
 fn fragment(
 	in: VertexOutput,
 	@builtin(front_facing) is_front: bool,
 ) -> FragmentOutput {
+	distance_dither(in);
+
 	var pbr_in = pbr_input_from_standard_material(in, is_front);
 
 	var N = normalize(in.world_normal);

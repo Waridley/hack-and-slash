@@ -1,5 +1,5 @@
 use crate::{
-	mats::BubbleMaterial,
+	mats::{fog::ExtMat, BubbleMaterial},
 	pickups::pickup::PickupItem,
 	planet::{chunks::ChunkFinder, frame::Frame},
 	player::abilities::Hurt,
@@ -71,11 +71,11 @@ pub enum Pickup {
 #[derive(Debug, Clone, Resource, Reflect)]
 pub struct PickupAssets {
 	mesh: Handle<Mesh>,
-	material: Handle<ExtendedMaterial<StandardMaterial, BubbleMaterial>>,
+	material: Handle<ExtMat<BubbleMaterial>>,
 }
 
 #[derive(Debug, Clone, Resource, Deref, DerefMut)]
-pub struct PickupRng(rand_xorshift::XorShiftRng);
+pub struct PickupRng(XorShiftRng);
 
 #[derive(Resource, Debug, Clone, Deref, DerefMut)]
 pub struct SpawnTimer(Timer);
@@ -90,9 +90,9 @@ pub fn spawn_pickups(
 	t: Res<Time>,
 ) {
 	if timer.tick(t.delta()).finished() {
-		let bounds = frame.trigger_bounds;
-		let x = rng.gen_range(-bounds..=bounds);
-		let y = rng.gen_range(-bounds..=bounds);
+		let bounds = crate::planet::chunks::CHUNK_SCALE.xz();
+		let x = rng.gen_range(-bounds.x..=bounds.x);
+		let y = rng.gen_range(-bounds.y..=bounds.y);
 		let frame_coords = Vec2::new(x, y);
 		let planet_coords = frame.planet_coords_of(frame_coords);
 		let Some((chunk_entity, _, chunk_center, ground)) = chunks.closest_to(planet_coords) else {

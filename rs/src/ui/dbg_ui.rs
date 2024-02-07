@@ -4,6 +4,7 @@ use crate::{
 		day_night::DayNightCycle,
 		frame::Frame,
 		terrain::Ground,
+		weather::Weather,
 	},
 	ui::UiHovered,
 	util::{Average, History},
@@ -49,7 +50,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 						.after(update_fps)
 						.before(dbg_fps),
 					dbg_fps.run_if(dbg_window_toggled(true, KeyCode::T)),
-					dbg_res::<DayNightCycle>
+					(dbg_res::<DayNightCycle>, dbg_res::<Weather>)
 						.run_if(dbg_window_toggled(true, KeyCode::N))
 						.after(dbg_fps),
 					dbg_proxy::<RapierConfiguration, RapierCfgProxy>
