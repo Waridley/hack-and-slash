@@ -1,6 +1,10 @@
 use super::enemy::Dummy;
 use crate::{
 	anim::{ComponentDelta, StartAnimation},
+	planet::{
+		chunks::{ChunkFinder, TERRAIN_CELL_SIZE},
+		frame::Frame,
+	},
 	player::abilities::{Hurt, Sfx},
 	util::{consume_spawn_events, Spawnable},
 	Alive,
@@ -18,6 +22,7 @@ use bevy_rapier3d::{
 	prelude::{Collider, RigidBody, TOIStatus, TransformInterpolation},
 };
 use enum_components::{ERef, EntityEnumCommands};
+use rand::Rng;
 use std::{f32::consts::FRAC_PI_2, time::Duration};
 
 pub fn plugin(app: &mut App) -> &mut App {
@@ -112,12 +117,23 @@ pub struct NewDummy {
 pub fn spawn_new_dummies(
 	mut events: EventWriter<NewDummy>,
 	mut timer: ResMut<DummySpawnTimer>,
+	frame: Res<Frame>,
+	chunks: ChunkFinder,
 	t: Res<Time>,
 ) {
 	timer.tick(t.delta());
 	if timer.just_finished() {
+		let bounds = frame.trigger_bounds - TERRAIN_CELL_SIZE;
+		let mut rng = rand::thread_rng();
+		let x = rng.gen_range(-bounds..=bounds);
+		let y = rng.gen_range(-bounds..=bounds);
+		let Some(z) = chunks.height_at(frame.planet_coords_of(Vec2::new(x, y))) else {
+			return;
+		};
+
 		events.send(NewDummy {
 			transform: Transform {
+				translation: Vec3::new(x, y, z + 8.0),
 				rotation: Quat::from_rotation_x(FRAC_PI_2),
 				..default()
 			},

@@ -206,7 +206,10 @@ pub fn setup(
 		crosshair_mat,
 	});
 
-	spawn_events.send(PlayerSpawnEvent { id });
+	spawn_events.send(PlayerSpawnEvent {
+		id,
+		died_at: PlanetVec2::default(),
+	});
 }
 
 #[derive(Resource, Clone, Debug)]
@@ -238,6 +241,7 @@ pub enum PlayerEntity {
 }
 use crate::{
 	anim::ComponentDelta,
+	planet::{chunks::ChunkFinder, frame::Frame, PlanetVec2},
 	player::{
 		abilities::{BoosterCharge, HurtboxFilter, Sfx, WeaponCharge},
 		tune::PlayerParams,
@@ -278,8 +282,17 @@ pub fn spawn_players(
 	params: Res<PlayerParams>,
 	mut events: ResMut<Events<PlayerSpawnEvent>>,
 	mut pkv: ResMut<PkvStore>,
+	chunks: ChunkFinder,
+	frame: Res<Frame>,
 ) {
+	let mut to_retry = vec![];
 	for event in events.drain() {
+		let spawn_point = frame.planet_coords_of(Vec2::ZERO);
+		let Some(z) = chunks.height_at(spawn_point) else {
+			to_retry.push(event);
+			continue;
+		};
+
 		let PlayerSpawnData {
 			ship_scene,
 			antigrav_pulse_mesh,
@@ -339,7 +352,7 @@ pub fn spawn_players(
 				}),
 				KinematicPositionBased,
 				TransformBundle::from_transform(Transform {
-					translation: Vec3::Z * 4096.0,
+					translation: Vec3::new(0.0, 0.0, z + 2048.0),
 					..default()
 				}),
 				Velocity::default(),
@@ -380,6 +393,9 @@ pub fn spawn_players(
 			(crosshair_mesh, crosshair_mat),
 			prefs,
 		);
+	}
+	for event in to_retry.drain(..) {
+		events.send(event);
 	}
 }
 
@@ -724,9 +740,11 @@ fn player_arms(
 pub fn reset_oob(
 	mut cmds: Commands,
 	q: Query<(&GlobalTransform, &BelongsToPlayer)>,
+	roots: Query<(&GlobalTransform, &BelongsToPlayer), ERef<Root>>,
 	player_nodes: Query<(Entity, &BelongsToPlayer), (Without<NeverDespawn>, Without<Parent>)>,
 	bounds: Res<PlayerBounds>,
 	mut respawn_timers: ResMut<PlayerRespawnTimers>,
+	frame: Res<Frame>,
 ) {
 	let mut to_respawn = HashSet::new();
 	for (xform, owner) in &q {
@@ -741,7 +759,17 @@ pub fn reset_oob(
 	for (id, owner) in &player_nodes {
 		if to_respawn.remove(&owner) {
 			cmds.entity(id).despawn_recursive();
-			respawn_timers.start(**owner, Duration::from_secs(3)).ok();
+			roots.iter().find_map(|(global, id)| {
+				(*id == *owner).then(|| {
+					respawn_timers
+						.start(
+							**id,
+							frame.planet_coords_of(global.translation().xy()),
+							Duration::from_secs(3),
+						)
+						.ok()
+				})
+			});
 		}
 	}
 }
@@ -806,6 +834,7 @@ pub fn orbs_follow_arms(
 #[derive(Event, Clone, Debug)]
 pub struct PlayerSpawnEvent {
 	id: PlayerId,
+	died_at: PlanetVec2,
 }
 
 pub fn countdown_respawn(
@@ -813,10 +842,13 @@ pub fn countdown_respawn(
 	mut timers: ResMut<PlayerRespawnTimers>,
 	t: Res<Time>,
 ) {
-	for (&id, timer) in timers.iter_mut() {
+	for (&id, (died_at, timer)) in timers.iter_mut() {
 		timer.tick(t.delta());
 		if timer.just_finished() {
-			spawn_events.send(PlayerSpawnEvent { id });
+			spawn_events.send(PlayerSpawnEvent {
+				id,
+				died_at: *died_at,
+			});
 		}
 	}
 }
@@ -824,13 +856,25 @@ pub fn countdown_respawn(
 pub fn kill_on_key(
 	mut cmds: Commands,
 	q: Query<(Entity, &BelongsToPlayer), (Without<NeverDespawn>, Without<Parent>)>,
+	roots: Query<(&GlobalTransform, &BelongsToPlayer), ERef<Root>>,
 	input: Res<Input<KeyCode>>,
 	mut respawn_timers: ResMut<PlayerRespawnTimers>,
+	frame: Res<Frame>,
 ) {
 	if input.just_pressed(KeyCode::K) {
 		for (id, owner) in &q {
 			cmds.entity(id).despawn_recursive();
-			respawn_timers.start(**owner, Duration::from_secs(2)).ok();
+			roots.iter().find_map(|(global, id)| {
+				(*id == *owner).then(|| {
+					respawn_timers
+						.start(
+							**id,
+							frame.planet_coords_of(global.translation().xy()),
+							Duration::from_secs(2),
+						)
+						.ok()
+				})
+			});
 		}
 	}
 }
@@ -840,7 +884,7 @@ pub fn play_death_sound(
 	audio: Res<Audio>,
 	respawn_timers: Res<PlayerRespawnTimers>,
 ) {
-	for timer in respawn_timers.values() {
+	for (_, timer) in respawn_timers.values() {
 		if timer.elapsed() == Duration::ZERO {
 			audio.play(sound.0.clone()).with_volume(0.4);
 		}
@@ -848,14 +892,19 @@ pub fn play_death_sound(
 }
 
 #[derive(Resource, Debug, Default, Deref, DerefMut)]
-pub struct PlayerRespawnTimers(HashMap<PlayerId, Timer>);
+pub struct PlayerRespawnTimers(HashMap<PlayerId, (PlanetVec2, Timer)>);
 
 impl PlayerRespawnTimers {
-	pub fn start(&mut self, player: PlayerId, duration: Duration) -> Result<(), Duration> {
-		let timer = self
+	pub fn start(
+		&mut self,
+		player: PlayerId,
+		death_point: PlanetVec2,
+		duration: Duration,
+	) -> Result<(), Duration> {
+		let (_, timer) = self
 			.0
 			.entry(player)
-			.or_insert_with(|| Timer::new(duration, TimerMode::Once));
+			.or_insert_with(|| (death_point, Timer::new(duration, TimerMode::Once)));
 		if timer.finished() {
 			timer.set_duration(duration);
 			timer.reset();

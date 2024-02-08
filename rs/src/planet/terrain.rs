@@ -1,6 +1,6 @@
 use crate::{
 	mats::{DistanceDither, StdMatExt},
-	nav::heightmap::FnsThatShouldBePub,
+	nav::heightmap::{FnsThatShouldBePub, TriId},
 	offloading::{wasm_yield, Offload, OffloadedTask, TaskHandle, TaskOffloader},
 	planet::{
 		chunks::{
@@ -31,7 +31,12 @@ use bevy::{
 	},
 	utils::HashMap,
 };
-use bevy_rapier3d::{parry::shape::SharedShape, prelude::*};
+use bevy_rapier3d::{
+	geometry::shape_views::HeightFieldCellStatus,
+	na::Point3,
+	parry::shape::{SharedShape, Triangle},
+	prelude::*,
+};
 use enum_components::ERef;
 use rapier3d::{geometry::HeightField, na::DMatrix};
 use std::{f32::consts::*, ops::DerefMut, sync::Arc};
@@ -232,6 +237,91 @@ pub struct Ground {
 	pub heights: Arc<HeightField>,
 }
 
+impl Ground {
+	pub fn new(heights: impl Into<Arc<HeightField>>) -> Self {
+		Self {
+			heights: heights.into(),
+		}
+	}
+
+	pub fn tri_at(&self, local_point: Vec2) -> Option<(TriId, Triangle)> {
+		// HeightField has to be inverted for chunk indices to follow PlanetVec2
+		let rel = Vec2::new(local_point.x, -local_point.y);
+		let point = Point3::new(rel.x, 0.0, rel.y);
+		let (i, j) = self.heights.cell_at_point(&point)?;
+		let (left, right) = self.heights.triangles_at(i, j);
+
+		// ZIG-ZAG
+		// a -- c  c
+		// | L / / |
+		// |  / /  |
+		// | / / R |
+		// b  a -- b
+		//
+		// NORMAL
+		// a  a -- c
+		// | \ \ R |
+		// |  \ \  |
+		// | L \ \ |
+		// b -- c  b
+		//
+		let tri = match (left, right) {
+			(Some(left), Some(right)) => {
+				let status = self.heights.cell_status(i, j);
+				let (l, r) = if status.contains(HeightFieldCellStatus::ZIGZAG_SUBDIVISION) {
+					debug_assert!(
+						{
+							let p = left.a - right.a;
+							p.x * p.x + p.y * p.y + p.z * p.z
+						} <= f32::EPSILON
+					);
+					(left.a.xy(), right.b.xy())
+				} else {
+					debug_assert!(
+						{
+							let p = left.c - right.c;
+							p.x * p.x + p.y * p.y + p.z * p.z
+						} <= f32::EPSILON
+					);
+					(left.b.xy(), right.c.xy())
+				};
+				// Checking the squared distances to the opposing points is at least as cheap as any other solution.
+				let p = point.xy();
+				let dl = l - p.xy();
+				let dr = r - p.xy();
+				let dl = dl.x * dl.x + dl.y * dl.y;
+				let dr = dr.x * dr.x + dr.y * dr.y;
+				if dl < dr {
+					(self.heights.triangle_id(i, j, true), left)
+				} else {
+					(self.heights.triangle_id(i, j, false), right)
+				}
+			}
+			(Some(left), None) => (self.heights.triangle_id(i, j, true), left),
+			(None, Some(right)) => (self.heights.triangle_id(i, j, false), right),
+			(None, None) => return None,
+		};
+		Some(tri)
+	}
+
+	pub fn height_at(&self, local_point: Vec2) -> Option<f32> {
+		self.tri_and_height_at(local_point)
+			.map(|(_, height)| height)
+	}
+
+	pub fn tri_and_height_at(&self, local_point: Vec2) -> Option<(TriId, f32)> {
+		let (id, tri) = self.tri_at(local_point)?;
+		// HeightField has to be inverted for chunk indices to follow PlanetVec2
+		let rel = Vec2::new(local_point.x, -local_point.y);
+		let da = TERRAIN_CELL_SIZE - (Vec2::from(tri.a.xz()) - rel).length();
+		let db = TERRAIN_CELL_SIZE - (Vec2::from(tri.b.xz()) - rel).length();
+		let dc = TERRAIN_CELL_SIZE - (Vec2::from(tri.c.xz()) - rel).length();
+		let sum = da + db + dc;
+		let height = (da / sum) * tri.a.y + (db / sum) * tri.b.y + (dc / sum) * tri.c.y;
+		Some((id, height))
+	}
+}
+
 #[derive(Resource, Deref, Clone)]
 pub struct PlanetHeightSource {
 	#[deref]
@@ -358,25 +448,36 @@ pub fn spawn_loaded_chunks(
 			let heights = Arc::new(heights);
 			let id = cmds
 				.spawn((
-					TerrainObject {
-						pbr: MaterialMeshBundle {
-							mesh,
-							transform: Transform {
-								translation: Vec3::new(translation.x, translation.y, 0.0),
-								rotation: Quat::from_rotation_x(FRAC_PI_2),
-								..default()
-							},
-							material: mat.0.clone(),
-							..default()
-						},
-						collider: Collider::from(SharedShape(heights.clone())),
-						..default()
-					},
+					TransformBundle::from_transform(Transform::from_translation(Vec3::new(
+						translation.x,
+						translation.y,
+						0.0,
+					))),
+					VisibilityBundle::default(),
 					*index,
 					center,
-					Ground { heights },
-					NoAutomaticBatching,
+					Ground {
+						heights: heights.clone(),
+					},
 				))
+				.with_children(|builder| {
+					builder.spawn((
+						TerrainObject {
+							pbr: MaterialMeshBundle {
+								mesh,
+								transform: Transform {
+									rotation: Quat::from_rotation_x(FRAC_PI_2),
+									..default()
+								},
+								material: mat.0.clone(),
+								..default()
+							},
+							collider: Collider::from(SharedShape(heights)),
+							..default()
+						},
+						NoAutomaticBatching,
+					));
+				})
 				.id();
 
 			loaded_chunks.insert(*index, id);

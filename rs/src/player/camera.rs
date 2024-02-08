@@ -31,7 +31,7 @@ use bevy_rapier3d::{
 use enum_components::{ERef, EntityEnumCommands};
 use std::f32::consts::FRAC_PI_2;
 
-const CAM_SMOOTHING: f32 = 0.33;
+const CAM_SMOOTHING: f32 = 0.25;
 const MAX_CAM_DIST: f32 = 32.0;
 const MIN_CAM_DIST: f32 = 9.6;
 
@@ -110,7 +110,8 @@ pub fn spawn_camera<'w, 's, 'a>(
 
 	let mut cmds = cmds.spawn((
 		BelongsToPlayer::with_id(player_id),
-		TransformBundle::default(),
+		// Start the camera above the player in the fog, then zoom down
+		TransformBundle::from_transform(Transform::from_translation(Vec3::Z * 4096.0)),
 		Collider::ball(2.0),
 		CollisionGroups::new(Group::empty(), Group::empty()),
 		CamTarget::default(),
@@ -166,7 +167,7 @@ pub fn spawn_pivot<'w, 's, 'a>(
 	let mut cmds = cmds
 		.spawn((
 			owner,
-			CameraVertSlider::default(),
+			CameraVertSlider(0.125),
 			TransformBundle::from_transform(Transform {
 				translation: Vect::new(0.0, 0.0, MIN_CAM_DIST),
 				..default()

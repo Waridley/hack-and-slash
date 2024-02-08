@@ -1,8 +1,16 @@
 use super::terrain::Ground;
-use crate::planet::PlanetVec2;
-use bevy::prelude::*;
-use bevy_rapier3d::na::Vector3;
+use crate::{
+	nav::heightmap::{FnsThatShouldBePub, TriId},
+	planet::PlanetVec2,
+	util::Diff,
+};
+use bevy::{ecs::system::SystemParam, prelude::*};
+use bevy_rapier3d::{
+	na::{Point3, Vector3},
+	parry::{query::PointQuery, shape::Triangle},
+};
 use bimap::BiMap;
+use rapier3d::prelude::HeightFieldCellStatus;
 
 pub const CHUNK_ROWS: usize = 64;
 pub const CHUNK_COLS: usize = 64;
@@ -20,7 +28,7 @@ pub struct ChunkBundle {
 	pub ground: Ground,
 }
 
-#[derive(Component, Debug, Default, Deref, DerefMut)]
+#[derive(Component, Debug, Default, Copy, Clone, Deref, DerefMut)]
 pub struct ChunkCenter(pub PlanetVec2);
 
 #[derive(Component, Copy, Clone, Default, Debug, Hash, PartialEq, Eq)]
@@ -71,5 +79,72 @@ impl LoadedChunks {
 		self.iter()
 			.map(|(index, id)| (*index, *id))
 			.min_by_key(|(index, id)| index.manhattan_dist(maybe_loaded))
+	}
+
+	pub fn tri_at(
+		&self,
+		point: PlanetVec2,
+		grounds: &Query<(&ChunkCenter, &Ground)>,
+	) -> Option<(ChunkIndex, ChunkCenter, TriId, Triangle)> {
+		let chunk = ChunkIndex::from(point);
+		let (center, ground) = grounds.get(*self.get_by_left(&chunk)?).ok()?;
+		let rel = point.delta_from(&**center);
+		ground
+			.tri_at(rel)
+			.map(|(id, tri)| (chunk, *center, id, tri))
+	}
+
+	pub fn height_at(
+		&self,
+		point: PlanetVec2,
+		grounds: &Query<(&ChunkCenter, &Ground)>,
+	) -> Option<f32> {
+		self.tri_and_height_at(point, grounds)
+			.map(|(_, height)| height)
+	}
+
+	pub fn tri_and_height_at(
+		&self,
+		point: PlanetVec2,
+		grounds: &Query<(&ChunkCenter, &Ground)>,
+	) -> Option<(TriId, f32)> {
+		let chunk = ChunkIndex::from(point);
+		let (center, ground) = grounds.get(*self.get_by_left(&chunk)?).ok()?;
+		let rel = point.delta_from(&**center);
+		ground.tri_and_height_at(rel)
+	}
+}
+
+#[derive(SystemParam)]
+pub struct ChunkFinder<'w, 's> {
+	pub loaded_chunks: Res<'w, LoadedChunks>,
+	pub grounds: Query<'w, 's, (&'static ChunkCenter, &'static Ground)>,
+}
+
+impl ChunkFinder<'_, '_> {
+	pub fn closest_to(
+		&self,
+		point: PlanetVec2,
+	) -> Option<(Entity, ChunkIndex, ChunkCenter, Ground)> {
+		self.loaded_chunks
+			.closest_to(point)
+			.and_then(|(index, entity)| {
+				self.grounds
+					.get(entity)
+					.map(|(center, ground)| (entity, index, *center, ground.clone()))
+					.ok()
+			})
+	}
+
+	pub fn tri_at(&self, point: PlanetVec2) -> Option<(ChunkIndex, ChunkCenter, TriId, Triangle)> {
+		self.loaded_chunks.tri_at(point, &self.grounds)
+	}
+
+	pub fn height_at(&self, point: PlanetVec2) -> Option<f32> {
+		self.loaded_chunks.height_at(point, &self.grounds)
+	}
+
+	pub fn tri_and_height_at(&self, point: PlanetVec2) -> Option<(TriId, f32)> {
+		self.loaded_chunks.tri_and_height_at(point, &self.grounds)
 	}
 }

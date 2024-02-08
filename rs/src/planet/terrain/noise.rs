@@ -67,6 +67,7 @@ impl<const N: usize> ChooseAndSmooth<N> {
 			for y in 0..rows {
 				let point = [
 					center.x + (x as f64 * stretch.x) - (columns as f64 * 0.5),
+					// HeightField has to be inverted for chunk indices to follow PlanetVec2
 					center.y + (-(y as f64) * stretch.y) + (rows as f64 * 0.5),
 				];
 				let mut value_caches = [None; N];
