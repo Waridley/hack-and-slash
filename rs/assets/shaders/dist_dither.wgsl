@@ -36,7 +36,7 @@ fn fragment(
 	let world_dist = length(view.world_position.xyz - in.world_position.xyz);
 	let uv = in.position.xy / 16.0;
 	let thresh = textureSample(matrix_texture, matrix_sampler, uv).x;
-	let d = max(0.0, world_dist - material.start);
+	let d = world_dist - material.start;
 	let range = material.end - material.start;
 	if d > thresh * range {
 		discard;

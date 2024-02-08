@@ -8,7 +8,11 @@ use crate::{
 			TERRAIN_CELL_SIZE,
 		},
 		frame::Frame,
-		terrain::noise::{ChooseAndSmooth, Source, SyncWorley},
+		seeds::PlanetSeed,
+		terrain::{
+			noise::{ChooseAndSmooth, Source, SyncWorley},
+			seeds::TerrainSeeds,
+		},
 		PlanetVec2,
 	},
 	player::player_entity::Root,
@@ -58,76 +62,10 @@ pub fn setup(
 	let material = assets.load("shaders/terrain.mat.ron");
 
 	cmds.insert_resource(TerrainMaterial(material.clone()));
+	let seed = rand::random::<PlanetSeed>();
+	info!(name: "seed", seed = %seed);
 
-	// Add is not Clone, so we'll use a closure to get multiple copies
-	let base = || {
-		Add::new(
-			ScaleBias::new(
-				HybridMulti::<Value>::default()
-					.set_frequency(0.00032)
-					.set_persistence(0.5),
-			)
-			.set_scale(2.0),
-			Fbm::<Perlin>::default()
-				.set_frequency(0.00128)
-				.set_octaves(2)
-				.set_persistence(0.45),
-		)
-	};
-
-	let strength_noise = Fbm::<Perlin>::default()
-		.set_frequency(0.00128)
-		.set_octaves(2);
-
-	let perlin = Source::new(
-		Add::new(
-			ScaleBias::new(
-				Fbm::<Perlin>::default()
-					.set_frequency(0.0256)
-					.set_persistence(0.45),
-			)
-			.set_scale(0.05),
-			base(),
-		),
-		strength_noise.clone(),
-		// Constant::new(-1.0),
-	);
-
-	let worley = Source::new(
-		Add::new(
-			ScaleBias::new(SyncWorley::default().set_frequency(0.05)).set_scale(0.1),
-			base(),
-		),
-		strength_noise.clone().set_seed(1),
-		// Constant::new(-1.0),
-	);
-
-	let billow = Source::new(
-		Add::new(
-			ScaleBias::new(
-				Billow::<Perlin>::default()
-					.set_frequency(0.02)
-					.set_octaves(2),
-			)
-			.set_scale(0.04),
-			base(),
-		),
-		strength_noise.clone().set_seed(2),
-		// Constant::new(-1.0),
-	);
-
-	let ridged = Source::new(
-		Add::new(
-			ScaleBias::new(RidgedMulti::<Perlin>::default().set_frequency(0.02)).set_scale(0.07),
-			base(),
-		),
-		strength_noise.clone().set_seed(3),
-		// Constant::new(-1.0),
-	);
-
-	let noise = ChooseAndSmooth::new([perlin, worley, billow, ridged]);
-
-	let noise = PlanetHeightSource::new(noise);
+	let noise = PlanetHeightSource::generate((&seed).into());
 
 	// Spawn center first
 	generate_chunk(
@@ -138,6 +76,7 @@ pub fn setup(
 		&mut task_offloader,
 	);
 
+	cmds.insert_resource(seed);
 	cmds.insert_resource(noise);
 
 	let mesh = Mesh::from(shape::Cube { size: 64.0 })
@@ -305,6 +244,98 @@ impl PlanetHeightSource {
 			noise: noise.into(),
 		}
 	}
+
+	pub fn generate(seeds: TerrainSeeds) -> Self {
+		let base = bytemuck::cast::<_, [u32; 2]>(seeds.base());
+		let perlin = Perlin::default().set_seed(base[0]);
+		let sources = vec![perlin, perlin.set_seed(base[1])];
+
+		// unfortunately this generates sources that are immediately discarded, but `sources` isn't pub
+		let mut base = Fbm::<Perlin>::default();
+		base.octaves = 2;
+		base.frequency = 0.00128;
+		base.persistence = 0.45;
+		let base = base.set_sources(sources);
+
+		// Add and ScaleBias are not Clone, so we'll use a closure to get multiple copies
+		let base = || {
+			Add::new(
+				ScaleBias::new(
+					HybridMulti::<Value>::default()
+						.set_frequency(0.00032)
+						.set_persistence(0.5),
+				)
+				.set_scale(2.0),
+				base.clone(),
+			)
+		};
+
+		let strength_noise = Fbm::<Perlin>::default()
+			.set_frequency(0.00128)
+			.set_octaves(2)
+			.set_seed(seeds.perlin().strength());
+
+		let perlin = Source::new(
+			Add::new(
+				ScaleBias::new(
+					Fbm::<Perlin>::default()
+						.set_frequency(0.0256)
+						.set_persistence(0.45)
+						.set_seed(seeds.perlin().heights()),
+				)
+				.set_scale(0.05),
+				base(),
+			),
+			strength_noise.clone(),
+			// Constant::new(-1.0),
+		);
+
+		let worley = Source::new(
+			Add::new(
+				ScaleBias::new(
+					SyncWorley::default()
+						.set_frequency(0.05)
+						.set_seed(seeds.worley().heights()),
+				)
+				.set_scale(0.1),
+				base(),
+			),
+			strength_noise.clone().set_seed(seeds.worley().strength()),
+			// Constant::new(-1.0),
+		);
+
+		let billow = Source::new(
+			Add::new(
+				ScaleBias::new(
+					Billow::<Perlin>::default()
+						.set_frequency(0.02)
+						.set_octaves(2)
+						.set_seed(seeds.billow().heights()),
+				)
+				.set_scale(0.04),
+				base(),
+			),
+			strength_noise.clone().set_seed(seeds.billow().strength()),
+			// Constant::new(-1.0),
+		);
+
+		let ridged = Source::new(
+			Add::new(
+				ScaleBias::new(
+					RidgedMulti::<Perlin>::default()
+						.set_frequency(0.02)
+						.set_seed(seeds.ridged().heights()),
+				)
+				.set_scale(0.07),
+				base(),
+			),
+			strength_noise.clone().set_seed(seeds.ridged().strength()),
+			// Constant::new(-1.0),
+		);
+
+		let noise = ChooseAndSmooth::new([perlin, worley, billow, ridged]);
+		Self::new(noise)
+	}
 }
 
 #[derive(Resource, Default, Deref, DerefMut)]
@@ -441,3 +472,170 @@ pub fn unload_distant_chunks(
 
 #[derive(Resource, Deref, DerefMut, Debug, Reflect)]
 pub struct UnloadDistance(f32);
+
+mod seeds {
+	use crate::planet::{seeds::PlanetSeed, terrain};
+	use bevy::utils::RandomState;
+	use std::hash::{BuildHasher, Hasher};
+
+	#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+	#[repr(C)]
+	pub struct TerrainSeeds {
+		base: u64,
+		perlin: HSSeed,
+		worley: HSSeed,
+		billow: HSSeed,
+		ridged: HSSeed,
+	}
+
+	impl From<&PlanetSeed> for TerrainSeeds {
+		fn from(value: &PlanetSeed) -> Self {
+			let value = value.hash();
+
+			// Randomly generated during development.
+			// WARNING: Changing these will break compatibility with older seeds.
+			let mut hasher = RandomState::with_seeds(
+				14290938944643142730,
+				324773583170826462,
+				5391126888610969733,
+				8770814408611468823,
+			)
+			.build_hasher();
+
+			hasher.write(value);
+			let base = hasher.finish();
+			hasher.write(value);
+			let perlin = bytemuck::cast::<_, [u32; 2]>(hasher.finish());
+			hasher.write(value);
+			let mut worley = bytemuck::cast::<_, [u32; 2]>(hasher.finish());
+			for _ in 0..1024 {
+				// Best effort at avoiding strength collisions.
+				if perlin[1] == worley[1] {
+					hasher.write(value);
+					worley = bytemuck::cast(hasher.finish());
+				} else {
+					break;
+				}
+			}
+
+			hasher.write(value);
+			let mut billow = bytemuck::cast::<_, [u32; 2]>(hasher.finish());
+			for _ in 0..1024 {
+				// Best effort at avoiding strength collisions.
+				if [perlin[1], worley[1]].contains(&billow[1]) {
+					hasher.write(value);
+					billow = bytemuck::cast(hasher.finish());
+				} else {
+					break;
+				}
+			}
+
+			hasher.write(value);
+			let mut ridged = bytemuck::cast::<_, [u32; 2]>(hasher.finish());
+			for _ in 0..1024 {
+				// Best effort at avoiding strength collisions.
+				if [perlin[1], worley[1], billow[1]].contains(&ridged[1]) {
+					hasher.write(value);
+					ridged = bytemuck::cast(hasher.finish());
+				} else {
+					break;
+				}
+			}
+
+			Self {
+				base,
+				perlin: HSSeed::new(perlin[0], perlin[1]),
+				worley: HSSeed::new(worley[0], worley[1]),
+				billow: HSSeed::new(billow[0], billow[1]),
+				ridged: HSSeed::new(ridged[0], ridged[1]),
+			}
+		}
+	}
+
+	impl TerrainSeeds {
+		pub fn base(&self) -> u64 {
+			self.base
+		}
+
+		pub fn perlin(&self) -> HSSeed {
+			self.perlin
+		}
+		pub fn worley(&self) -> HSSeed {
+			self.worley
+		}
+		pub fn billow(&self) -> HSSeed {
+			self.billow
+		}
+		pub fn ridged(&self) -> HSSeed {
+			self.ridged
+		}
+	}
+
+	/// Combined heights and strength seed for [ChooseAndSmooth](terrain::noise::ChooseAndSmooth)
+	#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+	#[repr(C)]
+	pub struct HSSeed {
+		heights: u32,
+		strength: u32,
+	}
+
+	impl HSSeed {
+		fn new(heights: u32, strength: u32) -> Self {
+			Self { heights, strength }
+		}
+
+		pub fn heights(&self) -> u32 {
+			self.heights
+		}
+		pub fn strength(&self) -> u32 {
+			self.strength
+		}
+	}
+
+	#[cfg(test)]
+	mod tests {
+		use crate::planet::{
+			seeds::PlanetSeed,
+			terrain::seeds::{HSSeed, TerrainSeeds},
+		};
+
+		#[test]
+		fn seed_equivalence() {
+			let seed = rand::random::<PlanetSeed>();
+			let a = TerrainSeeds::from(&seed);
+			let b = TerrainSeeds::from(&seed);
+			assert_eq!(a, b);
+		}
+
+		#[test]
+		fn version_equivalence() {
+			// Note: If sources are added or removed, the sources from the previous version should remain equivalent,
+			// but it is fine to add the values for the new sources or remove old ones here.
+			let seed = PlanetSeed::from(
+				"This is a PlanetSeed for testing TerrainSeed equivalence across versions.",
+			);
+			assert_eq!(
+				TerrainSeeds::from(&seed),
+				TerrainSeeds {
+					base: 7920230168977959780,
+					perlin: HSSeed {
+						heights: 2685576922,
+						strength: 1151182273
+					},
+					worley: HSSeed {
+						heights: 895711232,
+						strength: 484265962
+					},
+					billow: HSSeed {
+						heights: 3037546005,
+						strength: 57840775
+					},
+					ridged: HSSeed {
+						heights: 401089611,
+						strength: 2179398915
+					}
+				},
+			);
+		}
+	}
+}

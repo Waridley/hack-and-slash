@@ -3,11 +3,10 @@
 	windows_subsystem = "windows"
 )]
 
-use crate::mats::BubbleMaterial;
+use crate::mats::MatsPlugin;
 use bevy::{
 	diagnostic::FrameTimeDiagnosticsPlugin,
 	ecs::schedule::{LogLevel, ScheduleBuildSettings},
-	pbr::ExtendedMaterial,
 	prelude::*,
 	render::RenderPlugin,
 	window::PrimaryWindow,
@@ -18,7 +17,7 @@ use bevy_rapier3d::prelude::*;
 use particles::{ParticlesPlugin, Spewer};
 use player::ctrl::CtrlVel;
 use std::{f32::consts::*, fmt::Debug, time::Duration};
-use util::{IntoFnPlugin, RonReflectAssetLoader};
+use util::IntoFnPlugin;
 
 #[allow(unused_imports, clippy::single_component_path_imports)]
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
@@ -111,10 +110,13 @@ pub fn game_plugin(app: &mut App) -> &mut App {
 		RapierPhysicsPlugin::<()>::default().in_schedule(Update),
 		FrameTimeDiagnosticsPlugin,
 		AudioPlugin,
+	))
+	.add_plugins((
 		ParticlesPlugin,
 		AbilitiesPlugin,
 		OffloadingPlugin,
 		SkyPlugin,
+		MatsPlugin,
 		anim::BuiltinAnimations,
 		anim::AnimationPlugin::<Spewer>::PLUGIN,
 		enemies::plugin.plugfn(),
@@ -125,26 +127,13 @@ pub fn game_plugin(app: &mut App) -> &mut App {
 		ui::plugin.plugfn(),
 	))
 	.insert_resource(PkvStore::new_with_qualifier("studio", "sonday", "has"))
-	.add_plugins((MaterialPlugin::<
-		ExtendedMaterial<StandardMaterial, BubbleMaterial>,
-	>::default(),))
 	.add_systems(Startup, startup)
 	.add_systems(
 		Update,
 		(terminal_velocity.before(StepSimulation), fullscreen),
 	)
 	.add_systems(PostUpdate, (despawn_oob,));
-	type BubbleMatExt = ExtendedMaterial<StandardMaterial, BubbleMaterial>;
-	let registry = app.world.get_resource::<AppTypeRegistry>().unwrap().clone();
-	{
-		let mut reg = registry.write();
-		reg.register::<BubbleMaterial>();
-		reg.register::<BubbleMatExt>();
-	}
-	app.register_asset_loader(RonReflectAssetLoader::<BubbleMatExt>::new(
-		registry,
-		vec!["mat.ron"],
-	));
+
 	app
 }
 

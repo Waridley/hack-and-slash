@@ -16,7 +16,7 @@ use bevy::{
 };
 use serde::{Deserialize, Serialize};
 
-pub type StdMatExt<T: MaterialExtension> = ExtendedMaterial<StandardMaterial, T>;
+pub type StdMatExt<T> = ExtendedMaterial<StandardMaterial, T>;
 
 pub struct MatsPlugin;
 

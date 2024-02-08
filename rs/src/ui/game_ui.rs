@@ -1,12 +1,7 @@
-use bevy::{
-	app::{App, Update},
-	prelude::{Commands, VisibilityBundle},
-};
+use bevy::prelude::*;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_systems(Update, setup)
 }
 
-pub fn setup(mut cmds: Commands) {
-	cmds.spawn((VisibilityBundle::default(),));
-}
+pub fn setup(mut cmds: Commands) {}
