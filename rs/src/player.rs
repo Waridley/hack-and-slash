@@ -708,14 +708,20 @@ fn player_arms(
 						time_created,
 						initial_transform: InitialTransform(xform),
 						initial_global_transform: InitialGlobalTransform(*glob_xform),
+						#[cfg(target_arch = "wasm32")]
 						lifetime: Lifetime(Duration::from_secs_f32(0.12)),
+						#[cfg(not(target_arch = "wasm32"))]
+						lifetime: Lifetime(Duration::from_secs_f32(0.18)),
 					},
 					Linear {
-						velocity: Vec3::NEG_Z * 2.4,
+						velocity: Vec3::NEG_Z * 3.6,
 					},
 					TargetScale { scale: Vec3::ZERO },
 				))
 			}),
+			#[cfg(target_arch = "wasm32")]
+			interval: Duration::from_micros(3000),
+			#[cfg(not(target_arch = "wasm32"))]
 			interval: Duration::from_micros(1500),
 			use_global_coords: true,
 			..default()

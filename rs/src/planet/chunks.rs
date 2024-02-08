@@ -4,8 +4,14 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use bevy_rapier3d::{na::Vector3, parry::shape::Triangle};
 use bimap::BiMap;
 
+#[cfg(not(target_arch = "wasm32"))]
 pub const CHUNK_ROWS: usize = 64;
+#[cfg(not(target_arch = "wasm32"))]
 pub const CHUNK_COLS: usize = 64;
+#[cfg(target_arch = "wasm32")]
+pub const CHUNK_ROWS: usize = 32;
+#[cfg(target_arch = "wasm32")]
+pub const CHUNK_COLS: usize = 32;
 pub const TERRAIN_CELL_SIZE: f32 = 16.0;
 pub const CHUNK_SCALE: Vector3<f32> = Vector3::new(
 	CHUNK_COLS as f32 * TERRAIN_CELL_SIZE,

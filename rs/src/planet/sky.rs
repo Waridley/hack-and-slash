@@ -6,7 +6,6 @@ use bevy::{
 use bevy::{
 	ecs::{
 		prelude::{Component, Entity},
-		query::With,
 		schedule::IntoSystemConfigs,
 		system::{Commands, Query, Res, ResMut, Resource},
 	},

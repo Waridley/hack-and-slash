@@ -40,6 +40,7 @@ use enum_components::ERef;
 use rapier3d::{geometry::HeightField, na::DMatrix};
 use std::{f32::consts::*, sync::Arc};
 use web_time::{Duration, Instant};
+use crate::planet::weather::Weather;
 
 pub mod noise;
 
@@ -53,7 +54,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 		.add_systems(PostStartup, spawn_boxes)
 		.init_resource::<ChunkLoadingTasks>()
 		.insert_resource(UnloadDistance(5.0 * diameter))
-		.add_systems(Update, spawn_loaded_chunks)
+		.add_systems(PreUpdate, spawn_loaded_chunks)
 		.add_systems(Last, (load_nearby_chunks, unload_distant_chunks))
 }
 
@@ -447,20 +448,23 @@ pub fn spawn_loaded_chunks(
 			let heights = Arc::new(heights);
 			let id = cmds
 				.spawn((
+					Name::new(format!("Chunk({},{})", index.x, index.y)),
+					*index,
+					center,
 					TransformBundle::from_transform(Transform::from_translation(Vec3::new(
 						translation.x,
 						translation.y,
 						0.0,
 					))),
 					VisibilityBundle::default(),
-					*index,
-					center,
 					Ground {
 						heights: heights.clone(),
 					},
 				))
 				.with_children(|builder| {
 					builder.spawn((
+						*index,
+						*center,
 						TerrainObject {
 							pbr: MaterialMeshBundle {
 								mesh,
@@ -471,8 +475,11 @@ pub fn spawn_loaded_chunks(
 								material: mat.0.clone(),
 								..default()
 							},
-							collider: Collider::from(SharedShape(heights)),
+							collider: Collider::from(SharedShape(heights.clone())),
 							..default()
+						},
+						Ground {
+							heights: heights.clone(),
 						},
 						NoAutomaticBatching,
 					));
