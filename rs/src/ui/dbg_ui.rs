@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use crate::{
 	planet::{
 		chunks::{ChunkCenter, LoadedChunks},
@@ -31,6 +30,7 @@ use bevy_rapier3d::{
 	prelude::{DebugRenderContext, RapierDebugRenderPlugin},
 };
 use egui_plot::{Legend, Line, Plot, PlotResponse};
+use std::cmp::Ordering;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	#[cfg(feature = "render")]
@@ -125,8 +125,7 @@ pub fn dbg_fps(
 				ui.add_space(1.0);
 				ui.centered_and_justified(|ui| {
 					inspector.ui_for_reflect_readonly(
-						&fps
-							.iter()
+						&fps.iter()
 							.map(|fps| fps.frame_time)
 							.min_by(|l, r| l.partial_cmp(r).unwrap_or(Ordering::Equal))
 							.unwrap_or(0.0),
@@ -139,8 +138,7 @@ pub fn dbg_fps(
 				ui.add_space(1.0);
 				ui.centered_and_justified(|ui| {
 					inspector.ui_for_reflect_readonly(
-						&fps
-							.iter()
+						&fps.iter()
 							.map(|fps| fps.frame_time)
 							.max_by(|l, r| l.partial_cmp(r).unwrap_or(Ordering::Equal))
 							.unwrap_or(0.0),

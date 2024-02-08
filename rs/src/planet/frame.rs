@@ -83,14 +83,15 @@ pub fn reframe_all_entities(
 	info!("{frame:?}");
 	let diff = Vec2::from(frame.center - prev_frame.center);
 	let offset = Vec3::new(-diff.x, -diff.y, 0.0);
-	q.par_iter_mut().for_each(|(mut xform, mut global, has_parent)| {
-		if !has_parent {
-			xform.translation += offset;
-		}
-		let mut global_xform = global.compute_transform();
-		global_xform.translation += offset;
-		*global = GlobalTransform::from(global_xform);
-	});
+	q.par_iter_mut()
+		.for_each(|(mut xform, mut global, has_parent)| {
+			if !has_parent {
+				xform.translation += offset;
+			}
+			let mut global_xform = global.compute_transform();
+			global_xform.translation += offset;
+			*global = GlobalTransform::from(global_xform);
+		});
 	prev_xforms.par_iter_mut().for_each(|mut prev_xform| {
 		prev_xform.translation += offset;
 	});
@@ -99,22 +100,26 @@ pub fn reframe_all_entities(
 		computed.translation += offset;
 		**prev_global = GlobalTransform::from(computed);
 	});
-	prev_particles.par_iter_mut().for_each(|(mut prev_xform, mut prev_global, has_parent)| {
-		if !has_parent {
-			prev_xform.translation += offset;
-		}
-		let mut computed = prev_global.compute_transform();
-		computed.translation += offset;
-		**prev_global = GlobalTransform::from(computed);
-	});
-	init_particles.par_iter_mut().for_each(|(mut init_xform, mut init_global, has_parent)| {
-		if !has_parent {
-			init_xform.translation += offset;
-		}
-		let mut computed = init_global.compute_transform();
-		computed.translation += offset;
-		**init_global = GlobalTransform::from(computed);
-	});
+	prev_particles
+		.par_iter_mut()
+		.for_each(|(mut prev_xform, mut prev_global, has_parent)| {
+			if !has_parent {
+				prev_xform.translation += offset;
+			}
+			let mut computed = prev_global.compute_transform();
+			computed.translation += offset;
+			**prev_global = GlobalTransform::from(computed);
+		});
+	init_particles
+		.par_iter_mut()
+		.for_each(|(mut init_xform, mut init_global, has_parent)| {
+			if !has_parent {
+				init_xform.translation += offset;
+			}
+			let mut computed = init_global.compute_transform();
+			computed.translation += offset;
+			**init_global = GlobalTransform::from(computed);
+		});
 
 	// Rapier transforms
 	let offset = Vector::from(offset);

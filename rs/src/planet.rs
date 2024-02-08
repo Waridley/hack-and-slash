@@ -3,6 +3,7 @@ use crate::{
 		chunks::{ChunkIndex, LoadedChunks},
 		day_night::DayNightCycle,
 		frame::PlanetFramePlugin,
+		weather::WeatherPlugin,
 	},
 	util::{Diff, IntoFnPlugin},
 };
@@ -10,7 +11,6 @@ use bevy::prelude::*;
 use bevy_rapier3d::na::{Vector2, Vector3};
 use serde::{Deserialize, Serialize};
 use std::ops::{Add, Deref, DerefMut, Sub};
-use crate::planet::weather::WeatherPlugin;
 
 pub mod chunks;
 pub mod day_night;

@@ -40,7 +40,6 @@ use enum_components::ERef;
 use rapier3d::{geometry::HeightField, na::DMatrix};
 use std::{f32::consts::*, sync::Arc};
 use web_time::{Duration, Instant};
-use crate::planet::weather::Weather;
 
 pub mod noise;
 

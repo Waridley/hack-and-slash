@@ -1,11 +1,11 @@
 use crate::planet::chunks::{CHUNK_SCALE, TERRAIN_CELL_SIZE};
 use bevy::{
-	prelude::{Reflect, Resource},
-	render::extract_resource::ExtractResource,
+	prelude::{Reflect, Resource, *},
+	render::{
+		extract_resource::ExtractResource, primitives::Aabb,
+		view::VisibilitySystems::VisibilityPropagate,
+	},
 };
-use bevy::prelude::*;
-use bevy::render::primitives::Aabb;
-use bevy::render::view::VisibilitySystems::VisibilityPropagate;
 
 pub struct WeatherPlugin;
 
@@ -42,23 +42,21 @@ pub fn cull_fully_fogged(
 	weather: Res<Weather>,
 ) {
 	// Can't use `ViewVisibility` because it only allows setting visibility to `true`, not culling.
-	
+
 	let dist = weather.fog_end;
 	for (mut vis, global, aabb) in &mut visibilities {
 		// Get the closest possible point
 		let radius = aabb.half_extents.length();
 		let global = global.translation().xy();
-		if *vis == Visibility::Hidden && cams
-			.iter()
-			.find(|cam| (global - cam.translation().xy()).length() - radius < dist + TERRAIN_CELL_SIZE)
-			.is_some()
-		{
+		if *vis == Visibility::Hidden
+			&& cams.iter().any(|cam| {
+				(global - cam.translation().xy()).length() - radius < dist + TERRAIN_CELL_SIZE
+			}) {
 			*vis = Visibility::Inherited;
-		} else if *vis == Visibility::Inherited && cams
-			.iter()
-			.find(|cam| (global - cam.translation().xy()).length() - radius < dist + TERRAIN_CELL_SIZE * 4.0)
-			.is_none()
-		{
+		} else if *vis == Visibility::Inherited
+			&& !cams.iter().any(|cam| {
+				(global - cam.translation().xy()).length() - radius < dist + TERRAIN_CELL_SIZE * 4.0
+			}) {
 			*vis = Visibility::Hidden;
 		}
 	}

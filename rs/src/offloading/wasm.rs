@@ -50,19 +50,14 @@ impl Offload for TaskOffloader<'_, '_> {
 		task: impl Future<Output = Out> + Send + Sync + 'static,
 	) -> Self::Task<Out> {
 		let out = Arc::new(AtomicCell::new(Poll::Pending));
-		self.cmds
-			.spawn(private::TaskComponent {
-				status: private::TaskStatus::Pending {
-					f: Box::new(
-						async move { Box::new(task.await) as Box<dyn Any + Send + 'static> },
-					) as _,
-					out: Arc::downgrade(&out),
-				},
-			});
-		private::Task(
-			out,
-			default(),
-		)
+		self.cmds.spawn(private::TaskComponent {
+			status: private::TaskStatus::Pending {
+				f: Box::new(async move { Box::new(task.await) as Box<dyn Any + Send + 'static> })
+					as _,
+				out: Arc::downgrade(&out),
+			},
+		});
+		private::Task(out, default())
 	}
 }
 

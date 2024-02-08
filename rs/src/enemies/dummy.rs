@@ -2,10 +2,13 @@ use super::enemy::Dummy;
 use crate::{
 	anim::{ComponentDelta, StartAnimation},
 	planet::{
-		chunks::{ChunkFinder, TERRAIN_CELL_SIZE},
+		chunks::{ChunkFinder, CHUNK_SCALE},
 		frame::Frame,
 	},
-	player::abilities::{Hurt, Sfx},
+	player::{
+		abilities::{Hurt, Sfx},
+		player_entity::Root,
+	},
 	util::{consume_spawn_events, Spawnable},
 	Alive,
 };
@@ -22,11 +25,8 @@ use bevy_rapier3d::{
 	prelude::{Collider, RigidBody, TransformInterpolation},
 };
 use enum_components::{ERef, EntityEnumCommands};
-use rand::Rng;
+use rand::{prelude::IteratorRandom, Rng};
 use std::{f32::consts::FRAC_PI_2, time::Duration};
-use rand::prelude::IteratorRandom;
-use crate::planet::chunks::CHUNK_SCALE;
-use crate::player::player_entity::Root;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_systems(Startup, setup)
@@ -130,7 +130,9 @@ pub fn spawn_new_dummies(
 	timer.tick(t.delta());
 	if timer.just_finished() {
 		let mut rng = rand::thread_rng();
-		let player = players.iter().choose(&mut rng)
+		let player = players
+			.iter()
+			.choose(&mut rng)
 			.map_or(Vec2::ZERO, |global| global.translation().xy());
 		let bounds = CHUNK_SCALE.xz() * 1.5;
 		let x = rng.gen_range(-bounds.x..=bounds.x);
