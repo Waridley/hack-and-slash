@@ -1,13 +1,10 @@
 use crate::offloading::{Offload, OffloadedTask};
-use bevy::{ecs::system::SystemParam, prelude::*, tasks::AsyncComputeTaskPool, utils::HashMap};
-use futures_lite::FutureExt;
+use bevy::{ecs::system::SystemParam, prelude::*};
 use rapier3d::crossbeam::atomic::AtomicCell;
 use std::{
 	any::Any,
-	cell::Cell,
 	future::Future,
 	pin::Pin,
-	ptr::NonNull,
 	sync::{Arc, Weak},
 	task::{Context, Poll},
 };
@@ -23,17 +20,13 @@ type DynTask = Box<dyn Future<Output = DynOutput> + Send + Sync + 'static>;
 
 mod private {
 	use super::{DynTask, OutputSlot};
-	use bevy::prelude::{Component, Entity};
-	use rapier3d::crossbeam::atomic::AtomicCell;
+	use bevy::prelude::Component;
 	use std::{
 		any::Any,
-		future::Future,
 		marker::PhantomData,
 		sync::{Arc, Weak},
-		task::Poll,
 	};
 	pub struct Task<Out: Any + Send + 'static>(
-		pub(super) Entity,
 		pub(super) Arc<OutputSlot>,
 		pub(super) PhantomData<Out>,
 	);
@@ -57,20 +50,14 @@ impl Offload for TaskOffloader<'_, '_> {
 		task: impl Future<Output = Out> + Send + Sync + 'static,
 	) -> Self::Task<Out> {
 		let out = Arc::new(AtomicCell::new(Poll::Pending));
-		private::Task(
-			self.cmds
-				.spawn(private::TaskComponent {
-					status: private::TaskStatus::Pending {
-						f: Box::new(
-							async move { Box::new(task.await) as Box<dyn Any + Send + 'static> },
-						) as _,
-						out: Arc::downgrade(&out),
-					},
-				})
-				.id(),
-			out,
-			default(),
-		)
+		self.cmds.spawn(private::TaskComponent {
+			status: private::TaskStatus::Pending {
+				f: Box::new(async move { Box::new(task.await) as Box<dyn Any + Send + 'static> })
+					as _,
+				out: Arc::downgrade(&out),
+			},
+		});
+		private::Task(out, default())
 	}
 }
 
@@ -78,7 +65,7 @@ impl<Out: Any + Send + 'static> Future for private::Task<Out> {
 	type Output = Out;
 
 	fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-		match self.1.swap(Poll::Pending) {
+		match self.0.swap(Poll::Pending) {
 			Poll::Ready(out) => {
 				let out = *out.downcast::<Out>().expect(
 					"The only way to get a `Task<Out>` should be via `TaskOffloader::start::<Out>`",

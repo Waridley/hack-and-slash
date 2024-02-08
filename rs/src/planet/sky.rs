@@ -6,7 +6,6 @@ use bevy::{
 use bevy::{
 	ecs::{
 		prelude::{Component, Entity},
-		query::With,
 		schedule::IntoSystemConfigs,
 		system::{Commands, Query, Res, ResMut, Resource},
 	},
@@ -62,8 +61,7 @@ impl Plugin for SkyPlugin {
 		app.add_plugins((
 			ExtractComponentPlugin::<SkyShader>::default(),
 			ExtractResourcePlugin::<DayNightCycle>::default(),
-		))
-		.add_systems(Update, notify_skybox_changed);
+		));
 
 		let render_app = app.get_sub_app_mut(RenderApp).unwrap();
 		render_app
@@ -88,15 +86,6 @@ impl Plugin for SkyPlugin {
 
 #[derive(Component, ExtractComponent, Clone, Debug)]
 pub struct SkyShader(pub Handle<Shader>);
-
-pub fn notify_skybox_changed(
-	mut image_asset_events: EventWriter<AssetEvent<Image>>,
-	q: Query<&Skybox, With<SkyShader>>,
-) {
-	for skybox in &q {
-		image_asset_events.send(AssetEvent::Modified { id: skybox.0.id() });
-	}
-}
 
 pub fn prepare_sky_pipelines(
 	mut cmds: Commands,

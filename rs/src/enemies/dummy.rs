@@ -2,10 +2,13 @@ use super::enemy::Dummy;
 use crate::{
 	anim::{ComponentDelta, StartAnimation},
 	planet::{
-		chunks::{ChunkFinder, TERRAIN_CELL_SIZE},
+		chunks::{ChunkFinder, CHUNK_SCALE},
 		frame::Frame,
 	},
-	player::abilities::{Hurt, Sfx},
+	player::{
+		abilities::{Hurt, Sfx},
+		player_entity::Root,
+	},
 	util::{consume_spawn_events, Spawnable},
 	Alive,
 };
@@ -22,7 +25,7 @@ use bevy_rapier3d::{
 	prelude::{Collider, RigidBody, TransformInterpolation},
 };
 use enum_components::{ERef, EntityEnumCommands};
-use rand::Rng;
+use rand::{prelude::IteratorRandom, Rng};
 use std::{f32::consts::FRAC_PI_2, time::Duration};
 
 pub fn plugin(app: &mut App) -> &mut App {
@@ -119,17 +122,22 @@ pub struct NewDummy {
 pub fn spawn_new_dummies(
 	mut events: EventWriter<NewDummy>,
 	mut timer: ResMut<DummySpawnTimer>,
+	players: Query<&GlobalTransform, ERef<Root>>,
 	frame: Res<Frame>,
 	chunks: ChunkFinder,
 	t: Res<Time>,
 ) {
 	timer.tick(t.delta());
 	if timer.just_finished() {
-		let bounds = frame.trigger_bounds - TERRAIN_CELL_SIZE;
 		let mut rng = rand::thread_rng();
-		let x = rng.gen_range(-bounds..=bounds);
-		let y = rng.gen_range(-bounds..=bounds);
-		let Some(z) = chunks.height_at(frame.planet_coords_of(Vec2::new(x, y))) else {
+		let player = players
+			.iter()
+			.choose(&mut rng)
+			.map_or(Vec2::ZERO, |global| global.translation().xy());
+		let bounds = CHUNK_SCALE.xz() * 1.5;
+		let x = rng.gen_range(-bounds.x..=bounds.x);
+		let y = rng.gen_range(-bounds.y..=bounds.y);
+		let Some(z) = chunks.height_at(frame.planet_coords_of(player - Vec2::new(x, y))) else {
 			return;
 		};
 

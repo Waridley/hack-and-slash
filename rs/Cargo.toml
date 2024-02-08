@@ -125,7 +125,7 @@ web-time = { workspace = true }
 
 # Debugging
 bevy-inspector-egui = { workspace = true, optional = true }
-egui_plot = {workspace = true, optional = true }
+egui_plot = { workspace = true, optional = true }
 
 # Testing
 colored = { version = "2", optional = true }
@@ -142,6 +142,7 @@ opt-level = 3
 [profile.release]
 opt-level = "z"
 lto = "thin"
+strip = true
 
 [[test]]
 name = "integration"
@@ -156,13 +157,21 @@ type_complexity = "allow" # Queries seem complex to Clippy but are usually easil
 # Helps prevent full rebuild when switching between deskop and WASM due to rustflags
 [profile.desktop]
 inherits = "dev"
+split-debuginfo = "packed"
+
 [profile.desktop-release]
 inherits = "release"
 opt-level = 3
 lto = true
+strip = true
 
-[profile.profiling]
+[profile.desktop-release-debug]
 inherits = "release"
 opt-level = 3
-lto = false
+lto = true
 debug = true
+split-debuginfo = "packed"
+
+# Prevents full rebuild just for profiling when enabling and disabling `bevy/trace_tracy`
+[profile.profiling]
+inherits = "desktop-release"

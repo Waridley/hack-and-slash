@@ -83,55 +83,61 @@ pub fn reframe_all_entities(
 	info!("{frame:?}");
 	let diff = Vec2::from(frame.center - prev_frame.center);
 	let offset = Vec3::new(-diff.x, -diff.y, 0.0);
-	for (mut xform, mut global, has_parent) in &mut q {
-		if !has_parent {
-			xform.translation += offset;
-		}
-		let mut global_xform = global.compute_transform();
-		global_xform.translation += offset;
-		*global = GlobalTransform::from(global_xform);
-	}
-	for mut prev_xform in &mut prev_xforms {
+	q.par_iter_mut()
+		.for_each(|(mut xform, mut global, has_parent)| {
+			if !has_parent {
+				xform.translation += offset;
+			}
+			let mut global_xform = global.compute_transform();
+			global_xform.translation += offset;
+			*global = GlobalTransform::from(global_xform);
+		});
+	prev_xforms.par_iter_mut().for_each(|mut prev_xform| {
 		prev_xform.translation += offset;
-	}
-	for mut prev_global in &mut prev_globals {
+	});
+	prev_globals.par_iter_mut().for_each(|mut prev_global| {
 		let mut computed = prev_global.compute_transform();
 		computed.translation += offset;
 		**prev_global = GlobalTransform::from(computed);
-	}
-	for (mut prev_xform, mut prev_global, has_parent) in &mut prev_particles {
-		if !has_parent {
-			prev_xform.translation += offset;
-		}
-		let mut computed = prev_global.compute_transform();
-		computed.translation += offset;
-		**prev_global = GlobalTransform::from(computed);
-	}
-	for (mut init_xform, mut init_global, has_parent) in &mut init_particles {
-		if !has_parent {
-			init_xform.translation += offset;
-		}
-		let mut computed = init_global.compute_transform();
-		computed.translation += offset;
-		**init_global = GlobalTransform::from(computed);
-	}
+	});
+	prev_particles
+		.par_iter_mut()
+		.for_each(|(mut prev_xform, mut prev_global, has_parent)| {
+			if !has_parent {
+				prev_xform.translation += offset;
+			}
+			let mut computed = prev_global.compute_transform();
+			computed.translation += offset;
+			**prev_global = GlobalTransform::from(computed);
+		});
+	init_particles
+		.par_iter_mut()
+		.for_each(|(mut init_xform, mut init_global, has_parent)| {
+			if !has_parent {
+				init_xform.translation += offset;
+			}
+			let mut computed = init_global.compute_transform();
+			computed.translation += offset;
+			**init_global = GlobalTransform::from(computed);
+		});
 
 	// Rapier transforms
 	let offset = Vector::from(offset);
 	for body in &bodies {
+		// TODO: Parallelize this -- RigidBodySet does not have par_iter
 		if let Some(body) = ctx.bodies.get_mut(body.0) {
 			let pos = body.translation();
 			body.set_translation(*pos + offset, false);
 		}
 	}
-	for mut interp in &mut interpolations {
+	interpolations.par_iter_mut().for_each(|mut interp| {
 		if let Some(start) = interp.start.as_mut() {
 			start.translation.vector += offset;
 		}
 		if let Some(end) = interp.end.as_mut() {
 			end.translation.vector += offset;
 		}
-	}
+	});
 }
 
 pub fn shift_frame(

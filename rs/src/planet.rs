@@ -3,6 +3,7 @@ use crate::{
 		chunks::{ChunkIndex, LoadedChunks},
 		day_night::DayNightCycle,
 		frame::PlanetFramePlugin,
+		weather::WeatherPlugin,
 	},
 	util::{Diff, IntoFnPlugin},
 };
@@ -23,6 +24,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 		terrain::plugin.plugfn(),
 		day_night::plugin.plugfn(),
 		PlanetFramePlugin,
+		WeatherPlugin,
 	))
 	.init_resource::<DayNightCycle>()
 	.register_type::<DayNightCycle>()
