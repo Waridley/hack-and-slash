@@ -13,7 +13,7 @@ use bevy::{
 	ecs::system::{EntityCommands, SystemParamItem},
 	prelude::*,
 };
-use bevy_kira_audio::Audio;
+use bevy_kira_audio::{Audio, AudioControl};
 use bevy_rapier3d::{
 	dynamics::LockedAxes,
 	math::Vect,
@@ -165,6 +165,7 @@ pub fn handle_hits(
 				.copied()
 				.and_then(|body| ctx.bodies.get_mut(body))
 			{
+				audio.play(sfx.impacts[0].clone());
 				body.set_locked_axes(rapier3d::prelude::LockedAxes::empty(), true);
 				body.apply_impulse_at_point(
 					Vector3::from(global.compute_transform().rotation * toi.normal2) * 2000.0,

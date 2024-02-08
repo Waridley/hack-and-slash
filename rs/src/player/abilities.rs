@@ -472,6 +472,7 @@ pub struct Sfx {
 	pub aoe: Handle<AudioSource>,
 	pub dash: Handle<AudioSource>,
 	pub jump: Handle<AudioSource>,
+	pub impacts: [Handle<AudioSource>; 5],
 }
 
 #[derive(Component, Debug)]

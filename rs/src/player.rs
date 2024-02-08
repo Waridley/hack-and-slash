@@ -132,6 +132,13 @@ pub fn setup(
 		fire_a: asset_server.load("sfx/Kenney/Audio/laserSmall_004.ogg"),
 		dash: asset_server.load("sfx/Kenney/Audio/forceField_000.ogg"),
 		jump: asset_server.load("sfx/Kenney/Audio/forceField_002.ogg"),
+		impacts: [
+			asset_server.load("sfx/Kenney/Audio/impactMetal_000.ogg"),
+			asset_server.load("sfx/Kenney/Audio/impactMetal_001.ogg"),
+			asset_server.load("sfx/Kenney/Audio/impactMetal_002.ogg"),
+			asset_server.load("sfx/Kenney/Audio/impactMetal_003.ogg"),
+			asset_server.load("sfx/Kenney/Audio/impactMetal_004.ogg"),
+		],
 	});
 
 	let ship_scene = asset_server.load("ships/player.glb#Scene0");
