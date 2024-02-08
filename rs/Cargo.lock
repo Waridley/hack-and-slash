@@ -4161,7 +4161,6 @@ dependencies = [
  "noise",
  "num-traits",
  "ordered-float",
- "petgraph",
  "rapier3d",
  "ron",
  "serde",

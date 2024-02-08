@@ -1,9 +1,10 @@
 use crate::{
-	nav::FnsThatShouldBePub,
+	nav::heightmap::FnsThatShouldBePub,
 	offloading::{wasm_yield, Offload, OffloadedTask, TaskHandle, TaskOffloader},
 	planet::{
+		chunks::ChunkCenter,
 		terrain::noise::{ChooseAndSmooth, Source, SyncWorley},
-		PlanetVec2, PlanetVec3,
+		PlanetVec2,
 	},
 	util::{Factory, Spawnable},
 };
@@ -235,7 +236,7 @@ impl Spawnable for TerrainObject {
 		transform: Transform,
 	) -> EntityCommands<'w, 's, 'a> {
 		cmds.spawn(TerrainObject {
-			mat_mesh_bundle: PbrBundle {
+			pbr: PbrBundle {
 				mesh: params.mesh.clone(),
 				material: params.material.clone(),
 				transform,
@@ -249,7 +250,7 @@ impl Spawnable for TerrainObject {
 
 #[derive(Bundle)]
 pub struct TerrainObject {
-	pub mat_mesh_bundle: PbrBundle,
+	pub pbr: PbrBundle,
 	pub rigid_body: RigidBody,
 	pub collider: Collider,
 	pub restitution: Restitution,
@@ -260,12 +261,12 @@ pub struct TerrainObject {
 impl Default for TerrainObject {
 	fn default() -> Self {
 		Self {
-			mat_mesh_bundle: PbrBundle::default(),
+			pbr: PbrBundle::default(),
 			rigid_body: RigidBody::Fixed,
 			collider: Collider::default(),
 			restitution: Restitution::new(0.5),
 			friction: Friction::new(0.01),
-			ccd: Ccd::disabled(),
+			ccd: Ccd::enabled(),
 		}
 	}
 }
@@ -329,19 +330,21 @@ pub fn spawn_loaded_chunks(
 			let mesh = meshes.add(mesh);
 			let heights = Arc::new(heights);
 			cmds.spawn((
-				PlanetVec3::default(),
-				RigidBody::Fixed,
-				Collider::from(SharedShape(heights.clone())),
-				PbrBundle {
-					mesh,
-					transform: Transform {
-						translation: Vec3::new(0.0, 0.0, -768.0),
-						rotation: Quat::from_rotation_x(FRAC_PI_2),
+				TerrainObject {
+					pbr: PbrBundle {
+						mesh,
+						transform: Transform {
+							translation: Vec3::new(0.0, 0.0, -768.0),
+							rotation: Quat::from_rotation_x(FRAC_PI_2),
+							..default()
+						},
+						material: mat.0.clone(),
 						..default()
 					},
-					material: mat.0.clone(),
+					collider: Collider::from(SharedShape(heights.clone())),
 					..default()
 				},
+				ChunkCenter::default(),
 				Ground { heights },
 			));
 			// remove from vec
