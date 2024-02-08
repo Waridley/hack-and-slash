@@ -17,7 +17,7 @@ use particles::{
 };
 use serde::{Deserialize, Serialize};
 
-pub const DEFAULT_FRAME_WIDTH: f32 = 128.0 * TERRAIN_CELL_SIZE;
+pub const DEFAULT_FRAME_RADIUS: f32 = 128.0 * TERRAIN_CELL_SIZE;
 
 pub struct PlanetFramePlugin;
 
@@ -51,8 +51,8 @@ impl Default for Frame {
 	fn default() -> Self {
 		Self {
 			center: default(),
-			trigger_bounds: DEFAULT_FRAME_WIDTH,
-			min_width: DEFAULT_FRAME_WIDTH,
+			trigger_bounds: DEFAULT_FRAME_RADIUS,
+			min_width: DEFAULT_FRAME_RADIUS,
 		}
 	}
 }

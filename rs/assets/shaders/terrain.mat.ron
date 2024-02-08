@@ -1,5 +1,5 @@
 ExtendedMaterial(
-    extension: DistanceDither( ),
+    extension: ( near_start: 0.0 ),
     base: StandardMaterial(
         base_color: Rgba ( red: 0.1, green: 0.1, blue: 0.1, alpha: 1.0),
         reflectance: 0.3,

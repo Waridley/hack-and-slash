@@ -19,6 +19,7 @@ pub mod day_night;
 pub mod frame;
 pub mod sky;
 pub mod terrain;
+pub mod weather;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugins((
