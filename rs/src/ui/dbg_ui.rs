@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use crate::{
 	planet::{
 		chunks::{ChunkCenter, LoadedChunks},
@@ -115,6 +116,34 @@ pub fn dbg_fps(
 						&fps.iter()
 							.map(|fps| &fps.frame_time)
 							.average::<f64, f64, f64>(),
+						ui,
+					)
+				});
+			});
+			ui.horizontal(|ui| {
+				ui.label("Min Δt");
+				ui.add_space(1.0);
+				ui.centered_and_justified(|ui| {
+					inspector.ui_for_reflect_readonly(
+						&fps
+							.iter()
+							.map(|fps| fps.frame_time)
+							.min_by(|l, r| l.partial_cmp(r).unwrap_or(Ordering::Equal))
+							.unwrap_or(0.0),
+						ui,
+					)
+				});
+			});
+			ui.horizontal(|ui| {
+				ui.label("Max Δt");
+				ui.add_space(1.0);
+				ui.centered_and_justified(|ui| {
+					inspector.ui_for_reflect_readonly(
+						&fps
+							.iter()
+							.map(|fps| fps.frame_time)
+							.max_by(|l, r| l.partial_cmp(r).unwrap_or(Ordering::Equal))
+							.unwrap_or(0.0),
 						ui,
 					)
 				});
