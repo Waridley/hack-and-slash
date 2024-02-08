@@ -331,7 +331,7 @@ impl<T: Reflect + Typed + TypePath> RonReflectAssetLoader<T> {
 	}
 }
 
-impl<'this, T: Reflect + FromReflect + Asset> AssetLoader for RonReflectAssetLoader<T> {
+impl<T: Reflect + FromReflect + Asset> AssetLoader for RonReflectAssetLoader<T> {
 	type Asset = T;
 	type Settings = ();
 	type Error = SceneLoaderError;
@@ -348,8 +348,8 @@ impl<'this, T: Reflect + FromReflect + Asset> AssetLoader for RonReflectAssetLoa
 			let mut buf = Vec::new();
 			reader.read_to_end(&mut buf).await?;
 			let registry = registry.read();
-			let seed = TypedReflectDeserializer::new(&registration, &*registry);
-			let mut de = ron::Deserializer::from_bytes(&*buf)?;
+			let seed = TypedReflectDeserializer::new(&registration, &registry);
+			let mut de = ron::Deserializer::from_bytes(&buf)?;
 			let val = seed
 				.deserialize(&mut de)
 				.map_err(|e| RonSpannedError(de.span_error(e)))?;

@@ -197,7 +197,7 @@ pub fn setup(
 	);
 
 	let crosshair_mat = materials.add(StandardMaterial {
-		base_color: Color::YELLOW.into(),
+		base_color: Color::YELLOW,
 		depth_bias: f32::INFINITY,
 		unlit: true,
 		..default()
@@ -841,8 +841,8 @@ pub fn orbs_follow_arms(
 
 #[derive(Event, Clone, Debug)]
 pub struct PlayerSpawnEvent {
-	id: PlayerId,
-	died_at: PlanetVec2,
+	pub id: PlayerId,
+	pub died_at: PlanetVec2,
 }
 
 pub fn countdown_respawn(

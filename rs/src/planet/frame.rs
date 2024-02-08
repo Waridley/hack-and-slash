@@ -125,14 +125,12 @@ pub fn reframe_all_entities(
 		}
 	}
 	for mut interp in &mut interpolations {
-		interp
-			.start
-			.as_mut()
-			.map(|start| start.translation.vector += offset);
-		interp
-			.end
-			.as_mut()
-			.map(|end| end.translation.vector += offset);
+		if let Some(start) = interp.start.as_mut() {
+			start.translation.vector += offset;
+		}
+		if let Some(end) = interp.end.as_mut() {
+			end.translation.vector += offset;
+		}
 	}
 }
 

@@ -219,7 +219,7 @@ pub fn move_player(
 
 		for (col_id, body_id, global, mut ctrl_vel, col, ctrl_owner, mut ctrl_state) in &mut ctrl_q
 		{
-			let Some(&body_handle) = ctx.entity2body().get(&body_id) else {
+			let Some(&body_handle) = ctx.entity2body().get(body_id) else {
 				continue;
 			};
 			player_repel_ground(
@@ -229,7 +229,7 @@ pub fn move_player(
 				col,
 				ctrl_vel.reborrow(),
 				ctrl_state.reborrow(),
-				&*params,
+				&params,
 				dt,
 			);
 

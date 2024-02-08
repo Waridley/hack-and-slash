@@ -88,7 +88,7 @@ pub struct DistanceDither {
 	/// Distance from the camera at which the mesh is fully discarded.
 	#[uniform(100)]
 	pub far_end: f32,
-	
+
 	/// Distance from the camera at which the mesh starts to fade away.
 	#[uniform(100)]
 	pub near_start: f32,
@@ -109,7 +109,7 @@ impl DistanceDither {
 			far_end: end,
 			near_start: 32.0,
 			near_end: 0.0,
-			matrix
+			matrix,
 		}
 	}
 }

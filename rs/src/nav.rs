@@ -10,13 +10,14 @@ use std::{collections::HashSet, sync::Weak};
 pub mod alg;
 pub mod heightmap;
 
+/// TODO: Issue [#33](https://github.com/Waridley/hack-and-slash/issues/33)
 #[derive(Resource, Debug)]
 pub struct NavGraph {
 	heightmaps: HashMap<ChunkIndex, Weak<HeightField>>,
-	structures: HashMap<Todo, Weak<Todo>>,
-	islands: HashMap<Todo, Weak<Todo>>,
-	heightmap_structure_seams: HashMap<Todo, Todo>, // should probably be bi-directional map
-	island_structure_seams: HashMap<Todo, Todo>,    // should probably be bi-directional map
+	_structures: HashMap<Todo, Weak<Todo>>,
+	_islands: HashMap<Todo, Weak<Todo>>,
+	_heightmap_structure_seams: HashMap<Todo, Todo>, // should probably be bi-directional map
+	_island_structure_seams: HashMap<Todo, Todo>,    // should probably be bi-directional map
 }
 
 /// ID of a triangle in the world by chunk index and triangle index within that chunk.
@@ -68,11 +69,11 @@ impl<'a, EdgeGen: EdgeVendor + Copy + 'static> NavGraphRef<'a, EdgeGen> {
 	}
 
 	// PERF: may want custom set of FixedBitSets for different nodes, rather than huge HashSet
-	pub fn visit_map(self: &Self) -> HashSet<NavIdx> {
+	pub fn visit_map(&self) -> HashSet<NavIdx> {
 		HashSet::new()
 	}
 
-	pub fn reset_map(self: &Self, map: &mut HashSet<NavIdx>) {
+	pub fn reset_map(&self, map: &mut HashSet<NavIdx>) {
 		map.clear()
 	}
 }
@@ -127,11 +128,7 @@ pub enum NavIdx {
 ///
 /// This is basically a trait alias for a complicated `FnMut` bound.
 pub trait EdgeVendor {
-	fn find_edges<'a>(
-		self,
-		graph: &'a NavGraph,
-		node: NavIdx,
-	) -> impl Iterator<Item = NavEdge> + 'a + 'static;
+	fn find_edges(self, graph: &NavGraph, node: NavIdx) -> impl Iterator<Item = NavEdge> + 'static;
 }
 
 pub struct SumEdges<A, B> {
@@ -140,11 +137,7 @@ pub struct SumEdges<A, B> {
 }
 
 impl<A: EdgeVendor, B: EdgeVendor> EdgeVendor for SumEdges<A, B> {
-	fn find_edges<'a>(
-		self,
-		graph: &'a NavGraph,
-		node: NavIdx,
-	) -> impl Iterator<Item = NavEdge> + 'a + 'static {
+	fn find_edges(self, graph: &NavGraph, node: NavIdx) -> impl Iterator<Item = NavEdge> + 'static {
 		self.a
 			.find_edges(graph, node)
 			.chain(self.b.find_edges(graph, node))

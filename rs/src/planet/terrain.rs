@@ -76,7 +76,7 @@ pub fn setup(
 		ChunkIndex::new(0, 0),
 		assets.clone(),
 		noise.clone(),
-		&mut *chunk_loading_tasks,
+		&mut chunk_loading_tasks,
 		&mut task_offloader,
 	);
 
@@ -120,12 +120,12 @@ pub fn spawn_boxes(mut factory: Factory<TerrainObject>) {
 	});
 }
 
-pub fn generate_chunk<'w, 's>(
+pub fn generate_chunk(
 	index: ChunkIndex,
 	assets: AssetServer,
 	noise: PlanetHeightSource,
 	chunk_loading_tasks: &mut ChunkLoadingTasks,
-	task_offloader: &mut TaskOffloader<'w, 's>,
+	task_offloader: &mut TaskOffloader,
 ) {
 	let (columns, rows) = (CHUNK_COLS, CHUNK_ROWS);
 	chunk_loading_tasks.insert(
@@ -557,8 +557,7 @@ pub fn unload_distant_chunks(
 		let global = global.translation().xy();
 		if !players
 			.iter()
-			.find(|player| (global - player.translation().xy()).length() < dist)
-			.is_some()
+			.any(|player| (global - player.translation().xy()).length() < dist)
 		{
 			cmds.entity(id).despawn();
 			if let Some((chunk, _)) = loaded_chunks.remove_by_right(&id) {

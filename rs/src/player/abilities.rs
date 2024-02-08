@@ -109,8 +109,8 @@ pub fn trigger_player_abilities(
 				&mut cmds,
 				&mut vel.linvel,
 				jump_vel,
-				&*audio,
-				&*sfx,
+				&audio,
+				&sfx,
 				&antigrav_q,
 				player,
 			);
@@ -118,31 +118,37 @@ pub fn trigger_player_abilities(
 
 		if state.just_pressed(Dash) && *boost_charge >= dash_cost {
 			**boost_charge -= *dash_cost;
-			dash(state.clamped_axis_pair(Move), dash_vel, &mut vel.linvel, &*audio, &*sfx);
+			dash(
+				state.clamped_axis_pair(Move),
+				dash_vel,
+				&mut vel.linvel,
+				&audio,
+				&sfx,
+			);
 		}
 
 		if state.just_pressed(FireA) {
 			let cam_pivot = cam_pivot_q
 				.iter()
 				.find_map(|(global, owner)| (**owner == player).then_some(*global))
-				.expect(&*format!("Can't find CamPivot for player {player}"));
+				.unwrap_or_else(|| panic!("Can't find CamPivot for player {player}"));
 			fire_a(
 				&mut cmds,
-				&*audio,
-				&*sfx,
+				&audio,
+				&sfx,
 				cam_pivot,
 				&arm_q,
 				&orb_q,
 				&chunk_q,
 				player,
-				&*frame,
-				&*loaded_chunks,
+				&frame,
+				&loaded_chunks,
 			)
 		}
 
 		if state.just_pressed(AoE) && *weap_charge >= aoe_cost {
 			**weap_charge -= *aoe_cost;
-			aoe(&mut cmds, &*audio, &*sfx, &arms_q, &arm_q, &orb_q, player)
+			aoe(&mut cmds, &audio, &sfx, &arms_q, &arm_q, &orb_q, player)
 		}
 	}
 }
@@ -534,8 +540,8 @@ pub fn hit_stuff(
 		// Maybe use `intersections_with_shape` with an extruded shape somehow?
 		// Would be easy with spheres (capsule) but not all shapes.
 		let Some((other, toi)) = ctx.cast_shape(
-			prev.translation.into(),
-			prev.rotation.slerp(xform.rotation, 0.5).into(), // Average I guess? *shrugs*
+			prev.translation,
+			prev.rotation.slerp(xform.rotation, 0.5), // Average I guess? *shrugs*
 			vel,
 			col,
 			vel.length() * 1.05,

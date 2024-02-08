@@ -5,11 +5,8 @@
 
 use crate::mats::MatsPlugin;
 use bevy::{
-	diagnostic::FrameTimeDiagnosticsPlugin,
-	ecs::schedule::{LogLevel, ScheduleBuildSettings},
-	prelude::*,
-	render::RenderPlugin,
-	window::PrimaryWindow,
+	diagnostic::FrameTimeDiagnosticsPlugin, ecs::schedule::LogLevel, prelude::*,
+	render::RenderPlugin, window::PrimaryWindow,
 };
 use bevy_kira_audio::AudioPlugin;
 use bevy_pkv::PkvStore;
@@ -88,7 +85,7 @@ impl Plugin for GameDynPlugin {
 			),
 		));
 		#[cfg(feature = "debugging")]
-		app.configure_schedules(ScheduleBuildSettings {
+		app.configure_schedules(bevy::ecs::schedule::ScheduleBuildSettings {
 			ambiguity_detection: LogLevel::Warn,
 			..default()
 		});
