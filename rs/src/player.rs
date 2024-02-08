@@ -339,7 +339,7 @@ pub fn spawn_players(
 				}),
 				KinematicPositionBased,
 				TransformBundle::from_transform(Transform {
-					translation: Vec3::Z * 2048.0,
+					translation: Vec3::Z * 4096.0,
 					..default()
 				}),
 				Velocity::default(),

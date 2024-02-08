@@ -14,8 +14,8 @@
 		max_speed: 48.0,
 		accel: 3.0,
 		gravity: 48.0,
-		climb_angle: Deg(59.0),
-		slide_angle: Deg(59.0),
+		climb_angle: Deg(44.0),
+		slide_angle: Deg(44.0),
 		hover_height: 2.0,
 		collider: (
 			radius: 1.2,
