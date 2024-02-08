@@ -4163,6 +4163,7 @@ dependencies = [
  "ordered-float",
  "petgraph",
  "rapier3d",
+ "ron",
  "serde",
  "sond-bevy-enum-components",
  "sond-bevy-particles",

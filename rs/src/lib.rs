@@ -11,6 +11,7 @@ use particles::ParticlesPlugin;
 use player::ctrl::CtrlVel;
 use std::{f32::consts::*, fmt::Debug, time::Duration};
 use util::IntoFnPlugin;
+use util::RonReflectAssetLoader;
 
 #[allow(unused_imports, clippy::single_component_path_imports)]
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
@@ -110,13 +111,20 @@ pub fn game_plugin(app: &mut App) -> &mut App {
 		env!("CARGO_PKG_NAME"),
 	))
 	.add_plugins((
-		RonAssetPlugin::<BubbleMaterial>::new(&["mat.ron"]),
+		// RonAssetPlugin::<BubbleMaterial>::new(&["mat.ron"]),
 		MaterialPlugin::<ExtendedMaterial<StandardMaterial, BubbleMaterial>>::default(),
 	))
 	.add_systems(Startup, startup)
 	.add_systems(Update, (terminal_velocity, fullscreen))
 	.add_systems(PostUpdate, (despawn_oob,));
-
+	type BubbleMatExt = ExtendedMaterial<StandardMaterial, BubbleMaterial>;
+	let registry = app.world.get_resource::<AppTypeRegistry>().unwrap().clone();
+	{
+		let mut reg = registry.write();
+		reg.register::<BubbleMaterial>();
+		reg.register::<BubbleMatExt>();
+	}
+	app.register_asset_loader(RonReflectAssetLoader::<BubbleMatExt>::new(registry, vec!["mat.ron"]));
 	app
 }
 
