@@ -1,6 +1,6 @@
 use crate::{
-	player::abilities::BoosterCharge,
 	player::{
+		abilities::BoosterCharge,
 		player_entity::{Controller, Root, ShipCenter},
 		tune::PlayerParams,
 		BelongsToPlayer, G1,
@@ -431,7 +431,7 @@ pub fn move_player(
 				let end = vis_interp.end.unwrap();
 				vis_interp.start = Some(Isometry::new(
 					end.translation.vector - Vector3::from(body_xform.rotation.inverse() * result),
-					(Quat::from(end.rotation) * rot.inverse())
+					(Quat::from(end.rotation).inverse() * rot.inverse())
 						.to_scaled_axis()
 						.into(),
 				));

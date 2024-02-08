@@ -21,6 +21,8 @@ pub fn extract_loaded_params(
 	}
 }
 
+/// Global game tuning parameters that will be effectively constant in releases.
+/// Implemented as an Asset for easy reloading during development.
 #[derive(Asset, TypePath, Resource, Serialize, Deserialize, Clone, Debug)]
 pub struct PlayerParams {
 	pub abil: AbilityParams,

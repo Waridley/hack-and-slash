@@ -46,7 +46,7 @@ impl Plugin for AbilitiesPlugin {
 		.add_systems(
 			PostUpdate,
 			(hit_stuff
-				.after(AnimationSet::<Transform>::default())
+				.after(AnimationSet::<Transform>::SET)
 				.after(TransformPropagate),),
 		)
 		.add_event::<Hurt>();
@@ -487,6 +487,9 @@ pub fn hit_stuff(
 		let xform = xform.compute_transform();
 		let prev = prev.compute_transform();
 		let vel = xform.translation - prev.translation;
+		// TODO: Get all hits along cast, not just the first.
+		// Maybe use `intersections_with_shape` with an extruded shape somehow?
+		// Would be easy with spheres (capsule) but not all shapes.
 		let Some((other, toi)) = ctx.cast_shape(
 			prev.translation.into(),
 			prev.rotation.slerp(xform.rotation, 0.5).into(), // Average I guess? *shrugs*
@@ -498,7 +501,6 @@ pub fn hit_stuff(
 		) else {
 			continue;
 		};
-		dbg!(&toi);
 		events.send(Hurt {
 			hurtbox: id,
 			toi,
