@@ -10,6 +10,7 @@ use bevy::prelude::*;
 use bevy_rapier3d::na::{Vector2, Vector3};
 use serde::{Deserialize, Serialize};
 use std::ops::{Add, Deref, DerefMut, Sub};
+use crate::planet::weather::WeatherPlugin;
 
 pub mod chunks;
 pub mod day_night;
@@ -23,6 +24,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 		terrain::plugin.plugfn(),
 		day_night::plugin.plugfn(),
 		PlanetFramePlugin,
+		WeatherPlugin,
 	))
 	.init_resource::<DayNightCycle>()
 	.register_type::<DayNightCycle>()
