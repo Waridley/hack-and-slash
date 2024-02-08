@@ -2,11 +2,16 @@ use crate::{
 	nav::heightmap::FnsThatShouldBePub,
 	offloading::{wasm_yield, Offload, OffloadedTask, TaskHandle, TaskOffloader},
 	planet::{
-		chunks::{ChunkCenter, ChunkIndex, CHUNK_COLS, CHUNK_ROWS, CHUNK_SCALE},
+		chunks::{
+			ChunkCenter, ChunkIndex, LoadedChunks, CHUNK_COLS, CHUNK_ROWS, CHUNK_SCALE,
+			TERRAIN_CELL_SIZE,
+		},
+		frame::Frame,
 		terrain::noise::{ChooseAndSmooth, Source, SyncWorley},
 		PlanetVec2,
 	},
-	util::{Factory, Spawnable},
+	player::player_entity::Root,
+	util::{Diff, Factory, Spawnable},
 };
 use ::noise::{
 	Add, Billow, Fbm, HybridMulti, MultiFractal, NoiseFn, Perlin, RidgedMulti, ScaleBias, Seedable,
@@ -19,10 +24,12 @@ use bevy::{
 		batching::NoAutomaticBatching,
 		mesh::{PrimitiveTopology, VertexAttributeValues::Float32x3},
 	},
+	utils::HashMap,
 };
 use bevy_rapier3d::{parry::shape::SharedShape, prelude::*};
+use enum_components::ERef;
 use rapier3d::{geometry::HeightField, na::DMatrix};
-use std::{f32::consts::*, sync::Arc};
+use std::{f32::consts::*, ops::DerefMut, sync::Arc};
 use web_time::{Duration, Instant};
 
 pub mod noise;
@@ -30,10 +37,15 @@ pub mod noise;
 pub type Noise = ChooseAndSmooth<4>;
 
 pub fn plugin(app: &mut App) -> &mut App {
+	// WHY is there no length function on `Vector2`??
+	let diameter = (CHUNK_SCALE.x * CHUNK_SCALE.x + CHUNK_SCALE.y * CHUNK_SCALE.y).sqrt();
+	dbg!(diameter);
 	app.add_systems(Startup, setup)
 		.add_systems(PostStartup, spawn_boxes)
-		.insert_resource(ChunkLoadingTasks::default())
+		.init_resource::<ChunkLoadingTasks>()
+		.insert_resource(UnloadDistance(5.0 * diameter))
 		.add_systems(Update, spawn_loaded_chunks)
+		.add_systems(Last, (load_nearby_chunks, unload_distant_chunks))
 }
 
 pub fn setup(
@@ -51,7 +63,7 @@ pub fn setup(
 
 	cmds.insert_resource(TerrainMaterial(material.clone()));
 
-	// Add is not Clone, so we'll use a closer to get multiple copies
+	// Add is not Clone, so we'll use a closure to get multiple copies
 	let base = || {
 		Add::new(
 			ScaleBias::new(
@@ -119,7 +131,7 @@ pub fn setup(
 
 	let noise = ChooseAndSmooth::new([perlin, worley, billow, ridged]);
 
-	let noise = Arc::new(noise);
+	let noise = PlanetHeightSource::new(noise);
 
 	// Spawn center first
 	generate_chunk(
@@ -129,24 +141,8 @@ pub fn setup(
 		&mut *chunk_loading_tasks,
 		&mut task_offloader,
 	);
-	for i in -3..=3 {
-		for j in -3..=3 {
-			if i == 0 && j == 0 {
-				continue;
-			}
-			generate_chunk(
-				ChunkIndex::new(j, i),
-				assets.clone(),
-				noise.clone(),
-				&mut *chunk_loading_tasks,
-				&mut task_offloader,
-			);
-		}
-	}
 
-	let planet_noise = PlanetHeightSource::new(noise);
-
-	cmds.insert_resource(planet_noise);
+	cmds.insert_resource(noise);
 
 	let mesh = Mesh::from(shape::Cube { size: 64.0 })
 		// All of this makes cube meshes use the same compiled shader as heightmap terrain, preventing freezes
@@ -188,12 +184,12 @@ pub fn spawn_boxes(mut factory: Factory<TerrainObject>) {
 pub fn generate_chunk<'w, 's>(
 	index: ChunkIndex,
 	assets: AssetServer,
-	noise: Arc<Noise>,
+	noise: PlanetHeightSource,
 	chunk_loading_tasks: &mut ChunkLoadingTasks,
 	task_offloader: &mut TaskOffloader<'w, 's>,
 ) {
 	let (columns, rows) = (CHUNK_COLS, CHUNK_ROWS);
-	chunk_loading_tasks.push((
+	chunk_loading_tasks.insert(
 		index,
 		task_offloader.start(async move {
 			let mut last_await = Instant::now();
@@ -240,7 +236,7 @@ pub fn generate_chunk<'w, 's>(
 			let mesh = assets.add(mesh);
 			(heights, mesh)
 		}),
-	));
+	);
 }
 
 /// Share mesh, material, and collider amongst multiple `TerrainObjects`
@@ -301,8 +297,9 @@ pub struct Ground {
 	pub heights: Arc<HeightField>,
 }
 
-#[derive(Resource)]
+#[derive(Resource, Deref, Clone)]
 pub struct PlanetHeightSource {
+	#[deref]
 	pub noise: Arc<Noise>,
 }
 
@@ -312,34 +309,10 @@ impl PlanetHeightSource {
 			noise: noise.into(),
 		}
 	}
-	pub fn local(&self, center: PlanetVec2, size: Vec2) -> LocalHeightSource {
-		LocalHeightSource {
-			center,
-			noise: self.noise.clone(),
-			size,
-		}
-	}
-}
-
-pub struct LocalHeightSource {
-	pub center: PlanetVec2,
-	pub noise: Arc<Noise>,
-	pub size: Vec2,
-}
-
-impl LocalHeightSource {
-	pub fn get(&self, j: usize, i: usize) -> f32 {
-		let local = Vec2 {
-			x: j as f32 - self.size.x * 0.5,
-			y: i as f32 - self.size.y * 0.5,
-		};
-		let point = self.center + local;
-		self.noise.get([point.x, point.y]) as f32
-	}
 }
 
 #[derive(Resource, Default, Deref, DerefMut)]
-pub struct ChunkLoadingTasks(Vec<(ChunkIndex, TaskHandle<(HeightField, Handle<Mesh>)>)>);
+pub struct ChunkLoadingTasks(HashMap<ChunkIndex, TaskHandle<(HeightField, Handle<Mesh>)>>);
 
 #[derive(Resource, Clone, Debug, Deref, DerefMut)]
 pub struct TerrainMaterial(Handle<StandardMaterial>);
@@ -348,33 +321,39 @@ pub fn spawn_loaded_chunks(
 	mut cmds: Commands,
 	mut tasks: ResMut<ChunkLoadingTasks>,
 	mat: Res<TerrainMaterial>,
+	mut loaded_chunks: ResMut<LoadedChunks>,
+	frame: Res<Frame>,
 ) {
-	tasks.retain_mut(|(index, task)| {
-		// TODO: Relative to current frame
+	tasks.retain(|index, task| {
 		let center = ChunkCenter::from(*index);
-		let translation = Vec2::from(center.0);
+		let translation = center.delta_from(&frame.center);
 		if let Some((heights, mesh)) = task.check() {
 			let heights = Arc::new(heights);
-			cmds.spawn((
-				TerrainObject {
-					pbr: PbrBundle {
-						mesh,
-						transform: Transform {
-							translation: Vec3::new(translation.x, translation.y, -768.0),
-							rotation: Quat::from_rotation_x(FRAC_PI_2),
+			let id = cmds
+				.spawn((
+					TerrainObject {
+						pbr: PbrBundle {
+							mesh,
+							transform: Transform {
+								translation: Vec3::new(translation.x, translation.y, 0.0),
+								rotation: Quat::from_rotation_x(FRAC_PI_2),
+								..default()
+							},
+							material: mat.0.clone(),
 							..default()
 						},
-						material: mat.0.clone(),
+						collider: Collider::from(SharedShape(heights.clone())),
 						..default()
 					},
-					collider: Collider::from(SharedShape(heights.clone())),
-					..default()
-				},
-				*index,
-				center,
-				Ground { heights },
-				NoAutomaticBatching,
-			));
+					*index,
+					center,
+					Ground { heights },
+					NoAutomaticBatching,
+				))
+				.id();
+
+			loaded_chunks.insert(*index, id);
+
 			// remove from tasks vec
 			false
 		} else {
@@ -383,3 +362,86 @@ pub fn spawn_loaded_chunks(
 		}
 	})
 }
+
+// Pattern ensures that there are always at least 2 chunks beyond the player in any direction.
+#[rustfmt::skip]
+const NEARBY: [(i32, i32); 37] = [
+	                    (-1, -3), (0, -3), ( 1, -3),
+	          (-2, -2), (-1, -2), (0, -2), ( 1, -2), ( 2, -2),
+	(-3, -1), (-2, -1), (-1, -1), (0, -1), ( 1, -1), ( 2, -1), ( 3, -1),
+	(-3,  0), (-2,  0), (-1,  0), (0,  0), ( 1,  0), ( 2,  0), ( 3,  0),
+	(-3,  1), (-2,  1), (-1,  1), (0,  1), ( 1,  1), ( 2,  1), ( 3,  1),
+	          (-2,  2), (-1,  2), (0,  2), ( 1,  2), ( 2,  2),
+	                    (-1,  3), (0,  3), ( 1,  3),
+];
+
+pub fn load_nearby_chunks(
+	players: Query<&GlobalTransform, ERef<Root>>,
+	loaded_chunks: Res<LoadedChunks>,
+	mut tasks: ResMut<ChunkLoadingTasks>,
+	mut task_offloader: TaskOffloader,
+	frame: Res<Frame>,
+	assets: Res<AssetServer>,
+	noise: Res<PlanetHeightSource>,
+) {
+	for player in &players {
+		let player_pos = frame.planet_coords_of(player.translation().xy());
+		for (x, y) in NEARBY {
+			let sample = PlanetVec2::new(
+				(x as f64 * CHUNK_COLS as f64 * TERRAIN_CELL_SIZE as f64) + player_pos.x,
+				(y as f64 * CHUNK_ROWS as f64 * TERRAIN_CELL_SIZE as f64) + player_pos.y,
+			);
+			let chunk = sample.into();
+			if !loaded_chunks.contains_left(&chunk) && !tasks.contains_key(&chunk) {
+				info!("Loading {chunk:?}");
+				generate_chunk(
+					chunk,
+					assets.clone(),
+					noise.clone(),
+					&mut tasks,
+					&mut task_offloader,
+				);
+			}
+		}
+	}
+}
+
+pub fn unload_distant_chunks(
+	mut cmds: Commands,
+	players: Query<&GlobalTransform, ERef<Root>>,
+	chunks: Query<(Entity, &GlobalTransform), With<ChunkCenter>>,
+	dist: Res<UnloadDistance>,
+	mut loaded_chunks: ResMut<LoadedChunks>,
+) {
+	if players.is_empty() {
+		// All players are despawned, don't unload anything until
+		// we can know where they will respawn.
+		return;
+	}
+
+	// WHY is there no length function on `Vector2`??
+	let diameter = (CHUNK_SCALE.x * CHUNK_SCALE.x + CHUNK_SCALE.y * CHUNK_SCALE.y).sqrt();
+
+	// Don't oscillate between loading and unloading
+	// Must allow for player to be in the corner of a chunk
+	// and still not unload cells in `NEARBY`
+	let dist = f32::max(**dist, diameter * 3.6);
+	for (id, global) in &chunks {
+		let global = global.translation().xy();
+		if !players
+			.iter()
+			.find(|player| (global - player.translation().xy()).length() < dist)
+			.is_some()
+		{
+			cmds.entity(id).despawn();
+			if let Some((chunk, _)) = loaded_chunks.remove_by_right(&id) {
+				info!("Unloaded {chunk:?}");
+			} else {
+				warn!("Chunk {id:?} wasn't in the `LoadedChunks` map");
+			}
+		}
+	}
+}
+
+#[derive(Resource, Deref, DerefMut, Debug, Reflect)]
+pub struct UnloadDistance(f32);

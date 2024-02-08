@@ -621,8 +621,8 @@ impl Add<DurationDelta> for Duration {
 	}
 }
 
-#[derive(Component, Resource, Deref, DerefMut)]
-pub struct Prev<T>(T);
+#[derive(Component, Default, Debug, Resource, Deref, DerefMut)]
+pub struct Prev<T>(pub T);
 
 impl<T: Clone> Prev<T> {
 	pub fn update_component(
