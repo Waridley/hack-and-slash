@@ -4,6 +4,3 @@
 [submodule "sond-bevy-particles"]
 	path = sond-bevy-particles
 	url = git@github.com:Waridley/bevy-particles.git
-[submodule "leafwing_abilities"]
-	path = leafwing_abilities
-	url = git@github.com:k-specht/leafwing_abilities.git

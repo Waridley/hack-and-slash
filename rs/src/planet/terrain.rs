@@ -2,7 +2,7 @@ use crate::{
 	nav::heightmap::FnsThatShouldBePub,
 	offloading::{wasm_yield, Offload, OffloadedTask, TaskHandle, TaskOffloader},
 	planet::{
-		chunks::ChunkCenter,
+		chunks::{ChunkCenter, ChunkIndex, CHUNK_COLS, CHUNK_ROWS, CHUNK_SCALE},
 		terrain::noise::{ChooseAndSmooth, Source, SyncWorley},
 		PlanetVec2,
 	},
@@ -15,19 +15,17 @@ use ::noise::{
 use bevy::{
 	ecs::system::{EntityCommands, SystemParamItem},
 	prelude::*,
-	render::mesh::{PrimitiveTopology, VertexAttributeValues::Float32x3},
+	render::{
+		batching::NoAutomaticBatching,
+		mesh::{PrimitiveTopology, VertexAttributeValues::Float32x3},
+	},
 };
 use bevy_rapier3d::{parry::shape::SharedShape, prelude::*};
-use rapier3d::{
-	geometry::HeightField,
-	na::{DMatrix, Vector3},
-};
+use rapier3d::{geometry::HeightField, na::DMatrix};
 use std::{f32::consts::*, sync::Arc};
+use web_time::{Duration, Instant};
 
 pub mod noise;
-
-const CHUNK_WIDTH: usize = 128;
-const CHUNK_SCALE: Vector3<f32> = Vector3::new(2048.0, 1024.0, 2048.0);
 
 pub type Noise = ChooseAndSmooth<4>;
 
@@ -40,12 +38,11 @@ pub fn plugin(app: &mut App) -> &mut App {
 
 pub fn setup(
 	mut cmds: Commands,
-	mut materials: ResMut<Assets<StandardMaterial>>,
-	mut meshes: ResMut<Assets<Mesh>>,
+	assets: Res<AssetServer>,
 	mut chunk_loading_tasks: ResMut<ChunkLoadingTasks>,
 	mut task_offloader: TaskOffloader,
 ) {
-	let material = materials.add(StandardMaterial {
+	let material = assets.add(StandardMaterial {
 		base_color: Color::rgb(0.1, 0.1, 0.1),
 		reflectance: 0.3,
 		perceptual_roughness: 0.0,
@@ -124,70 +121,40 @@ pub fn setup(
 
 	let noise = Arc::new(noise);
 
-	let (columns, rows) = (CHUNK_WIDTH, CHUNK_WIDTH);
-
-	{
-		let noise = noise.clone();
-		let center = PlanetVec2::new(0.0, 0.0);
-		chunk_loading_tasks.push((
-			center,
-			task_offloader.start(async move {
-				let heights = noise
-					.generate_map(PlanetVec2::new(0.0, 0.0), rows, columns)
-					.await;
-				let heights =
-					HeightField::new(DMatrix::from_vec(rows, columns, heights), CHUNK_SCALE);
-
-				fn face_normal(a: [f32; 3], b: [f32; 3], c: [f32; 3]) -> [f32; 3] {
-					let (a, b, c) = (Vec3::from(a), Vec3::from(b), Vec3::from(c));
-					(b - a).cross(c - a).normalize().into()
-				}
-
-				let mut vertices = Vec::with_capacity(heights.num_triangles() * 3);
-				let mut normals = Vec::with_capacity(vertices.len());
-				for (i, tri) in heights.triangles().enumerate() {
-					let tri = [
-						[
-							tri.a.x + center.x as f32,
-							tri.a.y + center.y as f32,
-							tri.a.z,
-						],
-						[
-							tri.b.x + center.x as f32,
-							tri.b.y + center.y as f32,
-							tri.b.z,
-						],
-						[
-							tri.c.x + center.x as f32,
-							tri.c.y + center.y as f32,
-							tri.c.z,
-						],
-					];
-
-					vertices.extend_from_slice(&tri);
-					let normal = face_normal(tri[0], tri[1], tri[2]);
-					normals.extend_from_slice(&[normal; 3]);
-					if i % 1024 == 0 {
-						wasm_yield().await;
-					}
-				}
-
-				let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
-				mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, Float32x3(vertices));
-				mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
-
-				(heights, mesh)
-			}),
-		));
+	// Spawn center first
+	generate_chunk(
+		ChunkIndex::new(0, 0),
+		assets.clone(),
+		noise.clone(),
+		&mut *chunk_loading_tasks,
+		&mut task_offloader,
+	);
+	for i in -3..=3 {
+		for j in -3..=3 {
+			if i == 0 && j == 0 {
+				continue;
+			}
+			generate_chunk(
+				ChunkIndex::new(j, i),
+				assets.clone(),
+				noise.clone(),
+				&mut *chunk_loading_tasks,
+				&mut task_offloader,
+			);
+		}
 	}
 
 	let planet_noise = PlanetHeightSource::new(noise);
 
 	cmds.insert_resource(planet_noise);
 
-	let mesh = Mesh::from(shape::Cube { size: 64.0 });
+	let mesh = Mesh::from(shape::Cube { size: 64.0 })
+		// All of this makes cube meshes use the same compiled shader as heightmap terrain, preventing freezes
+		.with_duplicated_vertices()
+		.with_computed_flat_normals()
+		.with_removed_attribute(Mesh::ATTRIBUTE_UV_0);
 	let collider = Collider::cuboid(32.0, 32.0, 32.0);
-	let mesh = meshes.add(mesh);
+	let mesh = assets.add(mesh);
 
 	cmds.insert_resource(TerrainTemplate {
 		mesh,
@@ -216,6 +183,64 @@ pub fn spawn_boxes(mut factory: Factory<TerrainObject>) {
 		rotation: Quat::from_rotation_x(FRAC_PI_3),
 		..default()
 	});
+}
+
+pub fn generate_chunk<'w, 's>(
+	index: ChunkIndex,
+	assets: AssetServer,
+	noise: Arc<Noise>,
+	chunk_loading_tasks: &mut ChunkLoadingTasks,
+	task_offloader: &mut TaskOffloader<'w, 's>,
+) {
+	let (columns, rows) = (CHUNK_COLS, CHUNK_ROWS);
+	chunk_loading_tasks.push((
+		index,
+		task_offloader.start(async move {
+			let mut last_await = Instant::now();
+			let heights = noise
+				.generate_map(
+					PlanetVec2::new(
+						index.x as f64 * columns as f64,
+						index.y as f64 * rows as f64,
+					),
+					rows,
+					columns,
+				)
+				.await;
+			let heights = HeightField::new(DMatrix::from_vec(rows, columns, heights), CHUNK_SCALE);
+
+			fn face_normal(a: [f32; 3], b: [f32; 3], c: [f32; 3]) -> [f32; 3] {
+				let (a, b, c) = (Vec3::from(a), Vec3::from(b), Vec3::from(c));
+				(b - a).cross(c - a).normalize().into()
+			}
+
+			let mut vertices = Vec::with_capacity(heights.num_triangles() * 3);
+			let mut normals = Vec::with_capacity(vertices.len());
+			for tri in heights.triangles() {
+				let tri = [
+					[tri.a.x, tri.a.y, tri.a.z],
+					[tri.b.x, tri.b.y, tri.b.z],
+					[tri.c.x, tri.c.y, tri.c.z],
+				];
+
+				vertices.extend_from_slice(&tri);
+				let normal = face_normal(tri[0], tri[1], tri[2]);
+				normals.extend_from_slice(&[normal; 3]);
+
+				if Instant::now().duration_since(last_await) > Duration::from_micros(500) {
+					wasm_yield().await;
+					last_await = Instant::now();
+				}
+			}
+
+			let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
+			mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, Float32x3(vertices));
+			mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+
+			let mesh = assets.add(mesh);
+			(heights, mesh)
+		}),
+	));
 }
 
 /// Share mesh, material, and collider amongst multiple `TerrainObjects`
@@ -314,7 +339,7 @@ impl LocalHeightSource {
 }
 
 #[derive(Resource, Default, Deref, DerefMut)]
-pub struct ChunkLoadingTasks(Vec<(PlanetVec2, TaskHandle<(HeightField, Mesh)>)>);
+pub struct ChunkLoadingTasks(Vec<(ChunkIndex, TaskHandle<(HeightField, Handle<Mesh>)>)>);
 
 #[derive(Resource, Clone, Debug, Deref, DerefMut)]
 pub struct TerrainMaterial(Handle<StandardMaterial>);
@@ -322,19 +347,20 @@ pub struct TerrainMaterial(Handle<StandardMaterial>);
 pub fn spawn_loaded_chunks(
 	mut cmds: Commands,
 	mut tasks: ResMut<ChunkLoadingTasks>,
-	mut meshes: ResMut<Assets<Mesh>>,
 	mat: Res<TerrainMaterial>,
 ) {
-	tasks.retain_mut(|(_center, task)| {
+	tasks.retain_mut(|(index, task)| {
+		// TODO: Relative to current frame
+		let center = ChunkCenter::from(*index);
+		let translation = Vec2::from(center.0);
 		if let Some((heights, mesh)) = task.check() {
-			let mesh = meshes.add(mesh);
 			let heights = Arc::new(heights);
 			cmds.spawn((
 				TerrainObject {
 					pbr: PbrBundle {
 						mesh,
 						transform: Transform {
-							translation: Vec3::new(0.0, 0.0, -768.0),
+							translation: Vec3::new(translation.x, translation.y, -768.0),
 							rotation: Quat::from_rotation_x(FRAC_PI_2),
 							..default()
 						},
@@ -344,10 +370,12 @@ pub fn spawn_loaded_chunks(
 					collider: Collider::from(SharedShape(heights.clone())),
 					..default()
 				},
-				ChunkCenter::default(),
+				*index,
+				center,
 				Ground { heights },
+				NoAutomaticBatching,
 			));
-			// remove from vec
+			// remove from tasks vec
 			false
 		} else {
 			// try again next frame

@@ -5,22 +5,30 @@
 
 use crate::mats::BubbleMaterial;
 use bevy::{
-	diagnostic::FrameTimeDiagnosticsPlugin, pbr::ExtendedMaterial, prelude::*,
-	render::RenderPlugin, window::PrimaryWindow,
+	diagnostic::FrameTimeDiagnosticsPlugin,
+	ecs::schedule::{LogLevel, ScheduleBuildSettings},
+	pbr::ExtendedMaterial,
+	prelude::*,
+	render::RenderPlugin,
+	window::PrimaryWindow,
 };
 use bevy_kira_audio::AudioPlugin;
 use bevy_pkv::PkvStore;
 use bevy_rapier3d::prelude::*;
-use particles::ParticlesPlugin;
+use particles::{ParticlesPlugin, Spewer};
 use player::ctrl::CtrlVel;
 use std::{f32::consts::*, fmt::Debug, time::Duration};
 use util::{IntoFnPlugin, RonReflectAssetLoader};
 
+use player::abilities::AbilitiesPlugin;
 #[allow(unused_imports, clippy::single_component_path_imports)]
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
 use bevy_dylib;
 use bevy_rapier3d::plugin::PhysicsSet::StepSimulation;
+use offloading::OffloadingPlugin;
+use planet::sky::SkyPlugin;
 
+pub mod anim;
 pub mod enemies;
 pub mod mats;
 pub mod nav;
@@ -80,7 +88,11 @@ impl Plugin for GameDynPlugin {
 				bevy::gizmos::GizmoPlugin,
 			),
 		));
-
+		#[cfg(feature = "debugging")]
+		app.configure_schedules(ScheduleBuildSettings {
+			ambiguity_detection: LogLevel::Warn,
+			..default()
+		});
 		game_plugin(app);
 	}
 }
@@ -100,8 +112,11 @@ pub fn game_plugin(app: &mut App) -> &mut App {
 		FrameTimeDiagnosticsPlugin,
 		AudioPlugin,
 		ParticlesPlugin,
-		offloading::OffloadingPlugin,
-		planet::sky::SkyPlugin,
+		AbilitiesPlugin,
+		OffloadingPlugin,
+		SkyPlugin,
+		anim::BuiltinAnimations,
+		anim::AnimationPlugin::<Spewer>::default(),
 		enemies::plugin.plugfn(),
 		player::plugin.plugfn(),
 		pickups::plugin.plugfn(),
@@ -109,13 +124,8 @@ pub fn game_plugin(app: &mut App) -> &mut App {
 		planet::plugin.plugfn(),
 		ui::plugin.plugfn(),
 	))
-	.insert_resource(PkvStore::new_with_qualifier(
-		"studio",
-		"sonday",
-		env!("CARGO_PKG_NAME"),
-	))
+	.insert_resource(PkvStore::new_with_qualifier("studio", "sonday", "has"))
 	.add_plugins((
-		// RonAssetPlugin::<BubbleMaterial>::new(&["mat.ron"]),
 		MaterialPlugin::<ExtendedMaterial<StandardMaterial, BubbleMaterial>>::default(),
 	))
 	.add_systems(Startup, startup)
@@ -159,7 +169,11 @@ pub type InBounds = bool;
 #[derive(Component, Debug)]
 pub struct NeverDespawn;
 
-fn despawn_oob(mut cmds: Commands, bounds: Res<AbsoluteBounds>, mut q: Query<(Entity, &mut GlobalTransform, Has<NeverDespawn>)>) {
+fn despawn_oob(
+	mut cmds: Commands,
+	bounds: Res<AbsoluteBounds>,
+	mut q: Query<(Entity, &mut GlobalTransform, Has<NeverDespawn>)>,
+) {
 	for (id, mut xform, never_despawn) in &mut q {
 		if !bounds.test(xform.translation()) {
 			let plan = if never_despawn {
@@ -237,28 +251,29 @@ fn startup(
 	});
 }
 
-fn terminal_velocity(mut q: Query<(&mut CtrlVel, &TerminalVelocity)>) {
+fn terminal_velocity(mut q: Query<(&mut CtrlVel, &TerminalVelocity)>, t: Res<Time>) {
+	let dt = t.delta_seconds();
 	for (mut vel, term_vel) in q.iter_mut() {
 		// Don't trigger vel.deref_mut if not necessary
 		let term = term_vel.linvel;
 		if vel.linvel.x.abs() > term.x {
-			vel.linvel.x = term.x * vel.linvel.x.signum()
+			vel.linvel.x -= dt * vel.linvel.x.signum()
 		}
 		if vel.linvel.y.abs() > term.y {
-			vel.linvel.y = term.y * vel.linvel.y.signum()
+			vel.linvel.y -= dt * vel.linvel.y.signum()
 		}
 		if vel.linvel.z.abs() > term.z {
-			vel.linvel.z = term.z * vel.linvel.z.signum()
+			vel.linvel.z -= dt * vel.linvel.z.signum()
 		}
 		let term = term_vel.angvel;
 		if vel.angvel.x.abs() > term.x {
-			vel.angvel.x = term.x * vel.angvel.x.signum()
+			vel.angvel.x -= dt * vel.angvel.x.signum()
 		}
 		if vel.angvel.y.abs() > term.y {
-			vel.angvel.y = term.y * vel.angvel.y.signum()
+			vel.angvel.y -= dt * vel.angvel.y.signum()
 		}
 		if vel.angvel.z.abs() > term.z {
-			vel.angvel.z = term.z * vel.angvel.z.signum()
+			vel.angvel.z -= dt * vel.angvel.z.signum()
 		}
 	}
 }

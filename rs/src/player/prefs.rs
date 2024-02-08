@@ -39,14 +39,28 @@ impl Default for PlayerPrefs {
 		let mut input_map = InputMap::new([
 			(KeyCode::Back, Jump),
 			(KeyCode::Space, Jump),
+			(KeyCode::ShiftLeft, Dash),
+			(KeyCode::ShiftRight, FireA),
 			(KeyCode::E, AoE),
+			(KeyCode::PageUp, AoE),
 			(KeyCode::Escape, Pause),
 		]);
 		input_map.insert_multiple([
+			(DualAxis::left_stick(), Move),
+			(DualAxis::right_stick(), Look),
+		]);
+		input_map.insert_multiple([
+			(VirtualDPad::wasd(), Move),
+			(VirtualDPad::arrow_keys(), Look),
+		]);
+		input_map.insert_multiple([
 			(GamepadButtonType::South, Jump),
+			(GamepadButtonType::West, Dash),
+			(GamepadButtonType::RightTrigger2, FireA),
 			(GamepadButtonType::RightTrigger, AoE),
 			(GamepadButtonType::Start, Pause),
 		]);
+		input_map.insert_multiple([(MouseButton::Left, FireA), (MouseButton::Other(9), Dash)]);
 		Self {
 			invert_camera: default(),
 			fov: default(),

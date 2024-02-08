@@ -20,9 +20,6 @@ default = [
 
 
 [patch.crates-io]
-#rapier3d = { version = "0.16", path = "../rapier/crates/rapier3d" }
-#bevy_rapier3d = { version = "0.23.0", path = "../bevy_rapier/bevy_rapier3d" }
-leafwing_abilities = { version = "0.5.0", path = "../leafwing_abilities" }
 proc-macro-crate = { version = "2", git = "https://github.com/Waridley/proc-macro-crate.git", branch = "root_workspace_deps" }
 
 [workspace.dependencies.bevy]
@@ -70,7 +67,6 @@ bevy_rapier3d = { version = "0.23.0", default-features = false, features = ["dim
 rapier3d = { version = "0.17.2", features = ["wasm-bindgen", "serde-serialize"] }
 bevy_kira_audio = "0.18.0"
 leafwing-input-manager = "0.11.1"
-leafwing_abilities = "0.5.0"
 bevy_quickmenu = "0.2.0"
 bevy_common_assets = { version = "0.8.0", features = ["ron"] }
 
@@ -87,6 +83,7 @@ ordered-float = "4.2.0"
 ron = "0.8.1"
 static_assertions = "1.1.0"
 serde = "1"
+web-time = "1.0.0"
 
 # Debugging/Editor
 bevy-inspector-egui = "0.21.0"
@@ -104,8 +101,6 @@ bevy_rapier3d = { workspace = true }
 rapier3d = { workspace = true }
 bevy_kira_audio = { workspace = true }
 leafwing-input-manager = { workspace = true }
-leafwing_abilities = { workspace = true }
-#bevy_quickmenu = { workspace = true }
 bevy_common_assets = { workspace = true }
 
 # Util
@@ -120,6 +115,7 @@ ordered-float = { workspace = true }
 ron = { workspace = true }
 static_assertions = { workspace = true }
 serde = { workspace = true }
+web-time = { workspace = true }
 
 # Debugging
 bevy-inspector-egui = { workspace = true, optional = true }
@@ -157,3 +153,9 @@ inherits = "dev"
 inherits = "release"
 opt-level = 3
 lto = true
+
+[profile.profiling]
+inherits = "release"
+opt-level = 3
+lto = false
+debug = true

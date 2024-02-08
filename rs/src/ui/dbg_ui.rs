@@ -43,7 +43,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 					History::<Fps>::track_resource
 						.after(update_fps)
 						.before(dbg_fps),
-					dbg_fps.run_if(dbg_window_toggled(true, KeyCode::F)),
+					dbg_fps.run_if(dbg_window_toggled(true, KeyCode::T)),
 					dbg_res::<DayNightCycle>
 						.run_if(dbg_window_toggled(true, KeyCode::N))
 						.after(dbg_fps),
