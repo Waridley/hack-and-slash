@@ -5,11 +5,7 @@ use crate::{
 	player::abilities::Hurt,
 	util::Diff,
 };
-use bevy::{
-	math::Vec3Swizzles,
-	pbr::ExtendedMaterial,
-	prelude::{shape::Icosphere, *},
-};
+use bevy::prelude::{shape::Icosphere, *};
 use bevy_kira_audio::{Audio, AudioControl, AudioSource};
 use bevy_rapier3d::{
 	geometry::Collider,

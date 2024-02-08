@@ -18,10 +18,6 @@ default = [
     "render",
 ]
 
-
-[patch.crates-io]
-proc-macro-crate = { version = "2", git = "https://github.com/Waridley/proc-macro-crate.git", branch = "root_workspace_deps" }
-
 [workspace.dependencies.bevy]
 version = "0.12.1"
 default-features = false
@@ -155,6 +151,7 @@ harness = false
 [lints.clippy]
 needless_update = "allow" # `..default()` used a lot to allow quick adding/removing of fields
 too_many_arguments = "allow" # Systems often need lots of arguments
+type_complexity = "allow" # Queries seem complex to Clippy but are usually easily read
 
 # Helps prevent full rebuild when switching between deskop and WASM due to rustflags
 [profile.desktop]

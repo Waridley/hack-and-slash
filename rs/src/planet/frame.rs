@@ -6,7 +6,7 @@ use crate::{
 	player::player_entity::Root,
 	util::Prev,
 };
-use bevy::{prelude::*, transform::TransformSystem::TransformPropagate};
+use bevy::prelude::*;
 use bevy_rapier3d::{
 	dynamics::RapierRigidBodyHandle, na::Vector, plugin::RapierContext,
 	prelude::TransformInterpolation,
@@ -74,7 +74,6 @@ pub fn reframe_all_entities(
 		&mut InitialGlobalTransform,
 		Has<Parent>,
 	)>,
-	mut bevy_prevs: Query<(&mut bevy::pbr::PreviousGlobalTransform)>,
 	frame: Res<Frame>,
 	prev_frame: Res<Prev<Frame>>,
 ) {
@@ -116,28 +115,22 @@ pub fn reframe_all_entities(
 		computed.translation += offset;
 		**init_global = GlobalTransform::from(computed);
 	}
-	for mut prev_global in &mut bevy_prevs {
-		prev_global.0.translation.x += offset.x;
-		prev_global.0.translation.y += offset.y;
-	}
 
 	// Rapier transforms
 	let offset = Vector::from(offset);
 	for body in &bodies {
-		if let Some(mut body) = ctx.bodies.get_mut(body.0) {
+		if let Some(body) = ctx.bodies.get_mut(body.0) {
 			let pos = body.translation();
 			body.set_translation(*pos + offset, false);
 		}
 	}
 	for mut interp in &mut interpolations {
-		interp
-			.start
-			.as_mut()
-			.map(|start| start.translation.vector += offset);
-		interp
-			.end
-			.as_mut()
-			.map(|end| end.translation.vector += offset);
+		if let Some(start) = interp.start.as_mut() {
+			start.translation.vector += offset;
+		}
+		if let Some(end) = interp.end.as_mut() {
+			end.translation.vector += offset;
+		}
 	}
 }
 

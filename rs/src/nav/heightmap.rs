@@ -73,11 +73,7 @@ pub struct GroundEdges<F: NavEdgeFilter + Clone + 'static> {
 }
 
 impl<F: NavEdgeFilter + Clone> EdgeVendor for GroundEdges<F> {
-	fn find_edges<'a>(
-		self,
-		graph: &'a NavGraph,
-		node: NavIdx,
-	) -> impl Iterator<Item = NavEdge> + 'static {
+	fn find_edges(self, graph: &NavGraph, node: NavIdx) -> impl Iterator<Item = NavEdge> + 'static {
 		match node {
 			NavIdx::Ground(id) => graph
 				.heightmaps

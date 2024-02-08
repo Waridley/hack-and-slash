@@ -13,13 +13,13 @@ use bevy::{
 	ecs::system::{EntityCommands, SystemParamItem},
 	prelude::*,
 };
-use bevy_kira_audio::Audio;
+use bevy_kira_audio::{Audio, AudioControl};
 use bevy_rapier3d::{
 	dynamics::LockedAxes,
 	math::Vect,
 	na::Vector3,
 	plugin::RapierContext,
-	prelude::{Collider, RigidBody, TOIStatus, TransformInterpolation},
+	prelude::{Collider, RigidBody, TransformInterpolation},
 };
 use enum_components::{ERef, EntityEnumCommands};
 use rand::Rng;
@@ -51,7 +51,9 @@ fn setup(
 	);
 	let material = materials.add(Color::YELLOW.into());
 	let collider = Collider::capsule(Vect::NEG_Y * 2.0, Vect::Y * 2.0, 2.0);
-	let locked_axes = LockedAxes::ROTATION_LOCKED;
+	let locked_axes = LockedAxes::ROTATION_LOCKED
+		| LockedAxes::TRANSLATION_LOCKED_X
+		| LockedAxes::TRANSLATION_LOCKED_Y;
 	cmds.insert_resource(DummyTemplate {
 		mesh,
 		material,
@@ -163,6 +165,7 @@ pub fn handle_hits(
 				.copied()
 				.and_then(|body| ctx.bodies.get_mut(body))
 			{
+				audio.play(sfx.impacts[0].clone());
 				body.set_locked_axes(rapier3d::prelude::LockedAxes::empty(), true);
 				body.apply_impulse_at_point(
 					Vector3::from(global.compute_transform().rotation * toi.normal2) * 2000.0,

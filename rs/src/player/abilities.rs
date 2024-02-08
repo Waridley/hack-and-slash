@@ -1,9 +1,8 @@
 use crate::{
 	anim::{AnimationSet, BlendTargets, ComponentDelta, StartAnimation},
 	planet::{
-		chunks::{ChunkCenter, ChunkIndex, LoadedChunks},
+		chunks::{ChunkIndex, LoadedChunks},
 		frame::Frame,
-		PlanetVec2,
 	},
 	player::{
 		ctrl,
@@ -110,8 +109,8 @@ pub fn trigger_player_abilities(
 				&mut cmds,
 				&mut vel.linvel,
 				jump_vel,
-				&*audio,
-				&*sfx,
+				&audio,
+				&sfx,
 				&antigrav_q,
 				player,
 			);
@@ -119,31 +118,37 @@ pub fn trigger_player_abilities(
 
 		if state.just_pressed(Dash) && *boost_charge >= dash_cost {
 			**boost_charge -= *dash_cost;
-			dash(state.clamped_axis_pair(Move), dash_vel, &mut vel.linvel);
+			dash(
+				state.clamped_axis_pair(Move),
+				dash_vel,
+				&mut vel.linvel,
+				&audio,
+				&sfx,
+			);
 		}
 
 		if state.just_pressed(FireA) {
 			let cam_pivot = cam_pivot_q
 				.iter()
 				.find_map(|(global, owner)| (**owner == player).then_some(*global))
-				.expect(&*format!("Can't find CamPivot for player {player}"));
+				.unwrap_or_else(|| panic!("Can't find CamPivot for player {player}"));
 			fire_a(
 				&mut cmds,
-				&*audio,
-				&*sfx,
+				&audio,
+				&sfx,
 				cam_pivot,
 				&arm_q,
 				&orb_q,
 				&chunk_q,
 				player,
-				&*frame,
-				&*loaded_chunks,
+				&frame,
+				&loaded_chunks,
 			)
 		}
 
 		if state.just_pressed(AoE) && *weap_charge >= aoe_cost {
 			**weap_charge -= *aoe_cost;
-			aoe(&mut cmds, &*audio, &*sfx, &arms_q, &arm_q, &orb_q, player)
+			aoe(&mut cmds, &audio, &sfx, &arms_q, &arm_q, &orb_q, player)
 		}
 	}
 }
@@ -157,6 +162,7 @@ pub fn jump(
 	antigrav_q: &Query<(Entity, &BelongsToPlayer), ERef<AntigravParticles>>,
 	player: PlayerId,
 ) {
+	audio.play(sfx.jump.clone()).with_volume(0.1);
 	linvel.z = jump_vel;
 	for (id, owner) in antigrav_q {
 		if **owner != player {
@@ -185,7 +191,14 @@ pub fn jump(
 	}
 }
 
-pub fn dash(input_dir: Option<DualAxisData>, dash_vel: f32, linvel: &mut Vec3) {
+pub fn dash(
+	input_dir: Option<DualAxisData>,
+	dash_vel: f32,
+	linvel: &mut Vec3,
+	audio: &Audio,
+	sfx: &Sfx,
+) {
+	audio.play(sfx.dash.clone()).with_volume(0.2);
 	// Use the most-recently-input direction, not current velocity, to dash in the direction the player expects.
 	let dir = if let Some(dir) = input_dir.as_ref().and_then(DualAxisData::direction) {
 		dir.unit_vector()
@@ -360,6 +373,7 @@ pub fn fire_a(
 	frame: &Frame,
 	loaded_chunks: &LoadedChunks,
 ) {
+	audio.play(sfx.fire_a.clone());
 	for (id, xform, _, _, owner, which) in orb_q {
 		if **owner != player || which.0 != PlayerArm::A {
 			continue;
@@ -373,11 +387,11 @@ pub fn fire_a(
 		let mut elapsed = Duration::ZERO;
 		let dur = Duration::from_millis(64);
 		let start = *xform;
-		let end = (cam_pivot
+		let end = cam_pivot
 			* Transform {
 				translation: Vec3::Y * 128.0,
 				..default()
-			});
+			};
 		let coords = frame.planet_coords_of(end.translation().xy());
 		let Some((_, chunk_id)) = loaded_chunks.closest_to(coords) else {
 			error!("No chunks are loaded");
@@ -462,6 +476,9 @@ pub fn fill_weapons(mut q: Query<&mut WeaponCharge>, params: Res<PlayerParams>, 
 pub struct Sfx {
 	pub fire_a: Handle<AudioSource>,
 	pub aoe: Handle<AudioSource>,
+	pub dash: Handle<AudioSource>,
+	pub jump: Handle<AudioSource>,
+	pub impacts: [Handle<AudioSource>; 5],
 }
 
 #[derive(Component, Debug)]
@@ -523,8 +540,8 @@ pub fn hit_stuff(
 		// Maybe use `intersections_with_shape` with an extruded shape somehow?
 		// Would be easy with spheres (capsule) but not all shapes.
 		let Some((other, toi)) = ctx.cast_shape(
-			prev.translation.into(),
-			prev.rotation.slerp(xform.rotation, 0.5).into(), // Average I guess? *shrugs*
+			prev.translation,
+			prev.rotation.slerp(xform.rotation, 0.5), // Average I guess? *shrugs*
 			vel,
 			col,
 			vel.length() * 1.05,

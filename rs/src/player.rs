@@ -1,4 +1,4 @@
-use crate::{anim, terminal_velocity, NeverDespawn, TerminalVelocity};
+use crate::{terminal_velocity, NeverDespawn, TerminalVelocity};
 
 use crate::{pickups::MissSfx, settings::Settings, util::IntoFnPlugin};
 use bevy::{
@@ -127,10 +127,18 @@ pub fn setup(
 		&manual_texture_views,
 	);
 
-	let aoe_sfx = asset_server.load("sfx/SFX_-_magic_spell_03.ogg");
 	cmds.insert_resource(Sfx {
-		aoe: aoe_sfx,
-		fire_a: Handle::default(),
+		aoe: asset_server.load("sfx/SFX_-_magic_spell_03.ogg"),
+		fire_a: asset_server.load("sfx/Kenney/Audio/laserSmall_004.ogg"),
+		dash: asset_server.load("sfx/Kenney/Audio/forceField_000.ogg"),
+		jump: asset_server.load("sfx/Kenney/Audio/forceField_002.ogg"),
+		impacts: [
+			asset_server.load("sfx/Kenney/Audio/impactMetal_000.ogg"),
+			asset_server.load("sfx/Kenney/Audio/impactMetal_001.ogg"),
+			asset_server.load("sfx/Kenney/Audio/impactMetal_002.ogg"),
+			asset_server.load("sfx/Kenney/Audio/impactMetal_003.ogg"),
+			asset_server.load("sfx/Kenney/Audio/impactMetal_004.ogg"),
+		],
 	});
 
 	let ship_scene = asset_server.load("ships/player.glb#Scene0");
@@ -189,7 +197,7 @@ pub fn setup(
 	);
 
 	let crosshair_mat = materials.add(StandardMaterial {
-		base_color: Color::YELLOW.into(),
+		base_color: Color::YELLOW,
 		depth_bias: f32::INFINITY,
 		unlit: true,
 		..default()
@@ -833,8 +841,8 @@ pub fn orbs_follow_arms(
 
 #[derive(Event, Clone, Debug)]
 pub struct PlayerSpawnEvent {
-	id: PlayerId,
-	died_at: PlanetVec2,
+	pub id: PlayerId,
+	pub died_at: PlanetVec2,
 }
 
 pub fn countdown_respawn(

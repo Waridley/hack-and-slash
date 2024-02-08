@@ -103,8 +103,8 @@ impl<T> PartialEq for AnimationSet<T> {
 }
 impl<T> Eq for AnimationSet<T> {}
 impl<T> PartialOrd for AnimationSet<T> {
-	fn partial_cmp(&self, _other: &Self) -> Option<Ordering> {
-		Some(Ordering::Equal)
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		Some(self.cmp(other))
 	}
 }
 impl<T> Ord for AnimationSet<T> {
@@ -114,7 +114,8 @@ impl<T> Ord for AnimationSet<T> {
 }
 impl<T> Hash for AnimationSet<T> {
 	fn hash<H: Hasher>(&self, state: &mut H) {
-		().hash(state)
+		// Attempt to avoid collisions by hashing a random constant u128
+		98378859208469391100266334942952264424u128.hash(state)
 	}
 }
 
@@ -275,6 +276,8 @@ impl<T: Component> ComponentDelta<T> {
 	}
 }
 
+pub type DynApply<T> = dyn FnOnce(Mut<T>, f32) + Send + Sync + 'static;
+
 pub struct Delta<T> {
 	/// Current progress the animation has made. Return a finite number if progress can
 	/// be determined and the animation should be blended. Any non-finite number, such
@@ -286,7 +289,7 @@ pub struct Delta<T> {
 	pub progress: f32,
 	/// Apply this animation tick to the resource. The `f32` parameter is the coefficient
 	/// that the delta should be multiplied by, if applicable.
-	pub apply: Box<dyn FnOnce(Mut<T>, f32) + Send + Sync + 'static>,
+	pub apply: Box<DynApply<T>>,
 }
 
 // A `Delta` with no `Entity` is only an `Event` for `Resource`s, not `Component`s.
@@ -322,21 +325,19 @@ impl<'w, 's> AnimationController<'w, 's, '_> {
 	}
 }
 
+pub type DynAnimateRes<T> =
+	dyn FnMut(Res<T>, Res<Time>, AnimationController) -> Delta<T> + Send + Sync + 'static;
+
 #[derive(Component, Deref, DerefMut)]
-pub struct DynResAnimation<T: Resource>(
-	pub Box<dyn FnMut(Res<T>, Res<Time>, AnimationController) -> Delta<T> + Send + Sync + 'static>,
-);
+pub struct DynResAnimation<T: Resource>(pub Box<DynAnimateRes<T>>);
+
+pub type DynAnimateComponent<T> = dyn FnMut(Entity, Ref<T>, Res<Time>, AnimationController) -> ComponentDelta<T>
+	+ Send
+	+ Sync
+	+ 'static;
 
 #[derive(Component)]
-pub struct DynAnimation<T: Component>(
-	pub Entity,
-	pub  Box<
-		dyn FnMut(Entity, Ref<T>, Res<Time>, AnimationController) -> ComponentDelta<T>
-			+ Send
-			+ Sync
-			+ 'static,
-	>,
-);
+pub struct DynAnimation<T: Component>(pub Entity, pub Box<DynAnimateComponent<T>>);
 
 impl<T: Resource> DynResAnimation<T> {
 	pub fn animate_res(

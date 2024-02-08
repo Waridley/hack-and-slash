@@ -1,5 +1,5 @@
 use crate::{
-	mats::fog::{DistanceDither, Matter},
+	mats::fog::Matter,
 	nav::heightmap::{FnsThatShouldBePub, TriId},
 	offloading::{wasm_yield, Offload, OffloadedTask, TaskHandle, TaskOffloader},
 	planet::{
@@ -19,8 +19,7 @@ use crate::{
 	util::{Diff, Factory, Spawnable},
 };
 use ::noise::{
-	Add, Billow, Fbm, HybridMulti, MultiFractal, NoiseFn, Perlin, RidgedMulti, ScaleBias, Seedable,
-	Value,
+	Add, Billow, Fbm, HybridMulti, MultiFractal, Perlin, RidgedMulti, ScaleBias, Seedable, Value,
 };
 use bevy::{
 	ecs::system::{EntityCommands, SystemParamItem},
@@ -39,7 +38,7 @@ use bevy_rapier3d::{
 };
 use enum_components::ERef;
 use rapier3d::{geometry::HeightField, na::DMatrix};
-use std::{f32::consts::*, ops::DerefMut, sync::Arc};
+use std::{f32::consts::*, sync::Arc};
 use web_time::{Duration, Instant};
 
 pub mod noise;
@@ -77,7 +76,7 @@ pub fn setup(
 		ChunkIndex::new(0, 0),
 		assets.clone(),
 		noise.clone(),
-		&mut *chunk_loading_tasks,
+		&mut chunk_loading_tasks,
 		&mut task_offloader,
 	);
 
@@ -121,12 +120,12 @@ pub fn spawn_boxes(mut factory: Factory<TerrainObject>) {
 	});
 }
 
-pub fn generate_chunk<'w, 's>(
+pub fn generate_chunk(
 	index: ChunkIndex,
 	assets: AssetServer,
 	noise: PlanetHeightSource,
 	chunk_loading_tasks: &mut ChunkLoadingTasks,
-	task_offloader: &mut TaskOffloader<'w, 's>,
+	task_offloader: &mut TaskOffloader,
 ) {
 	let (columns, rows) = (CHUNK_COLS, CHUNK_ROWS);
 	chunk_loading_tasks.insert(
@@ -494,13 +493,13 @@ pub fn spawn_loaded_chunks(
 // Pattern ensures that there are always at least 2 chunks beyond the player in any direction.
 #[rustfmt::skip]
 const NEARBY: [(i32, i32); 37] = [
-	                    (-1, -3), (0, -3), ( 1, -3),
-	          (-2, -2), (-1, -2), (0, -2), ( 1, -2), ( 2, -2),
-	(-3, -1), (-2, -1), (-1, -1), (0, -1), ( 1, -1), ( 2, -1), ( 3, -1),
-	(-3,  0), (-2,  0), (-1,  0), (0,  0), ( 1,  0), ( 2,  0), ( 3,  0),
-	(-3,  1), (-2,  1), (-1,  1), (0,  1), ( 1,  1), ( 2,  1), ( 3,  1),
-	          (-2,  2), (-1,  2), (0,  2), ( 1,  2), ( 2,  2),
-	                    (-1,  3), (0,  3), ( 1,  3),
+	                (-1,-3),( 0,-3),( 1,-3),
+	        (-2,-2),(-1,-2),( 0,-2),( 1,-2),( 2,-2),
+	(-3,-1),(-2,-1),(-1,-1),( 0,-1),( 1,-1),( 2,-1),( 3,-1),
+	(-3, 0),(-2, 0),(-1, 0),( 0, 0),( 1, 0),( 2, 0),( 3, 0),
+	(-3, 1),(-2, 1),(-1, 1),( 0, 1),( 1, 1),( 2, 1),( 3, 1),
+	        (-2, 2),(-1, 2),( 0, 2),( 1, 2),( 2, 2),
+	                (-1, 3),( 0, 3),( 1, 3),
 ];
 
 pub fn load_nearby_chunks(
@@ -558,8 +557,7 @@ pub fn unload_distant_chunks(
 		let global = global.translation().xy();
 		if !players
 			.iter()
-			.find(|player| (global - player.translation().xy()).length() < dist)
-			.is_some()
+			.any(|player| (global - player.translation().xy()).length() < dist)
 		{
 			cmds.entity(id).despawn();
 			if let Some((chunk, _)) = loaded_chunks.remove_by_right(&id) {
@@ -575,7 +573,7 @@ pub fn unload_distant_chunks(
 pub struct UnloadDistance(f32);
 
 mod seeds {
-	use crate::planet::{seeds::PlanetSeed, terrain};
+	use crate::planet::seeds::PlanetSeed;
 	use bevy::utils::RandomState;
 	use std::hash::{BuildHasher, Hasher};
 
