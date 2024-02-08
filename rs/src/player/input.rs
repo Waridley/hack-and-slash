@@ -26,7 +26,7 @@ use leafwing_input_manager::prelude::*;
 use particles::Spewer;
 use serde::{Deserialize, Serialize};
 use std::{
-	f32::consts::{FRAC_PI_3, PI, TAU},
+	f32::consts::{FRAC_PI_2, FRAC_PI_3, PI, TAU},
 	time::Duration,
 };
 
@@ -320,7 +320,7 @@ pub fn look_input(
 			slider.0 = (slider.0 + mouse.y * 0.1).clamp(0.0, 1.0);
 		}
 
-		let angle = (-PI).lerp(-PI * 0.1, slider.0);
+		let angle = (-FRAC_PI_2).lerp(FRAC_PI_2 * 0.9, slider.0);
 		xform.rotation = xform.rotation.slerp(Quat::from_rotation_x(angle), delta);
 	}
 }
@@ -385,7 +385,9 @@ pub fn grab_mouse(
 	key: Res<Input<KeyCode>>,
 	ui_hovered: Res<UiHovered>,
 ) {
-	let mut window = windows.single_mut();
+	let Ok(mut window) = windows.get_single_mut() else { // probably exiting if window is missing
+		return;
+	};
 
 	if mouse.just_pressed(MouseButton::Left) && !**ui_hovered {
 		window.cursor.visible = false;

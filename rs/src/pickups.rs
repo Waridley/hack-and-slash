@@ -36,12 +36,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 #[derive(Resource, Default, Debug, Clone, Deref, DerefMut)]
 pub struct PopSfx(pub Handle<AudioSource>);
 
-pub fn setup(
-	mut cmds: Commands,
-	mut meshes: ResMut<Assets<Mesh>>,
-	mut mats: ResMut<Assets<ExtendedMaterial<StandardMaterial, BubbleMaterial>>>,
-	asset_server: Res<AssetServer>,
-) {
+pub fn setup(mut cmds: Commands, mut meshes: ResMut<Assets<Mesh>>, asset_server: Res<AssetServer>) {
 	cmds.insert_resource(SpawnTimer(Timer::new(
 		Duration::from_secs(2),
 		TimerMode::Repeating,

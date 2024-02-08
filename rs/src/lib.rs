@@ -1,21 +1,25 @@
+#![cfg_attr(
+	all(not(debug_assertions), target_os = "windows"),
+	windows_subsystem = "windows"
+)]
+
 use crate::mats::BubbleMaterial;
 use bevy::{
 	diagnostic::FrameTimeDiagnosticsPlugin, pbr::ExtendedMaterial, prelude::*,
 	render::RenderPlugin, window::PrimaryWindow,
 };
-use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_kira_audio::AudioPlugin;
 use bevy_pkv::PkvStore;
 use bevy_rapier3d::prelude::*;
 use particles::ParticlesPlugin;
 use player::ctrl::CtrlVel;
 use std::{f32::consts::*, fmt::Debug, time::Duration};
-use util::IntoFnPlugin;
-use util::RonReflectAssetLoader;
+use util::{IntoFnPlugin, RonReflectAssetLoader};
 
 #[allow(unused_imports, clippy::single_component_path_imports)]
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
 use bevy_dylib;
+use bevy_rapier3d::plugin::PhysicsSet::StepSimulation;
 
 pub mod enemies;
 pub mod mats;
@@ -33,9 +37,9 @@ pub mod util;
 /// Epsilon
 pub const EPS: f32 = 1.0e-5;
 /// Rotational epsilon in radians
-pub const R_EPS: f32 = TAU / (360.0 * 4.0);
+pub const R_EPS: f32 = TAU / 360.0; // 1 degree
 /// Fixed delta time
-pub const DT: f32 = 1.0 / 128.0;
+pub const DT: f32 = 1.0 / 30.0;
 /// Up vector
 pub const UP: Vect = Vect::Z;
 
@@ -115,7 +119,10 @@ pub fn game_plugin(app: &mut App) -> &mut App {
 		MaterialPlugin::<ExtendedMaterial<StandardMaterial, BubbleMaterial>>::default(),
 	))
 	.add_systems(Startup, startup)
-	.add_systems(Update, (terminal_velocity, fullscreen))
+	.add_systems(
+		Update,
+		(terminal_velocity.before(StepSimulation), fullscreen),
+	)
 	.add_systems(PostUpdate, (despawn_oob,));
 	type BubbleMatExt = ExtendedMaterial<StandardMaterial, BubbleMaterial>;
 	let registry = app.world.get_resource::<AppTypeRegistry>().unwrap().clone();
@@ -124,7 +131,10 @@ pub fn game_plugin(app: &mut App) -> &mut App {
 		reg.register::<BubbleMaterial>();
 		reg.register::<BubbleMatExt>();
 	}
-	app.register_asset_loader(RonReflectAssetLoader::<BubbleMatExt>::new(registry, vec!["mat.ron"]));
+	app.register_asset_loader(RonReflectAssetLoader::<BubbleMatExt>::new(
+		registry,
+		vec!["mat.ron"],
+	));
 	app
 }
 
@@ -146,11 +156,20 @@ impl AbsoluteBounds {
 
 pub type InBounds = bool;
 
-fn despawn_oob(mut cmds: Commands, bounds: Res<AbsoluteBounds>, q: Query<(Entity, &Transform)>) {
-	for (id, xform) in &q {
-		if !bounds.test(xform.translation) {
-			bevy::log::warn!("Entity {id:?} is way out of bounds. Despawning.");
-			cmds.entity(id).despawn()
+#[derive(Component, Debug)]
+pub struct NeverDespawn;
+
+fn despawn_oob(mut cmds: Commands, bounds: Res<AbsoluteBounds>, mut q: Query<(Entity, &mut GlobalTransform, Has<NeverDespawn>)>) {
+	for (id, mut xform, never_despawn) in &mut q {
+		if !bounds.test(xform.translation()) {
+			let plan = if never_despawn {
+				*xform = GlobalTransform::default();
+				"Resetting transform to zero"
+			} else {
+				cmds.entity(id).despawn();
+				"Despawning"
+			};
+			bevy::log::warn!("Entity {id:?} is way out of bounds. {plan}...");
 		}
 	}
 }

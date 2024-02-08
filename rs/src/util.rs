@@ -1,29 +1,25 @@
 use bevy::{
+	asset::{io::Reader, AssetLoader, AsyncReadExt, BoxedFuture, LoadContext},
 	ecs::{
 		event::Event,
 		query::ReadOnlyWorldQuery,
 		system::{EntityCommands, StaticSystemParam, SystemParam, SystemParamItem},
 	},
 	prelude::*,
+	reflect::{serde::TypedReflectDeserializer, TypeRegistration, Typed},
+	scene::{SceneLoaderError, SceneLoaderError::RonSpannedError},
 };
 use num_traits::NumCast;
+use ron::Error::InvalidValueForType;
+use serde::de::DeserializeSeed;
 use std::{
 	cmp::Ordering,
 	collections::VecDeque,
+	hash::Hash,
 	iter::Sum,
+	marker::PhantomData,
 	ops::{Add, Div, Index, IndexMut, Mul, Sub},
 };
-use std::marker::PhantomData;
-use bevy::asset::{AssetLoader, AsyncReadExt, BoxedFuture, LoadContext};
-use bevy::asset::io::Reader;
-use bevy::reflect::serde::TypedReflectDeserializer;
-use bevy::reflect::{DynamicStruct, Typed, TypeRegistration, TypeRegistry, TypeRegistryArc};
-use bevy::scene::SceneLoaderError;
-use bevy::scene::SceneLoaderError::RonSpannedError;
-use futures_lite::StreamExt;
-use ron::de::SpannedError;
-use ron::Error::InvalidValueForType;
-use serde::de::DeserializeSeed;
 
 #[inline(always)]
 pub fn quantize<const BITS: u32>(value: f32) -> f32 {
@@ -89,19 +85,21 @@ pub fn consume_spawn_events<T: Spawnable>(
 	}
 }
 
-pub trait Lerp<R, T>
+pub trait Lerp<Rhs, T>
 where
 	Self: Clone,
-	R: Sub<Self>,
-	<R as Sub<Self>>::Output: Mul<T>,
-	<<R as Sub<Self>>::Output as Mul<T>>::Output: Add<Self>,
+	Rhs: Sub<Self>,
+	<Rhs as Sub<Self>>::Output: Mul<T>,
+	<<Rhs as Sub<Self>>::Output as Mul<T>>::Output: Add<Self>,
 {
+	type Output;
+
 	#[inline(always)]
 	fn lerp(
 		self,
-		rhs: R,
+		rhs: Rhs,
 		t: T,
-	) -> <<<R as Sub<Self>>::Output as Mul<T>>::Output as Add<Self>>::Output {
+	) -> <<<Rhs as Sub<Self>>::Output as Mul<T>>::Output as Add<Self>>::Output {
 		((rhs - self.clone()) * t) + self
 	}
 }
@@ -113,6 +111,7 @@ where
 	<R as Sub<This>>::Output: Mul<T>,
 	<<R as Sub<This>>::Output as Mul<T>>::Output: Add<This>,
 {
+	type Output = <<<R as Sub<This>>::Output as Mul<T>>::Output as Add<This>>::Output;
 }
 
 #[derive(Resource, Component)]
@@ -339,8 +338,13 @@ impl<'this, T: Reflect + FromReflect + Asset> AssetLoader for RonReflectAssetLoa
 	type Asset = T;
 	type Settings = ();
 	type Error = SceneLoaderError;
-	
-	fn load<'a>(&'a self, reader: &'a mut Reader, _settings: &'a Self::Settings, _load_context: &'a mut LoadContext) -> BoxedFuture<'a, Result<Self::Asset, Self::Error>> {
+
+	fn load<'a>(
+		&'a self,
+		reader: &'a mut Reader,
+		_settings: &'a Self::Settings,
+		_load_context: &'a mut LoadContext,
+	) -> BoxedFuture<'a, Result<Self::Asset, Self::Error>> {
 		let registration = self.registration.clone();
 		let registry = self.registry.clone();
 		Box::pin(async move {
@@ -349,16 +353,18 @@ impl<'this, T: Reflect + FromReflect + Asset> AssetLoader for RonReflectAssetLoa
 			let registry = registry.read();
 			let seed = TypedReflectDeserializer::new(&registration, &*registry);
 			let mut de = ron::Deserializer::from_bytes(&*buf)?;
-			let val = seed.deserialize(&mut de)
+			let val = seed
+				.deserialize(&mut de)
 				.map_err(|e| RonSpannedError(de.span_error(e)))?;
-			T::take_from_reflect(val)
-				.map_err(|e| RonSpannedError(de.span_error(InvalidValueForType {
+			T::take_from_reflect(val).map_err(|e| {
+				RonSpannedError(de.span_error(InvalidValueForType {
 					expected: T::type_path().into(),
 					found: format!("{e:?}"),
-				})))
+				}))
+			})
 		})
 	}
-	
+
 	fn extensions(&self) -> &[&str] {
 		&self.extensions
 	}

@@ -2,10 +2,13 @@ use super::{
 	player_entity::{Cam, CamPivot},
 	BelongsToPlayer, G1,
 };
-use crate::{planet::sky::SkyShader, player::PlayerId, settings::Settings};
+use crate::{NeverDespawn, planet::sky::SkyShader, player::PlayerId, settings::Settings};
 
 use bevy::{
-	core_pipeline::{bloom::BloomSettings, clear_color::ClearColorConfig, fxaa::Fxaa, Skybox},
+	core_pipeline::{
+		bloom::BloomSettings, clear_color::ClearColorConfig, fxaa::Fxaa, tonemapping::Tonemapping,
+		Skybox,
+	},
 	ecs::system::{EntityCommands, Res},
 	prelude::*,
 	render::{
@@ -26,7 +29,6 @@ use bevy_rapier3d::{
 };
 use enum_components::{ERef, EntityEnumCommands};
 use std::f32::consts::FRAC_PI_2;
-use bevy::core_pipeline::tonemapping::Tonemapping;
 
 pub const CAM_ACCEL: f32 = 12.0;
 const MAX_CAM_DIST: f32 = 24.0;
@@ -111,6 +113,7 @@ pub fn spawn_camera<'w, 's, 'a>(
 		Collider::ball(2.0),
 		CollisionGroups::new(Group::empty(), Group::empty()),
 		CamTarget::default(),
+		NeverDespawn,
 	));
 	cmds.set_enum(Cam).with_children(|builder| {
 		let manual_tv_handle = ManualTextureViewHandle(player_id.get() as u32 - 1);
@@ -152,6 +155,7 @@ pub fn spawn_camera<'w, 's, 'a>(
 				enabled: settings.fxaa,
 				..default()
 			},
+			NeverDespawn,
 		));
 	});
 	cmds
@@ -166,7 +170,7 @@ pub fn spawn_pivot<'w, 's, 'a>(
 			owner,
 			CameraVertSlider(0.4),
 			TransformBundle::from_transform(Transform {
-				translation: Vect::new(0.0, 6.4, 0.0),
+				translation: Vect::new(0.0, 0.0, 6.4),
 				..default()
 			}),
 		))
