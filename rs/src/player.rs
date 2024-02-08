@@ -149,7 +149,7 @@ pub fn setup(
 			..arm_mat_template.clone()
 		}),
 		materials.add(StandardMaterial {
-			emissive: Color::WHITE * 6.0,
+			emissive: Color::WHITE * 3.0,
 			..arm_mat_template.clone()
 		}),
 		materials.add(StandardMaterial {
