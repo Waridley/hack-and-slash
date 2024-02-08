@@ -118,7 +118,7 @@ pub fn trigger_player_abilities(
 
 		if state.just_pressed(Dash) && *boost_charge >= dash_cost {
 			**boost_charge -= *dash_cost;
-			dash(state.clamped_axis_pair(Move), dash_vel, &mut vel.linvel);
+			dash(state.clamped_axis_pair(Move), dash_vel, &mut vel.linvel, &*audio, &*sfx);
 		}
 
 		if state.just_pressed(FireA) {
@@ -156,6 +156,7 @@ pub fn jump(
 	antigrav_q: &Query<(Entity, &BelongsToPlayer), ERef<AntigravParticles>>,
 	player: PlayerId,
 ) {
+	audio.play(sfx.jump.clone()).with_volume(0.1);
 	linvel.z = jump_vel;
 	for (id, owner) in antigrav_q {
 		if **owner != player {
@@ -184,7 +185,14 @@ pub fn jump(
 	}
 }
 
-pub fn dash(input_dir: Option<DualAxisData>, dash_vel: f32, linvel: &mut Vec3) {
+pub fn dash(
+	input_dir: Option<DualAxisData>,
+	dash_vel: f32,
+	linvel: &mut Vec3,
+	audio: &Audio,
+	sfx: &Sfx,
+) {
+	audio.play(sfx.dash.clone()).with_volume(0.2);
 	// Use the most-recently-input direction, not current velocity, to dash in the direction the player expects.
 	let dir = if let Some(dir) = input_dir.as_ref().and_then(DualAxisData::direction) {
 		dir.unit_vector()
@@ -359,6 +367,7 @@ pub fn fire_a(
 	frame: &Frame,
 	loaded_chunks: &LoadedChunks,
 ) {
+	audio.play(sfx.fire_a.clone());
 	for (id, xform, _, _, owner, which) in orb_q {
 		if **owner != player || which.0 != PlayerArm::A {
 			continue;
@@ -461,6 +470,8 @@ pub fn fill_weapons(mut q: Query<&mut WeaponCharge>, params: Res<PlayerParams>, 
 pub struct Sfx {
 	pub fire_a: Handle<AudioSource>,
 	pub aoe: Handle<AudioSource>,
+	pub dash: Handle<AudioSource>,
+	pub jump: Handle<AudioSource>,
 }
 
 #[derive(Component, Debug)]

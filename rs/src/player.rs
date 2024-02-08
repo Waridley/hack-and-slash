@@ -127,10 +127,11 @@ pub fn setup(
 		&manual_texture_views,
 	);
 
-	let aoe_sfx = asset_server.load("sfx/SFX_-_magic_spell_03.ogg");
 	cmds.insert_resource(Sfx {
-		aoe: aoe_sfx,
-		fire_a: Handle::default(),
+		aoe: asset_server.load("sfx/SFX_-_magic_spell_03.ogg"),
+		fire_a: asset_server.load("sfx/Kenney/Audio/laserSmall_004.ogg"),
+		dash: asset_server.load("sfx/Kenney/Audio/forceField_000.ogg"),
+		jump: asset_server.load("sfx/Kenney/Audio/forceField_002.ogg"),
 	});
 
 	let ship_scene = asset_server.load("ships/player.glb#Scene0");
