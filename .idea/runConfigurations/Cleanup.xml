@@ -1,8 +1,8 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Cleanup" type="CompoundRunConfigurationType">
     <toRun name="Fix" type="CargoCommandRunConfiguration" />
-    <toRun name="Sweep" type="CargoCommandRunConfiguration" />
-    <toRun name="Visual Tests" type="CargoCommandRunConfiguration" />
+    <toRun name="Sweep (3 days)" type="CargoCommandRunConfiguration" />
+    <toRun name="Sweep (installed)" type="CargoCommandRunConfiguration" />
     <toRun name="clippy" type="CargoCommandRunConfiguration" />
     <toRun name="rustfmt" type="CargoCommandRunConfiguration" />
     <method v="2" />

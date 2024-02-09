@@ -1,0 +1,7 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Validate" type="CompoundRunConfigurationType">
+    <toRun name="Visual Tests" type="CargoCommandRunConfiguration" />
+    <toRun name="Cleanup" type="CompoundRunConfigurationType" />
+    <method v="2" />
+  </configuration>
+</component>
