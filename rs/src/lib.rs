@@ -14,10 +14,10 @@ use std::{f32::consts::*, fmt::Debug, time::Duration};
 use util::IntoFnPlugin;
 
 #[allow(unused_imports, clippy::single_component_path_imports)]
-#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+#[cfg(all(feature = "dylib", not(target_arch = "wasm32")))]
 use bevy_dylib;
 #[allow(unused_imports, clippy::single_component_path_imports)]
-#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+#[cfg(all(feature = "dylib", not(target_arch = "wasm32")))]
 use sond_has_engine_dylib;
 
 use bevy_rapier3d::plugin::PhysicsSet::StepSimulation;

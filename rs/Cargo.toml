@@ -10,6 +10,7 @@ resolver = "2"
 members = ["tools/*", "game-dylib", "engine", "engine-dylib", "engine/macros"]
 
 [features]
+dylib = ["bevy_dylib", "sond-has-engine-dylib"]
 debugging = ["bevy-inspector-egui", "egui_plot"]
 vis_test = ["testing", "render", "engine/vis_test"]
 testing = ["colored", "engine/testing"]
@@ -120,8 +121,8 @@ egui_plot = { workspace = true, optional = true }
 colored = { version = "2", optional = true }
 
 [target.'cfg(not(target_arch="wasm32"))'.dependencies]
-bevy_dylib = { workspace = true }
-sond-has-engine-dylib = { path = "engine-dylib" }
+bevy_dylib = { workspace = true, optional = true }
+sond-has-engine-dylib = { path = "engine-dylib", optional = true }
 
 [profile.dev]
 opt-level = 1

@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 game = { package = "sond-has-dylib", path = "../../game-dylib" }
+engine = { package = "sond-has-engine-dylib", path = "../../engine-dylib" }
 
 bevy = { workspace = true, features = [
     "bevy_ui",
@@ -15,6 +16,7 @@ bevy = { workspace = true, features = [
     "asset_processor",
     "bevy_dynamic_plugin",
 ] }
+bevy_dylib = { workspace = true }
 
 crossbeam = { workspace = true }
 

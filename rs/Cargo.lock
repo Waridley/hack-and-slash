@@ -4164,9 +4164,11 @@ version = "0.1.0"
 dependencies = [
  "async-process",
  "bevy",
+ "bevy_dylib",
  "crossbeam",
  "futures-lite 2.2.0",
  "sond-has-dylib",
+ "sond-has-engine-dylib",
 ]
 
 [[package]]
