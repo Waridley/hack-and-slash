@@ -11,9 +11,9 @@ members = ["tools/*", "game-dylib", "engine", "engine-dylib"]
 
 [features]
 debugging = ["bevy-inspector-egui", "egui_plot"]
-vis_test = ["testing", "render"]
+vis_test = ["testing", "render", "engine/vis_test"]
 testing = ["colored", "engine/testing"]
-render = ["bevy/bevy_render", "bevy/bevy_winit", "bevy_rapier3d/debug-render", "bevy_rapier3d/async-collider"]
+render = ["engine/render"]
 default = [
     "render",
 ]

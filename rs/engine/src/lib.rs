@@ -3,6 +3,9 @@
 use bevy_dylib;
 
 pub mod anim;
+pub mod mats;
+pub mod nav;
 pub mod offloading;
+pub mod planet;
 pub mod settings;
 pub mod util;
