@@ -7,7 +7,7 @@ default-run = "sond-has"
 
 [workspace]
 resolver = "2"
-members = ["tools/*", "game-dylib"]
+members = ["tools/*", "game-dylib", "engine", "engine-dylib"]
 
 [features]
 debugging = ["bevy-inspector-egui", "egui_plot"]
@@ -53,6 +53,7 @@ features = [
 
 [workspace.dependencies]
 # Mine
+engine = { package = "sond-has-engine", path = "engine" }
 enum_components = { package = "sond-bevy-enum-components", path = "../sond-bevy-enum-components" }
 particles = { package = "sond-bevy-particles", path = "../sond-bevy-particles" }
 macros = { package = "sond-has-macros", path = "tools/macros" }
@@ -92,6 +93,7 @@ egui_plot = "0.23"
 
 [dependencies]
 # Mine
+engine = { workspace = true }
 enum_components = { workspace = true }
 particles = { workspace = true }
 macros = { workspace = true }
@@ -132,6 +134,7 @@ colored = { version = "2", optional = true }
 
 [target.'cfg(not(target_arch="wasm32"))'.dependencies]
 bevy_dylib = { workspace = true }
+sond-has-engine-dylib = { path = "engine-dylib" }
 
 [profile.dev]
 opt-level = 1

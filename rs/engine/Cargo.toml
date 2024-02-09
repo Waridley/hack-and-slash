@@ -1,0 +1,57 @@
+[package]
+name = "sond-has-engine"
+version = "0.1.0"
+edition = "2021"
+description = "Things that will rarely change during development."
+
+[features]
+debugging = ["bevy-inspector-egui", "egui_plot"]
+vis_test = ["testing", "render"]
+testing = ["colored"]
+render = ["bevy/bevy_render", "bevy/bevy_winit", "bevy_rapier3d/debug-render", "bevy_rapier3d/async-collider"]
+default = [
+    "render",
+]
+
+[dependencies]
+# Mine
+enum_components = { workspace = true }
+particles = { workspace = true }
+macros = { workspace = true }
+
+# Engine
+bevy = { workspace = true }
+bevy_rapier3d = { workspace = true }
+rapier3d = { workspace = true }
+bevy_kira_audio = { workspace = true }
+leafwing-input-manager = { workspace = true }
+bevy_common_assets = { workspace = true }
+
+# Util
+array-init = { workspace = true }
+base64 = { workspace = true }
+bevy_pkv = { workspace = true }
+bytemuck = { workspace = true }
+fixedbitset = { workspace = true }
+futures-lite = { workspace = true }
+bimap = { workspace = true }
+nanorand = { workspace = true }
+noise = { workspace = true }
+num-traits = { workspace = true }
+ordered-float = { workspace = true }
+rand = { workspace = true }
+rand_xorshift = { workspace = true }
+ron = { workspace = true }
+static_assertions = { workspace = true }
+serde = { workspace = true }
+web-time = { workspace = true }
+
+# Debugging
+bevy-inspector-egui = { workspace = true, optional = true }
+egui_plot = { workspace = true, optional = true }
+
+# Testing
+colored = { version = "2", optional = true }
+
+[target.'cfg(not(target_arch="wasm32"))'.dependencies]
+bevy_dylib = { workspace = true }

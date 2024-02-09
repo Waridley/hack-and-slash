@@ -1,0 +1,11 @@
+[package]
+name = "sond-has-engine-dylib"
+version = "0.1.0"
+edition = "2021"
+description = "Enables dynamic linking of the engine."
+
+[lib]
+crate-type = ["dylib"]
+
+[dependencies]
+sond-has-engine = { path = "../engine" }

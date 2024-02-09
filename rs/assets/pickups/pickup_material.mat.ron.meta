@@ -1,7 +1,7 @@
 (
     meta_format_version: "1.0",
     asset: Load(
-        loader: "sond_has::util::RonReflectAssetLoader<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, sond_has::mats::fog::DistanceDither>, sond_has::mats::BubbleMaterial>>",
+        loader: "sond_has_engine::util::RonReflectAssetLoader<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, sond_has::mats::fog::DistanceDither>, sond_has::mats::BubbleMaterial>>",
         settings: (),
     ),
 )

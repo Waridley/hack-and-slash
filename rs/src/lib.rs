@@ -19,6 +19,10 @@ use util::IntoFnPlugin;
 #[allow(unused_imports, clippy::single_component_path_imports)]
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
 use bevy_dylib;
+#[allow(unused_imports, clippy::single_component_path_imports)]
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+use sond_has_engine_dylib;
+
 use bevy_rapier3d::plugin::PhysicsSet::StepSimulation;
 use offloading::OffloadingPlugin;
 use planet::sky::SkyPlugin;
@@ -36,7 +40,7 @@ pub mod settings;
 #[cfg(feature = "testing")]
 pub mod tests;
 pub mod ui;
-pub mod util;
+pub use engine::util;
 
 /// Epsilon
 pub const EPS: f32 = 1.0e-5;
