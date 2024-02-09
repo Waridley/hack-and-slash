@@ -41,13 +41,14 @@ pub trait OffloadedTask<Out: 'static>: Future<Output = Out> {
 	}
 }
 
+// TODO: Make these private again, by separating game test and engine test concerns.
 #[cfg(feature = "testing")]
-pub(crate) mod tests {
+pub mod tests {
 	use crate::offloading::{Offload, OffloadedTask, TaskOffloader};
 	use bevy::prelude::*;
 	use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
 
-	pub(crate) fn spawning(mut offloader: TaskOffloader, t: Res<Time>) {
+	pub fn spawning(mut offloader: TaskOffloader, t: Res<Time>) {
 		static SPAWNED: AtomicBool = AtomicBool::new(false);
 		if !SPAWNED.load(Relaxed) && t.elapsed_seconds() > 3.0 {
 			bevy::log::info!("Hello from async task!");

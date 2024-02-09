@@ -28,19 +28,17 @@ use offloading::OffloadingPlugin;
 use planet::sky::SkyPlugin;
 use player::abilities::AbilitiesPlugin;
 
-pub mod anim;
+pub use engine::{anim, offloading, settings, util};
+
 pub mod enemies;
 pub mod mats;
 pub mod nav;
-pub mod offloading;
 pub mod pickups;
 pub mod planet;
 pub mod player;
-pub mod settings;
 #[cfg(feature = "testing")]
 pub mod tests;
 pub mod ui;
-pub use engine::util;
 
 /// Epsilon
 pub const EPS: f32 = 1.0e-5;

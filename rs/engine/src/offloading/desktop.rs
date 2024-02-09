@@ -1,4 +1,4 @@
-use crate::offloading::{Offload, OffloadedTask};
+use super::{Offload, OffloadedTask};
 use bevy::{ecs::system::SystemParam, prelude::*, tasks::AsyncComputeTaskPool};
 use std::{
 	any::Any,
