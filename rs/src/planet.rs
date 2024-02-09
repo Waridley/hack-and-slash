@@ -234,11 +234,15 @@ impl Sub<Vec2> for PlanetVec2 {
 }
 
 pub mod seeds {
-	use base64::{engine::general_purpose::URL_SAFE, prelude::*, DecodeSliceError};
-	use bevy::{prelude::Resource, utils::RandomState};
+	use base64::{engine::general_purpose::URL_SAFE, prelude::*};
+	use bevy::{
+		log::trace,
+		prelude::{trace_span, Resource},
+		utils::RandomState,
+	};
 	use rand::{distributions::Standard, prelude::Distribution, Rng};
 	use std::{
-		borrow::Cow,
+		borrow::{Borrow, Cow},
 		fmt::{Display, Formatter},
 		hash::{BuildHasher, Hasher},
 	};
@@ -257,23 +261,42 @@ pub mod seeds {
 
 	impl Distribution<PlanetSeed> for Standard {
 		fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> PlanetSeed {
+			trace_span!("random PlanetSeed");
 			let hash = rng.gen::<[u8; 24]>();
+			trace!(hash = format!("{hash:?}"));
 			let string = Cow::from(URL_SAFE.encode(hash));
-
+			trace!(string = string.as_ref());
 			PlanetSeed { string, hash }
 		}
 	}
 
 	impl<S: Into<Cow<'static, str>>> From<S> for PlanetSeed {
 		fn from(value: S) -> Self {
+			trace_span!("PlanetSeed::from", ty = std::any::type_name::<S>());
 			let string = value.into();
+			trace!(string = string.as_ref());
 			let bytes = string.as_bytes();
+
+			{
+				trace_span!("try parse as hash");
+				if bytes.len() == 32 {
+					let mut hash = [0; 24];
+					if let Ok(n) = URL_SAFE.decode_slice(&*string, &mut hash) {
+						trace!(hash = format!("{hash:?}"));
+						debug_assert_eq!(n, 24);
+						return Self { string, hash };
+					}
+				}
+			}
+			trace_span!("hash input");
+
 			let bytes = if bytes.len() > Self::MAX_INPUT_LEN {
 				bytes.split_at(Self::MAX_INPUT_LEN).0
 			} else {
 				bytes
 			};
 
+			trace!(bytes = format!("{bytes:?}"));
 			let mut hash = [0u8; 24];
 
 			// Randomly generated during development.
@@ -287,13 +310,17 @@ pub mod seeds {
 			.build_hasher();
 			hasher.write(bytes);
 			hash[0..8].copy_from_slice(&hasher.finish().to_le_bytes());
+			trace!(bytes_0_8 = format!("{:?}", &hash[0..8]));
 
 			hasher.write(bytes);
 			hash[8..16].copy_from_slice(&hasher.finish().to_le_bytes());
+			trace!(bytes_8_16 = format!("{:?}", &hash[8..16]));
 
 			hasher.write(bytes);
 			hash[16..24].copy_from_slice(&hasher.finish().to_le_bytes());
+			trace!(bytes_16_24 = format!("{:?}", &hash[16..24]));
 
+			trace!(hash = format!("{:?}", hash));
 			Self { string, hash }
 		}
 	}
@@ -301,6 +328,18 @@ pub mod seeds {
 	impl Display for PlanetSeed {
 		fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 			self.string.fmt(f)
+		}
+	}
+
+	impl AsRef<str> for PlanetSeed {
+		fn as_ref(&self) -> &str {
+			self.string().as_ref()
+		}
+	}
+
+	impl Borrow<str> for PlanetSeed {
+		fn borrow(&self) -> &str {
+			self.string.borrow()
 		}
 	}
 
@@ -316,33 +355,28 @@ pub mod seeds {
 		/// Transforms self into its canonical representation, with the string being the base64
 		/// encoding of its hash.
 		pub fn canonical(mut self) -> Self {
+			trace_span!("PlanetSeed into canonical");
 			self.make_canonical();
 			self
 		}
 
 		/// Replaces the string representation of self with the canonical base64 encoding of its hash.
 		pub fn make_canonical(&mut self) {
+			trace_span!("PlanetSeed::make_canonical");
 			let Self { string, hash } = self;
+			trace!(string = string.as_ref(), hash = format!("{hash:?}"));
 			let mut canonical = String::with_capacity(32);
 			URL_SAFE.encode_string(hash, &mut canonical);
+			trace!(canonical);
 			debug_assert_eq!(canonical.len(), 32);
 			if *string != canonical {
 				*string.to_mut() = canonical;
 			};
+			trace!(string = string.as_ref());
 		}
 
 		pub fn hash(&self) -> &[u8; 24] {
 			&self.hash
-		}
-
-		pub fn from_canonical(
-			canonical: impl Into<Cow<'static, str>>,
-		) -> Result<Self, DecodeSliceError> {
-			let string = canonical.into();
-			assert_eq!(string.len(), 32);
-			let mut hash = [0; 24];
-			URL_SAFE.decode_slice(&*string, &mut hash)?;
-			Ok(Self { string, hash })
 		}
 	}
 
@@ -354,8 +388,21 @@ pub mod seeds {
 		fn canonical_equivalence() {
 			let seed = PlanetSeed::from("This is a test seed for canonical equivalence.");
 			let (seed, canonical) = (seed.clone(), seed.canonical());
-			assert_ne!(seed.string, canonical.string);
+			assert_ne!(seed.string(), canonical.string());
 			assert_eq!(seed, canonical);
+		}
+
+		#[test]
+		fn auto_from_canonical() {
+			let seed = rand::random::<PlanetSeed>();
+
+			// Sanity checks
+			let canon = seed.clone().canonical();
+			assert_eq!(seed, canon);
+			assert_eq!(seed.string(), canon.string());
+
+			let from_canon = PlanetSeed::from(seed.string().clone());
+			assert_eq!(canon, from_canon);
 		}
 
 		#[test]
@@ -363,8 +410,9 @@ pub mod seeds {
 			const S: &str = "This is a test seed for seed consistency across game versions";
 			const CANON: &str = "EMVUkEmSHysISOFRcpRyoTWjBDYE3IgV";
 			let seed = PlanetSeed::from(S);
-			let canonical = PlanetSeed::from_canonical(CANON).unwrap();
-			assert_eq!(seed, canonical);
+			let canon = PlanetSeed::from(CANON);
+			assert_eq!(canon.as_ref(), canon.clone().canonical().as_ref());
+			assert_eq!(seed, canon);
 		}
 	}
 }
