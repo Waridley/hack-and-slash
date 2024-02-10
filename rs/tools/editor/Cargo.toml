@@ -6,8 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-game = { package = "sond-has", path = "../.." }
-sond-has-dylib = { path = "../../game-dylib" }
+game = { package = "sond-has-dylib", path = "../../game-dylib" }
+engine = { package = "sond-has-engine-dylib", path = "../../engine-dylib" }
 
 bevy = { workspace = true, features = [
     "bevy_ui",
@@ -16,6 +16,7 @@ bevy = { workspace = true, features = [
     "asset_processor",
     "bevy_dynamic_plugin",
 ] }
+bevy_dylib = { workspace = true }
 
 crossbeam = { workspace = true }
 

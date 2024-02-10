@@ -7,13 +7,14 @@ default-run = "sond-has"
 
 [workspace]
 resolver = "2"
-members = ["tools/*", "game-dylib"]
+members = ["tools/*", "game-dylib", "engine", "engine-dylib", "engine/macros"]
 
 [features]
+dylib = ["bevy_dylib", "sond-has-engine-dylib"]
 debugging = ["bevy-inspector-egui", "egui_plot"]
-vis_test = ["testing", "render"]
-testing = ["colored"]
-render = ["bevy/bevy_render", "bevy/bevy_winit", "bevy_rapier3d/debug-render", "bevy_rapier3d/async-collider"]
+vis_test = ["testing", "render", "engine/vis_test"]
+testing = ["colored", "engine/testing"]
+render = ["engine/render"]
 default = [
     "render",
 ]
@@ -53,9 +54,10 @@ features = [
 
 [workspace.dependencies]
 # Mine
+engine = { package = "sond-has-engine", path = "engine" }
 enum_components = { package = "sond-bevy-enum-components", path = "../sond-bevy-enum-components" }
 particles = { package = "sond-bevy-particles", path = "../sond-bevy-particles" }
-macros = { package = "sond-has-macros", path = "tools/macros" }
+macros = { package = "sond-has-macros", path = "engine/macros" }
 
 # Engine
 bevy_dylib = "0.12.1"
@@ -92,9 +94,9 @@ egui_plot = "0.23"
 
 [dependencies]
 # Mine
+engine = { workspace = true }
 enum_components = { workspace = true }
 particles = { workspace = true }
-macros = { workspace = true }
 
 # Engine
 bevy = { workspace = true }
@@ -105,23 +107,11 @@ leafwing-input-manager = { workspace = true }
 bevy_common_assets = { workspace = true }
 
 # Util
-array-init = { workspace = true }
-base64 = { workspace = true }
 bevy_pkv = { workspace = true }
-bytemuck = { workspace = true }
-fixedbitset = { workspace = true }
-futures-lite = { workspace = true }
-bimap = { workspace = true }
 nanorand = { workspace = true }
-noise = { workspace = true }
-num-traits = { workspace = true }
-ordered-float = { workspace = true }
 rand = { workspace = true }
 rand_xorshift = { workspace = true }
-ron = { workspace = true }
-static_assertions = { workspace = true }
 serde = { workspace = true }
-web-time = { workspace = true }
 
 # Debugging
 bevy-inspector-egui = { workspace = true, optional = true }
@@ -131,7 +121,8 @@ egui_plot = { workspace = true, optional = true }
 colored = { version = "2", optional = true }
 
 [target.'cfg(not(target_arch="wasm32"))'.dependencies]
-bevy_dylib = { workspace = true }
+bevy_dylib = { workspace = true, optional = true }
+sond-has-engine-dylib = { path = "engine-dylib", optional = true }
 
 [profile.dev]
 opt-level = 1

@@ -1,7 +1,4 @@
-#![cfg_attr(
-	all(not(debug_assertions), target_os = "windows"),
-	windows_subsystem = "windows"
-)]
+#![warn(unused_crate_dependencies)]
 
 use crate::mats::MatsPlugin;
 use bevy::{
@@ -17,26 +14,28 @@ use std::{f32::consts::*, fmt::Debug, time::Duration};
 use util::IntoFnPlugin;
 
 #[allow(unused_imports, clippy::single_component_path_imports)]
-#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+#[cfg(all(feature = "dylib", not(target_arch = "wasm32")))]
 use bevy_dylib;
+#[allow(unused_imports, clippy::single_component_path_imports)]
+#[cfg(all(feature = "dylib", not(target_arch = "wasm32")))]
+use sond_has_engine_dylib;
+
 use bevy_rapier3d::plugin::PhysicsSet::StepSimulation;
+use enum_components::ERef;
 use offloading::OffloadingPlugin;
 use planet::sky::SkyPlugin;
 use player::abilities::AbilitiesPlugin;
 
-pub mod anim;
+use crate::player::player_entity::Root;
+pub use engine::{anim, mats, nav, offloading, planet, settings, util};
+use engine::{planet::frame::Frame, util::Prev};
+
 pub mod enemies;
-pub mod mats;
-pub mod nav;
-pub mod offloading;
 pub mod pickups;
-pub mod planet;
 pub mod player;
-pub mod settings;
 #[cfg(feature = "testing")]
 pub mod tests;
 pub mod ui;
-pub mod util;
 
 /// Epsilon
 pub const EPS: f32 = 1.0e-5;
@@ -125,6 +124,10 @@ pub fn game_plugin(app: &mut App) -> &mut App {
 	))
 	.insert_resource(PkvStore::new_with_qualifier("studio", "sonday", "has"))
 	.add_systems(Startup, startup)
+	.add_systems(
+		First,
+		shift_frame.before(planet::frame::reframe_all_entities),
+	)
 	.add_systems(
 		Update,
 		(terminal_velocity.before(StepSimulation), fullscreen),
@@ -278,3 +281,59 @@ fn fullscreen(kb: Res<Input<KeyCode>>, mut windows: Query<&mut Window, With<Prim
 
 #[derive(Component, Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
 pub struct Alive;
+
+pub fn shift_frame(
+	player_q: Query<&GlobalTransform, ERef<Root>>,
+	mut frame: ResMut<Frame>,
+	mut prev_frame: ResMut<Prev<Frame>>,
+) {
+	if **prev_frame != *frame {
+		**prev_frame = *frame;
+	}
+	let mut min = Vec2::NAN;
+	let mut max = Vec2::NAN;
+	for global in &player_q {
+		let global = global.translation();
+		min.x = f32::min(min.x, global.x);
+		max.x = f32::max(max.x, global.x);
+		min.y = f32::min(min.y, global.y);
+		max.y = f32::max(max.y, global.y);
+	}
+
+	// Prepare to handle players being too far apart.
+	// Should probably have separate frames for different players if possible, but
+	// this is far easier to implement.
+	const GROW: f32 = 1.5;
+	// Should be less than `GROW * 0.5` in order to prevent oscillation when
+	// `*_width` is multiplied by `GROW`
+	const SHRINK_TRIGGER: f32 = 0.5;
+	let mut grew = false;
+	let x_width = max.x - min.x;
+	if x_width >= frame.trigger_bounds {
+		frame.trigger_bounds = x_width * GROW;
+		grew = true;
+	}
+	let y_width = max.y - min.y;
+	if y_width >= frame.trigger_bounds {
+		frame.trigger_bounds = f32::max(frame.trigger_bounds, y_width * GROW);
+		grew = true;
+	}
+
+	// Automatically shrink to recover precision
+	if !grew
+		&& x_width < frame.trigger_bounds * SHRINK_TRIGGER
+		&& y_width < frame.trigger_bounds * SHRINK_TRIGGER
+	{
+		frame.trigger_bounds = f32::max(f32::max(x_width * GROW, y_width * GROW), frame.min_width);
+	}
+
+	let midpoint = Vec2::new((x_width * 0.5) + min.x, (y_width * 0.5) + min.y);
+
+	// Actually move the frame if needed
+	if midpoint.x.abs() >= frame.trigger_bounds {
+		frame.center.x += midpoint.x.signum() as f64 * frame.trigger_bounds as f64;
+	}
+	if midpoint.y.abs() >= frame.trigger_bounds {
+		frame.center.y += midpoint.y.signum() as f64 * frame.trigger_bounds as f64;
+	}
+}

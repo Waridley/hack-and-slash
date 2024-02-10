@@ -50,7 +50,7 @@ jobs:
 
       - name: Build
         working-directory: ./rs
-        run: cargo build --all-features
+        run: cargo build --features="testing"
 
   test:
     runs-on: ubuntu-latest

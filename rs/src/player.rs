@@ -23,6 +23,7 @@ use bevy_rapier3d::{
 };
 use camera::spawn_camera;
 use ctrl::{CtrlState, CtrlVel};
+use engine::planet::terrain::NeedsTerrain;
 use enum_components::{ERef, EntityEnumCommands, EnumComponent};
 use input::PlayerAction;
 use leafwing_input_manager::prelude::*;
@@ -369,6 +370,7 @@ pub fn spawn_players(
 					combine_rule: Min,
 				},
 				VisibilityBundle::default(),
+				NeedsTerrain,
 			))
 			.with_enum(Root);
 

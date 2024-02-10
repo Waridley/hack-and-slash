@@ -3,7 +3,6 @@ use crate::{
 		chunks::{ChunkIndex, TERRAIN_CELL_SIZE},
 		PlanetVec2,
 	},
-	player::player_entity::Root,
 	util::Prev,
 };
 use bevy::prelude::*;
@@ -11,7 +10,6 @@ use bevy_rapier3d::{
 	dynamics::RapierRigidBodyHandle, na::Vector, plugin::RapierContext,
 	prelude::TransformInterpolation,
 };
-use enum_components::ERef;
 use particles::{
 	InitialGlobalTransform, InitialTransform, PreviousGlobalTransform, PreviousTransform,
 };
@@ -23,7 +21,7 @@ pub struct PlanetFramePlugin;
 
 impl Plugin for PlanetFramePlugin {
 	fn build(&self, app: &mut App) {
-		app.add_systems(First, (shift_frame, reframe_all_entities).chain())
+		app.add_systems(First, reframe_all_entities)
 			.insert_resource(Frame::default())
 			.insert_resource(Prev::<Frame>::default())
 			.register_type::<Frame>();
@@ -138,60 +136,4 @@ pub fn reframe_all_entities(
 			end.translation.vector += offset;
 		}
 	});
-}
-
-pub fn shift_frame(
-	player_q: Query<&GlobalTransform, ERef<Root>>,
-	mut frame: ResMut<Frame>,
-	mut prev_frame: ResMut<Prev<Frame>>,
-) {
-	if **prev_frame != *frame {
-		**prev_frame = *frame;
-	}
-	let mut min = Vec2::NAN;
-	let mut max = Vec2::NAN;
-	for global in &player_q {
-		let global = global.translation();
-		min.x = f32::min(min.x, global.x);
-		max.x = f32::max(max.x, global.x);
-		min.y = f32::min(min.y, global.y);
-		max.y = f32::max(max.y, global.y);
-	}
-
-	// Prepare to handle players being too far apart.
-	// Should probably have separate frames for different players if possible, but
-	// this is far easier to implement.
-	const GROW: f32 = 1.5;
-	// Should be less than `GROW * 0.5` in order to prevent oscillation when
-	// `*_width` is multiplied by `GROW`
-	const SHRINK_TRIGGER: f32 = 0.5;
-	let mut grew = false;
-	let x_width = max.x - min.x;
-	if x_width >= frame.trigger_bounds {
-		frame.trigger_bounds = x_width * GROW;
-		grew = true;
-	}
-	let y_width = max.y - min.y;
-	if y_width >= frame.trigger_bounds {
-		frame.trigger_bounds = f32::max(frame.trigger_bounds, y_width * GROW);
-		grew = true;
-	}
-
-	// Automatically shrink to recover precision
-	if !grew
-		&& x_width < frame.trigger_bounds * SHRINK_TRIGGER
-		&& y_width < frame.trigger_bounds * SHRINK_TRIGGER
-	{
-		frame.trigger_bounds = f32::max(f32::max(x_width * GROW, y_width * GROW), frame.min_width);
-	}
-
-	let midpoint = Vec2::new((x_width * 0.5) + min.x, (y_width * 0.5) + min.y);
-
-	// Actually move the frame if needed
-	if midpoint.x.abs() >= frame.trigger_bounds {
-		frame.center.x += midpoint.x.signum() as f64 * frame.trigger_bounds as f64;
-	}
-	if midpoint.y.abs() >= frame.trigger_bounds {
-		frame.center.y += midpoint.y.signum() as f64 * frame.trigger_bounds as f64;
-	}
 }
