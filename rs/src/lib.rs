@@ -1,34 +1,34 @@
 #![warn(unused_crate_dependencies)]
 
-use crate::mats::MatsPlugin;
+use std::{f32::consts::*, fmt::Debug, time::Duration};
+
 use bevy::{
 	diagnostic::FrameTimeDiagnosticsPlugin, ecs::schedule::LogLevel, prelude::*,
 	render::RenderPlugin, window::PrimaryWindow,
 };
-use bevy_kira_audio::AudioPlugin;
-use bevy_pkv::PkvStore;
-use bevy_rapier3d::prelude::*;
-use particles::{ParticlesPlugin, Spewer};
-use player::ctrl::CtrlVel;
-use std::{f32::consts::*, fmt::Debug, time::Duration};
-use util::IntoFnPlugin;
-
 #[allow(unused_imports, clippy::single_component_path_imports)]
 #[cfg(all(feature = "dylib", not(target_arch = "wasm32")))]
 use bevy_dylib;
-#[allow(unused_imports, clippy::single_component_path_imports)]
-#[cfg(all(feature = "dylib", not(target_arch = "wasm32")))]
-use sond_has_engine_dylib;
-
+use bevy_kira_audio::AudioPlugin;
+use bevy_pkv::PkvStore;
 use bevy_rapier3d::plugin::PhysicsSet::StepSimulation;
+use bevy_rapier3d::prelude::*;
 use enum_components::ERef;
+use particles::{ParticlesPlugin, Spewer};
+
+pub use engine::{anim, mats, nav, offloading, planet, settings, util};
+use engine::{planet::frame::Frame, util::Prev, EnginePlugin};
 use offloading::OffloadingPlugin;
 use planet::sky::SkyPlugin;
 use player::abilities::AbilitiesPlugin;
+use player::ctrl::CtrlVel;
+#[allow(unused_imports, clippy::single_component_path_imports)]
+#[cfg(all(feature = "dylib", not(target_arch = "wasm32")))]
+use sond_has_engine_dylib;
+use util::IntoFnPlugin;
 
+use crate::mats::MatsPlugin;
 use crate::player::player_entity::Root;
-pub use engine::{anim, mats, nav, offloading, planet, settings, util};
-use engine::{planet::frame::Frame, util::Prev};
 
 pub mod enemies;
 pub mod pickups;
@@ -93,6 +93,7 @@ impl Plugin for GameDynPlugin {
 }
 
 pub fn game_plugin(app: &mut App) -> &mut App {
+	app.add_plugins(EnginePlugin);
 	app.insert_resource(RapierConfiguration {
 		gravity: Vect::new(0.0, 0.0, -9.80665),
 		timestep_mode: TimestepMode::Interpolated {

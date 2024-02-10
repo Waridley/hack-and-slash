@@ -1,12 +1,8 @@
-use crate::{
-	player::{
-		camera::CameraVertSlider, ctrl::CtrlVel, player_entity::CamPivot, prefs::LookSensitivity,
-		tune::PlayerParams, BelongsToPlayer,
-	},
-	terminal_velocity,
-	ui::UiHovered,
-	util::Lerp,
+use std::{
+	f32::consts::{FRAC_PI_2, TAU},
+	time::Duration,
 };
+
 use bevy::{
 	input::mouse::MouseMotion,
 	math::Vec3Swizzles,
@@ -19,9 +15,16 @@ use bevy::{
 use enum_components::ERef;
 use leafwing_input_manager::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::{
-	f32::consts::{FRAC_PI_2, TAU},
-	time::Duration,
+
+use engine::ui::UiHovered;
+
+use crate::{
+	player::{
+		camera::CameraVertSlider, ctrl::CtrlVel, player_entity::CamPivot, prefs::LookSensitivity,
+		tune::PlayerParams, BelongsToPlayer,
+	},
+	terminal_velocity,
+	util::Lerp,
 };
 
 #[derive(SystemSet, Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
