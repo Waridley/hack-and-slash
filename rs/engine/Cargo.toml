@@ -44,6 +44,7 @@ egui_plot = { workspace = true, optional = true }
 
 # Testing
 colored = { version = "2", optional = true }
+linkme = { workspace = true }
 
 [target.'cfg(not(target_arch="wasm32"))'.dependencies]
 bevy_dylib = { workspace = true }
@@ -52,3 +53,8 @@ bevy_dylib = { workspace = true }
 needless_update = "allow" # `..default()` used a lot to allow quick adding/removing of fields
 too_many_arguments = "allow" # Systems often need lots of arguments
 type_complexity = "allow" # Queries seem complex to Clippy but are usually easily read
+
+[[test]]
+name = "visual"
+required-features = ["vis_test"]
+harness = false

@@ -1,15 +1,16 @@
-use bevy::prelude::*;
 use std::{any::Any, future::Future};
 
-#[cfg(target_arch = "wasm32")]
-mod wasm;
+use bevy::prelude::*;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub use desktop::*;
 #[cfg(target_arch = "wasm32")]
 pub use wasm::*;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod desktop;
-#[cfg(not(target_arch = "wasm32"))]
-pub use desktop::*;
+#[cfg(target_arch = "wasm32")]
+mod wasm;
 
 pub struct OffloadingPlugin;
 
@@ -41,35 +42,55 @@ pub trait OffloadedTask<Out: 'static>: Future<Output = Out> {
 	}
 }
 
-// TODO: Make these private again, by separating game test and engine test concerns.
 #[cfg(feature = "testing")]
-pub mod tests {
-	use crate::offloading::{Offload, OffloadedTask, TaskOffloader};
+pub(crate) mod tests {
 	use bevy::prelude::*;
-	use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
 
-	pub fn spawning(mut offloader: TaskOffloader, t: Res<Time>) {
-		static SPAWNED: AtomicBool = AtomicBool::new(false);
-		if !SPAWNED.load(Relaxed) && t.elapsed_seconds() > 3.0 {
-			bevy::log::info!("Hello from async task!");
-			for task in 0..100 {
-				offloader
-					.start(async move {
-						bevy::log::info!("Starting task {task}...");
-						for i in task..task + 1_000_000u64 {
-							std::hint::black_box(i);
-							if i % 10_000 == 0 {
-								bevy::log::info!("Task {task} yielding at {i}");
-								futures_lite::future::yield_now().await;
+	use crate::{
+		offloading::{Offload, OffloadedTask, TaskOffloader},
+		testing::*,
+	};
+
+	#[linkme::distributed_slice(TESTS)]
+	pub fn _spawn_many_tasks(app: &mut App) -> &'static str {
+		pub fn spawn_tasks(
+			mut offloader: TaskOffloader,
+			t: Res<Time>,
+			mut spawned: Local<bool>,
+			mut events: EventWriter<TestEvent>,
+		) {
+			if !*spawned && t.elapsed_seconds() > 3.0 {
+				bevy::log::info!("Hello from async task!");
+				for task in 0..100 {
+					offloader
+						.start(async move {
+							bevy::log::info!("Starting task {task}...");
+							for i in task..task + 1_000_000u64 {
+								std::hint::black_box(i);
+								if i % 10_000 == 0 {
+									bevy::log::info!("Task {task} yielding at {i}");
+									futures_lite::future::yield_now().await;
+								}
 							}
-						}
-						bevy::log::info!("Task {task} done!");
-					})
-					.let_go();
+							bevy::log::info!("Task {task} done!");
+						})
+						.let_go();
+				}
+				events.send(TestEvent {
+					name: "spawn_many_tasks",
+					status: TestStatus::Passed,
+				});
+				*spawned = true;
 			}
-			bevy::log::info!("Done spawning counting tasks");
-			SPAWNED.store(true, Relaxed);
 		}
+		app.add_systems(Update, spawn_tasks);
+		"spawn_many_tasks"
+	}
+	#[cfg_attr(not(feature = "render"), test)]
+	fn spawn_many_tasks() {
+		let mut app = app();
+		_spawn_many_tasks(&mut app);
+		app.run();
 	}
 }
 

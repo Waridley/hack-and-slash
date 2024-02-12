@@ -1,3 +1,14 @@
+use std::{
+	cmp::Ordering,
+	collections::VecDeque,
+	f32::consts::{PI, TAU},
+	hash::Hash,
+	iter::Sum,
+	marker::PhantomData,
+	ops::{Add, Div, Index, IndexMut, Mul, Sub},
+	time::Duration,
+};
+
 use bevy::{
 	asset::{io::Reader, AssetLoader, AsyncReadExt, BoxedFuture, LoadContext},
 	ecs::{
@@ -12,16 +23,6 @@ use bevy::{
 use num_traits::NumCast;
 use ron::Error::InvalidValueForType;
 use serde::{de::DeserializeSeed, Deserialize, Serialize};
-use std::{
-	cmp::Ordering,
-	collections::VecDeque,
-	f32::consts::{PI, TAU},
-	hash::Hash,
-	iter::Sum,
-	marker::PhantomData,
-	ops::{Add, Div, Index, IndexMut, Mul, Sub},
-	time::Duration,
-};
 
 #[inline(always)]
 pub fn quantize<const BITS: u32>(value: f32) -> f32 {
@@ -127,7 +128,7 @@ impl<T> History<T> {
 	/// A system for tracking resource value history.
 	/// ```
 	/// # use bevy::prelude::Update;
-	/// # use sond_has::util::History;
+	/// # use sond_has_engine::util::History;
 	/// # #[derive(bevy::prelude::Resource, Clone)]
 	/// # struct Foo;
 	/// # let mut app = bevy::app::App::new();
@@ -150,7 +151,7 @@ impl<T> History<T> {
 	/// A system for tracking component value history.
 	/// ```
 	/// # use bevy::prelude::{Component, Update, With};
-	/// # use sond_has::util::History;
+	/// # use sond_has_engine::util::History;
 	/// # #[derive(Component, Clone)]
 	/// # struct Foo;
 	/// # #[derive(Component)]
