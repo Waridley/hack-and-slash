@@ -51,7 +51,7 @@ jobs:
 
       - name: WASM Check
         working-directory: ./rs
-        run: cargo check --target wasm32-unknown-unknown --features="vis_test"
+        run: cargo check --target wasm32-unknown-unknown
 
       - name: Windows Check
         working-directory: ./rs

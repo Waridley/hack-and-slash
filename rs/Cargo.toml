@@ -13,7 +13,7 @@ members = ["tools/*", "game-dylib", "engine", "engine-dylib", "engine/macros"]
 dylib = ["bevy_dylib", "sond-has-engine-dylib"]
 debugging = ["engine/debugging", "bevy-inspector-egui", "egui_plot"]
 vis_test = ["testing", "render", "engine/vis_test"]
-testing = ["colored", "engine/testing"]
+testing = ["engine/testing"]
 render = ["engine/render"]
 default = [
     "render",
@@ -92,6 +92,9 @@ web-time = "1.0.0"
 bevy-inspector-egui = "0.21.0"
 egui_plot = "0.23"
 
+# Testing
+linkme = "0.3.22"
+
 [dependencies]
 # Mine
 engine = { workspace = true }
@@ -117,9 +120,6 @@ serde = { workspace = true }
 bevy-inspector-egui = { workspace = true, optional = true }
 egui_plot = { workspace = true, optional = true }
 
-# Testing
-colored = { version = "2", optional = true }
-
 [target.'cfg(not(target_arch="wasm32"))'.dependencies]
 bevy_dylib = { workspace = true, optional = true }
 sond-has-engine-dylib = { path = "engine-dylib", optional = true }
@@ -134,11 +134,6 @@ opt-level = 3
 opt-level = "z"
 lto = "thin"
 strip = true
-
-[[test]]
-name = "integration"
-required-features = ["testing"]
-harness = false
 
 [lints.clippy]
 needless_update = "allow" # `..default()` used a lot to allow quick adding/removing of fields

@@ -11,6 +11,8 @@ pub mod nav;
 pub mod offloading;
 pub mod planet;
 pub mod settings;
+#[cfg(feature = "testing")]
+pub mod testing;
 pub mod ui;
 pub mod util;
 

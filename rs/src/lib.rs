@@ -11,8 +11,7 @@ use bevy::{
 use bevy_dylib;
 use bevy_kira_audio::AudioPlugin;
 use bevy_pkv::PkvStore;
-use bevy_rapier3d::plugin::PhysicsSet::StepSimulation;
-use bevy_rapier3d::prelude::*;
+use bevy_rapier3d::{plugin::PhysicsSet::StepSimulation, prelude::*};
 use enum_components::ERef;
 use particles::{ParticlesPlugin, Spewer};
 
@@ -20,15 +19,13 @@ pub use engine::{anim, mats, nav, offloading, planet, settings, util};
 use engine::{planet::frame::Frame, util::Prev, EnginePlugin};
 use offloading::OffloadingPlugin;
 use planet::sky::SkyPlugin;
-use player::abilities::AbilitiesPlugin;
-use player::ctrl::CtrlVel;
+use player::{abilities::AbilitiesPlugin, ctrl::CtrlVel};
 #[allow(unused_imports, clippy::single_component_path_imports)]
 #[cfg(all(feature = "dylib", not(target_arch = "wasm32")))]
 use sond_has_engine_dylib;
 use util::IntoFnPlugin;
 
-use crate::mats::MatsPlugin;
-use crate::player::player_entity::Root;
+use crate::{mats::MatsPlugin, player::player_entity::Root};
 
 pub mod enemies;
 pub mod pickups;

@@ -7,7 +7,7 @@ description = "Things that will rarely change during development."
 [features]
 debugging = ["bevy-inspector-egui", "egui_plot"]
 vis_test = ["testing", "render"]
-testing = ["colored"]
+testing = ["colored", "linkme"]
 render = ["bevy/bevy_render", "bevy/bevy_winit", "bevy_rapier3d/debug-render", "bevy_rapier3d/async-collider"]
 
 [dependencies]
@@ -41,6 +41,7 @@ egui_plot = { workspace = true, optional = true }
 
 # Testing
 colored = { version = "2", optional = true }
+linkme = { workspace = true, optional = true }
 
 [target.'cfg(not(target_arch="wasm32"))'.dependencies]
 bevy_dylib = { workspace = true }
@@ -49,3 +50,8 @@ bevy_dylib = { workspace = true }
 needless_update = "allow" # `..default()` used a lot to allow quick adding/removing of fields
 too_many_arguments = "allow" # Systems often need lots of arguments
 type_complexity = "allow" # Queries seem complex to Clippy but are usually easily read
+
+[[test]]
+name = "visual"
+required-features = ["vis_test"]
+harness = false

@@ -1,15 +1,16 @@
-use bevy::prelude::*;
 use std::{any::Any, future::Future};
 
-#[cfg(target_arch = "wasm32")]
-mod wasm;
+use bevy::prelude::*;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub use desktop::*;
 #[cfg(target_arch = "wasm32")]
 pub use wasm::*;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod desktop;
-#[cfg(not(target_arch = "wasm32"))]
-pub use desktop::*;
+#[cfg(target_arch = "wasm32")]
+mod wasm;
 
 pub struct OffloadingPlugin;
 
@@ -20,7 +21,7 @@ impl Plugin for OffloadingPlugin {
 	}
 }
 
-pub type TaskHandle<T> = <TaskOffloader<'static, 'static> as Offload>::Task<T>;
+pub type TaskHandle<T = ()> = <TaskOffloader<'static, 'static> as Offload>::Task<T>;
 
 pub trait Offload {
 	type Task<Out: Any + Send + 'static>: OffloadedTask<Out>;
@@ -41,36 +42,48 @@ pub trait OffloadedTask<Out: 'static>: Future<Output = Out> {
 	}
 }
 
-// TODO: Make these private again, by separating game test and engine test concerns.
 #[cfg(feature = "testing")]
-pub mod tests {
-	use crate::offloading::{Offload, OffloadedTask, TaskOffloader};
-	use bevy::prelude::*;
-	use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
+pub(crate) mod tests {
+	crate::bevy_test!(fn spawn_many_tasks(app, test_id) {
+		use bevy::prelude::*;
+		use crate::{
+			offloading::{Offload, OffloadedTask, TaskOffloader, TaskHandle},
+			testing::{TestSystem, TestStatus},
+		};
 
-	pub fn spawning(mut offloader: TaskOffloader, t: Res<Time>) {
-		static SPAWNED: AtomicBool = AtomicBool::new(false);
-		if !SPAWNED.load(Relaxed) && t.elapsed_seconds() > 3.0 {
-			bevy::log::info!("Hello from async task!");
-			for task in 0..100 {
-				offloader
-					.start(async move {
-						bevy::log::info!("Starting task {task}...");
-						for i in task..task + 1_000_000u64 {
-							std::hint::black_box(i);
-							if i % 10_000 == 0 {
-								bevy::log::info!("Task {task} yielding at {i}");
-								futures_lite::future::yield_now().await;
+		fn spawn_tasks(
+			mut offloader: TaskOffloader,
+			mut spawned: Local<bool>,
+			mut running: Local<Vec<TaskHandle>>,
+		) -> TestStatus {
+			if !*spawned {
+				trace!("Hello from async task!");
+				for task in 0..100 {
+					running.push(offloader
+						.start(async move {
+							trace!("Starting task {task}...");
+							for i in task..task + 1_000_000u64 {
+								std::hint::black_box(i);
+								if i % 10_000 == 0 {
+									trace!("Task {task} yielding at {i}");
+									futures_lite::future::yield_now().await;
+								}
 							}
-						}
-						bevy::log::info!("Task {task} done!");
-					})
-					.let_go();
+							trace!("Task {task} done!");
+						}));
+				}
+				*spawned = true;
 			}
-			bevy::log::info!("Done spawning counting tasks");
-			SPAWNED.store(true, Relaxed);
+			running.retain_mut(|handle| handle.check().is_none());
+			if running.len() == 0 {
+				TestStatus::Passed
+			} else {
+				TestStatus::Running
+			}
 		}
-	}
+
+		app.add_systems(Update, spawn_tasks.test(test_id));
+	});
 }
 
 #[inline(always)]
