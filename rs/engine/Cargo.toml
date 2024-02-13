@@ -7,7 +7,7 @@ description = "Things that will rarely change during development."
 [features]
 debugging = ["bevy-inspector-egui", "egui_plot"]
 vis_test = ["testing", "render"]
-testing = ["colored"]
+testing = ["colored", "linkme"]
 render = ["bevy/bevy_render", "bevy/bevy_winit", "bevy_rapier3d/debug-render", "bevy_rapier3d/async-collider"]
 default = [
     "render",
@@ -44,7 +44,7 @@ egui_plot = { workspace = true, optional = true }
 
 # Testing
 colored = { version = "2", optional = true }
-linkme = { workspace = true }
+linkme = { workspace = true, optional = true }
 
 [target.'cfg(not(target_arch="wasm32"))'.dependencies]
 bevy_dylib = { workspace = true }

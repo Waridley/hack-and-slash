@@ -21,7 +21,7 @@ impl Plugin for OffloadingPlugin {
 	}
 }
 
-pub type TaskHandle<T> = <TaskOffloader<'static, 'static> as Offload>::Task<T>;
+pub type TaskHandle<T = ()> = <TaskOffloader<'static, 'static> as Offload>::Task<T>;
 
 pub trait Offload {
 	type Task<Out: Any + Send + 'static>: OffloadedTask<Out>;
@@ -44,54 +44,46 @@ pub trait OffloadedTask<Out: 'static>: Future<Output = Out> {
 
 #[cfg(feature = "testing")]
 pub(crate) mod tests {
-	use bevy::prelude::*;
+	crate::bevy_test!(fn spawn_many_tasks(app, test_id) {
+		use bevy::prelude::*;
+		use crate::{
+			offloading::{Offload, OffloadedTask, TaskOffloader, TaskHandle},
+			testing::{TestSystem, TestStatus},
+		};
 
-	use crate::{
-		offloading::{Offload, OffloadedTask, TaskOffloader},
-		testing::*,
-	};
-
-	#[linkme::distributed_slice(TESTS)]
-	pub fn _spawn_many_tasks(app: &mut App) -> &'static str {
-		pub fn spawn_tasks(
+		fn spawn_tasks(
 			mut offloader: TaskOffloader,
-			t: Res<Time>,
 			mut spawned: Local<bool>,
-			mut events: EventWriter<TestEvent>,
-		) {
-			if !*spawned && t.elapsed_seconds() > 3.0 {
-				bevy::log::info!("Hello from async task!");
+			mut running: Local<Vec<TaskHandle>>,
+		) -> TestStatus {
+			if !*spawned {
+				trace!("Hello from async task!");
 				for task in 0..100 {
-					offloader
+					running.push(offloader
 						.start(async move {
-							bevy::log::info!("Starting task {task}...");
+							trace!("Starting task {task}...");
 							for i in task..task + 1_000_000u64 {
 								std::hint::black_box(i);
 								if i % 10_000 == 0 {
-									bevy::log::info!("Task {task} yielding at {i}");
+									trace!("Task {task} yielding at {i}");
 									futures_lite::future::yield_now().await;
 								}
 							}
-							bevy::log::info!("Task {task} done!");
-						})
-						.let_go();
+							trace!("Task {task} done!");
+						}));
 				}
-				events.send(TestEvent {
-					name: "spawn_many_tasks",
-					status: TestStatus::Passed,
-				});
 				*spawned = true;
 			}
+			running.retain_mut(|handle| handle.check().is_none());
+			if running.len() == 0 {
+				TestStatus::Passed
+			} else {
+				TestStatus::Running
+			}
 		}
-		app.add_systems(Update, spawn_tasks);
-		"spawn_many_tasks"
-	}
-	#[cfg_attr(not(feature = "render"), test)]
-	fn spawn_many_tasks() {
-		let mut app = app();
-		_spawn_many_tasks(&mut app);
-		app.run();
-	}
+
+		app.add_systems(Update, spawn_tasks.test(test_id));
+	});
 }
 
 #[inline(always)]

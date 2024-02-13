@@ -4158,7 +4158,6 @@ dependencies = [
  "bevy_rapier3d",
  "egui_plot",
  "leafwing-input-manager",
- "linkme",
  "nanorand",
  "rand 0.8.5",
  "rand_xorshift 0.3.0",

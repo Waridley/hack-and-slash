@@ -1,29 +1,30 @@
-use std::error::Error;
-use std::fmt::{Display, Formatter};
+use std::{
+	error::Error,
+	fmt::{Display, Formatter},
+};
 
-use bevy::app::{App, AppExit, Startup, Update};
-use bevy::log::{error, info, warn};
-use bevy::math::{Quat, Vec3};
-use bevy::prelude::*;
-use bevy::utils::HashMap;
-use bevy_rapier3d::control::{KinematicCharacterController, KinematicCharacterControllerOutput};
-use bevy_rapier3d::dynamics::RigidBody;
-use bevy_rapier3d::geometry::Collider;
-use bevy_rapier3d::math::Vect;
-use bevy_rapier3d::plugin::{RapierConfiguration, RapierPhysicsPlugin, TimestepMode};
+use bevy::{
+	app::{App, AppExit},
+	log::{error, info},
+	prelude::*,
+	utils::HashMap,
+};
+use bevy_rapier3d::{
+	math::Vect,
+	plugin::{RapierConfiguration, RapierPhysicsPlugin, TimestepMode},
+};
 use colored::Colorize;
+pub use linkme::distributed_slice as __static_register_test;
 
-use crate::util::IntoFnPlugin;
+#[__static_register_test]
+pub static TESTS: [fn(&mut App) -> &'static str] = [..];
 
-#[linkme::distributed_slice]
-pub static TESTS: [fn(&mut App) -> &'static str];
-
-pub fn app() -> App {
+pub fn new_test_app() -> App {
 	let mut app = App::new();
 
 	#[cfg(feature = "vis_test")]
 	app.add_plugins(DefaultPlugins)
-		.add_systems(Update, bevy::window::close_on_esc)
+		.add_systems(bevy::app::Update, bevy::window::close_on_esc)
 		.insert_resource(bevy::winit::WinitSettings {
 			return_from_run: true,
 			..default()
@@ -82,10 +83,13 @@ pub enum TestStatus {
 }
 
 impl TestStatus {
-	fn is_running(&self) -> bool {
+	pub fn is_running(&self) -> bool {
 		matches!(self, TestStatus::Running)
 	}
-	fn failed(&self) -> bool {
+	pub fn passed(&self) -> bool {
+		matches!(self, TestStatus::Passed)
+	}
+	pub fn failed(&self) -> bool {
 		matches!(self, TestStatus::Failed(_))
 	}
 }
@@ -116,13 +120,26 @@ fn check_test_results(
 	mut exits: EventWriter<AppExit>,
 ) {
 	for event in results.drain() {
-		let message = format!("{event}");
+		let name = event.name;
+		let prev = running.entry(name).or_insert_with(|| {
+			// Only print `Running...` the first time
+			info!(
+				"{}",
+				TestEvent {
+					name,
+					status: TestStatus::Running
+				}
+			);
+			TestStatus::Running
+		});
+
 		if event.status.failed() {
-			error!("{message}");
-		} else {
-			info!("{message}");
+			error!("{event}");
+		} else if event.status.passed() {
+			info!("{event}");
 		}
-		running.insert(event.name, event.status);
+
+		*prev = event.status;
 	}
 	let mut failed = 0;
 	for status in running.values() {
@@ -142,22 +159,92 @@ fn check_test_results(
 	exits.send(AppExit)
 }
 
-#[linkme::distributed_slice(TESTS)]
-pub fn _app_started(app: &mut App) -> &'static str {
-	fn check_app_started(mut events: EventWriter<TestEvent>) {
-		events.send(TestEvent {
-			name: "app_started",
-			status: TestStatus::Passed,
-		});
+pub trait TestSystem<M>: IntoSystem<(), TestStatus, M> {
+	fn test(self, test_name: &'static str) -> impl System<In = (), Out = ()>;
+}
+
+impl<F: IntoSystem<(), TestStatus, M>, M> TestSystem<M> for F {
+	fn test(self, test_name: &'static str) -> impl System<In = (), Out = ()> {
+		let status_to_event = move |In(status): In<TestStatus>,
+		                            mut events: EventWriter<TestEvent>| {
+			events.send(TestEvent {
+				status,
+				name: test_name,
+			});
+		};
+
+		self.pipe(IntoSystem::into_system(status_to_event))
+	}
+}
+
+/// A test that runs in the Bevy app.
+///
+/// Graphical tests cannot use the normal Rust test harness because
+///   1) It runs tests off of the main thread, and Bevy's rendering backends can only be
+///       started on the main thread.
+///   2) The Winit EventLoop cannot be instantiated more than once per process, so separate
+///       tests cannot have their own app.
+///
+/// This macro handles registering test plugins to be run with the `visual` integration test,
+/// as well as regular `#[test]` functions when the `render` feature is not enabled.
+///
+/// ### Usage:
+/// ```no_run
+/// # use bevy::prelude::*;
+/// # use sond_has_engine::{bevy_test, testing::*};
+/// // Parameter names can be any non-reserved identifier.
+/// bevy_test!(fn test_plugin(app, test_id) {
+///     fn check_app_started() -> TestStatus {
+///   	    TestStatus::Passed
+///     }
+///     // See `sond_has_engine::testing::TestSystem`
+///     app.add_systems(Startup, check_app_started.test(test_id));
+/// });
+/// ```
+/// The trait [TestSystem] is provided for conveniently piping systems that return [TestStatus]
+/// into a systems that send [TestEvent]s which are how the custom harness tracks test progress.
+///
+/// Optional type annotations may be included:
+/// ```no_run
+/// # use bevy::prelude::*;
+/// # use sond_has_engine::{bevy_test, testing::*};
+/// bevy_test!(fn annotated(app: &mut App, test_id: &'static str) { });
+/// ```
+/// The identifier for `test_id` will be part of a `let` binding, so it cannot be `_`, even
+/// if you do not use it. It will be set to the `stringify`'d function name provided. Thus
+/// the `test_plugin` above could be written with this instead:
+/// ```ignore
+/// app.add_systems(Startup, check_app_started.test("test_plugin"));
+/// ```
+/// But that would require keeping the function name and string in-sync for proper event tracking.
+#[macro_export]
+macro_rules! bevy_test {
+	(fn $name:ident ( $app:ident $(: &mut App)? , $test_id:ident $(: &'static str)? ) $body:block) => {
+		// TODO: `linkme` does not work on wasm. Find a usable WASM testing method.
+		#[cfg(all(feature = "render", feature = "testing", not(target_arch = "wasm32")))]
+		#[allow(unused)]
+		#[$crate::testing::__static_register_test($crate::testing::TESTS)]
+		fn $name($app: &mut ::bevy::prelude::App) -> &'static str {
+			let $test_id = stringify!($name);
+			$body
+			$test_id
+		}
+
+		#[cfg(all(not(feature = "render"), feature = "testing"))]
+		#[test]
+		fn $name() {
+			let mut $app = $crate::testing::new_test_app();
+			let $test_id = stringify!($name);
+			$body
+			$app.run()
+		}
+	};
+}
+
+bevy_test!(fn app_started(app, test_id) {
+	fn check_app_started() -> TestStatus {
+		TestStatus::Passed
 	}
 
-	app.add_systems(Startup, check_app_started);
-	"app_started"
-}
-
-#[cfg_attr(not(feature = "render"), test)]
-fn app_started() {
-	let mut app = app();
-	_app_started(&mut app);
-	app.run();
-}
+	app.add_systems(bevy::prelude::Startup, check_app_started.test(test_id));
+});

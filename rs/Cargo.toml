@@ -120,9 +120,6 @@ serde = { workspace = true }
 bevy-inspector-egui = { workspace = true, optional = true }
 egui_plot = { workspace = true, optional = true }
 
-# Testing
-linkme = { workspace = true }
-
 [target.'cfg(not(target_arch="wasm32"))'.dependencies]
 bevy_dylib = { workspace = true, optional = true }
 sond-has-engine-dylib = { path = "engine-dylib", optional = true }
