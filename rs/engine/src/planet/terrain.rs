@@ -1,22 +1,5 @@
-use crate::{
-	mats::fog::Matter,
-	nav::heightmap::{FnsThatShouldBePub, TriId},
-	offloading::{wasm_yield, Offload, OffloadedTask, TaskHandle, TaskOffloader},
-	planet::{
-		chunks::{
-			ChunkCenter, ChunkIndex, LoadedChunks, CHUNK_COLS, CHUNK_ROWS, CHUNK_SCALE,
-			TERRAIN_CELL_SIZE,
-		},
-		frame::Frame,
-		seeds::PlanetSeed,
-		terrain::{
-			noise::{ChooseAndSmooth, Source, SyncWorley},
-			seeds::TerrainSeeds,
-		},
-		PlanetVec2,
-	},
-	util::{Diff, Factory, Spawnable},
-};
+use std::{f32::consts::*, sync::Arc};
+
 use ::noise::{
 	Add, Billow, Fbm, HybridMulti, MultiFractal, Perlin, RidgedMulti, ScaleBias, Seedable, Value,
 };
@@ -36,8 +19,27 @@ use bevy_rapier3d::{
 	prelude::*,
 };
 use rapier3d::{geometry::HeightField, na::DMatrix};
-use std::{f32::consts::*, sync::Arc};
 use web_time::{Duration, Instant};
+
+use crate::{
+	mats::fog::Matter,
+	nav::heightmap::{FnsThatShouldBePub, TriId},
+	offloading::{wasm_yield, Offload, OffloadedTask, TaskHandle, TaskOffloader},
+	planet::{
+		chunks::{
+			ChunkCenter, ChunkIndex, LoadedChunks, CHUNK_COLS, CHUNK_ROWS, CHUNK_SCALE,
+			TERRAIN_CELL_SIZE,
+		},
+		frame::Frame,
+		seeds::PlanetSeed,
+		terrain::{
+			noise::{ChooseAndSmooth, Source, SyncWorley},
+			seeds::TerrainSeeds,
+		},
+		PlanetVec2,
+	},
+	util::{Diff, Factory, Spawnable},
+};
 
 pub mod noise;
 
@@ -506,7 +508,8 @@ const NEARBY: [(i32, i32); 37] = [
 	                (-1, 3),( 0, 3),( 1, 3),
 ];
 
-#[derive(Component, Debug, Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Component, Debug, Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
+#[reflect(Component)]
 pub struct NeedsTerrain;
 
 pub fn load_nearby_chunks(
@@ -580,9 +583,11 @@ pub fn unload_distant_chunks(
 pub struct UnloadDistance(f32);
 
 mod seeds {
-	use crate::planet::seeds::PlanetSeed;
-	use bevy::utils::RandomState;
 	use std::hash::{BuildHasher, Hasher};
+
+	use bevy::utils::RandomState;
+
+	use crate::planet::seeds::PlanetSeed;
 
 	#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 	#[repr(C)]

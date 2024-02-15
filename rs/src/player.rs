@@ -1,11 +1,12 @@
-use std::{f32::consts::*, num::NonZeroU8, ops::Add, time::Duration};
+use std::{f32::consts::*, io::Write, num::NonZeroU8, ops::Add, time::Duration};
 
 use bevy::{
-	ecs::system::EntityCommands,
+	ecs::system::{EntityCommands, SystemId},
 	prelude::{
 		shape::{Icosphere, RegularPolygon},
 		*,
 	},
+	reflect::{DynamicEnum, TypeInfo},
 	render::camera::ManualTextureViews,
 	utils::{HashMap, HashSet},
 };
@@ -39,15 +40,17 @@ use prefs::PlayerPrefs;
 
 use crate::{
 	anim::ComponentDelta,
+	pickups::MissSfx,
 	planet::{chunks::ChunkFinder, frame::Frame, PlanetVec2},
 	player::{
 		abilities::{BoosterCharge, HurtboxFilter, Sfx, WeaponCharge},
 		tune::{AbilityParams, PlayerParams, PlayerPhysicsParams},
 	},
-	util::{Diff, Prev, TransformDelta},
+	settings::Settings,
+	terminal_velocity,
+	util::{Diff, IntoFnPlugin, Prev, TransformDelta},
+	NeverDespawn, TerminalVelocity,
 };
-use crate::{pickups::MissSfx, settings::Settings, util::IntoFnPlugin};
-use crate::{terminal_velocity, NeverDespawn, TerminalVelocity};
 
 pub mod abilities;
 pub mod camera;
@@ -127,7 +130,9 @@ pub fn setup(
 		),
 	});
 
-	let id = unsafe { PlayerId::new_unchecked(1) };
+	let Some(id) = PlayerId::new(1) else {
+		unreachable!()
+	};
 	spawn_camera(
 		&mut cmds,
 		id,
@@ -230,7 +235,7 @@ pub fn setup(
 	});
 }
 
-#[derive(Resource, Clone, Debug)]
+#[derive(Resource, Debug)]
 pub struct PlayerSpawnData {
 	pub ship_scene: Handle<Scene>,
 	pub antigrav_pulse_mesh: Handle<Mesh>,
@@ -240,6 +245,129 @@ pub struct PlayerSpawnData {
 	pub arm_mats: [Handle<StandardMaterial>; 3],
 	pub crosshair_mesh: Handle<Mesh>,
 	pub crosshair_mat: Handle<StandardMaterial>,
+}
+
+impl PlayerSpawnData {
+	pub fn clone_weak(&self) -> Self {
+		Self {
+			ship_scene: self.ship_scene.clone_weak(),
+			antigrav_pulse_mesh: self.antigrav_pulse_mesh.clone_weak(),
+			antigrav_pulse_mat: self.antigrav_pulse_mat.clone_weak(),
+			arm_mesh: self.arm_mesh.clone_weak(),
+			arm_particle_mesh: self.arm_particle_mesh.clone_weak(),
+			arm_mats: [
+				self.arm_mats[0].clone_weak(),
+				self.arm_mats[1].clone_weak(),
+				self.arm_mats[2].clone_weak(),
+			],
+			crosshair_mesh: self.crosshair_mesh.clone_weak(),
+			crosshair_mat: self.crosshair_mat.clone_weak(),
+		}
+	}
+
+	pub fn bundles(&self, id: PlayerId, transform: Transform) -> PlayerBundles {
+		let Self {
+			ship_scene,
+			antigrav_pulse_mesh,
+			antigrav_pulse_mat,
+			arm_mesh,
+			arm_particle_mesh,
+			arm_mats: [mat_a, mat_b, mat_c],
+			crosshair_mesh,
+			crosshair_mat,
+		} = self.clone_weak();
+
+		let owner = BelongsToPlayer::with_id(id);
+		let username = format!("Player{}", id.get());
+
+		PlayerBundles {
+			root: (
+				Name::new(username.clone()),
+				owner,
+				TerminalVelocity(Velocity {
+					linvel: Vect::splat(96.0),
+					angvel: Vect::new(0.0, 0.0, PI / crate::DT), // Half a rotation per physics tick
+				}),
+				KinematicPositionBased,
+				TransformBundle::from_transform(transform),
+				Velocity::default(),
+				Friction {
+					coefficient: 0.0,
+					combine_rule: Min,
+				},
+				VisibilityBundle::default(),
+				NeedsTerrain,
+			),
+			vis: SceneBundle {
+				scene: ship_scene,
+				..default()
+			},
+			antigrav_pulse: PbrBundle {
+				mesh: antigrav_pulse_mesh,
+				material: antigrav_pulse_mat,
+				..default()
+			},
+			arms: [
+				(
+					PbrBundle {
+						mesh: arm_mesh.clone(),
+						material: mat_a,
+						transform: Transform::from_translation(Vec3::X * 2.0),
+						..default()
+					},
+					PlayerArm::A,
+				),
+				(
+					PbrBundle {
+						mesh: arm_mesh.clone(),
+						material: mat_b,
+						transform: Transform::from_translation(
+							Quat::from_rotation_z(FRAC_PI_3 * 2.0) * Vec3::X * 2.0,
+						),
+						..default()
+					},
+					PlayerArm::B,
+				),
+				(
+					PbrBundle {
+						mesh: arm_mesh,
+						material: mat_c,
+						transform: Transform::from_translation(
+							Quat::from_rotation_z(FRAC_PI_3 * 4.0) * Vec3::X * 2.0,
+						),
+						..default()
+					},
+					PlayerArm::C,
+				),
+			],
+			arm_particle_mesh,
+			crosshair: PbrBundle {
+				mesh: crosshair_mesh,
+				material: crosshair_mat,
+				transform: Transform::from_translation(Vec3::Y * 128.0),
+				..default()
+			},
+		}
+	}
+}
+
+struct PlayerBundles {
+	root: (
+		Name,
+		BelongsToPlayer,
+		TerminalVelocity,
+		RigidBody,
+		TransformBundle,
+		Velocity,
+		Friction,
+		VisibilityBundle,
+		NeedsTerrain,
+	),
+	vis: SceneBundle,
+	antigrav_pulse: PbrBundle,
+	arms: [(PbrBundle, PlayerArm); 3],
+	arm_particle_mesh: Handle<Mesh>,
+	crosshair: PbrBundle,
 }
 
 #[derive(EnumComponent)]
@@ -301,77 +429,27 @@ pub fn spawn_players(
 			continue;
 		};
 
-		let PlayerSpawnData {
-			ship_scene,
-			antigrav_pulse_mesh,
-			antigrav_pulse_mat,
-			arm_mesh,
-			arm_particle_mesh,
-			arm_mats: [mat_a, mat_b, mat_c],
-			crosshair_mesh,
-			crosshair_mat,
-		} = spawn_data.clone();
-
-		let vis = SceneBundle {
-			scene: ship_scene,
-			..default()
-		};
-
-		let antigrav_pulse_mesh = MaterialMeshBundle {
-			mesh: antigrav_pulse_mesh,
-			material: antigrav_pulse_mat,
-			..default()
-		};
-
-		let arm1 = MaterialMeshBundle::<StandardMaterial> {
-			mesh: arm_mesh.clone(),
-			material: mat_a,
-			transform: Transform::from_translation(Vec3::X * 2.0),
-			..default()
-		};
-		let arm2 = MaterialMeshBundle::<StandardMaterial> {
-			mesh: arm_mesh.clone(),
-			material: mat_b,
-			transform: Transform::from_translation(
-				Quat::from_rotation_z(FRAC_PI_3 * 2.0) * Vec3::X * 2.0,
-			),
-			..default()
-		};
-		let arm3 = MaterialMeshBundle::<StandardMaterial> {
-			mesh: arm_mesh,
-			material: mat_c,
-			transform: Transform::from_translation(
-				Quat::from_rotation_z(FRAC_PI_3 * 4.0) * Vec3::X * 2.0,
-			),
-			..default()
-		};
-
 		let id = event.id;
 		let owner = BelongsToPlayer::with_id(id);
+		let username = format!("Player{}", id.get());
+
+		let PlayerBundles {
+			root,
+			vis,
+			antigrav_pulse,
+			arms,
+			arm_particle_mesh,
+			crosshair,
+		} = spawn_data.bundles(
+			id,
+			Transform {
+				translation: Vec3::new(0.0, 0.0, z + 2048.0),
+				..default()
+			},
+		);
+
 		let char_collider = params.phys.collider.into();
-		let username = format!("Player{}", owner.0.get());
-		let mut root = cmds
-			.spawn((
-				Name::new(username.clone()),
-				owner,
-				TerminalVelocity(Velocity {
-					linvel: Vect::splat(96.0),
-					angvel: Vect::new(0.0, 0.0, PI / crate::DT), // Half a rotation per physics tick
-				}),
-				KinematicPositionBased,
-				TransformBundle::from_transform(Transform {
-					translation: Vec3::new(0.0, 0.0, z + 2048.0),
-					..default()
-				}),
-				Velocity::default(),
-				Friction {
-					coefficient: 0.0,
-					combine_rule: Min,
-				},
-				VisibilityBundle::default(),
-				NeedsTerrain,
-			))
-			.with_enum(Root);
+		let mut root = cmds.spawn(root).with_enum(Root);
 
 		let prefs_key = format!("{username}.prefs");
 		let prefs = match pkv.get(&prefs_key) {
@@ -387,19 +465,15 @@ pub fn spawn_players(
 		};
 		info!("Loaded: {prefs:#?}");
 
-		build_player_scene(
+		populate_player_scene(
 			&mut root,
 			owner,
 			vis,
 			char_collider,
-			antigrav_pulse_mesh,
-			[
-				(arm1, PlayerArm::A),
-				(arm2, PlayerArm::B),
-				(arm3, PlayerArm::C),
-			],
+			antigrav_pulse,
+			arms,
 			arm_particle_mesh,
-			(crosshair_mesh, crosshair_mat),
+			crosshair,
 			prefs,
 		);
 	}
@@ -408,15 +482,15 @@ pub fn spawn_players(
 	}
 }
 
-fn build_player_scene(
+fn populate_player_scene(
 	root: &mut EntityCommands,
 	owner: BelongsToPlayer,
 	vis: SceneBundle,
 	char_collider: Collider,
-	particle_mesh: MaterialMeshBundle<StandardMaterial>,
-	arm_meshes: [(MaterialMeshBundle<StandardMaterial>, PlayerArm); 3],
+	antigrav_pulse: PbrBundle,
+	arm_meshes: [(PbrBundle, PlayerArm); 3],
 	arm_particle_mesh: Handle<Mesh>,
-	crosshair: (Handle<Mesh>, Handle<StandardMaterial>),
+	crosshair: PbrBundle,
 	prefs: PlayerPrefs,
 ) {
 	player_controller(root, owner, char_collider, prefs);
@@ -424,7 +498,7 @@ fn build_player_scene(
 		root,
 		owner,
 		vis,
-		particle_mesh,
+		antigrav_pulse,
 		arm_meshes,
 		arm_particle_mesh,
 		crosshair,
@@ -469,10 +543,10 @@ fn player_vis(
 	root: &mut EntityCommands,
 	owner: BelongsToPlayer,
 	vis: SceneBundle,
-	particle_mesh: MaterialMeshBundle<StandardMaterial>,
-	arm_meshes: [(MaterialMeshBundle<StandardMaterial>, PlayerArm); 3],
+	particle_mesh: PbrBundle,
+	arm_meshes: [(PbrBundle, PlayerArm); 3],
 	arm_particle_mesh: Handle<Mesh>,
-	crosshair: (Handle<Mesh>, Handle<StandardMaterial>),
+	crosshair: PbrBundle,
 ) {
 	let camera_pivot = camera::spawn_pivot(root.commands(), owner, crosshair).id();
 	let root_id = root.id();
@@ -658,7 +732,7 @@ fn player_arms(
 	root_id: Entity,
 	arms_pivot: &mut EntityCommands,
 	owner: BelongsToPlayer,
-	meshes: [(MaterialMeshBundle<StandardMaterial>, PlayerArm); 3],
+	meshes: [(PbrBundle, PlayerArm); 3],
 	particle_mesh: Handle<Mesh>,
 ) {
 	arms_pivot.with_children(|builder| {
