@@ -1,6 +1,5 @@
-use crate::{terminal_velocity, NeverDespawn, TerminalVelocity};
+use std::{f32::consts::*, num::NonZeroU8, ops::Add, time::Duration};
 
-use crate::{pickups::MissSfx, settings::Settings, util::IntoFnPlugin};
 use bevy::{
 	ecs::system::EntityCommands,
 	prelude::{
@@ -21,11 +20,7 @@ use bevy_rapier3d::{
 	plugin::PhysicsSet::StepSimulation,
 	prelude::{RigidBody::KinematicPositionBased, *},
 };
-use camera::spawn_camera;
-use ctrl::{CtrlState, CtrlVel};
-use engine::planet::terrain::NeedsTerrain;
 use enum_components::{ERef, EntityEnumCommands, EnumComponent};
-use input::PlayerAction;
 use leafwing_input_manager::prelude::*;
 use nanorand::Rng;
 use particles::{
@@ -33,12 +28,26 @@ use particles::{
 	InitialGlobalTransform, InitialTransform, Lifetime, ParticleBundle, PreviousGlobalTransform,
 	PreviousTransform, Spewer, SpewerBundle,
 };
+use rapier3d::{math::Point, prelude::Aabb};
+
+use camera::spawn_camera;
+use ctrl::{CtrlState, CtrlVel};
+use engine::planet::terrain::NeedsTerrain;
+use input::PlayerAction;
+use player_entity::*;
 use prefs::PlayerPrefs;
-use rapier3d::{
-	math::Point,
-	prelude::{Aabb, SharedShape},
+
+use crate::{
+	anim::ComponentDelta,
+	planet::{chunks::ChunkFinder, frame::Frame, PlanetVec2},
+	player::{
+		abilities::{BoosterCharge, HurtboxFilter, Sfx, WeaponCharge},
+		tune::{AbilityParams, PlayerParams, PlayerPhysicsParams},
+	},
+	util::{Diff, Prev, TransformDelta},
 };
-use std::{f32::consts::*, num::NonZeroU8, ops::Add, time::Duration};
+use crate::{pickups::MissSfx, settings::Settings, util::IntoFnPlugin};
+use crate::{terminal_velocity, NeverDespawn, TerminalVelocity};
 
 pub mod abilities;
 pub mod camera;
@@ -53,12 +62,16 @@ pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugins((
 		prefs::PrefsPlugin,
 		input::plugin.plugfn(),
-		RonAssetPlugin::<PlayerParams>::new(&["ron"]),
 		crate::anim::AnimationPlugin::<RotVel>::PLUGIN,
 	))
+	.register_type::<BoosterCharge>()
+	.register_type::<WeaponCharge>()
+	.register_type::<AbilityParams>()
+	.register_type::<tune::PlayerCollider>()
+	.register_type::<PlayerPhysicsParams>()
+	.register_type::<PlayerParams>()
 	.insert_resource(PlayerRespawnTimers::default())
 	.add_systems(Startup, setup)
-	.add_systems(First, tune::extract_loaded_params)
 	.add_systems(PreUpdate, Prev::<CtrlState>::update_component)
 	.add_systems(
 		Update,
@@ -107,10 +120,6 @@ pub fn setup(
 	mut spawn_events: EventWriter<PlayerSpawnEvent>,
 	manual_texture_views: Res<ManualTextureViews>,
 ) {
-	Box::leak(Box::new(
-		asset_server.load::<PlayerParams>("tune/player_params.ron"),
-	));
-
 	cmds.insert_resource(PlayerBounds {
 		aabb: Aabb::new(
 			Point::new(-16384.0, -16384.0, -8192.0),
@@ -248,16 +257,6 @@ pub enum PlayerEntity {
 	Arm(PlayerArm),
 	Orb(PlayerArm),
 }
-use crate::{
-	anim::ComponentDelta,
-	planet::{chunks::ChunkFinder, frame::Frame, PlanetVec2},
-	player::{
-		abilities::{BoosterCharge, HurtboxFilter, Sfx, WeaponCharge},
-		tune::PlayerParams,
-	},
-	util::{Diff, Prev, TransformDelta},
-};
-use player_entity::*;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum PlayerArm {
@@ -349,7 +348,7 @@ pub fn spawn_players(
 
 		let id = event.id;
 		let owner = BelongsToPlayer::with_id(id);
-		let char_collider = Collider::from(SharedShape::new(params.phys.collider));
+		let char_collider = params.phys.collider.into();
 		let username = format!("Player{}", owner.0.get());
 		let mut root = cmds
 			.spawn((

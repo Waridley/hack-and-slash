@@ -1,3 +1,21 @@
+use std::time::Duration;
+
+use bevy::{prelude::*, transform::TransformSystem::TransformPropagate};
+use bevy_kira_audio::{Audio, AudioControl, AudioSource};
+use bevy_rapier3d::{
+	geometry::CollisionGroups,
+	pipeline::QueryFilter,
+	plugin::RapierContext,
+	prelude::{Collider, Toi},
+};
+use enum_components::ERef;
+use leafwing_input_manager::{
+	action_state::ActionState, axislike::DualAxisData, systems::update_action_state,
+};
+use particles::{PreviousGlobalTransform, Spewer};
+use rapier3d::pipeline::QueryFilterFlags;
+use serde::{Deserialize, Serialize};
+
 use crate::{
 	anim::{AnimationSet, BlendTargets, ComponentDelta, StartAnimation},
 	planet::{
@@ -16,22 +34,6 @@ use crate::{
 	terminal_velocity,
 	util::{Diff, DurationDelta, Easings, Lerp, LerpSlerp, Target},
 };
-use bevy::{prelude::*, transform::TransformSystem::TransformPropagate};
-use bevy_kira_audio::{Audio, AudioControl, AudioSource};
-use bevy_rapier3d::{
-	geometry::CollisionGroups,
-	pipeline::QueryFilter,
-	plugin::RapierContext,
-	prelude::{Collider, Toi},
-};
-use enum_components::ERef;
-use leafwing_input_manager::{
-	action_state::ActionState, axislike::DualAxisData, systems::update_action_state,
-};
-use particles::{PreviousGlobalTransform, Spewer};
-use rapier3d::pipeline::QueryFilterFlags;
-use serde::{Deserialize, Serialize};
-use std::time::Duration;
 
 pub struct AbilitiesPlugin;
 
@@ -437,6 +439,7 @@ pub fn fire_a(
 	DerefMut,
 	Serialize,
 	Deserialize,
+	Reflect,
 	Copy,
 	Clone,
 	Default,
@@ -452,6 +455,7 @@ pub struct BoosterCharge(pub f32);
 	DerefMut,
 	Serialize,
 	Deserialize,
+	Reflect,
 	Copy,
 	Clone,
 	Default,
