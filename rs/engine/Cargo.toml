@@ -20,6 +20,9 @@ bevy = { workspace = true }
 bevy_rapier3d = { workspace = true }
 rapier3d = { workspace = true }
 
+# UI
+dioxus = { workspace = true }
+
 # Util
 array-init = { workspace = true }
 base64 = { workspace = true }

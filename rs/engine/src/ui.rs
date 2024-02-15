@@ -10,6 +10,7 @@ use bevy::{
 
 #[cfg(feature = "debugging")]
 pub mod dbg;
+pub mod hud;
 
 pub struct UiPlugin;
 
@@ -18,7 +19,8 @@ impl Plugin for UiPlugin {
 		#[cfg(feature = "debugging")]
 		app.add_plugins(dbg::DebugUiPlugin);
 
-		app.init_resource::<UiHovered>()
+		app.add_plugins(hud::DioxusPlugin)
+			.init_resource::<UiHovered>()
 			.add_systems(Update, reset_hovered);
 	}
 }
