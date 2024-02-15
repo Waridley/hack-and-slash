@@ -195,7 +195,7 @@ impl<F: IntoSystem<(), TestStatus, M>, M> TestSystem<M> for F {
 /// // Parameter names can be any non-reserved identifier.
 /// bevy_test!(fn test_plugin(app, test_id) {
 ///     fn check_app_started() -> TestStatus {
-///   	    TestStatus::Passed
+///         TestStatus::Passed
 ///     }
 ///     // See `sond_has_engine::testing::TestSystem`
 ///     app.add_systems(Startup, check_app_started.test(test_id));
