@@ -1,6 +1,6 @@
 [submodule "sond-bevy-enum-components"]
 	path = sond-bevy-enum-components
-	url = git@github.com:Waridley/bevy-enum-components.git
+	url = https://github.com/Waridley/bevy-enum-components.git
 [submodule "sond-bevy-particles"]
 	path = sond-bevy-particles
-	url = git@github.com:Waridley/bevy-particles.git
+	url = https://github.com/Waridley/bevy-particles.git

@@ -15,7 +15,6 @@ use crate::{
 		},
 		PlanetVec2,
 	},
-	player::player_entity::Root,
 	util::{Diff, Factory, Spawnable},
 };
 use ::noise::{
@@ -36,7 +35,6 @@ use bevy_rapier3d::{
 	parry::shape::{SharedShape, Triangle},
 	prelude::*,
 };
-use enum_components::ERef;
 use rapier3d::{geometry::HeightField, na::DMatrix};
 use std::{f32::consts::*, sync::Arc};
 use web_time::{Duration, Instant};
@@ -48,7 +46,7 @@ pub type Noise = ChooseAndSmooth<4>;
 pub fn plugin(app: &mut App) -> &mut App {
 	// WHY is there no length function on `Vector2`??
 	let diameter = (CHUNK_SCALE.x * CHUNK_SCALE.x + CHUNK_SCALE.y * CHUNK_SCALE.y).sqrt();
-	dbg!(diameter);
+
 	app.add_systems(Startup, setup)
 		.add_systems(PostStartup, spawn_boxes)
 		.init_resource::<ChunkLoadingTasks>()
@@ -508,8 +506,11 @@ const NEARBY: [(i32, i32); 37] = [
 	                (-1, 3),( 0, 3),( 1, 3),
 ];
 
+#[derive(Component, Debug, Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct NeedsTerrain;
+
 pub fn load_nearby_chunks(
-	players: Query<&GlobalTransform, ERef<Root>>,
+	players: Query<&GlobalTransform, With<NeedsTerrain>>,
 	loaded_chunks: Res<LoadedChunks>,
 	mut tasks: ResMut<ChunkLoadingTasks>,
 	mut task_offloader: TaskOffloader,
@@ -541,7 +542,7 @@ pub fn load_nearby_chunks(
 
 pub fn unload_distant_chunks(
 	mut cmds: Commands,
-	players: Query<&GlobalTransform, ERef<Root>>,
+	players: Query<&GlobalTransform, With<NeedsTerrain>>,
 	chunks: Query<(Entity, &GlobalTransform), With<ChunkCenter>>,
 	dist: Res<UnloadDistance>,
 	mut loaded_chunks: ResMut<LoadedChunks>,

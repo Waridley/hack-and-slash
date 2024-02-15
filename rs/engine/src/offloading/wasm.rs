@@ -1,4 +1,4 @@
-use crate::offloading::{Offload, OffloadedTask};
+use super::{Offload, OffloadedTask};
 use bevy::{ecs::system::SystemParam, prelude::*};
 use rapier3d::crossbeam::atomic::AtomicCell;
 use std::{

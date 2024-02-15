@@ -1,7 +1,7 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Test" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="test --workspace --profile=&quot;desktop&quot; --no-default-features --features=&quot;testing&quot;" />
-    <option name="workingDirectory" value="file://$PROJECT_DIR$/rs" />
+  <configuration default="false" name="Sweep (3 days)" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+    <option name="command" value="sweep -r -t 3" />
+    <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <envs />
     <option name="emulateTerminal" value="true" />
     <option name="channel" value="DEFAULT" />
@@ -12,6 +12,8 @@
     <option name="backtrace" value="SHORT" />
     <option name="isRedirectInput" value="false" />
     <option name="redirectInputPath" value="" />
-    <method v="2" />
+    <method v="2">
+      <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+    </method>
   </configuration>
 </component>

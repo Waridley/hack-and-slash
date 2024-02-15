@@ -2,6 +2,9 @@ use async_process::{Child, ChildStderr, ChildStdout, Command, Stdio};
 use bevy::{ecs::system::SystemId, prelude::*, tasks::IoTaskPool};
 use futures_lite::{io::BufReader, AsyncBufReadExt, StreamExt};
 
+#[allow(unused_imports, clippy::single_component_path_imports)]
+use bevy_dylib;
+
 fn main() {
 	let mut app = App::new();
 	app.add_plugins(DefaultPlugins)

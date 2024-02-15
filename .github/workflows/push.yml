@@ -47,7 +47,7 @@ jobs:
 
       - name: Linux Build
         working-directory: ./rs
-        run: cargo build --all-features
+        run: cargo build --features="vis_test"
 
       - name: WASM Check
         working-directory: ./rs
@@ -55,7 +55,7 @@ jobs:
 
       - name: Windows Check
         working-directory: ./rs
-        run: cargo check --target x86_64-pc-windows-gnu
+        run: cargo check --target x86_64-pc-windows-gnu --features="vis_test"
 
 #      - name: MacOS Check
 #        working-directory: ./rs
