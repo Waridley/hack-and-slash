@@ -1,35 +1,23 @@
+use bevy::prelude::*;
+use bevy_rapier3d::{parry::shape::SharedShape, prelude::Collider};
+use rapier3d::prelude::Ball;
+use serde::{Deserialize, Serialize};
+
 use crate::{
 	player::abilities::{BoosterCharge, WeaponCharge},
 	util::Angle,
 };
-use bevy::prelude::*;
-use rapier3d::geometry::Ball;
-use serde::{Deserialize, Serialize};
-
-pub fn extract_loaded_params(
-	mut cmds: Commands,
-	params_assets: Res<Assets<PlayerParams>>,
-	mut events: EventReader<AssetEvent<PlayerParams>>,
-) {
-	for event in events.read() {
-		match event {
-			AssetEvent::Added { id } | AssetEvent::Modified { id } => {
-				cmds.insert_resource(dbg!(params_assets.get(*id).unwrap().clone()));
-			}
-			_ => {}
-		}
-	}
-}
 
 /// Global game tuning parameters that will be effectively constant in releases.
 /// Implemented as an Asset for easy reloading during development.
-#[derive(Asset, TypePath, Resource, Serialize, Deserialize, Clone, Debug)]
+#[derive(Default, Resource, Serialize, Deserialize, Clone, Debug, Reflect)]
+#[reflect(Resource)]
 pub struct PlayerParams {
 	pub abil: AbilityParams,
 	pub phys: PlayerPhysicsParams,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+#[derive(Default, Serialize, Deserialize, Clone, Copy, Debug, Reflect)]
 pub struct AbilityParams {
 	pub grounded_booster_charge: BoosterCharge,
 	pub weapon_capacity: WeaponCharge,
@@ -41,12 +29,34 @@ pub struct AbilityParams {
 	pub aoe_cost: WeaponCharge,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+#[derive(Default, Serialize, Deserialize, Clone, Copy, Debug, Reflect)]
 pub struct PlayerPhysicsParams {
 	pub max_speed: f32,
 	pub accel: f32,
 	pub gravity: f32,
 	pub slide_angle: Angle,
 	pub hover_height: f32,
-	pub collider: Ball,
+	pub collider: PlayerCollider,
+}
+
+/// Reflect Proxy for Rapier collider.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Reflect)]
+pub struct PlayerCollider {
+	pub radius: f32,
+}
+
+impl From<PlayerCollider> for Collider {
+	fn from(value: PlayerCollider) -> Self {
+		Self::from(SharedShape::new(Ball {
+			radius: value.radius,
+		}))
+	}
+}
+
+// Unfortunately `Default` is needed for reflection, even though the
+// actual default will be defined by `globals.scn.ron`
+impl Default for PlayerCollider {
+	fn default() -> Self {
+		Self { radius: 1.0 }
+	}
 }

@@ -655,7 +655,7 @@ impl<T: Clone> Prev<T> {
 	}
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq, Reflect)]
 pub enum Angle {
 	Deg(f32),
 	Rad(f32),
@@ -690,6 +690,12 @@ impl Angle {
 			PiOver(denom) => (PI / denom) * (360.0 / TAU),
 			TauOver(denom) => (TAU / denom) * (360.0 / TAU),
 		}
+	}
+}
+
+impl Default for Angle {
+	fn default() -> Self {
+		Self::Rad(0.0)
 	}
 }
 

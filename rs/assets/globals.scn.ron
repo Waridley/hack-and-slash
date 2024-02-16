@@ -1,0 +1,60 @@
+(
+	resources: {
+		"sond_has::player::tune::PlayerParams": (
+			abil: (
+				grounded_booster_charge: (150.0),
+				weapon_capacity: (100.0),
+				weapon_fill_per_second: (25.0),
+				jump_cost: (50.0),
+				jump_vel: 48.0,
+				dash_cost: (50.0),
+				dash_vel: 150.0,
+				aoe_cost: (50.0),
+			),
+			phys: (
+				max_speed: 48.0,
+				accel: 3.0,
+				gravity: 48.0,
+				slide_angle: Deg(44.0),
+				hover_height: 2.0,
+				collider: (
+					radius: 1.2,
+				),
+			),
+		),
+		"sond_has::player::PlayerAssets": (
+			ship_scene: "ships/player.glb#Scene0",
+			antigrav_pulse_mesh: (
+				radius: 0.640,
+				ring_radius: 0.064,
+				subdivisions_segments: 6,
+				subdivisions_sides: 3,
+			),
+			antigrav_pulse_mat: StandardMaterial(
+				base_color: Rgba( red: 0.0, green: 0.0, blue: 0.0, alpha: 0.0 ),
+				emissive: Rgba( red: 0.0, green: 12.0, blue: 7.2, alpha: 1.0 ),
+				reflectance: 0.0,
+			),
+			arm_particle_radius: 0.1,
+			arm_mesh: (
+				radius: 0.3,
+				subdivisions: 2,
+			),
+			arm_mats: (
+				Rgba( red: 0.0, green: 6.0, blue: 0.0, alpha: 1.0 ),
+				Rgba( red: 3.0, green: 3.0, blue: 3.0, alpha: 1.0 ),
+				Rgba( red: 0.0, green: 6.0, blue: 6.0, alpha: 1.0 ),
+			),
+			crosshair_mesh: (
+				radius: 0.5,
+				ring_radius: 0.1,
+			),
+			crosshair_mat: StandardMaterial(
+				base_color: Rgba( red: 1.0, green: 1.0, blue: 0.0, alpha: 1.0 ),
+				depth_bias: inf,
+				unlit: true,
+			),
+		),
+	},
+	entities: {}
+)

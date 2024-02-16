@@ -16,7 +16,11 @@ use enum_components::ERef;
 use particles::{ParticlesPlugin, Spewer};
 
 pub use engine::{anim, mats, nav, offloading, planet, settings, util};
-use engine::{planet::frame::Frame, util::Prev, EnginePlugin};
+use engine::{
+	planet::frame::Frame,
+	util::{Angle, Prev},
+	EnginePlugin,
+};
 use offloading::OffloadingPlugin;
 use planet::sky::SkyPlugin;
 use player::{abilities::AbilitiesPlugin, ctrl::CtrlVel};
@@ -90,47 +94,48 @@ impl Plugin for GameDynPlugin {
 }
 
 pub fn game_plugin(app: &mut App) -> &mut App {
-	app.add_plugins(EnginePlugin);
-	app.insert_resource(RapierConfiguration {
-		gravity: Vect::new(0.0, 0.0, -9.80665),
-		timestep_mode: TimestepMode::Interpolated {
-			dt: DT,
-			time_scale: 1.0,
-			substeps: 1,
-		},
-		..default()
-	})
-	.add_plugins((
-		RapierPhysicsPlugin::<()>::default().in_schedule(Update),
-		FrameTimeDiagnosticsPlugin,
-		AudioPlugin,
-	))
-	.add_plugins((
-		ParticlesPlugin,
-		AbilitiesPlugin,
-		OffloadingPlugin,
-		SkyPlugin,
-		MatsPlugin,
-		anim::BuiltinAnimations,
-		anim::AnimationPlugin::<Spewer>::PLUGIN,
-		enemies::plugin.plugfn(),
-		player::plugin.plugfn(),
-		pickups::plugin.plugfn(),
-		settings::plugin.plugfn(),
-		planet::plugin.plugfn(),
-		ui::plugin.plugfn(),
-	))
-	.insert_resource(PkvStore::new_with_qualifier("studio", "sonday", "has"))
-	.add_systems(Startup, startup)
-	.add_systems(
-		First,
-		shift_frame.before(planet::frame::reframe_all_entities),
-	)
-	.add_systems(
-		Update,
-		(terminal_velocity.before(StepSimulation), fullscreen),
-	)
-	.add_systems(PostUpdate, (despawn_oob,));
+	app.add_plugins(EnginePlugin)
+		.register_type::<Angle>()
+		.insert_resource(RapierConfiguration {
+			gravity: Vect::new(0.0, 0.0, -9.80665),
+			timestep_mode: TimestepMode::Interpolated {
+				dt: DT,
+				time_scale: 1.0,
+				substeps: 1,
+			},
+			..default()
+		})
+		.add_plugins((
+			RapierPhysicsPlugin::<()>::default().in_schedule(Update),
+			FrameTimeDiagnosticsPlugin,
+			AudioPlugin,
+		))
+		.add_plugins((
+			ParticlesPlugin,
+			AbilitiesPlugin,
+			OffloadingPlugin,
+			SkyPlugin,
+			MatsPlugin,
+			anim::BuiltinAnimations,
+			anim::AnimationPlugin::<Spewer>::PLUGIN,
+			enemies::plugin.plugfn(),
+			player::plugin.plugfn(),
+			pickups::plugin.plugfn(),
+			settings::plugin.plugfn(),
+			planet::plugin.plugfn(),
+			ui::plugin.plugfn(),
+		))
+		.insert_resource(PkvStore::new_with_qualifier("studio", "sonday", "has"))
+		.add_systems(Startup, startup)
+		.add_systems(
+			First,
+			shift_frame.before(planet::frame::reframe_all_entities),
+		)
+		.add_systems(
+			Update,
+			(terminal_velocity.before(StepSimulation), fullscreen),
+		)
+		.add_systems(PostUpdate, (despawn_oob,));
 
 	app
 }
@@ -214,12 +219,22 @@ pub fn tick_cooldown<A: Ability>(
 	}
 }
 
+/// Keeps the Globals scene alive so change detection works.
+#[derive(Resource, Deref, DerefMut)]
+pub struct GlobalsScene(pub Handle<DynamicScene>);
+
 fn startup(
 	mut cmds: Commands,
+	mut scene_spawner: ResMut<SceneSpawner>,
+	assets: Res<AssetServer>,
 	#[cfg(all(feature = "debugging", feature = "render"))] mut dbg_render_ctx: ResMut<
 		DebugRenderContext,
 	>,
 ) {
+	let globals_scene = assets.load("globals.scn.ron");
+	cmds.insert_resource(GlobalsScene(globals_scene.clone()));
+	scene_spawner.spawn_dynamic(globals_scene);
+
 	#[cfg(target_family = "wasm")]
 	cmds.insert_resource(Msaa::Off);
 

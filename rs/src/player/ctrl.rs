@@ -1,12 +1,3 @@
-use crate::{
-	player::{
-		abilities::BoosterCharge,
-		player_entity::{Controller, Root, ShipCenter},
-		tune::PlayerParams,
-		BelongsToPlayer, G1,
-	},
-	UP,
-};
 use bevy::{
 	prelude::*,
 	render::primitives::{Aabb, Sphere},
@@ -26,7 +17,17 @@ use rapier3d::{
 	prelude::{ContactData, ContactManifoldData},
 };
 
-#[derive(Component, Default, Clone, Debug)]
+use crate::{
+	player::{
+		abilities::BoosterCharge,
+		player_entity::{Controller, Root, ShipCenter},
+		tune::PlayerParams,
+		BelongsToPlayer, G1,
+	},
+	UP,
+};
+
+#[derive(Component, Default, Clone, Debug, Reflect)]
 pub struct CtrlState {
 	pub touching_ground: bool,
 	pub bottomed_out: bool,

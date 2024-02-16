@@ -1,10 +1,5 @@
-use super::{
-	player_entity::{Cam, CamPivot},
-	BelongsToPlayer, G1,
-};
-use crate::{planet::sky::SkyShader, player::PlayerId, settings::Settings, NeverDespawn};
+use std::f32::consts::FRAC_PI_2;
 
-use crate::{anim::ComponentDelta, player::prefs::CamSmoothing, util::LerpSlerp};
 use bevy::{
 	core_pipeline::{bloom::BloomSettings, fxaa::Fxaa, tonemapping::Tonemapping, Skybox},
 	ecs::system::{EntityCommands, Res},
@@ -26,7 +21,20 @@ use bevy_rapier3d::{
 	plugin::RapierContext,
 };
 use enum_components::{ERef, EntityEnumCommands};
-use std::f32::consts::FRAC_PI_2;
+
+use crate::{
+	anim::ComponentDelta,
+	planet::sky::SkyShader,
+	player::{prefs::CamSmoothing, PlayerId},
+	settings::Settings,
+	util::LerpSlerp,
+	NeverDespawn,
+};
+
+use super::{
+	player_entity::{Cam, CamPivot},
+	BelongsToPlayer, G1,
+};
 
 const MAX_CAM_DIST: f32 = 32.0;
 const MIN_CAM_DIST: f32 = 9.6;
@@ -158,7 +166,7 @@ pub fn spawn_camera<'w, 's, 'a>(
 pub fn spawn_pivot<'w, 's, 'a>(
 	cmds: &'a mut Commands<'w, 's>,
 	owner: BelongsToPlayer,
-	crosshair: (Handle<Mesh>, Handle<StandardMaterial>),
+	crosshair: PbrBundle,
 ) -> EntityCommands<'w, 's, 'a> {
 	let mut cmds = cmds
 		.spawn((
@@ -171,15 +179,7 @@ pub fn spawn_pivot<'w, 's, 'a>(
 		))
 		.with_enum(CamPivot);
 	cmds.with_children(|builder| {
-		builder.spawn((
-			owner,
-			PbrBundle {
-				mesh: crosshair.0,
-				material: crosshair.1,
-				transform: Transform::from_translation(Vec3::Y * 128.0),
-				..default()
-			},
-		));
+		builder.spawn((owner, crosshair));
 	});
 	cmds
 }

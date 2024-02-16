@@ -1,7 +1,0 @@
-(
-    meta_format_version: "1.0",
-    asset: Load(
-        loader: "bevy_common_assets::ron::RonAssetLoader<sond_has::player::tune::PlayerParams>",
-        settings: (),
-    ),
-)
