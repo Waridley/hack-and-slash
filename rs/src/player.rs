@@ -1,16 +1,15 @@
-use std::{f32::consts::*, io::Write, num::NonZeroU8, ops::Add, time::Duration};
+use std::{f32::consts::*, num::NonZeroU8, ops::Add, time::Duration};
 
 use bevy::{
-	ecs::system::{EntityCommands, SystemId},
+	asset::AssetPath,
+	ecs::system::EntityCommands,
 	prelude::{
 		shape::{Icosphere, RegularPolygon},
 		*,
 	},
-	reflect::{DynamicEnum, TypeInfo},
 	render::camera::ManualTextureViews,
 	utils::{HashMap, HashSet},
 };
-use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_kira_audio::{Audio, AudioControl};
 use bevy_pkv::PkvStore;
 use bevy_rapier3d::{
@@ -30,6 +29,7 @@ use particles::{
 	PreviousTransform, Spewer, SpewerBundle,
 };
 use rapier3d::{math::Point, prelude::Aabb};
+use shape::Torus;
 
 use camera::spawn_camera;
 use ctrl::{CtrlState, CtrlVel};
@@ -67,6 +67,11 @@ pub fn plugin(app: &mut App) -> &mut App {
 		input::plugin.plugfn(),
 		crate::anim::AnimationPlugin::<RotVel>::PLUGIN,
 	))
+	.register_type::<AssetPath>()
+	.register_type::<ReflectTorus>()
+	.register_type::<ReflectIcosphere>()
+	.register_type::<(Color, Color, Color)>()
+	.register_type::<PlayerAssets>()
 	.register_type::<BoosterCharge>()
 	.register_type::<WeaponCharge>()
 	.register_type::<AbilityParams>()
@@ -75,6 +80,10 @@ pub fn plugin(app: &mut App) -> &mut App {
 	.register_type::<PlayerParams>()
 	.insert_resource(PlayerRespawnTimers::default())
 	.add_systems(Startup, setup)
+	.add_systems(
+		First,
+		update_player_spawn_data.run_if(resource_exists::<PlayerAssets>()),
+	)
 	.add_systems(PreUpdate, Prev::<CtrlState>::update_component)
 	.add_systems(
 		Update,
@@ -106,7 +115,8 @@ pub fn plugin(app: &mut App) -> &mut App {
 			play_death_sound.after(kill_on_key).after(reset_oob),
 			spawn_players
 				.after(countdown_respawn)
-				.run_if(resource_exists::<PlayerParams>()),
+				.run_if(resource_exists::<PlayerParams>())
+				.run_if(resource_exists::<PlayerSpawnData>()),
 		),
 	)
 	.add_event::<PlayerSpawnEvent>();
@@ -115,12 +125,9 @@ pub fn plugin(app: &mut App) -> &mut App {
 
 pub fn setup(
 	mut cmds: Commands,
-	mut materials: ResMut<Assets<StandardMaterial>>,
-	mut meshes: ResMut<Assets<Mesh>>,
-	mut images: ResMut<Assets<Image>>,
 	asset_server: Res<AssetServer>,
+	mut images: ResMut<Assets<Image>>,
 	settings: Res<Settings>,
-	mut spawn_events: EventWriter<PlayerSpawnEvent>,
 	manual_texture_views: Res<ManualTextureViews>,
 ) {
 	cmds.insert_resource(PlayerBounds {
@@ -129,18 +136,6 @@ pub fn setup(
 			Point::new(16384.0, 16384.0, 8192.0),
 		),
 	});
-
-	let Some(id) = PlayerId::new(1) else {
-		unreachable!()
-	};
-	spawn_camera(
-		&mut cmds,
-		id,
-		&settings,
-		&mut images,
-		&asset_server,
-		&manual_texture_views,
-	);
 
 	cmds.insert_resource(Sfx {
 		aoe: asset_server.load("sfx/SFX_-_magic_spell_03.ogg"),
@@ -155,31 +150,36 @@ pub fn setup(
 			asset_server.load("sfx/Kenney/Audio/impactMetal_004.ogg"),
 		],
 	});
+	let Some(id) = PlayerId::new(1) else {
+		unreachable!()
+	};
+	spawn_camera(
+		&mut cmds,
+		id,
+		&settings,
+		&mut images,
+		&asset_server,
+		&manual_texture_views,
+	);
+}
 
-	let ship_scene = asset_server.load("ships/player.glb#Scene0");
+pub fn update_player_spawn_data(
+	mut cmds: Commands,
+	mut std_mats: ResMut<Assets<StandardMaterial>>,
+	mut meshes: ResMut<Assets<Mesh>>,
+	asset_server: Res<AssetServer>,
+	mut spawn_events: EventWriter<PlayerSpawnEvent>,
+	player_assets: Res<PlayerAssets>,
+	data: Option<ResMut<PlayerSpawnData>>,
+) {
+	if !player_assets.is_changed() {
+		return;
+	}
 
-	let antigrav_pulse_mesh = Mesh::from(shape::Torus {
-		radius: 0.640,
-		ring_radius: 0.064,
-		subdivisions_segments: 6,
-		subdivisions_sides: 3,
-	});
-	let antigrav_pulse_mesh = meshes.add(antigrav_pulse_mesh);
-	let antigrav_pulse_mat = materials.add(StandardMaterial {
-		// base_color: Color::rgba(0.0, 1.0, 0.5, 0.3),
-		base_color: Color::NONE,
-		emissive: Color::rgb(0.0, 12.0, 7.2),
-		reflectance: 0.0,
-		..default()
-	});
+	let Some(id) = PlayerId::new(1) else {
+		unreachable!()
+	};
 
-	let arm_mesh = Mesh::try_from(Icosphere {
-		radius: 0.3,
-		subdivisions: 2,
-	})
-	.expect("create icosphere mesh");
-	let arm_mesh = meshes.add(arm_mesh);
-	let arm_particle_mesh = meshes.add(Mesh::from(RegularPolygon::new(0.1, 3)));
 	let arm_mat_template = StandardMaterial {
 		base_color: Color::NONE,
 		reflectance: 0.0,
@@ -187,36 +187,78 @@ pub fn setup(
 		cull_mode: None,
 		..default()
 	};
+
+	let PlayerAssets {
+		ship_scene,
+		antigrav_pulse_mesh,
+		antigrav_pulse_mat,
+		arm_mesh,
+		arm_particle_radius,
+		arm_mats,
+		crosshair_mesh,
+		crosshair_mat,
+	} = player_assets.clone();
+
+	if let Some(mut data) = data {
+		data.ship_scene = asset_server.load(ship_scene);
+		*meshes
+			.get_mut(data.antigrav_pulse_mesh.clone_weak())
+			.unwrap() = Torus::from(antigrav_pulse_mesh).into();
+		*std_mats
+			.get_mut(data.antigrav_pulse_mat.clone_weak())
+			.unwrap() = antigrav_pulse_mat;
+		match Icosphere::from(arm_mesh).try_into() {
+			Ok(mesh) => *meshes.get_mut(data.arm_mesh.clone_weak()).unwrap() = mesh,
+			Err(e) => error!("{e}"),
+		}
+		*meshes.get_mut(data.arm_particle_mesh.clone_weak()).unwrap() = RegularPolygon {
+			radius: arm_particle_radius,
+			sides: 3,
+		}
+		.into();
+		*std_mats.get_mut(data.arm_mats[0].clone_weak()).unwrap() = StandardMaterial {
+			emissive: arm_mats.0,
+			..arm_mat_template.clone()
+		};
+		*std_mats.get_mut(data.arm_mats[1].clone_weak()).unwrap() = StandardMaterial {
+			emissive: arm_mats.1,
+			..arm_mat_template.clone()
+		};
+		*std_mats.get_mut(data.arm_mats[2].clone_weak()).unwrap() = StandardMaterial {
+			emissive: arm_mats.2,
+			..arm_mat_template.clone()
+		};
+		*meshes.get_mut(data.crosshair_mesh.clone_weak()).unwrap() =
+			Torus::from(crosshair_mesh).into();
+		*std_mats.get_mut(data.crosshair_mat.clone_weak()).unwrap() = crosshair_mat;
+		return;
+	}
+
+	let ship_scene = asset_server.load(ship_scene);
+	let antigrav_pulse_mesh = Mesh::from(Torus::from(antigrav_pulse_mesh));
+	let antigrav_pulse_mesh = meshes.add(antigrav_pulse_mesh);
+	let antigrav_pulse_mat = std_mats.add(antigrav_pulse_mat);
+	let arm_mesh = Mesh::try_from(Icosphere::from(arm_mesh)).unwrap();
+	let arm_mesh = meshes.add(arm_mesh);
+	let arm_particle_mesh = meshes.add(Mesh::from(RegularPolygon::new(arm_particle_radius, 3)));
+
 	let arm_mats = [
-		materials.add(StandardMaterial {
-			emissive: Color::GREEN * 6.0,
+		std_mats.add(StandardMaterial {
+			emissive: arm_mats.0,
 			..arm_mat_template.clone()
 		}),
-		materials.add(StandardMaterial {
-			emissive: Color::WHITE * 3.0,
+		std_mats.add(StandardMaterial {
+			emissive: arm_mats.1,
 			..arm_mat_template.clone()
 		}),
-		materials.add(StandardMaterial {
-			emissive: Color::CYAN * 6.0,
+		std_mats.add(StandardMaterial {
+			emissive: arm_mats.2,
 			..arm_mat_template
 		}),
 	];
 
-	let crosshair_mesh = meshes.add(
-		shape::Torus {
-			radius: 0.5,
-			ring_radius: 0.1,
-			..default()
-		}
-		.into(),
-	);
-
-	let crosshair_mat = materials.add(StandardMaterial {
-		base_color: Color::YELLOW,
-		depth_bias: f32::INFINITY,
-		unlit: true,
-		..default()
-	});
+	let crosshair_mesh = meshes.add(Torus::from(crosshair_mesh).into());
+	let crosshair_mat = std_mats.add(crosshair_mat);
 
 	cmds.insert_resource(PlayerSpawnData {
 		ship_scene,
@@ -229,13 +271,92 @@ pub fn setup(
 		crosshair_mat,
 	});
 
-	spawn_events.send(PlayerSpawnEvent {
-		id,
-		died_at: PlanetVec2::default(),
-	});
+	if player_assets.is_added() {
+		spawn_events.send(PlayerSpawnEvent {
+			id,
+			died_at: PlanetVec2::default(),
+		});
+	}
 }
 
-#[derive(Resource, Debug)]
+#[derive(Clone, Reflect)]
+pub struct ReflectTorus {
+	pub radius: f32,
+	pub ring_radius: f32,
+	pub subdivisions_segments: usize,
+	pub subdivisions_sides: usize,
+}
+
+impl Default for ReflectTorus {
+	fn default() -> Self {
+		let Torus {
+			radius,
+			ring_radius,
+			subdivisions_segments,
+			subdivisions_sides,
+		} = default();
+		Self {
+			radius,
+			ring_radius,
+			subdivisions_segments,
+			subdivisions_sides,
+		}
+	}
+}
+
+impl From<ReflectTorus> for Torus {
+	fn from(value: ReflectTorus) -> Self {
+		Self {
+			radius: value.radius,
+			ring_radius: value.ring_radius,
+			subdivisions_segments: value.subdivisions_segments,
+			subdivisions_sides: value.subdivisions_sides,
+		}
+	}
+}
+
+#[derive(Clone, Reflect)]
+pub struct ReflectIcosphere {
+	pub radius: f32,
+	pub subdivisions: usize,
+}
+
+impl Default for ReflectIcosphere {
+	fn default() -> Self {
+		let Icosphere {
+			radius,
+			subdivisions,
+		} = default();
+		Self {
+			radius,
+			subdivisions,
+		}
+	}
+}
+
+impl From<ReflectIcosphere> for Icosphere {
+	fn from(value: ReflectIcosphere) -> Self {
+		Self {
+			radius: value.radius,
+			subdivisions: value.subdivisions,
+		}
+	}
+}
+
+#[derive(Clone, Default, Resource, Reflect)]
+#[reflect(Resource, from_reflect = false)]
+pub struct PlayerAssets {
+	pub ship_scene: AssetPath<'static>,
+	pub antigrav_pulse_mesh: ReflectTorus,
+	pub antigrav_pulse_mat: StandardMaterial,
+	pub arm_mesh: ReflectIcosphere,
+	pub arm_particle_radius: f32,
+	pub arm_mats: (Color, Color, Color),
+	pub crosshair_mesh: ReflectTorus,
+	pub crosshair_mat: StandardMaterial,
+}
+
+#[derive(Resource, Debug, Default)]
 pub struct PlayerSpawnData {
 	pub ship_scene: Handle<Scene>,
 	pub antigrav_pulse_mesh: Handle<Mesh>,
@@ -265,7 +386,7 @@ impl PlayerSpawnData {
 		}
 	}
 
-	pub fn bundles(&self, id: PlayerId, transform: Transform) -> PlayerBundles {
+	fn bundles(&self, id: PlayerId, transform: Transform) -> PlayerBundles {
 		let Self {
 			ship_scene,
 			antigrav_pulse_mesh,
@@ -420,9 +541,14 @@ pub fn spawn_players(
 	mut pkv: ResMut<PkvStore>,
 	chunks: ChunkFinder,
 	frame: Res<Frame>,
+	live_players: Query<&BelongsToPlayer, ERef<Root>>,
 ) {
 	let mut to_retry = vec![];
 	for event in events.drain() {
+		if live_players.iter().any(|id| event.id == id.0) {
+			error!("Player {} is already spawned", event.id.get());
+			continue;
+		}
 		let spawn_point = frame.planet_coords_of(Vec2::ZERO);
 		let Some(z) = chunks.height_at(spawn_point) else {
 			to_retry.push(event);

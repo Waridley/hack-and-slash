@@ -22,8 +22,14 @@ use bevy_rapier3d::{
 };
 use enum_components::{ERef, EntityEnumCommands};
 
-use crate::{anim::ComponentDelta, player::prefs::CamSmoothing, util::LerpSlerp};
-use crate::{planet::sky::SkyShader, player::PlayerId, settings::Settings, NeverDespawn};
+use crate::{
+	anim::ComponentDelta,
+	planet::sky::SkyShader,
+	player::{prefs::CamSmoothing, PlayerId},
+	settings::Settings,
+	util::LerpSlerp,
+	NeverDespawn,
+};
 
 use super::{
 	player_entity::{Cam, CamPivot},

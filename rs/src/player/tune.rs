@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 use crate::{
 	player::abilities::{BoosterCharge, WeaponCharge},
 	util::Angle,
-	GlobalsScene,
 };
 
 /// Global game tuning parameters that will be effectively constant in releases.

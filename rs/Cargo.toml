@@ -107,7 +107,6 @@ bevy_rapier3d = { workspace = true }
 rapier3d = { workspace = true }
 bevy_kira_audio = { workspace = true }
 leafwing-input-manager = { workspace = true }
-bevy_common_assets = { workspace = true }
 
 # Util
 bevy_pkv = { workspace = true }
