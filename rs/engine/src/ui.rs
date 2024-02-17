@@ -10,6 +10,7 @@ use bevy::{
 
 #[cfg(feature = "debugging")]
 pub mod dbg;
+pub mod elem;
 
 pub struct UiPlugin;
 

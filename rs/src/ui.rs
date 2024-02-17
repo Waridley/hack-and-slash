@@ -4,15 +4,15 @@ use enum_components::EnumComponent;
 use crate::util::IntoFnPlugin;
 
 #[cfg(feature = "debugging")]
-pub mod dbg_ui;
-pub mod game_ui;
-// pub mod pause_menu;
+pub mod dbg;
+pub mod hud;
+pub mod menus;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	#[cfg(feature = "debugging")]
-	app.add_plugins(dbg_ui::plugin.plugfn());
+	app.add_plugins(dbg::plugin.plugfn());
 
-	app.add_plugins(game_ui::plugin.plugfn())
+	app.add_plugins(hud::plugin.plugfn())
 }
 
 #[derive(Debug, EnumComponent)]
