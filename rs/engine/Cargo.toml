@@ -5,7 +5,7 @@ edition = "2021"
 description = "Things that will rarely change during development."
 
 [features]
-debugging = ["bevy-inspector-egui", "egui_plot"]
+debugging = ["bevy-inspector-egui", "egui_plot", "leafwing-input-manager/egui"]
 vis_test = ["testing", "render"]
 testing = ["colored", "linkme"]
 render = ["bevy/bevy_render", "bevy/bevy_winit", "bevy_rapier3d/debug-render", "bevy_rapier3d/async-collider"]
@@ -24,9 +24,10 @@ rapier3d = { workspace = true }
 array-init = { workspace = true }
 base64 = { workspace = true }
 bevy_pkv = { workspace = true }
+bimap = { workspace = true }
 bytemuck = { workspace = true }
 futures-lite = { workspace = true }
-bimap = { workspace = true }
+leafwing-input-manager = { workspace = true }
 noise = { workspace = true }
 num-traits = { workspace = true }
 ordered-float = { workspace = true }

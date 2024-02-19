@@ -13,6 +13,7 @@ use bevy::{
 	asset::{io::Reader, AssetLoader, AsyncReadExt, BoxedFuture, LoadContext},
 	ecs::{
 		query::{QueryEntityError, QueryFilter},
+		schedule::run_enter_schedule,
 		system::{EntityCommands, StaticSystemParam, SystemParam, SystemParamItem},
 	},
 	prelude::*,
@@ -767,3 +768,52 @@ macro_rules! impl_easings {
 
 impl_easings!(f32);
 impl_easings!(f64);
+
+#[derive(Resource, Clone, Debug, Deref, DerefMut)]
+pub struct StateStack<S>(pub Vec<S>);
+
+impl<S: FromWorld> FromWorld for StateStack<S> {
+	fn from_world(world: &mut World) -> Self {
+		Self(vec![S::from_world(world)])
+	}
+}
+
+pub fn set_state_to_top_of_stack<S: States>(
+	mut stack: ResMut<StateStack<S>>,
+	curr: Res<State<S>>,
+	mut next: ResMut<NextState<S>>,
+) {
+	if stack.last().is_none() {
+		error!("State stack should not be empty. Pushing current state.");
+		stack.push(curr.get().clone());
+	}
+	let top = stack.last().unwrap();
+	if **curr != *top {
+		next.0 = Some(top.clone());
+	}
+}
+
+pub trait AppExt {
+	fn insert_state_stack<S: States + Clone>(&mut self, init: S) -> &mut Self;
+	fn init_state_stack<S: States + FromWorld>(&mut self) -> &mut Self;
+}
+
+impl AppExt for App {
+	fn insert_state_stack<S: States + Clone>(&mut self, init: S) -> &mut Self {
+		self.insert_state::<S>(init.clone())
+			.insert_resource(StateStack(vec![init]))
+			.add_systems(
+				StateTransition,
+				set_state_to_top_of_stack::<S>.before(run_enter_schedule::<S>),
+			)
+	}
+
+	fn init_state_stack<S: States + FromWorld>(&mut self) -> &mut Self {
+		self.init_state::<S>()
+			.init_resource::<StateStack<S>>()
+			.add_systems(
+				StateTransition,
+				set_state_to_top_of_stack::<S>.before(run_enter_schedule::<S>),
+			)
+	}
+}

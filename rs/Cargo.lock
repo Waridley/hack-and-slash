@@ -2708,6 +2708,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "def515aa1461ed6ed5d55d53cea6c7149a3076c331cfea1d920682884bfaf839"
 dependencies = [
  "bevy",
+ "bevy_egui",
  "derive_more",
  "itertools",
  "leafwing_input_manager_macros",
@@ -4126,6 +4127,7 @@ dependencies = [
  "colored",
  "egui_plot",
  "futures-lite",
+ "leafwing-input-manager",
  "linkme",
  "noise",
  "num-traits",
