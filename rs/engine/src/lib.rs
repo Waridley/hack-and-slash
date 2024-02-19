@@ -6,6 +6,7 @@ use bevy::app::{App, Plugin};
 use bevy_dylib;
 
 pub mod anim;
+pub mod input;
 pub mod mats;
 pub mod nav;
 pub mod offloading;
@@ -21,6 +22,6 @@ pub struct EnginePlugin;
 
 impl Plugin for EnginePlugin {
 	fn build(&self, app: &mut App) {
-		app.add_plugins(ui::UiPlugin);
+		app.add_plugins((ui::UiPlugin, input::InputPlugin));
 	}
 }
