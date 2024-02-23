@@ -4,6 +4,7 @@
 )]
 
 use bevy::{prelude::*, window::PresentMode};
+
 use sond_has::util::IntoFnPlugin;
 pub(crate) use sond_has::*;
 
@@ -15,7 +16,6 @@ pub fn main() {
 			primary_window: Some(Window {
 				title: "Sonday Hack-and-Slash Game".to_string(),
 				resizable: true,
-				fit_canvas_to_parent: true,
 				canvas: Some("#game_canvas".into()),
 				present_mode: PresentMode::AutoNoVsync,
 				..default()

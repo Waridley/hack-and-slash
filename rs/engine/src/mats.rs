@@ -1,14 +1,14 @@
+use bevy::{
+	pbr::{ExtendedMaterial, MaterialExtension},
+	prelude::*,
+	render::render_resource::{AsBindGroup, ShaderRef},
+};
+use serde::{Deserialize, Serialize};
+
 use crate::{
 	mats::fog::{update_matter_extensions, ExtMat, MatterPlugin},
 	util::RonReflectAssetLoader,
 };
-use bevy::{
-	pbr::{ExtendedMaterial, MaterialExtension},
-	prelude::*,
-	reflect::TypeUuid,
-	render::render_resource::{AsBindGroup, ShaderRef},
-};
-use serde::{Deserialize, Serialize};
 
 pub mod fog;
 
@@ -43,9 +43,8 @@ impl Plugin for MatsPlugin {
 	}
 }
 
-#[derive(Asset, AsBindGroup, Debug, Clone, TypeUuid, Serialize, Deserialize, Reflect)]
+#[derive(Asset, AsBindGroup, Debug, Clone, Serialize, Deserialize, Reflect)]
 #[reflect(Default)]
-#[uuid = "32c44b20-ae2c-43b2-96c8-aa9bb12d6a8b"]
 pub struct BubbleMaterial {
 	#[uniform(200)]
 	pub glow_color: Color,

@@ -1,12 +1,8 @@
-use crate::{
-	planet::{chunks::CHUNK_SCALE, weather::Weather},
-	util::RonReflectAssetLoader,
-};
+use bevy::render::render_asset::RenderAssetUsages;
 use bevy::{
 	asset::{Asset, Handle},
 	pbr::{ExtendedMaterial, MaterialExtension},
 	prelude::*,
-	reflect::TypeUuid,
 	render::{
 		extract_resource::ExtractResourcePlugin,
 		render_resource::{AsBindGroup, ShaderRef},
@@ -16,6 +12,11 @@ use bevy::{
 	},
 };
 use serde::{Deserialize, Serialize};
+
+use crate::{
+	planet::{chunks::CHUNK_SCALE, weather::Weather},
+	util::RonReflectAssetLoader,
+};
 
 pub type ExtMat<M> = ExtendedMaterial<Matter, M>;
 pub type Matter = ExtendedMaterial<StandardMaterial, DistanceDither>;
@@ -71,6 +72,7 @@ impl Plugin for MatterPlugin {
 				anisotropy_clamp: 1,
 				border_color: None,
 			}),
+			RenderAssetUsages::RENDER_WORLD,
 		)
 		.unwrap();
 
@@ -78,9 +80,8 @@ impl Plugin for MatterPlugin {
 	}
 }
 
-#[derive(Asset, AsBindGroup, Debug, Clone, TypeUuid, Serialize, Deserialize, Reflect)]
+#[derive(Asset, AsBindGroup, Debug, Clone, Serialize, Deserialize, Reflect)]
 #[reflect(Default)]
-#[uuid = "ff77386c-1d31-4afd-b52f-481b0845de0d"]
 pub struct DistanceDither {
 	/// Distance from the camera at which the mesh starts to fade into the background.
 	#[uniform(100)]

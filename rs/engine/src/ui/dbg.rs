@@ -31,24 +31,26 @@ impl Plugin for DebugUiPlugin {
 		app.add_plugins(RapierDebugRenderPlugin::default())
 			.add_systems(Update, toggle_physics_wireframes);
 
-		app.add_plugins(WorldInspectorPlugin::new().run_if(dbg_window_toggled(false, KeyCode::I)))
-			.init_resource::<Fps>()
-			.configure_sets(Update, ShowDebugWindows.after(reset_hovered))
-			.add_systems(Startup, set_egui_style)
-			.add_systems(
-				Update,
-				(
-					update_fps,
-					History::<Fps>::track_resource,
-					dbg_fps.run_if(dbg_window_toggled(true, KeyCode::T)),
-					(dbg_res::<DayNightCycle>, dbg_res::<Weather>)
-						.run_if(dbg_window_toggled(true, KeyCode::N)),
-					dbg_proxy::<RapierConfiguration, RapierCfgProxy>
-						.run_if(dbg_window_toggled(false, KeyCode::R)),
-				)
-					.chain() // Just to keep display order consistent
-					.in_set(ShowDebugWindows),
-			);
+		app.add_plugins(
+			WorldInspectorPlugin::new().run_if(dbg_window_toggled(false, KeyCode::KeyI)),
+		)
+		.init_resource::<Fps>()
+		.configure_sets(Update, ShowDebugWindows.after(reset_hovered))
+		.add_systems(Startup, set_egui_style)
+		.add_systems(
+			Update,
+			(
+				update_fps,
+				History::<Fps>::track_resource,
+				dbg_fps.run_if(dbg_window_toggled(true, KeyCode::KeyT)),
+				(dbg_res::<DayNightCycle>, dbg_res::<Weather>)
+					.run_if(dbg_window_toggled(true, KeyCode::KeyN)),
+				dbg_proxy::<RapierConfiguration, RapierCfgProxy>
+					.run_if(dbg_window_toggled(false, KeyCode::KeyR)),
+			)
+				.chain() // Just to keep display order consistent
+				.in_set(ShowDebugWindows),
+		);
 	}
 }
 
@@ -127,14 +129,14 @@ pub struct Fps {
 }
 
 pub fn update_fps(mut res: ResMut<Fps>, diags: Res<DiagnosticsStore>) {
-	if let Some(fps) = diags.get_measurement(FrameTimeDiagnosticsPlugin::FPS) {
+	if let Some(fps) = diags.get_measurement(&FrameTimeDiagnosticsPlugin::FPS) {
 		let fps = fps.value;
 		let frame_time = diags
-			.get_measurement(FrameTimeDiagnosticsPlugin::FRAME_TIME)
+			.get_measurement(&FrameTimeDiagnosticsPlugin::FRAME_TIME)
 			.expect("FPS exists, FRAME_TIME should, too")
 			.value;
 		let frame_count = diags
-			.get_measurement(FrameTimeDiagnosticsPlugin::FRAME_COUNT)
+			.get_measurement(&FrameTimeDiagnosticsPlugin::FRAME_COUNT)
 			.expect("FPS exists, FRAME_COUNT should, too")
 			.value;
 		*res = Fps {
@@ -152,7 +154,9 @@ pub fn dbg_fps(
 	mut ui_hovered: ResMut<UiHovered>,
 ) {
 	let mut hovered = false;
-	let mut ctx = egui_contexts.single_mut();
+	let Ok(mut ctx) = egui_contexts.get_single_mut() else {
+		return;
+	};
 	let ctx = ctx.get_mut();
 	ctx.style_mut(|style| {
 		style.visuals.window_fill = Color32::from_black_alpha(128);
@@ -260,8 +264,11 @@ pub fn dbg_fps(
 	}
 }
 
-pub fn toggle_physics_wireframes(mut ctx: ResMut<DebugRenderContext>, input: Res<Input<KeyCode>>) {
-	if input.just_pressed(KeyCode::P) {
+pub fn toggle_physics_wireframes(
+	mut ctx: ResMut<DebugRenderContext>,
+	input: Res<ButtonInput<KeyCode>>,
+) {
+	if input.just_pressed(KeyCode::KeyP) {
 		ctx.enabled = !ctx.enabled
 	}
 }

@@ -1,5 +1,6 @@
 use std::f32::consts::FRAC_PI_2;
 
+use bevy::render::render_asset::RenderAssetUsages;
 use bevy::{
 	core_pipeline::{bloom::BloomSettings, fxaa::Fxaa, tonemapping::Tonemapping, Skybox},
 	ecs::system::{EntityCommands, Res},
@@ -20,7 +21,7 @@ use bevy_rapier3d::{
 	pipeline::QueryFilter,
 	plugin::RapierContext,
 };
-use enum_components::{ERef, EntityEnumCommands};
+use enum_components::{ERef, EntityEnumCommands, WithVariant};
 
 use crate::{
 	anim::ComponentDelta,
@@ -46,7 +47,7 @@ pub fn spawn_camera<'w, 's, 'a>(
 	images: &mut Assets<Image>,
 	asset_server: &AssetServer,
 	manual_texture_views: &ManualTextureViews,
-) -> EntityCommands<'w, 's, 'a> {
+) -> EntityCommands<'a> {
 	let (sky_texture, sky_diffuse) = {
 		let size = Extent3d {
 			width: 16,
@@ -71,6 +72,7 @@ pub fn spawn_camera<'w, 's, 'a>(
 				dimension: Some(TextureViewDimension::Cube),
 				..default()
 			}),
+			asset_usage: RenderAssetUsages::RENDER_WORLD,
 			..default()
 		};
 		tex.resize(size);
@@ -95,14 +97,13 @@ pub fn spawn_camera<'w, 's, 'a>(
 		};
 		diffuse.resize(size);
 
-		for chunk in tex.data.chunks_mut(4) {
+		#[cfg(feature = "debugging")]
+		for chunk in tex.data.chunks_mut(16) {
 			// Displays fuchsia if shader/custom pipeline aren't working
-			chunk.copy_from_slice(&Color::FUCHSIA.as_rgba_u8());
+			chunk.copy_from_slice(unsafe {
+				&*(&Color::FUCHSIA.as_rgba_f32() as *const [f32; 4] as *const [u8; 16])
+			});
 		}
-		/* Looks washed out. Using AmbientLight instead. */
-		// for chunk in diffuse.data.chunks_mut(4) {
-		// 	chunk.copy_from_slice(&Color::rgb(0.24, 0.08, 0.48).as_rgba_u8());
-		// }
 
 		tex.reinterpret_stacked_2d_as_array(6);
 		diffuse.reinterpret_stacked_2d_as_array(6);
@@ -143,14 +144,18 @@ pub fn spawn_camera<'w, 's, 'a>(
 				tonemapping: Tonemapping::BlenderFilmic,
 				..default()
 			},
-			Skybox(sky_texture.clone()),
+			Skybox {
+				image: sky_texture.clone(),
+				brightness: 1_000.0,
+			},
 			SkyShader(skybox_shader),
 			EnvironmentMapLight {
 				diffuse_map: sky_diffuse.clone(),
 				specular_map: sky_texture.clone(),
+				intensity: 1_000.0,
 			},
 			BloomSettings {
-				intensity: 0.1,
+				intensity: 0.2,
 				..default()
 			},
 			Fxaa {
@@ -167,7 +172,7 @@ pub fn spawn_pivot<'w, 's, 'a>(
 	cmds: &'a mut Commands<'w, 's>,
 	owner: BelongsToPlayer,
 	crosshair: PbrBundle,
-) -> EntityCommands<'w, 's, 'a> {
+) -> EntityCommands<'a> {
 	let mut cmds = cmds
 		.spawn((
 			owner,
@@ -192,8 +197,8 @@ pub struct CamTarget(pub Transform);
 
 pub fn position_target(
 	ctx: Res<RapierContext>,
-	cam_pivot_q: Query<(&GlobalTransform, &BelongsToPlayer), ERef<CamPivot>>,
-	mut cam_q: Query<(&mut CamTarget, &Collider, &BelongsToPlayer), ERef<Cam>>,
+	cam_pivot_q: Query<(&GlobalTransform, &BelongsToPlayer), WithVariant<CamPivot>>,
+	mut cam_q: Query<(&mut CamTarget, &Collider, &BelongsToPlayer), WithVariant<Cam>>,
 ) {
 	for (mut target, col, cam_owner) in &mut cam_q {
 		let Some(pivot_xform) = cam_pivot_q
@@ -251,7 +256,7 @@ pub fn position_target(
 
 pub fn follow_target(
 	player_q: Query<(&CamSmoothing, &BelongsToPlayer)>,
-	mut cam_q: Query<(Entity, &mut Transform, &CamTarget, &BelongsToPlayer), ERef<Cam>>,
+	mut cam_q: Query<(Entity, &mut Transform, &CamTarget, &BelongsToPlayer), WithVariant<Cam>>,
 	t: Res<Time>,
 	mut sender: EventWriter<ComponentDelta<Transform>>,
 ) {
@@ -269,6 +274,6 @@ pub fn follow_target(
 			(1.0 / *smoothing) * dt
 		};
 		let new = cam_xform.lerp_slerp(**target_xform, s);
-		sender.send(ComponentDelta::<Transform>::default_diffable(id, new))
+		sender.send(ComponentDelta::<Transform>::default_diffable(id, new));
 	}
 }

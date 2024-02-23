@@ -1,5 +1,5 @@
 use bevy::{
-	ecs::{query::ReadOnlyWorldQuery, schedule::SystemConfigs},
+	ecs::{query::QueryFilter, schedule::SystemConfigs},
 	prelude::*,
 	window::PrimaryWindow,
 };
@@ -9,9 +9,11 @@ use bevy_inspector_egui::{
 	egui::{Color32, Ui},
 };
 use egui_plot::{Legend, Line, Plot, PlotResponse};
+use enum_components::WithVariant;
 
 use engine::ui::{AddDebugUi, ToggleUi, UiHovered};
 
+use crate::player::player_entity::Root;
 use crate::{
 	planet::{
 		chunks::{ChunkCenter, LoadedChunks},
@@ -22,7 +24,7 @@ use crate::{
 };
 
 pub fn plugin(app: &mut App) -> &mut App {
-	app.add_debug_systems(height_under_player.show_with(KeyCode::H))
+	app.add_debug_systems(height_under_player.show_with(KeyCode::KeyH))
 }
 
 pub fn plot_res_history<T: Resource, const LINES: usize>(
@@ -44,19 +46,15 @@ pub fn plot_res_history<T: Resource, const LINES: usize>(
 				}
 			});
 	})
-	.run_if(resource_exists::<History<T>>())
+	.run_if(resource_exists::<History<T>>)
 }
 
-pub fn plot_component_history<
-	T: Component,
-	QueryFilter: ReadOnlyWorldQuery + 'static,
-	const LINES: usize,
->(
+pub fn plot_component_history<T: Component, Filter: QueryFilter + 'static, const LINES: usize>(
 	map_fn: impl FnMut((usize, &T)) -> (f64, [f64; LINES]) + Clone + Send + Sync + 'static,
 ) -> SystemConfigs {
 	(move |mut egui_contexts: Query<&mut EguiContext, With<PrimaryWindow>>,
 	       mut ui_hovered: ResMut<UiHovered>,
-	       q: Query<(Entity, &History<T>), QueryFilter>| {
+	       q: Query<(Entity, &History<T>), Filter>| {
 		let mut hovered = false;
 		let mut ctx = egui_contexts.single_mut();
 		let ctx = ctx.get_mut();
@@ -104,7 +102,7 @@ pub fn plot_history_mapped<T, const LINES: usize>(
 
 pub fn height_under_player(
 	mut egui_contexts: Query<&mut EguiContext, With<PrimaryWindow>>,
-	players: Query<&GlobalTransform, enum_components::ERef<crate::player::player_entity::Root>>,
+	players: Query<&GlobalTransform, WithVariant<Root>>,
 	chunks: Query<(&ChunkCenter, &Ground)>,
 	frame: Res<Frame>,
 	loaded_chunks: Res<LoadedChunks>,

@@ -12,7 +12,7 @@ use bevy::{
 	},
 	window::CursorGrabMode,
 };
-use enum_components::ERef;
+use enum_components::{ERef, WithVariant};
 use leafwing_input_manager::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -24,7 +24,6 @@ use crate::{
 		tune::PlayerParams, BelongsToPlayer,
 	},
 	terminal_velocity,
-	util::Lerp,
 };
 
 #[derive(SystemSet, Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -39,7 +38,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 				grab_mouse,
 				(
 					look_input.ambiguous_with(movement_input),
-					movement_input.run_if(resource_exists::<PlayerParams>()),
+					movement_input.run_if(resource_exists::<PlayerParams>),
 				)
 					.before(terminal_velocity)
 					.in_set(InputSystems),
@@ -82,7 +81,7 @@ pub enum PlayerAction {
 	FireC,
 	AoE,
 	Dash,
-	Pause,
+	PauseGame,
 }
 
 #[derive(Component, Resource, Reflect, Default, Debug, Clone, Deref, DerefMut)]
@@ -92,9 +91,9 @@ pub fn look_input(
 	mut player_q: Query<(&mut CtrlVel, &BelongsToPlayer, &LookSensitivity)>,
 	mut camera_pivot_q: Query<
 		(&mut Transform, &mut CameraVertSlider, &BelongsToPlayer),
-		ERef<CamPivot>,
+		WithVariant<CamPivot>,
 	>,
-	kb: Res<Input<KeyCode>>,
+	kb: Res<ButtonInput<KeyCode>>,
 	mut mouse: EventReader<MouseMotion>,
 	gp: Res<Gamepads>,
 	axes: Res<Axis<GamepadAxis>>,
@@ -133,11 +132,11 @@ pub fn look_input(
 			x_input = true;
 			vel.angvel.z = (gp.x - (gp.x.signum() * 0.2)) * 1.25 * TAU;
 		}
-		if kb.pressed(KeyCode::Left) {
+		if kb.pressed(KeyCode::ArrowLeft) {
 			x_input = true;
 			vel.angvel.z = (-TAU).max(vel.angvel.z - delta);
 		}
-		if kb.pressed(KeyCode::Right) {
+		if kb.pressed(KeyCode::ArrowRight) {
 			x_input = true;
 			vel.angvel.z = TAU.min(vel.angvel.z + delta);
 		}
@@ -152,10 +151,10 @@ pub fn look_input(
 			.iter_mut()
 			.find_map(|(xform, slider, owner)| (owner == player_id).then_some((xform, slider)))
 			.unwrap();
-		if kb.pressed(KeyCode::Up) {
+		if kb.pressed(KeyCode::ArrowUp) {
 			slider.0 = (slider.0 - delta * 0.1).max(0.0);
 		}
-		if kb.pressed(KeyCode::Down) {
+		if kb.pressed(KeyCode::ArrowDown) {
 			slider.0 = (slider.0 + delta * 0.1).min(1.0);
 		}
 		if gp.y.abs() > 0.2 {
@@ -173,7 +172,7 @@ pub fn look_input(
 
 pub fn movement_input(
 	mut q: Query<&mut CtrlVel>,
-	kb: Res<Input<KeyCode>>,
+	kb: Res<ButtonInput<KeyCode>>,
 	gp: Res<Gamepads>,
 	axes: Res<Axis<GamepadAxis>>,
 	params: Res<PlayerParams>,
@@ -184,16 +183,16 @@ pub fn movement_input(
 
 		let dt = t.delta_seconds();
 
-		if kb.pressed(KeyCode::W) {
+		if kb.pressed(KeyCode::KeyW) {
 			y += 1.0;
 		}
-		if kb.pressed(KeyCode::A) {
+		if kb.pressed(KeyCode::KeyA) {
 			x -= 1.0;
 		}
-		if kb.pressed(KeyCode::S) {
+		if kb.pressed(KeyCode::KeyS) {
 			y -= 1.0;
 		}
-		if kb.pressed(KeyCode::D) {
+		if kb.pressed(KeyCode::KeyD) {
 			x += 1.0;
 		}
 
@@ -228,8 +227,8 @@ pub fn movement_input(
 }
 pub fn grab_mouse(
 	mut windows: Query<&mut Window>,
-	mouse: Res<Input<MouseButton>>,
-	key: Res<Input<KeyCode>>,
+	mouse: Res<ButtonInput<MouseButton>>,
+	key: Res<ButtonInput<KeyCode>>,
 	ui_hovered: Res<UiHovered>,
 ) {
 	let Ok(mut window) = windows.get_single_mut() else {

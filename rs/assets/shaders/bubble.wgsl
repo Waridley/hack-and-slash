@@ -16,7 +16,7 @@ struct BubbleMaterial {
 	color: vec4<f32>,
 };
 
-@group(1) @binding(200)
+@group(2) @binding(200)
 var<uniform> material: BubbleMaterial;
 
 @fragment

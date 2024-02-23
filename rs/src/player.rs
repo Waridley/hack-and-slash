@@ -20,7 +20,7 @@ use bevy_rapier3d::{
 	plugin::PhysicsSet::StepSimulation,
 	prelude::{RigidBody::KinematicPositionBased, *},
 };
-use enum_components::{ERef, EntityEnumCommands, EnumComponent};
+use enum_components::{ERef, EntityEnumCommands, EnumComponent, WithVariant};
 use leafwing_input_manager::prelude::*;
 use nanorand::Rng;
 use particles::{
@@ -82,7 +82,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 	.add_systems(Startup, setup)
 	.add_systems(
 		First,
-		update_player_spawn_data.run_if(resource_exists::<PlayerAssets>()),
+		update_player_spawn_data.run_if(resource_exists::<PlayerAssets>),
 	)
 	.add_systems(PreUpdate, Prev::<CtrlState>::update_component)
 	.add_systems(
@@ -91,17 +91,17 @@ pub fn plugin(app: &mut App) -> &mut App {
 			ctrl::gravity
 				.ambiguous_with(input::InputSystems) // Gravity only affects z, input only affects xy
 				.before(terminal_velocity)
-				.run_if(resource_exists::<PlayerParams>()),
+				.run_if(resource_exists::<PlayerParams>),
 			camera::position_target.after(terminal_velocity),
 			camera::follow_target.after(camera::position_target),
 			ctrl::reset_jump_on_ground
 				.before(input::InputSystems)
-				.run_if(resource_exists::<PlayerParams>()),
+				.run_if(resource_exists::<PlayerParams>),
 			ctrl::move_player
 				.before(StepSimulation)
 				.after(terminal_velocity)
 				.after(input::InputSystems)
-				.run_if(resource_exists::<PlayerParams>()),
+				.run_if(resource_exists::<PlayerParams>),
 			idle,
 			orbs_follow_arms.after(idle),
 		),
@@ -115,8 +115,8 @@ pub fn plugin(app: &mut App) -> &mut App {
 			play_death_sound.after(kill_on_key).after(reset_oob),
 			spawn_players
 				.after(countdown_respawn)
-				.run_if(resource_exists::<PlayerParams>())
-				.run_if(resource_exists::<PlayerSpawnData>()),
+				.run_if(resource_exists::<PlayerParams>)
+				.run_if(resource_exists::<PlayerSpawnData>),
 		),
 	)
 	.add_event::<PlayerSpawnEvent>();
@@ -257,7 +257,7 @@ pub fn update_player_spawn_data(
 		}),
 	];
 
-	let crosshair_mesh = meshes.add(Torus::from(crosshair_mesh).into());
+	let crosshair_mesh = meshes.add(Torus::from(crosshair_mesh));
 	let crosshair_mat = std_mats.add(crosshair_mat);
 
 	cmds.insert_resource(PlayerSpawnData {
@@ -541,7 +541,7 @@ pub fn spawn_players(
 	mut pkv: ResMut<PkvStore>,
 	chunks: ChunkFinder,
 	frame: Res<Frame>,
-	live_players: Query<&BelongsToPlayer, ERef<Root>>,
+	live_players: Query<&BelongsToPlayer, WithVariant<Root>>,
 ) {
 	let mut to_retry = vec![];
 	for event in events.drain() {
@@ -674,7 +674,8 @@ fn player_vis(
 	arm_particle_mesh: Handle<Mesh>,
 	crosshair: PbrBundle,
 ) {
-	let camera_pivot = camera::spawn_pivot(root.commands(), owner, crosshair).id();
+	let mut cmds = root.commands();
+	let camera_pivot = camera::spawn_pivot(&mut cmds, owner, crosshair).id();
 	let root_id = root.id();
 	let ship_center = root
 		.commands()
@@ -777,7 +778,7 @@ fn player_vis(
 						PointLightBundle {
 							point_light: PointLight {
 								color: Color::rgb(0.0, 1.0, 0.6),
-								intensity: 2048.0,
+								intensity: 2_000_000.0,
 								range: 12.0,
 								shadows_enabled: false,
 								..default()
@@ -927,8 +928,8 @@ fn player_arms(
 			use_global_coords: true,
 			..default()
 		};
-		let mut orb = arms_pivot
-			.commands()
+		let mut cmds = arms_pivot.commands();
+		let mut orb = cmds
 			.spawn((
 				Name::new(format!(
 					"Player{}.ShipCenter.Arms.{which:?}.Orb",
@@ -955,7 +956,7 @@ fn player_arms(
 pub fn reset_oob(
 	mut cmds: Commands,
 	q: Query<(&GlobalTransform, &BelongsToPlayer)>,
-	roots: Query<(&GlobalTransform, &BelongsToPlayer), ERef<Root>>,
+	roots: Query<(&GlobalTransform, &BelongsToPlayer), WithVariant<Root>>,
 	player_nodes: Query<(Entity, &BelongsToPlayer), (Without<NeverDespawn>, Without<Parent>)>,
 	bounds: Res<PlayerBounds>,
 	mut respawn_timers: ResMut<PlayerRespawnTimers>,
@@ -967,24 +968,28 @@ pub fn reset_oob(
 			.aabb
 			.contains_local_point(&xform.translation().into())
 		{
-			bevy::log::error!("Player {owner:?} is out of bounds. Respawning.");
+			error!("Player {owner:?} is out of bounds. Respawning.");
 			to_respawn.insert(owner);
 		}
 	}
+	let mut started_timers = HashSet::new();
 	for (id, owner) in &player_nodes {
-		if to_respawn.remove(&owner) {
+		if to_respawn.contains(owner) {
 			cmds.entity(id).despawn_recursive();
-			roots.iter().find_map(|(global, id)| {
-				(*id == *owner).then(|| {
-					respawn_timers
-						.start(
-							**id,
-							frame.planet_coords_of(global.translation().xy()),
-							Duration::from_secs(3),
-						)
-						.ok()
-				})
-			});
+			if !started_timers.contains(owner) {
+				started_timers.insert(*owner);
+				roots.iter().find_map(|(global, id)| {
+					(*id == *owner).then(|| {
+						respawn_timers
+							.start(
+								**id,
+								frame.planet_coords_of(global.translation().xy()),
+								Duration::from_secs(3),
+							)
+							.ok()
+					})
+				});
+			}
 		}
 	}
 }
@@ -995,9 +1000,9 @@ pub struct PlayerBounds {
 }
 
 pub fn idle(
-	mut vis_q: Query<&mut Transform, ERef<Ship>>,
-	mut arms_q: Query<(&mut Transform, &RotVel), ERef<Arms>>,
-	mut arm_q: Query<&mut Transform, ERef<Arm>>,
+	mut vis_q: Query<&mut Transform, WithVariant<Ship>>,
+	mut arms_q: Query<(&mut Transform, &RotVel), WithVariant<Arms>>,
+	mut arm_q: Query<&mut Transform, WithVariant<Arm>>,
 	t: Res<Time>,
 ) {
 	let s = t.elapsed_seconds_wrapped();
@@ -1042,7 +1047,7 @@ pub fn orbs_follow_arms(
 					*val = *val + diff;
 				}
 			},
-		))
+		));
 	}
 }
 
@@ -1071,12 +1076,12 @@ pub fn countdown_respawn(
 pub fn kill_on_key(
 	mut cmds: Commands,
 	q: Query<(Entity, &BelongsToPlayer), (Without<NeverDespawn>, Without<Parent>)>,
-	roots: Query<(&GlobalTransform, &BelongsToPlayer), ERef<Root>>,
-	input: Res<Input<KeyCode>>,
+	roots: Query<(&GlobalTransform, &BelongsToPlayer), WithVariant<Root>>,
+	input: Res<ButtonInput<KeyCode>>,
 	mut respawn_timers: ResMut<PlayerRespawnTimers>,
 	frame: Res<Frame>,
 ) {
-	if input.just_pressed(KeyCode::K) {
+	if input.just_pressed(KeyCode::KeyK) {
 		for (id, owner) in &q {
 			cmds.entity(id).despawn_recursive();
 			roots.iter().find_map(|(global, id)| {

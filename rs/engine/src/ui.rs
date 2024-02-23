@@ -1,11 +1,11 @@
+use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
+use bevy::ecs::query::QuerySingleError;
+use bevy::ui::FocusPolicy;
 use bevy::{
 	app::{App, Update},
 	ecs::schedule::SystemConfigs,
 	input::common_conditions::input_toggle_active,
-	prelude::{
-		Condition, Deref, DerefMut, IntoSystemConfigs, KeyCode, Plugin, Reflect, ResMut, Resource,
-		SystemSet,
-	},
+	prelude::*,
 };
 
 #[cfg(feature = "debugging")]
@@ -19,8 +19,21 @@ impl Plugin for UiPlugin {
 		app.add_plugins(dbg::DebugUiPlugin);
 
 		app.init_resource::<UiHovered>()
-			.add_systems(Update, reset_hovered);
+			.add_systems(Update, (reset_hovered, show_fps));
 	}
+
+	fn finish(&self, app: &mut App) {
+		let mono = app
+			.world
+			.resource::<AssetServer>()
+			.load("ui/fonts/KodeMono/static/KodeMono-Bold.ttf");
+		app.insert_resource(UiFonts { mono });
+	}
+}
+
+#[derive(Resource)]
+pub struct UiFonts {
+	pub mono: Handle<Font>,
 }
 
 /// Keeps track of whether a UI element is hovered over so that clicking
@@ -36,6 +49,7 @@ pub trait AddDebugUi {
 }
 
 impl AddDebugUi for App {
+	#[inline(always)]
 	fn add_debug_systems<M>(&mut self, _systems: impl IntoSystemConfigs<M>) -> &mut Self {
 		#[cfg(feature = "debugging")]
 		self.add_systems(Update, _systems.in_set(ShowDebugWindows));
@@ -63,11 +77,64 @@ impl<S: IntoSystemConfigs<M>, M> ToggleUi<M> for S {
 }
 
 pub fn dbg_window_toggled(default: bool, code: KeyCode) -> impl Condition<()> {
-	input_toggle_active(false, KeyCode::Grave).and_then(input_toggle_active(default, code))
+	input_toggle_active(false, KeyCode::Backquote).and_then(input_toggle_active(default, code))
 }
 
 pub fn reset_hovered(mut ui_hovered: ResMut<UiHovered>) {
 	if **ui_hovered {
 		**ui_hovered = false;
+	}
+}
+
+#[derive(Component, Default, Copy, Clone, Debug, Reflect)]
+pub struct FpsViewer;
+
+pub fn show_fps(
+	mut cmds: Commands,
+	keys: Res<ButtonInput<KeyCode>>,
+	diags: Res<DiagnosticsStore>,
+	mut q: Query<(Entity, &mut Text), With<FpsViewer>>,
+	ui_fonts: Res<UiFonts>,
+) {
+	if keys.just_pressed(KeyCode::F10) {
+		match q.get_single() {
+			Err(QuerySingleError::NoEntities(_)) => {
+				let val = diags
+					.get_measurement(&FrameTimeDiagnosticsPlugin::FPS)
+					.map_or(f64::NAN, |meas| meas.value);
+				cmds.spawn((
+					TextBundle {
+						text: Text::from_section(
+							format!("{val:.2}"),
+							TextStyle {
+								font: ui_fonts.mono.clone(),
+								font_size: 24.0,
+								color: Color::YELLOW,
+							},
+						),
+						style: Style {
+							position_type: PositionType::Absolute,
+							right: Val::ZERO,
+							..default()
+						},
+						focus_policy: FocusPolicy::Pass,
+						..default()
+					},
+					FpsViewer,
+				));
+			}
+			Ok((id, _)) => {
+				cmds.entity(id).despawn();
+			}
+			Err(e) => error!("{e}"),
+		}
+		return;
+	}
+
+	for (_, mut text) in &mut q {
+		let val = diags
+			.get_measurement(&FrameTimeDiagnosticsPlugin::FPS)
+			.map_or(f64::NAN, |meas| meas.value);
+		text.sections.first_mut().unwrap().value = format!("{val:.2}");
 	}
 }

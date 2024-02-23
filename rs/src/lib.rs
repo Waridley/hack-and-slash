@@ -12,7 +12,7 @@ use bevy_dylib;
 use bevy_kira_audio::AudioPlugin;
 use bevy_pkv::PkvStore;
 use bevy_rapier3d::{plugin::PhysicsSet::StepSimulation, prelude::*};
-use enum_components::ERef;
+use enum_components::{ERef, WithVariant};
 use particles::{ParticlesPlugin, Spewer};
 
 pub use engine::{anim, mats, nav, offloading, planet, settings, util};
@@ -71,6 +71,7 @@ impl Plugin for GameDynPlugin {
 			(
 				RenderPlugin::default(),
 				ImagePlugin::default(),
+				#[cfg(not(target_arch = "wasm32"))]
 				bevy::render::pipelined_rendering::PipelinedRenderingPlugin,
 				bevy::core_pipeline::CorePipelinePlugin,
 				bevy::sprite::SpritePlugin,
@@ -247,9 +248,8 @@ fn startup(
 
 	cmds.insert_resource(AmbientLight {
 		color: Color::rgb(0.64, 0.32, 1.0),
-		brightness: 0.1,
-		// // If using EnvironmentLight diffuse instead, must still insert ambient light so a default one is not used
-		// brightness: 0.0,
+		brightness: 50.0,
+		..default()
 	});
 }
 
@@ -280,7 +280,7 @@ fn terminal_velocity(mut q: Query<(&mut CtrlVel, &TerminalVelocity)>, t: Res<Tim
 	}
 }
 
-fn fullscreen(kb: Res<Input<KeyCode>>, mut windows: Query<&mut Window, With<PrimaryWindow>>) {
+fn fullscreen(kb: Res<ButtonInput<KeyCode>>, mut windows: Query<&mut Window, With<PrimaryWindow>>) {
 	use bevy::window::WindowMode::*;
 
 	if kb.just_pressed(KeyCode::F11) {
@@ -296,7 +296,7 @@ fn fullscreen(kb: Res<Input<KeyCode>>, mut windows: Query<&mut Window, With<Prim
 pub struct Alive;
 
 pub fn shift_frame(
-	player_q: Query<&GlobalTransform, ERef<Root>>,
+	player_q: Query<&GlobalTransform, WithVariant<Root>>,
 	mut frame: ResMut<Frame>,
 	mut prev_frame: ResMut<Prev<Frame>>,
 ) {
