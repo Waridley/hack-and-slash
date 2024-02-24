@@ -65,7 +65,7 @@ pub fn timeout(mut timer: ResMut<Timeout>, t: Res<Time>) {
 }
 
 pub fn exit_app(mut events: EventWriter<AppExit>) {
-	events.send(AppExit)
+	events.send(AppExit);
 }
 
 #[derive(Event)]
@@ -156,7 +156,7 @@ fn check_test_results(
 			panic!("1 test failed");
 		}
 	}
-	exits.send(AppExit)
+	exits.send(AppExit);
 }
 
 pub trait TestSystem<M>: IntoSystem<(), TestStatus, M> {

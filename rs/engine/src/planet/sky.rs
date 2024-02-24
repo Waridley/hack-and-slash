@@ -211,7 +211,6 @@ impl ViewNode for SkyNode {
 		world: &World,
 	) -> Result<(), NodeRunError> {
 		let pipeline_cache = world.resource::<PipelineCache>();
-		let images = world.resource::<RenderAssets<Image>>();
 
 		let pipeline = match pipeline_cache.get_render_pipeline_state(pipeline_id.0) {
 			CachedPipelineState::Queued | CachedPipelineState::Creating(_) => return Ok(()),
@@ -222,8 +221,6 @@ impl ViewNode for SkyNode {
 				return Ok(());
 			}
 		};
-		let _fallback_image = world.resource::<FallbackImage>();
-		let _sky_pipeline = world.resource::<SkyPipeline>();
 
 		{
 			for i in 0..6 {

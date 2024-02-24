@@ -591,10 +591,12 @@ mod tests {
 				let dt = t.delta_seconds();
 				for Slide(target, vel) in animations.iter().copied() {
 					match q.get(target) {
-						Ok(_) => sender.send(ComponentDelta::<Transform>::indefinite(
-							target,
-							move |mut xform| xform.translation += vel * dt,
-						)),
+						Ok(_) => {
+							sender.send(ComponentDelta::<Transform>::indefinite(
+								target,
+								move |mut xform| xform.translation += vel * dt,
+							));
+						}
 						Err(e) => error!("{e}"),
 					}
 				}
