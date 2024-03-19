@@ -13,13 +13,13 @@ use enum_components::WithVariant;
 
 use engine::ui::{AddDebugUi, ToggleUi, UiHovered};
 
-use crate::player::player_entity::Root;
 use crate::{
 	planet::{
 		chunks::{ChunkCenter, LoadedChunks},
 		frame::Frame,
 		terrain::Ground,
 	},
+	player::player_entity::Root,
 	util::History,
 };
 

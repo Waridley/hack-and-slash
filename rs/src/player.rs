@@ -233,7 +233,7 @@ pub fn update_player_spawn_data(
 		*std_mats.get_mut(data.crosshair_mat.clone_weak()).unwrap() = crosshair_mat;
 		return;
 	}
-
+	// else insert spawn data
 	let ship_scene = asset_server.load(ship_scene);
 	let antigrav_pulse_mesh = Mesh::from(Torus::from(antigrav_pulse_mesh));
 	let antigrav_pulse_mesh = meshes.add(antigrav_pulse_mesh);

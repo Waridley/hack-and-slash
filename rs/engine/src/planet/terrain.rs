@@ -3,13 +3,13 @@ use std::{f32::consts::*, sync::Arc};
 use ::noise::{
 	Add, Billow, Fbm, HybridMulti, MultiFractal, Perlin, RidgedMulti, ScaleBias, Seedable, Value,
 };
-use bevy::render::render_asset::RenderAssetUsages;
 use bevy::{
 	ecs::system::{EntityCommands, SystemParamItem},
 	prelude::*,
 	render::{
 		batching::NoAutomaticBatching,
 		mesh::{PrimitiveTopology, VertexAttributeValues::Float32x3},
+		render_asset::RenderAssetUsages,
 	},
 	utils::HashMap,
 };

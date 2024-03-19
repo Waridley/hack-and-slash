@@ -1,10 +1,10 @@
-use bevy::render::render_asset::RenderAssetUsages;
 use bevy::{
-	asset::{Asset, Handle},
+	asset::Asset,
 	pbr::{ExtendedMaterial, MaterialExtension},
 	prelude::*,
 	render::{
 		extract_resource::ExtractResourcePlugin,
+		render_asset::RenderAssetUsages,
 		render_resource::{AsBindGroup, ShaderRef},
 		texture::{
 			ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor, ImageType,

@@ -1,12 +1,12 @@
 use std::f32::consts::FRAC_PI_2;
 
-use bevy::render::render_asset::RenderAssetUsages;
 use bevy::{
 	core_pipeline::{bloom::BloomSettings, fxaa::Fxaa, tonemapping::Tonemapping, Skybox},
 	ecs::system::{EntityCommands, Res},
 	prelude::*,
 	render::{
 		camera::{ManualTextureViewHandle, ManualTextureViews, RenderTarget},
+		render_asset::RenderAssetUsages,
 		render_resource::{
 			Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
 			TextureViewDescriptor, TextureViewDimension,

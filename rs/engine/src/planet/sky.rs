@@ -1,56 +1,43 @@
-use bevy::render::render_graph::RenderLabel;
-use bevy::render::render_resource::{CachedPipelineState, Pipeline};
-use bevy::render::{
-	extract_resource::ExtractResourcePlugin,
-	globals::{GlobalsBuffer, GlobalsUniform},
-	render_graph::{
-		NodeRunError, OutputSlotError, RenderGraphApp, RenderGraphContext, SlotLabel, ViewNode,
-		ViewNodeRunner,
-	},
-	render_resource::{
-		AsBindGroup, RenderPassColorAttachment, RenderPassDescriptor, TextureView,
-		TextureViewDescriptor,
-	},
-	renderer::RenderContext,
-	texture::FallbackImage,
-	view::ViewUniformOffset,
-	Extract,
-};
 use bevy::{
 	app::{App, Plugin},
 	asset::Handle,
-};
-use bevy::{
 	core_pipeline::{
 		core_3d::graph::{Core3d, Node3d},
 		Skybox,
 	},
-	ecs::query::QueryItem,
-	math::Vec3,
-};
-use bevy::{
 	ecs::{
 		prelude::{Component, Entity},
+		query::QueryItem,
 		schedule::IntoSystemConfigs,
 		system::{Commands, Query, Res, ResMut, Resource},
 	},
+	math::Vec3,
+	prelude::*,
 	render::{
+		camera::ExtractedCamera,
 		extract_component::{ExtractComponent, ExtractComponentPlugin},
+		extract_resource::ExtractResourcePlugin,
+		globals::{GlobalsBuffer, GlobalsUniform},
 		render_asset::RenderAssets,
-		render_resource::{
-			BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntry, BindingType,
-			BufferBindingType, CachedRenderPipelineId, ColorTargetState, FragmentState,
-			MultisampleState, PipelineCache, PrimitiveState, RenderPipelineDescriptor, Shader,
-			ShaderStages, ShaderType, SpecializedRenderPipeline, SpecializedRenderPipelines,
-			TextureFormat, TextureViewDimension, VertexState,
+		render_graph::{
+			NodeRunError, OutputSlotError, RenderGraphApp, RenderGraphContext, RenderLabel,
+			SlotLabel, ViewNode, ViewNodeRunner,
 		},
-		renderer::RenderDevice,
-		texture::Image,
-		view::{Msaa, ViewUniform, ViewUniforms},
-		Render, RenderApp, RenderSet,
+		render_resource::{
+			AsBindGroup, BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntry,
+			BindingType, BufferBindingType, CachedPipelineState, CachedRenderPipelineId,
+			ColorTargetState, FragmentState, MultisampleState, Pipeline, PipelineCache,
+			PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor,
+			RenderPipelineDescriptor, Shader, ShaderStages, ShaderType, SpecializedRenderPipeline,
+			SpecializedRenderPipelines, TextureFormat, TextureView, TextureViewDescriptor,
+			TextureViewDimension, VertexState,
+		},
+		renderer::{RenderContext, RenderDevice},
+		texture::{FallbackImage, Image},
+		view::{Msaa, ViewUniform, ViewUniformOffset, ViewUniforms},
+		Extract, Render, RenderApp, RenderSet,
 	},
 };
-use bevy::{prelude::*, render::camera::ExtractedCamera};
 
 use crate::planet::day_night::DayNightCycle;
 
