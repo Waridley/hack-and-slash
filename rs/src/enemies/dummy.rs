@@ -12,7 +12,7 @@ use bevy_rapier3d::{
 	plugin::RapierContext,
 	prelude::{Collider, RigidBody, TransformInterpolation},
 };
-use enum_components::{ERef, EntityEnumCommands, WithVariant};
+use enum_components::{EntityEnumCommands, WithVariant};
 use rand::{prelude::IteratorRandom, Rng};
 
 use crate::{

@@ -10,7 +10,7 @@ use bevy_rapier3d::{
 	},
 	prelude::*,
 };
-use enum_components::{ERef, WithVariant};
+use enum_components::WithVariant;
 use rapier3d::{
 	math::Isometry,
 	parry::query::ContactManifold,

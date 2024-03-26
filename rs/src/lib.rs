@@ -3,8 +3,7 @@
 use std::{f32::consts::*, fmt::Debug, time::Duration};
 
 use bevy::{
-	diagnostic::FrameTimeDiagnosticsPlugin, ecs::schedule::LogLevel, prelude::*,
-	render::RenderPlugin, window::PrimaryWindow,
+	diagnostic::FrameTimeDiagnosticsPlugin, prelude::*, render::RenderPlugin, window::PrimaryWindow,
 };
 #[allow(unused_imports, clippy::single_component_path_imports)]
 #[cfg(all(feature = "dylib", not(target_arch = "wasm32")))]
@@ -12,7 +11,7 @@ use bevy_dylib;
 use bevy_kira_audio::AudioPlugin;
 use bevy_pkv::PkvStore;
 use bevy_rapier3d::{plugin::PhysicsSet::StepSimulation, prelude::*};
-use enum_components::{ERef, WithVariant};
+use enum_components::WithVariant;
 use particles::{ParticlesPlugin, Spewer};
 
 pub use engine::{anim, mats, nav, offloading, planet, settings, util};
@@ -87,7 +86,7 @@ impl Plugin for GameDynPlugin {
 		));
 		#[cfg(feature = "debugging")]
 		app.configure_schedules(bevy::ecs::schedule::ScheduleBuildSettings {
-			ambiguity_detection: LogLevel::Warn,
+			ambiguity_detection: bevy::ecs::schedule::LogLevel::Warn,
 			..default()
 		});
 		game_plugin(app);

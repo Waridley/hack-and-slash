@@ -5,14 +5,13 @@ use std::{
 
 use bevy::{
 	input::mouse::MouseMotion,
-	math::Vec3Swizzles,
 	prelude::{
 		GamepadAxisType::{LeftStickX, LeftStickY, RightStickX, RightStickY},
 		*,
 	},
 	window::CursorGrabMode,
 };
-use enum_components::{ERef, WithVariant};
+use enum_components::WithVariant;
 use leafwing_input_manager::prelude::*;
 use serde::{Deserialize, Serialize};
 

@@ -72,6 +72,7 @@ bevy_common_assets = { version = "0.10.0", features = ["ron"] }
 array-init = "2.1.0"
 base64 = "0.21.7"
 bevy_pkv = "0.10.0" # settings
+bevy_svg = "0.13.0"
 bytemuck = "1.14.1" # mostly for seeds
 crossbeam = "0.8.2"
 fixedbitset = "0.4.2" # navigation graph edge storage
@@ -86,6 +87,7 @@ rand_xorshift = "0.3.0"
 ron = "0.8.1"
 static_assertions = "1.1.0"
 serde = "1"
+smol_str = "0.2.1"
 web-time = "1.0.0"
 
 # Debugging/Editor

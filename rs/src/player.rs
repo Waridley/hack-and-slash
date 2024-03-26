@@ -13,9 +13,7 @@ use bevy::{
 use bevy_kira_audio::{Audio, AudioControl};
 use bevy_pkv::PkvStore;
 use bevy_rapier3d::{
-	dynamics::{CoefficientCombineRule::Min, Velocity},
-	geometry::{Collider, Friction},
-	math::Vect,
+	dynamics::CoefficientCombineRule::Min,
 	parry::math::Isometry,
 	plugin::PhysicsSet::StepSimulation,
 	prelude::{RigidBody::KinematicPositionBased, *},

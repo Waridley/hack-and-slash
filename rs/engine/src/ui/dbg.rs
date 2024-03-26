@@ -1,10 +1,6 @@
 use std::cmp::Ordering;
 
-use bevy::{
-	diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
-	prelude::*,
-	window::PrimaryWindow,
-};
+use bevy::{prelude::*, window::PrimaryWindow};
 use bevy_inspector_egui::{
 	bevy_egui::EguiContext, egui, egui::Color32, inspector_options::std_options::NumberOptions,
 	prelude::*, quick::WorldInspectorPlugin, reflect_inspector::InspectorUi,
@@ -228,7 +224,7 @@ pub fn dbg_fps(
 					let mut size = fps.max_size();
 					let mut opts = NumberOptions::<usize>::default();
 					opts.min = Some(1);
-					opts.suffix = " frames".to_owned();
+					" frames".clone_into(&mut opts.suffix);
 					inspector.ui_for_reflect_with_options(
 						&mut size,
 						ui,

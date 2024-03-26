@@ -12,7 +12,6 @@ use std::{
 use bevy::{
 	asset::{io::Reader, AssetLoader, AsyncReadExt, BoxedFuture, LoadContext},
 	ecs::{
-		event::Event,
 		query::{QueryEntityError, QueryFilter},
 		schedule::run_enter_schedule,
 		system::{EntityCommands, StaticSystemParam, SystemParam, SystemParamItem},
@@ -817,4 +816,17 @@ impl AppExt for App {
 				set_state_to_top_of_stack::<S>.before(run_enter_schedule::<S>),
 			)
 	}
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), inline(always))]
+pub fn host_is_mac() -> bool {
+	#[cfg(target_arch = "wasm32")]
+	if let Some(window) = web_sys::window() {
+		if let Ok(platform) = window.navigator.platform().as_deref() {
+			if platform.starts_with("Mac") {
+				return true;
+			}
+		}
+	}
+	cfg!(target_os = "macos")
 }

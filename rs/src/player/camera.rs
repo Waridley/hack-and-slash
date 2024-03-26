@@ -2,7 +2,7 @@ use std::f32::consts::FRAC_PI_2;
 
 use bevy::{
 	core_pipeline::{bloom::BloomSettings, fxaa::Fxaa, tonemapping::Tonemapping, Skybox},
-	ecs::system::{EntityCommands, Res},
+	ecs::system::EntityCommands,
 	prelude::*,
 	render::{
 		camera::{ManualTextureViewHandle, ManualTextureViews, RenderTarget},
@@ -12,7 +12,6 @@ use bevy::{
 			TextureViewDescriptor, TextureViewDimension,
 		},
 	},
-	transform::components::{GlobalTransform, Transform},
 	window::WindowRef,
 };
 use bevy_rapier3d::{
@@ -21,7 +20,7 @@ use bevy_rapier3d::{
 	pipeline::QueryFilter,
 	plugin::RapierContext,
 };
-use enum_components::{ERef, EntityEnumCommands, WithVariant};
+use enum_components::{EntityEnumCommands, WithVariant};
 
 use crate::{
 	anim::ComponentDelta,
@@ -40,8 +39,8 @@ use super::{
 const MAX_CAM_DIST: f32 = 32.0;
 const MIN_CAM_DIST: f32 = 9.6;
 
-pub fn spawn_camera<'w, 's, 'a>(
-	cmds: &'a mut Commands<'w, 's>,
+pub fn spawn_camera<'a>(
+	cmds: &'a mut Commands,
 	player_id: PlayerId,
 	settings: &Settings,
 	images: &mut Assets<Image>,
@@ -168,8 +167,8 @@ pub fn spawn_camera<'w, 's, 'a>(
 	cmds
 }
 
-pub fn spawn_pivot<'w, 's, 'a>(
-	cmds: &'a mut Commands<'w, 's>,
+pub fn spawn_pivot<'a>(
+	cmds: &'a mut Commands,
 	owner: BelongsToPlayer,
 	crosshair: PbrBundle,
 ) -> EntityCommands<'a> {
