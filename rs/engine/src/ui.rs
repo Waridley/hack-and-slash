@@ -8,6 +8,7 @@ use bevy::{
 
 #[cfg(feature = "debugging")]
 pub mod dbg;
+pub mod in_map;
 
 pub struct UiPlugin;
 

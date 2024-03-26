@@ -1,16 +1,15 @@
-use bevy::utils::HashSet;
 use bevy::{
 	input::{
 		gamepad::{GamepadAxisChangedEvent, GamepadButtonChangedEvent, GamepadButtonInput},
-		keyboard::KeyboardInput,
+		keyboard::{Key, KeyboardInput},
 		mouse::{MouseButtonInput, MouseMotion, MouseWheel},
+		ButtonState,
 	},
 	prelude::*,
+	utils::HashMap,
 };
-use leafwing_input_manager::{buttonlike::MouseMotionDirection, prelude::*, user_input::InputKind};
+use leafwing_input_manager::{buttonlike::MouseMotionDirection, prelude::*};
 use serde::{Deserialize, Serialize};
-
-use InputState::{InGame, InMenu};
 
 use crate::{
 	input::InputState::DetectingBinding,
@@ -24,8 +23,10 @@ impl Plugin for InputPlugin {
 		app.init_state_stack::<InputState>()
 			.add_event::<ToBind>()
 			.add_systems(
-				Update,
+				First, // Consume inputs while detecting bindings
 				(
+					#[cfg(feature = "debugging")]
+					dbg_set_detect_binding_state.before(detect_bindings),
 					detect_bindings.run_if(in_state(DetectingBinding)),
 					#[cfg(feature = "debugging")]
 					dbg_detect_bindings.after(detect_bindings),
@@ -56,24 +57,29 @@ pub enum InputState {
 /// buttons on a single associated gamepad to prevent other players from
 /// interfering, discarding the gamepad to accept inputs on *all* gamepads,
 /// or somehow manually associating multiple gamepads with an `InputMap`.
+///
+/// `KeyboardInput` events will be mapped to `Some(Key)`, which should be
+/// used for the purpose of icon selection.
 #[derive(Event, Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Reflect)]
-pub struct ToBind(pub HashSet<(InputKind, Option<Gamepad>)>);
+pub struct ToBind(pub HashMap<ChordEntry, Option<Key>>);
+
+type ChordEntry = (InputKind, Option<Gamepad>);
 
 pub fn detect_bindings(
-	mut gamepad_buttons: EventReader<GamepadButtonInput>,
-	mut gamepad_button_axes: EventReader<GamepadButtonChangedEvent>,
-	mut gamepad_axes: EventReader<GamepadAxisChangedEvent>,
-	mut keys: EventReader<KeyboardInput>,
-	mut mouse_buttons: EventReader<MouseButtonInput>,
-	mut mouse_wheel: EventReader<MouseWheel>,
-	mut mouse_motion: EventReader<MouseMotion>,
+	mut gamepad_buttons: ResMut<Events<GamepadButtonInput>>,
+	mut gamepad_button_axes: ResMut<Events<GamepadButtonChangedEvent>>,
+	mut gamepad_axes: ResMut<Events<GamepadAxisChangedEvent>>,
+	mut keys: ResMut<Events<KeyboardInput>>,
+	mut mouse_buttons: ResMut<Events<MouseButtonInput>>,
+	mut mouse_wheel: ResMut<Events<MouseWheel>>,
+	mut mouse_motion: ResMut<Events<MouseMotion>>,
 	mut tx: EventWriter<ToBind>,
 	mut mouse_accum: Local<Vec2>,
 	mut wheel_accum: Local<Vec2>,
-	mut curr_chord: Local<HashSet<(InputKind, Option<Gamepad>)>>,
+	mut curr_chord: Local<HashMap<ChordEntry, Option<Key>>>,
 ) {
 	let mut finalize =
-		|chord: &mut HashSet<(InputKind, Option<Gamepad>)>, m: &mut Vec2, w: &mut Vec2| {
+		|chord: &mut HashMap<ChordEntry, Option<Key>>, m: &mut Vec2, w: &mut Vec2| {
 			*m = Vec2::ZERO;
 			*w = Vec2::ZERO;
 			let binding = ToBind(std::mem::take(chord));
@@ -85,122 +91,138 @@ pub fn detect_bindings(
 	// This allows chords to be bound, whether physically input by the user,
 	// or automatically sent by macro keys for example.
 
-	for btn in gamepad_buttons.read() {
+	for btn in gamepad_buttons.drain() {
 		let entry = (btn.button.button_type.into(), Some(btn.button.gamepad));
 		trace!("{entry:?}");
 		if btn.state.is_pressed() {
-			curr_chord.insert(entry);
-		} else if curr_chord.contains(&entry) {
-			finalize(&mut *curr_chord, &mut mouse_accum, &mut wheel_accum);
+			curr_chord.insert(entry, None);
+		} else if curr_chord.contains_key(&entry) {
+			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		}
 	}
 
 	// Thresholds are higher than usual to make sure the user really wants the given input.
 
-	for btn in gamepad_button_axes.read() {
+	for btn in gamepad_button_axes.drain() {
 		let entry = (btn.button_type.into(), Some(btn.gamepad));
 		trace!("{entry:?}");
 		if btn.value > 0.7 {
-			curr_chord.insert(entry);
-		} else if curr_chord.contains(&entry) {
-			finalize(&mut *curr_chord, &mut mouse_accum, &mut wheel_accum);
+			curr_chord.insert(entry, None);
+		} else if curr_chord.contains_key(&entry) {
+			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		}
 	}
 
-	for axis in gamepad_axes.read() {
+	for axis in gamepad_axes.drain() {
 		let entry = (
 			SingleAxis::from_value(axis.axis_type, axis.value).into(),
 			Some(axis.gamepad),
 		);
 		trace!("{entry:?}");
 		if axis.value.abs() > 0.7 {
-			curr_chord.insert(entry);
-		} else if curr_chord.contains(&entry) {
-			finalize(&mut *curr_chord, &mut mouse_accum, &mut wheel_accum);
+			curr_chord.insert(entry, None);
+		} else if curr_chord.contains_key(&entry) {
+			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		}
 	}
 
-	for key in keys.read() {
+	for key in keys.drain() {
 		let entry = (key.key_code.into(), None);
 		trace!("{entry:?}");
 		if key.state.is_pressed() {
-			curr_chord.insert(entry);
-		} else if curr_chord.contains(&entry) {
-			finalize(&mut *curr_chord, &mut mouse_accum, &mut wheel_accum);
+			curr_chord.insert(entry, Some(key.logical_key));
+		} else if curr_chord.contains_key(&entry) {
+			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		}
 	}
 
-	for btn in mouse_buttons.read() {
+	for btn in mouse_buttons.drain() {
 		let entry = (btn.button.into(), None);
 		trace!("{entry:?}");
 		if btn.state.is_pressed() {
-			curr_chord.insert(entry);
-		} else if curr_chord.contains(&entry) {
-			finalize(&mut *curr_chord, &mut mouse_accum, &mut wheel_accum);
+			curr_chord.insert(entry, None);
+		} else if curr_chord.contains_key(&entry) {
+			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		}
 	}
 
-	for wheel in mouse_wheel.read() {
+	for wheel in mouse_wheel.drain() {
 		wheel_accum.x += wheel.x;
 		wheel_accum.y += wheel.y;
 		trace!("{wheel_accum:?}");
 		if wheel_accum.x >= 3.0 {
-			curr_chord.insert((MouseWheelDirection::Right.into(), None));
-			finalize(&mut *curr_chord, &mut mouse_accum, &mut wheel_accum);
+			curr_chord.insert((MouseWheelDirection::Right.into(), None), None);
+			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		} else if wheel_accum.x <= -3.0 {
-			curr_chord.insert((MouseWheelDirection::Left.into(), None));
-			finalize(&mut *curr_chord, &mut mouse_accum, &mut wheel_accum);
+			curr_chord.insert((MouseWheelDirection::Left.into(), None), None);
+			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		}
 		if wheel_accum.y >= 3.0 {
-			curr_chord.insert((MouseWheelDirection::Up.into(), None));
-			finalize(&mut *curr_chord, &mut mouse_accum, &mut wheel_accum);
+			curr_chord.insert((MouseWheelDirection::Up.into(), None), None);
+			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		} else if wheel_accum.y <= -3.0 {
-			curr_chord.insert((MouseWheelDirection::Down.into(), None));
-			finalize(&mut *curr_chord, &mut mouse_accum, &mut wheel_accum);
+			curr_chord.insert((MouseWheelDirection::Down.into(), None), None);
+			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		}
 	}
 
-	for motion in mouse_motion.read() {
+	for motion in mouse_motion.drain() {
 		*mouse_accum += motion.delta;
 		trace!("{mouse_accum:?}");
 		// FIXME: Probably scale by sensitivity
 		if mouse_accum.x > 500.0 {
-			curr_chord.insert((MouseMotionDirection::Right.into(), None));
-			finalize(&mut *curr_chord, &mut mouse_accum, &mut wheel_accum);
+			curr_chord.insert((MouseMotionDirection::Right.into(), None), None);
+			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		} else if mouse_accum.x < -500.0 {
-			curr_chord.insert((MouseMotionDirection::Left.into(), None));
-			finalize(&mut *curr_chord, &mut mouse_accum, &mut wheel_accum);
+			curr_chord.insert((MouseMotionDirection::Left.into(), None), None);
+			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		}
 		if mouse_accum.y > 500.0 {
-			curr_chord.insert((MouseMotionDirection::Down.into(), None));
-			finalize(&mut *curr_chord, &mut mouse_accum, &mut wheel_accum);
+			curr_chord.insert((MouseMotionDirection::Down.into(), None), None);
+			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		} else if mouse_accum.y < -500.0 {
-			curr_chord.insert((MouseMotionDirection::Up.into(), None));
-			finalize(&mut *curr_chord, &mut mouse_accum, &mut wheel_accum);
+			curr_chord.insert((MouseMotionDirection::Up.into(), None), None);
+			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		}
 	}
 }
 
 #[cfg(feature = "debugging")]
-pub fn dbg_detect_bindings(
-	keys: Res<ButtonInput<KeyCode>>,
+pub fn dbg_set_detect_binding_state(
 	mut stack: ResMut<StateStack<InputState>>,
-	mut rx: EventReader<ToBind>,
+	mut keys: EventReader<KeyboardInput>,
 ) {
-	if keys.just_released(KeyCode::KeyB) {
-		match stack.last() {
-			Some(InMenu | InGame) => stack.push(DetectingBinding),
-			Some(DetectingBinding) => {
-				stack.pop();
-			}
-			None => {
-				error!("InputState stack was somehow empty.");
-				stack.push(InputState::default());
+	for key in keys.read() {
+		if key.key_code == KeyCode::KeyB && key.state == ButtonState::Released {
+			match stack.last() {
+				Some(DetectingBinding) => {
+					stack.pop();
+				}
+				Some(_) => stack.push(DetectingBinding),
+				None => {
+					error!("InputState stack was somehow empty.");
+					stack.push(InputState::default());
+				}
 			}
 		}
 	}
+}
 
+#[cfg(feature = "debugging")]
+pub fn dbg_detect_bindings(mut rx: EventReader<ToBind>, gamepads: Res<Gamepads>) {
+	use crate::ui::in_map::{icons::*, GamepadSeries};
 	for event in rx.read() {
-		dbg!(event);
+		for ((input, gp), logical_key) in event.0.iter() {
+			let icon = if let Some(icon) = logical_key.as_ref() {
+				key(icon).map(InputIcons::Single)
+			} else {
+				InputIcons::from_input_kind(
+					*input,
+					gp.map(|gp| GamepadSeries::parse_or_default(gamepads.name(gp))),
+				)
+			};
+
+			dbg!((input, gp, icon));
+		}
 	}
 }
