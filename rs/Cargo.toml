@@ -67,7 +67,6 @@ bevy_kira_audio = "0.19.0"
 leafwing-input-manager = "0.13.0"
 bevy_quickmenu = "0.2.0"
 bevy_common_assets = { version = "0.10.0", features = ["ron"] }
-parry2d = "0.13"
 
 # Util
 array-init = "2.1.0"

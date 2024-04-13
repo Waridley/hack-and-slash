@@ -1,14 +1,19 @@
-use crate::ui::in_map::icons::{Icon, InputIcons};
-use crate::ui::in_map::GamepadSeries;
-use crate::ui::layout::ChildrenConstraint;
-use crate::ui::widgets::{Font3d, IconWidgetBuilder, TextBuilder};
-use crate::ui::UiFonts;
 use crate::{
 	input::{ChordEntry, CurrentChord, InputState},
-	ui::{in_map::icons::IconBundleBuilder, widgets::PanelBuilder, UiRoot},
+	ui::{
+		in_map::{
+			icons::{Icon, IconBundleBuilder, InputIcons},
+			GamepadSeries,
+		},
+		layout::ChildrenConstraint,
+		widgets::{Font3d, IconWidgetBuilder, PanelBuilder, TextBuilder},
+		UiFonts, UiRoot,
+	},
 };
-use bevy::utils::smallvec::SmallVec;
-use bevy::{prelude::*, utils::HashMap};
+use bevy::{
+	prelude::*,
+	utils::{smallvec::SmallVec, HashMap},
+};
 use bevy_svg::prelude::Origin;
 
 pub struct DetectBindingPopupPlugin;
@@ -64,13 +69,14 @@ pub fn setup(
 
 					cmds.spawn((
 						TransformBundle::from_transform(Transform {
-							translation: Vec3::new(-6.0, -0.1, 0.0),
+							translation: Vec3::new(0.0, -0.1, 0.0),
 							..default()
 						}),
 						VisibilityBundle::default(),
 						CurrChordIcons::default(),
 						ChildrenConstraint {
-							relative_positions: Vec2::X,
+							alignment: 0.0,
+							..default()
 						},
 					));
 				});
@@ -151,7 +157,6 @@ pub fn display_curr_chord(
 			};
 			let mut ids = SmallVec::new();
 			for icon in entry_icons {
-				dbg!(&icon.text);
 				let icon_id = IconWidgetBuilder {
 					icon,
 					size: Vec2::splat(2.0),

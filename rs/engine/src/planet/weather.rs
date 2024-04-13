@@ -1,5 +1,7 @@
-use crate::planet::chunks::{CHUNK_SCALE, TERRAIN_CELL_SIZE};
-use crate::ui::widgets::WidgetShape;
+use crate::{
+	planet::chunks::{CHUNK_SCALE, TERRAIN_CELL_SIZE},
+	ui::widgets::WidgetShape,
+};
 use bevy::{
 	prelude::{Reflect, Resource, *},
 	render::{

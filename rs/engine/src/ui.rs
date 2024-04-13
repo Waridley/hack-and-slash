@@ -1,12 +1,11 @@
 use crate::ui::widgets::Font3d;
-use bevy::asset::io::Reader;
-use bevy::asset::{AssetLoader, BoxedFuture, LoadContext};
-use bevy::render::view::{Layer, RenderLayers};
 use bevy::{
+	asset::{io::Reader, AssetLoader, BoxedFuture, LoadContext},
 	diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
 	ecs::{query::QuerySingleError, schedule::SystemConfigs},
 	input::common_conditions::input_toggle_active,
 	prelude::*,
+	render::view::{Layer, RenderLayers},
 	ui::FocusPolicy,
 };
 use futures_lite::AsyncReadExt;

@@ -9,8 +9,6 @@ use std::{
 	time::Duration,
 };
 
-use bevy::render::mesh::{Indices, PrimitiveTopology};
-use bevy::render::render_asset::RenderAssetUsages;
 use bevy::{
 	asset::{io::Reader, AssetLoader, AsyncReadExt, BoxedFuture, LoadContext},
 	ecs::{
@@ -20,6 +18,10 @@ use bevy::{
 	},
 	prelude::*,
 	reflect::{serde::TypedReflectDeserializer, TypeRegistration, Typed},
+	render::{
+		mesh::{Indices, PrimitiveTopology},
+		render_asset::RenderAssetUsages,
+	},
 	scene::{SceneLoaderError, SceneLoaderError::RonSpannedError},
 };
 use num_traits::NumCast;

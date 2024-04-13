@@ -1,6 +1,5 @@
 use std::{f32::consts::*, num::NonZeroU8, ops::Add, time::Duration};
 
-use bevy::render::view::RenderLayers;
 use bevy::{
 	asset::AssetPath,
 	ecs::system::EntityCommands,
@@ -32,8 +31,10 @@ use rapier3d::{math::Point, prelude::Aabb};
 
 use camera::spawn_camera;
 use ctrl::{CtrlState, CtrlVel};
-use engine::planet::terrain::NeedsTerrain;
-use engine::ui::{UiRoot, GLOBAL_UI_LAYER, GLOBAL_UI_RENDER_LAYERS};
+use engine::{
+	planet::terrain::NeedsTerrain,
+	ui::{UiRoot, GLOBAL_UI_LAYER, GLOBAL_UI_RENDER_LAYERS},
+};
 use input::PlayerAction;
 use player_entity::*;
 use prefs::PlayerPrefs;

@@ -19,7 +19,6 @@ macros = { workspace = true }
 bevy = { workspace = true, features = ["bevy_ui"] }
 bevy_rapier3d = { workspace = true }
 rapier3d = { workspace = true }
-parry2d = { workspace = true }
 
 # Util
 array-init = { workspace = true }

@@ -1,22 +1,31 @@
 use super::in_map::icons::{Icon, IconBundleBuilder};
-use crate::ui::GLOBAL_UI_RENDER_LAYERS;
-use crate::util::ZUp;
-use bevy::render::mesh::MeshVertexAttribute;
-use bevy::render::mesh::PrimitiveTopology::TriangleList;
-use bevy::render::render_asset::RenderAssetUsages;
-use bevy::render::view::RenderLayers;
-use bevy::utils::CowArc;
-use bevy::{ecs::system::EntityCommands, prelude::*};
+use crate::{ui::GLOBAL_UI_RENDER_LAYERS, util::ZUp};
+use bevy::{
+	ecs::system::EntityCommands,
+	prelude::*,
+	render::{
+		mesh::{MeshVertexAttribute, PrimitiveTopology::TriangleList},
+		render_asset::RenderAssetUsages,
+		view::RenderLayers,
+	},
+	utils::CowArc,
+};
 use bevy_svg::prelude::Origin;
-use meshtext::error::MeshTextError;
-use meshtext::{MeshGenerator, MeshText, OwnedFace, TextSection};
-use parry2d::shape::SharedShape;
+use meshtext::{error::MeshTextError, MeshGenerator, MeshText, OwnedFace, TextSection};
+use rapier3d::parry::shape::SharedShape;
+use std::fmt::{Debug, Formatter};
 
 #[derive(Asset, Deref, DerefMut, TypePath)]
 pub struct Font3d(pub MeshGenerator<OwnedFace>);
 
-#[derive(Component, Debug, Clone, Deref, DerefMut)]
+#[derive(Component, Clone, Deref, DerefMut)]
 pub struct WidgetShape(pub SharedShape);
+
+impl Debug for WidgetShape {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		ron::to_string(&self.0).fmt(f)
+	}
+}
 
 #[derive(Bundle, Clone, Debug)]
 pub struct WidgetBundle {
@@ -68,7 +77,7 @@ impl PanelBuilder {
 		let mesh = meshes.add(Rectangle::new(size.x, size.y).z_up());
 		(
 			WidgetBundle {
-				shape: WidgetShape(SharedShape::cuboid(size.x * 0.5, size.y * 0.5)),
+				shape: WidgetShape(SharedShape::cuboid(size.x * 0.5, size.y * 0.5, 0.1)),
 				transform,
 				global_transform,
 				visibility,
@@ -129,7 +138,7 @@ impl IconWidgetBuilder {
 			inherited_visibility,
 			layers,
 		} = self;
-		let widget = WidgetShape(SharedShape::cuboid(size.x * 0.5, size.y * 0.5));
+		let widget = WidgetShape(SharedShape::cuboid(size.x * 0.5, size.y * 0.5, 0.1));
 		let (svg, text) = IconBundleBuilder {
 			icon,
 			font,
@@ -223,6 +232,7 @@ impl TextBuilder {
 		let shape = WidgetShape(SharedShape::cuboid(
 			bbox.size().x * 0.5,
 			bbox.size().y * 0.5,
+			bbox.size().z * 0.5,
 		));
 
 		let verts = vertices

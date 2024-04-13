@@ -1,6 +1,5 @@
 use crate::player::PlayerId;
-use bevy::prelude::*;
-use bevy::render::view::RenderLayers;
+use bevy::{prelude::*, render::view::RenderLayers};
 use engine::ui::GLOBAL_UI_RENDER_LAYERS;
 use enum_components::EnumComponent;
 

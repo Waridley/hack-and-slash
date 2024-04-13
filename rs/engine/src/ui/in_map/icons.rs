@@ -1,10 +1,12 @@
-use crate::ui::in_map::icons::kenney::generic_base_dir;
-use crate::ui::in_map::GamepadSeries;
-use crate::ui::widgets::{Font3d, TextBuilder};
-use crate::ui::GLOBAL_UI_RENDER_LAYERS;
-use bevy::render::view::RenderLayers;
-use bevy::utils::CowArc;
-use bevy::{asset::AssetPath, ecs::system::EntityCommands, input::keyboard::Key, prelude::*};
+use crate::ui::{
+	in_map::{icons::kenney::generic_base_dir, GamepadSeries},
+	widgets::{Font3d, TextBuilder},
+	GLOBAL_UI_RENDER_LAYERS,
+};
+use bevy::{
+	asset::AssetPath, ecs::system::EntityCommands, input::keyboard::Key, prelude::*,
+	render::view::RenderLayers, utils::CowArc,
+};
 use bevy_svg::prelude::{Origin, Svg3dBundle};
 use kenney::{base_dir, kb_mouse_base_dir};
 use leafwing_input_manager::{
@@ -286,7 +288,9 @@ impl IconBundleBuilder {
 			.with_size(Vec3::new(size.x * 16.0, size.y * 16.0, 0.0))
 			.with_offset(Vec3::new(-8.0, -40.0, -32.0))
 			.build(meshes, fonts)
-			.map_err(|e| error!(text = &*text, "{e}"))
+			.map_err(|e|
+				// `:?` because `GlyphTriangulationError` has a useless `Display` impl
+				error!(text = &*text, "{e:?}"))
 			.ok()
 		});
 

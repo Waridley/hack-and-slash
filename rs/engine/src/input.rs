@@ -244,7 +244,7 @@ pub fn dbg_detect_bindings(mut rx: EventReader<ToBind>, gamepads: Res<Gamepads>)
 	use crate::ui::in_map::{icons::*, GamepadSeries};
 	for event in rx.read() {
 		for ((input, gp), logical_key) in event.0.iter() {
-			let icon = if let Some(icon) = logical_key.as_ref() {
+			let icons = if let Some(icon) = logical_key.as_ref() {
 				key(icon).map(InputIcons::Single)
 			} else {
 				InputIcons::from_input_kind(
@@ -254,7 +254,7 @@ pub fn dbg_detect_bindings(mut rx: EventReader<ToBind>, gamepads: Res<Gamepads>)
 				)
 			};
 
-			dbg!((input, gp, icon));
+			info!(input = ?input, gamepad = ?gp, icons = ?icons);
 		}
 	}
 }
