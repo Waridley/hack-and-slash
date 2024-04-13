@@ -21,6 +21,7 @@ pub struct InputPlugin;
 impl Plugin for InputPlugin {
 	fn build(&self, app: &mut App) {
 		app.init_state_stack::<InputState>()
+			.init_resource::<CurrentChord>()
 			.add_event::<ToBind>()
 			.add_systems(
 				First, // Consume inputs while detecting bindings
@@ -61,9 +62,38 @@ pub enum InputState {
 /// `KeyboardInput` events will be mapped to `Some(Key)`, which should be
 /// used for the purpose of icon selection.
 #[derive(Event, Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Reflect)]
-pub struct ToBind(pub HashMap<ChordEntry, Option<Key>>);
+pub struct ToBind(pub CurrentChord);
 
-type ChordEntry = (InputKind, Option<Gamepad>);
+#[derive(Resource, Default, Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Reflect)]
+pub struct CurrentChord(HashMap<ChordEntry, Option<Key>>);
+
+impl CurrentChord {
+	pub fn iter(&self) -> impl Iterator<Item = (&ChordEntry, &Option<Key>)> {
+		self.0.iter()
+	}
+
+	pub fn clear(&mut self) {
+		self.0.clear()
+	}
+
+	pub fn insert(&mut self, entry: ChordEntry, key: Option<Key>) {
+		self.0.insert(entry, key);
+	}
+
+	pub fn contains_key(&self, key: &ChordEntry) -> bool {
+		self.0.contains_key(key)
+	}
+
+	pub fn len(&self) -> usize {
+		self.0.len()
+	}
+
+	pub fn is_empty(&self) -> bool {
+		self.0.is_empty()
+	}
+}
+
+pub type ChordEntry = (InputKind, Option<Gamepad>);
 
 pub fn detect_bindings(
 	mut gamepad_buttons: ResMut<Events<GamepadButtonInput>>,
@@ -74,18 +104,17 @@ pub fn detect_bindings(
 	mut mouse_wheel: ResMut<Events<MouseWheel>>,
 	mut mouse_motion: ResMut<Events<MouseMotion>>,
 	mut tx: EventWriter<ToBind>,
+	mut curr_chord: ResMut<CurrentChord>,
 	mut mouse_accum: Local<Vec2>,
 	mut wheel_accum: Local<Vec2>,
-	mut curr_chord: Local<HashMap<ChordEntry, Option<Key>>>,
 ) {
-	let mut finalize =
-		|chord: &mut HashMap<ChordEntry, Option<Key>>, m: &mut Vec2, w: &mut Vec2| {
-			*m = Vec2::ZERO;
-			*w = Vec2::ZERO;
-			let binding = ToBind(std::mem::take(chord));
-			info!("{binding:?}");
-			tx.send(binding);
-		};
+	let mut finalize = |chord: &mut CurrentChord, m: &mut Vec2, w: &mut Vec2| {
+		*m = Vec2::ZERO;
+		*w = Vec2::ZERO;
+		let binding = ToBind(std::mem::take(chord));
+		info!("{binding:?}");
+		tx.send(binding);
+	};
 
 	// Only finalize binding when the user *releases* at least one button.
 	// This allows chords to be bound, whether physically input by the user,
@@ -191,6 +220,7 @@ pub fn detect_bindings(
 pub fn dbg_set_detect_binding_state(
 	mut stack: ResMut<StateStack<InputState>>,
 	mut keys: EventReader<KeyboardInput>,
+	mut curr_chord: ResMut<CurrentChord>,
 ) {
 	for key in keys.read() {
 		if key.key_code == KeyCode::KeyB && key.state == ButtonState::Released {
@@ -204,6 +234,7 @@ pub fn dbg_set_detect_binding_state(
 					stack.push(InputState::default());
 				}
 			}
+			curr_chord.clear()
 		}
 	}
 }
@@ -218,7 +249,8 @@ pub fn dbg_detect_bindings(mut rx: EventReader<ToBind>, gamepads: Res<Gamepads>)
 			} else {
 				InputIcons::from_input_kind(
 					*input,
-					gp.map(|gp| GamepadSeries::parse_or_default(gamepads.name(gp))),
+					gp.and_then(|gp| gamepads.name(gp))
+						.map(GamepadSeries::guess),
 				)
 			};
 

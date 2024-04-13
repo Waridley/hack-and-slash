@@ -1,5 +1,11 @@
+use crate::ui::in_map::icons::kenney::generic_base_dir;
 use crate::ui::in_map::GamepadSeries;
-use bevy::{asset::AssetPath, input::keyboard::Key, prelude::*};
+use crate::ui::widgets::{Font3d, TextBuilder};
+use crate::ui::GLOBAL_UI_RENDER_LAYERS;
+use bevy::render::view::RenderLayers;
+use bevy::utils::CowArc;
+use bevy::{asset::AssetPath, ecs::system::EntityCommands, input::keyboard::Key, prelude::*};
+use bevy_svg::prelude::{Origin, Svg3dBundle};
 use kenney::{base_dir, kb_mouse_base_dir};
 use leafwing_input_manager::{
 	axislike::{AxisType, AxisType::Gamepad, MouseMotionAxisType},
@@ -14,15 +20,18 @@ pub fn default_icon() -> AssetPath<'static> {
 	base_dir().join("Flairs/Vector/flair_disabled.svg").into()
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Reflect)]
+#[reflect(no_field_bounds)]
 pub enum UserInputIcons {
 	Single(InputIcons),
 	Chord(Vec<InputIcons>),
-	VirtualDPad(Box<VirtualDPadIcons>),
-	VirtualAxis(Box<VirtualAxisIcons>),
+	// Variants are too large without indirection, but `Box` won't derive Reflect
+	// See https://github.com/bevyengine/bevy/issues/10393
+	VirtualDPad(std::sync::Arc<VirtualDPadIcons>),
+	VirtualAxis(std::sync::Arc<VirtualAxisIcons>),
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash, Reflect)]
 pub struct VirtualDPadIcons {
 	pub up: InputIcons,
 	pub down: InputIcons,
@@ -30,7 +39,7 @@ pub struct VirtualDPadIcons {
 	pub right: InputIcons,
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash, Reflect)]
 pub struct VirtualAxisIcons {
 	pub positive: InputIcons,
 	pub negative: InputIcons,
@@ -74,57 +83,7 @@ impl Default for UserInputIcons {
 	}
 }
 
-#[derive(Debug, Clone)]
-pub struct Icon {
-	pub image: AssetPath<'static>,
-	pub text: Option<SmolStr>,
-}
-
-impl Icon {
-	pub fn from_path(path: impl Into<AssetPath<'static>>) -> Self {
-		Self {
-			image: path.into(),
-			text: None,
-		}
-	}
-
-	pub fn from_axis_type(axis: AxisType, gp_name: Option<GamepadSeries>) -> Self {
-		match axis {
-			Gamepad(gp) => Self::gamepad(gp, gp_name.unwrap_or_default()),
-			AxisType::MouseWheel(wheel) => Self::mouse_wheel(wheel),
-			AxisType::MouseMotion(motion) => Self::mouse_motion(motion),
-		}
-	}
-
-	pub fn gamepad(gp: GamepadAxisType, series: GamepadSeries) -> Self {
-		Self::from_path(series.axis(gp).unwrap_or_else(default_icon))
-	}
-
-	pub fn mouse_wheel(wheel: MouseWheelAxisType) -> Self {
-		Self::from_path(match wheel {
-			MouseWheelAxisType::X => kenney::mouse_wheel_horizontal(),
-			MouseWheelAxisType::Y => kenney::mouse_wheel_vertical(),
-		})
-	}
-
-	pub fn mouse_motion(motion: MouseMotionAxisType) -> Self {
-		Self::from_path(match motion {
-			MouseMotionAxisType::X => kenney::mouse_motion_horizontal(),
-			MouseMotionAxisType::Y => kenney::mouse_motion_vertical(),
-		})
-	}
-}
-
-impl Default for Icon {
-	fn default() -> Self {
-		Self {
-			image: default_icon(),
-			text: None,
-		}
-	}
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Reflect)]
 pub enum InputIcons {
 	Single(Icon),
 	DualAxis { horizontal: Icon, vertical: Icon },
@@ -139,7 +98,7 @@ impl InputIcons {
 			}
 			SingleAxis(axis) => Self::Single(Icon::from_axis_type(axis.axis_type, gp)),
 			DualAxis(axes) => Self::from_dual_axis_types(axes.x.axis_type, axes.y.axis_type, gp),
-			PhysicalKey(key) => Self::Single(Icon::from_path(kenney::key_code_name(key)?)),
+			PhysicalKey(k) => Self::Single(key_code(k)?),
 			Modifier(modifier) => Self::Single(
 				key(match modifier {
 					ModifierKey::Alt => &Key::Alt,
@@ -202,11 +161,144 @@ impl Default for InputIcons {
 	}
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Reflect)]
+pub struct Icon {
+	pub image: AssetPath<'static>,
+	pub text: Option<SmolStr>,
+}
+
+impl Icon {
+	pub fn from_path(path: impl Into<AssetPath<'static>>) -> Self {
+		Self {
+			image: path.into(),
+			text: None,
+		}
+	}
+
+	pub fn from_axis_type(axis: AxisType, gp_name: Option<GamepadSeries>) -> Self {
+		match axis {
+			Gamepad(gp) => Self::gamepad(gp, gp_name.unwrap_or_default()),
+			AxisType::MouseWheel(wheel) => Self::mouse_wheel(wheel),
+			AxisType::MouseMotion(motion) => Self::mouse_motion(motion),
+		}
+	}
+
+	pub fn gamepad(gp: GamepadAxisType, series: GamepadSeries) -> Self {
+		Self::from_path(series.axis(gp).unwrap_or_else(default_icon))
+	}
+
+	pub fn mouse_wheel(wheel: MouseWheelAxisType) -> Self {
+		Self::from_path(match wheel {
+			MouseWheelAxisType::X => kenney::mouse_wheel_horizontal(),
+			MouseWheelAxisType::Y => kenney::mouse_wheel_vertical(),
+		})
+	}
+
+	pub fn mouse_motion(motion: MouseMotionAxisType) -> Self {
+		Self::from_path(match motion {
+			MouseMotionAxisType::X => kenney::mouse_motion_horizontal(),
+			MouseMotionAxisType::Y => kenney::mouse_motion_vertical(),
+		})
+	}
+}
+
+impl Default for Icon {
+	fn default() -> Self {
+		Self {
+			image: default_icon(),
+			text: None,
+		}
+	}
+}
+
+#[derive(Debug, Clone)]
+pub struct IconBundleBuilder {
+	pub icon: Icon,
+	pub font: Handle<Font3d>,
+	pub origin: Origin,
+	pub size: Vec2,
+	pub transform: Transform,
+	pub global_transform: GlobalTransform,
+	pub visibility: Visibility,
+	pub inherited_visibility: InheritedVisibility,
+	pub layers: RenderLayers,
+}
+
+impl Default for IconBundleBuilder {
+	fn default() -> Self {
+		Self {
+			icon: default(),
+			font: default(),
+			origin: default(),
+			size: Vec2::ONE,
+			transform: default(),
+			global_transform: default(),
+			visibility: default(),
+			inherited_visibility: default(),
+			layers: GLOBAL_UI_RENDER_LAYERS,
+		}
+	}
+}
+
+#[derive(Bundle)]
+pub struct IconBundle {
+	pub svg: Svg3dBundle,
+	pub layers: RenderLayers,
+}
+
+impl IconBundleBuilder {
+	pub fn build(
+		self,
+		asset_server: &AssetServer,
+		meshes: Mut<Assets<Mesh>>,
+		fonts: Mut<Assets<Font3d>>,
+	) -> (IconBundle, Option<impl Bundle>) {
+		let Self {
+			icon: Icon { image, text },
+			font,
+			origin,
+			size,
+			mut transform,
+			mut global_transform,
+			visibility,
+			inherited_visibility,
+			layers,
+		} = self;
+		let rot = Quat::from_rotation_x(std::f32::consts::FRAC_PI_2);
+		transform.rotation *= rot;
+		global_transform = self.global_transform * Transform::from_rotation(rot);
+		let svg = Svg3dBundle {
+			svg: asset_server.load(image),
+			origin,
+			transform,
+			global_transform,
+			visibility,
+			inherited_visibility,
+			..default()
+		};
+
+		let text = text.and_then(|text| {
+			TextBuilder {
+				text: text.to_string().into(),
+				font,
+				..default()
+			}
+			.with_size(Vec3::new(size.x * 16.0, size.y * 16.0, 0.0))
+			.with_offset(Vec3::new(-8.0, -40.0, -32.0))
+			.build(meshes, fonts)
+			.map_err(|e| error!(text = &*text, "{e}"))
+			.ok()
+		});
+
+		(IconBundle { svg, layers }, text)
+	}
+}
+
 pub fn key(key: &Key) -> Option<Icon> {
 	let Some(kenney_name) = kenney::key_name(key) else {
 		return if let Key::Character(c) = key {
 			Some(Icon {
-				image: kb_mouse_base_dir()
+				image: generic_base_dir()
 					.join("generic_button_square_outline.svg")
 					.into(),
 				text: Some(c.clone()),
@@ -215,6 +307,13 @@ pub fn key(key: &Key) -> Option<Icon> {
 			None
 		};
 	};
+	Some(Icon::from_path(
+		kb_mouse_base_dir().join(format!("keyboard_{}_outline.svg", kenney_name)),
+	))
+}
+
+pub fn key_code(key: KeyCode) -> Option<Icon> {
+	let kenney_name = kenney::key_code_name(key)?;
 	Some(Icon::from_path(
 		kb_mouse_base_dir().join(format!("keyboard_{}_outline.svg", kenney_name)),
 	))
@@ -781,10 +880,10 @@ pub mod kenney {
 			East => "xbox_button_color_b_outline.svg",
 			North => "xbox_button_color_y_outline.svg",
 			West => "xbox_button_color_x_outline.svg",
-			LeftTrigger => "xbox_trigger_lb_outline.svg",
-			LeftTrigger2 => "xbox_trigger_lt_outline.svg",
-			RightTrigger => "xbox_trigger_rb_outline.svg",
-			RightTrigger2 => "xbox_trigger_rt_outline.svg",
+			LeftTrigger => "xbox_lb_outline.svg",
+			LeftTrigger2 => "xbox_lt_outline.svg",
+			RightTrigger => "xbox_rb_outline.svg",
+			RightTrigger2 => "xbox_rt_outline.svg",
 			Select => "xbox_button_view_outline.svg",
 			Start => "xbox_button_menu_outline.svg",
 			Mode => "xbox_guide.svg",

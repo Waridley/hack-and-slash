@@ -5,6 +5,7 @@ use bevy::app::{App, Plugin};
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
 use bevy_dylib;
 use bevy_svg::SvgPlugin;
+use std::num::NonZeroU8;
 
 pub mod anim;
 pub mod input;

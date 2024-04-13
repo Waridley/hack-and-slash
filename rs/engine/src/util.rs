@@ -9,6 +9,8 @@ use std::{
 	time::Duration,
 };
 
+use bevy::render::mesh::{Indices, PrimitiveTopology};
+use bevy::render::render_asset::RenderAssetUsages;
 use bevy::{
 	asset::{io::Reader, AssetLoader, AsyncReadExt, BoxedFuture, LoadContext},
 	ecs::{
@@ -818,6 +820,11 @@ impl AppExt for App {
 	}
 }
 
+/// Run condition that only returns true iff the given state is somewhere on the state stack.
+pub fn state_on_stack<S: States>(state: S) -> impl FnMut(Res<StateStack<S>>) -> bool {
+	move |stack: Res<StateStack<S>>| stack.contains(&state)
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), inline(always))]
 pub fn host_is_mac() -> bool {
 	#[cfg(target_arch = "wasm32")]
@@ -829,4 +836,37 @@ pub fn host_is_mac() -> bool {
 		}
 	}
 	cfg!(target_os = "macos")
+}
+
+/// Convert a type from Y-up to Z-up coordinates
+pub trait ZUp {
+	type Output;
+	fn z_up(self) -> Self::Output;
+}
+
+/// Similar to the [bevy::render::mesh::Meshable] implementation but produces coordinates useful in Z-up space.
+impl ZUp for Rectangle {
+	type Output = Mesh;
+	/// Similar to `<Rectangle as Meshable::mesh` but produces coordinates useful in Z-up space.
+	fn z_up(self) -> Self::Output {
+		let [hw, hh] = [self.half_size.x, self.half_size.y];
+		let positions = vec![
+			[hw, 0.0, hh],
+			[-hw, 0.0, hh],
+			[-hw, 0.0, -hh],
+			[hw, 0.0, -hh],
+		];
+		let normals = vec![[0.0, -1.0, 0.0]; 4];
+		let uvs = vec![[1.0, 0.0], [0.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
+		let indices = Indices::U32(vec![0, 1, 2, 0, 2, 3]);
+
+		Mesh::new(
+			PrimitiveTopology::TriangleList,
+			RenderAssetUsages::default(),
+		)
+		.with_inserted_indices(indices)
+		.with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+		.with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
+		.with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
+	}
 }

@@ -9,7 +9,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "80179d7dd5d7e8c285d67c4a1e652972a92de7475beddfb92028c76463b13225"
 dependencies = [
  "ab_glyph_rasterizer",
- "owned_ttf_parser",
+ "owned_ttf_parser 0.20.0",
 ]
 
 [[package]]
@@ -894,7 +894,7 @@ version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d30721f36a0b5f9ad39deb140c50b85cbbaefebab8d10bd20d9de1c9572f968"
 dependencies = [
- "glam",
+ "glam 0.25.0",
  "serde",
 ]
 
@@ -904,7 +904,7 @@ version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cc081a695c3513f09fdc640bf7f66cd73c47eb479da50312bf9710ee6927729d"
 dependencies = [
- "glam",
+ "glam 0.25.0",
 ]
 
 [[package]]
@@ -981,7 +981,7 @@ dependencies = [
  "bevy_utils",
  "downcast-rs",
  "erased-serde",
- "glam",
+ "glam 0.25.0",
  "serde",
  "smol_str",
  "thiserror",
@@ -1482,6 +1482,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "cdt"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b91b872294f63ef586b32aa94141561681aa35ca2d703960cca4f661f4e18184"
+dependencies = [
+ "geometry-predicates",
+ "thiserror",
+]
+
+[[package]]
 name = "cesu8"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1950,7 +1960,7 @@ checksum = "95ed933078d2e659745df651f4c180511cd582e5b9414ff896e7d50d207e3103"
 dependencies = [
  "const_panic",
  "encase_derive",
- "glam",
+ "glam 0.25.0",
  "thiserror",
 ]
 
@@ -2248,6 +2258,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "geometry-predicates"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8dba84198cf199c11b83f1cb9243eaeb70dc50b719d2835ebf34bf2481bca010"
+
+[[package]]
 name = "gethostname"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2325,6 +2341,12 @@ dependencies = [
  "log",
  "xml-rs",
 ]
+
+[[package]]
+name = "glam"
+version = "0.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "12f597d56c1bd55a811a1be189459e8fad2bbc272616375602443bdfb37fa774"
 
 [[package]]
 name = "glam"
@@ -2512,7 +2534,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f33ddb7f7143d9e703c072e88b98cd8b9719f174137a671429351bd2ee43c02a"
 dependencies = [
  "constgebra",
- "glam",
+ "glam 0.25.0",
 ]
 
 [[package]]
@@ -2726,7 +2748,7 @@ checksum = "8968f1eda49cdf4f6406fd5ffe590c3ca2778a1b0e50b5684974b138a99dfb2f"
 dependencies = [
  "atomic-arena",
  "cpal",
- "glam",
+ "glam 0.25.0",
  "mint",
  "ringbuf",
  "send_wrapper",
@@ -3020,6 +3042,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "meshtext"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54cc64b800d5eeb02b15d1f85806fd04a8f7c4747432fd947f4a87946abdc323"
+dependencies = [
+ "cdt",
+ "glam 0.22.0",
+ "owned_ttf_parser 0.18.1",
+ "ttf-parser 0.18.1",
+]
+
+[[package]]
 name = "metal"
 version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3116,7 +3150,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4541eb06dce09c0241ebbaab7102f0a01a0c8994afed2e5d0d66775016e25ac2"
 dependencies = [
  "approx",
- "glam",
+ "glam 0.25.0",
  "matrixmultiply",
  "nalgebra-macros",
  "num-complex",
@@ -3503,6 +3537,15 @@ checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 
 [[package]]
 name = "owned_ttf_parser"
+version = "0.18.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e25e9fb15717794fae58ab55c26e044103aad13186fbb625893f9a3bbcc24228"
+dependencies = [
+ "ttf-parser 0.18.1",
+]
+
+[[package]]
+name = "owned_ttf_parser"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4586edfe4c648c71797a74c84bacb32b52b212eff5dfe2bb9f2c599844023e7"
@@ -3537,6 +3580,27 @@ dependencies = [
  "redox_syscall 0.4.1",
  "smallvec",
  "windows-targets 0.48.5",
+]
+
+[[package]]
+name = "parry2d"
+version = "0.13.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a996b83a7a12522b395c54f4ba59593b782e8004794c0212a2f487ed7ac6e419"
+dependencies = [
+ "approx",
+ "arrayvec",
+ "bitflags 1.3.2",
+ "downcast-rs",
+ "either",
+ "nalgebra",
+ "num-derive",
+ "num-traits",
+ "rustc-hash",
+ "simba",
+ "slab",
+ "smallvec",
+ "spade",
 ]
 
 [[package]]
@@ -4320,9 +4384,11 @@ dependencies = [
  "futures-lite",
  "leafwing-input-manager",
  "linkme",
+ "meshtext",
  "noise",
  "num-traits",
  "ordered-float",
+ "parry2d",
  "rand 0.8.5",
  "rapier3d",
  "ron",
@@ -4712,6 +4778,12 @@ name = "ttf-parser"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "375812fa44dab6df41c195cd2f7fecb488f6c09fbaafb62807488cefab642bff"
+
+[[package]]
+name = "ttf-parser"
+version = "0.18.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0609f771ad9c6155384897e1df4d948e692667cc0588548b68eb44d052b27633"
 
 [[package]]
 name = "ttf-parser"

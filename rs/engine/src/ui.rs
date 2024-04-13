@@ -1,3 +1,7 @@
+use crate::ui::widgets::Font3d;
+use bevy::asset::io::Reader;
+use bevy::asset::{AssetLoader, BoxedFuture, LoadContext};
+use bevy::render::view::{Layer, RenderLayers};
 use bevy::{
 	diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
 	ecs::{query::QuerySingleError, schedule::SystemConfigs},
@@ -5,34 +9,99 @@ use bevy::{
 	prelude::*,
 	ui::FocusPolicy,
 };
+use futures_lite::AsyncReadExt;
+use meshtext::MeshGenerator;
+use std::ops::{Add, Shl};
 
 #[cfg(feature = "debugging")]
 pub mod dbg;
 pub mod in_map;
+pub mod layout;
+pub mod widgets;
+
+pub const GLOBAL_UI_LAYER: Layer = (RenderLayers::TOTAL_LAYERS - 1) as Layer;
+pub const GLOBAL_UI_RENDER_LAYERS: RenderLayers = RenderLayers::layer(GLOBAL_UI_LAYER);
 
 pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
 	fn build(&self, app: &mut App) {
 		#[cfg(feature = "debugging")]
-		app.add_plugins(dbg::DebugUiPlugin);
+		app.add_plugins((dbg::DebugUiPlugin, in_map::detect::DetectBindingPopupPlugin));
 
 		app.init_resource::<UiHovered>()
-			.add_systems(Update, (reset_hovered, show_fps));
+			.init_asset::<Font3d>()
+			.register_asset_loader(Font3dLoader)
+			.add_systems(Startup, setup)
+			.add_systems(Update, (reset_hovered, show_fps))
+			.add_systems(PostUpdate, layout::apply_constraints);
 	}
 
 	fn finish(&self, app: &mut App) {
-		let mono = app
-			.world
-			.resource::<AssetServer>()
-			.load("ui/fonts/KodeMono/static/KodeMono-Bold.ttf");
-		app.insert_resource(UiFonts { mono });
+		let srv = app.world.resource::<AssetServer>();
+		let mono = srv.load("ui/fonts/KodeMono/static/KodeMono-Bold.ttf");
+		let mono_3d = srv.load("ui/fonts/Noto_Sans_Mono/static/NotoSansMono-Bold.ttf");
+		app.insert_resource(UiFonts { mono, mono_3d });
+		app.world.resource_mut::<Assets<StandardMaterial>>().insert(
+			widgets::DEFAULT_TEXT_MAT,
+			StandardMaterial {
+				base_color: Color::WHITE,
+				unlit: true,
+				..default()
+			},
+		);
 	}
 }
+
+pub fn setup(mut cmds: Commands) {
+	cmds.spawn((
+		Camera3dBundle {
+			camera: Camera {
+				hdr: true,
+				order: GLOBAL_UI_LAYER as _,
+				clear_color: ClearColorConfig::None,
+				..default()
+			},
+			transform: Transform {
+				translation: Vec3::new(0.0, -32.0, 8.0),
+				rotation: Quat::from_rotation_arc(
+					// default forward
+					Vec3::NEG_Z,
+					// desired forward
+					Vec3::new(0.0, 4.0, -1.0).normalize(),
+				),
+				..default()
+			},
+			..default()
+		},
+		GLOBAL_UI_RENDER_LAYERS,
+		GlobalUiCam,
+	));
+	cmds.spawn((
+		DirectionalLightBundle {
+			transform: Transform::from_rotation(Quat::from_rotation_arc(
+				Vec3::NEG_Z,
+				Vec3::new(0.0, 1.0, -0.01).normalize(),
+			)),
+			..default()
+		},
+		GLOBAL_UI_RENDER_LAYERS,
+	));
+}
+
+/// Add this component to each entity that should be the root of a player's UI tree.
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct UiRoot;
+
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct GlobalUiLight;
 
 #[derive(Resource)]
 pub struct UiFonts {
 	pub mono: Handle<Font>,
+	pub mono_3d: Handle<Font3d>,
 }
 
 /// Keeps track of whether a UI element is hovered over so that clicking
@@ -137,3 +206,32 @@ pub fn show_fps(
 		text.sections.first_mut().unwrap().value = format!("{val:.2}");
 	}
 }
+
+pub struct Font3dLoader;
+
+impl AssetLoader for Font3dLoader {
+	type Asset = Font3d;
+	type Settings = ();
+	type Error = std::io::Error;
+
+	fn load<'a>(
+		&'a self,
+		reader: &'a mut Reader,
+		settings: &'a Self::Settings,
+		load_context: &'a mut LoadContext,
+	) -> BoxedFuture<'a, Result<Self::Asset, Self::Error>> {
+		Box::pin(async move {
+			let mut buf = vec![];
+			reader.read_to_end(&mut buf).await?;
+			Ok(Font3d(MeshGenerator::new(buf)))
+		})
+	}
+
+	fn extensions(&self) -> &[&str] {
+		&["ttf"]
+	}
+}
+
+/// Marker for the camera entity that displays UI for the game not tied to a specific player.
+#[derive(Component)]
+pub struct GlobalUiCam;

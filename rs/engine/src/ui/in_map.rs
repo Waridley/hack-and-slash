@@ -1,9 +1,11 @@
-use bevy::prelude::default;
+use bevy::reflect::prelude::*;
 use serde::{Deserialize, Serialize};
 
+pub mod detect;
 pub mod icons;
 
-#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Reflect)]
+#[reflect(Serialize, Deserialize)]
 pub enum GamepadSeries {
 	#[default]
 	Generic,
@@ -15,7 +17,7 @@ pub enum GamepadSeries {
 }
 
 impl GamepadSeries {
-	pub fn try_parse(name: &str) -> Self {
+	pub fn guess(name: &str) -> Self {
 		// TODO: Hard-coded feature flags for consoles
 
 		// TODO: More name mappings
@@ -35,9 +37,5 @@ impl GamepadSeries {
 		} else {
 			Self::Generic
 		}
-	}
-
-	pub fn parse_or_default(name: Option<&str>) -> Self {
-		name.map_or_else(default, Self::try_parse)
 	}
 }
