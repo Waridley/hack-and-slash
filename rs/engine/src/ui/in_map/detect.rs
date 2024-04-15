@@ -41,7 +41,7 @@ pub fn setup(
 					PanelBuilder {
 						size: Vec2::new(16.0, 12.0),
 						material: mats.add(StandardMaterial {
-							base_color: Color::rgba(0.0, 0.5, 0.5, 0.1),
+							base_color: Color::rgba(0.0, 0.2, 0.2, 0.4),
 							alpha_mode: AlphaMode::Blend,
 							..default()
 						}),

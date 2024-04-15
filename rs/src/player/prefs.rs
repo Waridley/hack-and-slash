@@ -1,5 +1,6 @@
 use bevy::{ecs::query::QueryData, prelude::*};
 use bevy_pkv::PkvStore;
+use engine::util::Angle;
 use enum_components::WithVariant;
 use leafwing_input_manager::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -153,11 +154,11 @@ impl Default for InvertCamera {
 
 #[derive(Component, Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Reflect)]
 #[serde(default)]
-pub struct Fov(f32);
+pub struct Fov(Angle);
 
 impl Default for Fov {
 	fn default() -> Self {
-		Self(90.0)
+		Self(Angle::Deg(45.0))
 	}
 }
 

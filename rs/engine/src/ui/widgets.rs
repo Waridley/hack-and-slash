@@ -197,7 +197,7 @@ impl Default for TextBuilder {
 			flat: true,
 			material: DEFAULT_TEXT_MAT.clone(),
 			vertex_transform: [
-				1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+				1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.4, 0.0, 0.0, 0.0, 0.0, 1.0,
 			],
 			transform: default(),
 			global_transform: default(),
@@ -271,6 +271,11 @@ impl TextBuilder {
 		self.vertex_transform[0] = size.x;
 		self.vertex_transform[5] = size.y;
 		self.vertex_transform[10] = size.z;
+		self
+	}
+
+	pub fn with_depth(mut self, depth: f32) -> Self {
+		self.vertex_transform[10] = depth;
 		self
 	}
 

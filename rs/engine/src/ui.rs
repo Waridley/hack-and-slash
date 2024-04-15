@@ -1,4 +1,8 @@
-use crate::ui::widgets::Font3d;
+use crate::{
+	anim::{ComponentDelta, Delta, StartAnimation},
+	ui::widgets::Font3d,
+	util::{Diff, TransformDelta},
+};
 use bevy::{
 	asset::{io::Reader, AssetLoader, BoxedFuture, LoadContext},
 	diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
@@ -10,7 +14,10 @@ use bevy::{
 };
 use futures_lite::AsyncReadExt;
 use meshtext::MeshGenerator;
-use std::ops::{Add, Shl};
+use std::{
+	f64::consts::TAU,
+	ops::{Add, Shl},
+};
 
 #[cfg(feature = "debugging")]
 pub mod dbg;
@@ -53,7 +60,8 @@ impl Plugin for UiPlugin {
 }
 
 pub fn setup(mut cmds: Commands) {
-	cmds.spawn((
+	let cam_pos = Vec3::new(0.0, -8.0, 0.0);
+	let mut global_ui_cam = cmds.spawn((
 		Camera3dBundle {
 			camera: Camera {
 				hdr: true,
@@ -61,13 +69,18 @@ pub fn setup(mut cmds: Commands) {
 				clear_color: ClearColorConfig::None,
 				..default()
 			},
+			projection: PerspectiveProjection {
+				fov: std::f32::consts::FRAC_PI_2,
+				..default()
+			}
+			.into(),
 			transform: Transform {
-				translation: Vec3::new(0.0, -32.0, 8.0),
+				translation: cam_pos,
 				rotation: Quat::from_rotation_arc(
 					// default forward
 					Vec3::NEG_Z,
 					// desired forward
-					Vec3::new(0.0, 4.0, -1.0).normalize(),
+					-cam_pos.normalize(),
 				),
 				..default()
 			},
@@ -75,7 +88,32 @@ pub fn setup(mut cmds: Commands) {
 		},
 		GLOBAL_UI_RENDER_LAYERS,
 		GlobalUiCam,
+		UiCam,
 	));
+
+	let mut loop_t = 0.0;
+	let cam_idle = global_ui_cam.start_animation::<Transform>(move |id, xform, t, ctrl| {
+		let dt = t.delta_seconds_f64();
+		loop_t = (loop_t + (dt * 2.0)) % TAU;
+		// lemniscate
+		let a = 0.16;
+		let sin_t = loop_t.sin();
+		let cos_t = loop_t.cos();
+		let x = (a * cos_t) / (1.0 + (sin_t * sin_t));
+		let z = (a * sin_t * cos_t) / (1.0 + (sin_t * sin_t));
+		let new_pos = Vec3::new(x as f32, xform.translation.y, z as f32);
+		let new_rot = Quat::from_rotation_arc(Vec3::NEG_Z, -new_pos.normalize());
+		ComponentDelta::<Transform>::new(id, f32::NAN, move |mut xform, coef| {
+			*xform = *xform
+				+ Transform {
+					translation: new_pos,
+					rotation: new_rot,
+					scale: xform.scale,
+				}
+				.delta_from(&xform) * coef;
+		})
+	});
+
 	cmds.spawn((
 		DirectionalLightBundle {
 			transform: Transform::from_rotation(Quat::from_rotation_arc(
@@ -230,6 +268,10 @@ impl AssetLoader for Font3dLoader {
 		&["ttf"]
 	}
 }
+
+/// Component for any UI camera entity, player or global.
+#[derive(Component)]
+pub struct UiCam;
 
 /// Marker for the camera entity that displays UI for the game not tied to a specific player.
 #[derive(Component)]
