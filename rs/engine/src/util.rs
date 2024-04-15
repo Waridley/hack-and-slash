@@ -12,8 +12,7 @@ use std::{
 use bevy::{
 	asset::{io::Reader, AssetLoader, AsyncReadExt, BoxedFuture, LoadContext},
 	ecs::{
-		event::Event,
-		query::{QueryEntityError, ReadOnlyWorldQuery},
+		query::{QueryEntityError, QueryFilter},
 		system::{EntityCommands, StaticSystemParam, SystemParam, SystemParamItem},
 	},
 	prelude::*,
@@ -61,7 +60,7 @@ pub trait Spawnable {
 		cmds: &'a mut Commands<'w, 's>,
 		params: &mut SystemParamItem<'w, 's, Self::Params>,
 		data: Self::InstanceData,
-	) -> EntityCommands<'w, 's, 'a>;
+	) -> EntityCommands<'a>;
 }
 
 #[derive(SystemParam)]
@@ -71,7 +70,7 @@ pub struct Factory<'w, 's, P: Spawnable + 'static> {
 }
 
 impl<'w, 's, T: Spawnable> Factory<'w, 's, T> {
-	pub fn spawn<'a>(&'a mut self, data: T::InstanceData) -> EntityCommands<'w, 's, 'a> {
+	pub fn spawn(&mut self, data: T::InstanceData) -> EntityCommands {
 		let Self { cmds, params } = self;
 		T::spawn(cmds, params, data)
 	}
@@ -159,9 +158,9 @@ impl<T> History<T> {
 	/// # let mut app = bevy::app::App::new();
 	/// app.add_systems(Update, History::<Foo>::track_components::<With<IsPlayer>>);
 	/// ```
-	pub fn track_components<QueryFilter: ReadOnlyWorldQuery>(
+	pub fn track_components<Filter: QueryFilter>(
 		mut cmds: Commands,
-		mut q: Query<(Entity, Option<&mut Self>, &T), QueryFilter>,
+		mut q: Query<(Entity, Option<&mut Self>, &T), Filter>,
 	) where
 		T: Clone + Component,
 	{

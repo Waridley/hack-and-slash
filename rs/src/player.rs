@@ -3,24 +3,23 @@ use std::{f32::consts::*, num::NonZeroU8, ops::Add, time::Duration};
 use bevy::{
 	asset::AssetPath,
 	ecs::system::EntityCommands,
-	prelude::{
-		shape::{Icosphere, RegularPolygon},
-		*,
+	prelude::*,
+	render::{
+		camera::ManualTextureViews,
+		mesh::{SphereKind, SphereMeshBuilder, TorusMeshBuilder},
+		primitives::Sphere,
 	},
-	render::camera::ManualTextureViews,
 	utils::{HashMap, HashSet},
 };
 use bevy_kira_audio::{Audio, AudioControl};
 use bevy_pkv::PkvStore;
 use bevy_rapier3d::{
-	dynamics::{CoefficientCombineRule::Min, Velocity},
-	geometry::{Collider, Friction},
-	math::Vect,
+	dynamics::CoefficientCombineRule::Min,
 	parry::math::Isometry,
 	plugin::PhysicsSet::StepSimulation,
 	prelude::{RigidBody::KinematicPositionBased, *},
 };
-use enum_components::{ERef, EntityEnumCommands, EnumComponent};
+use enum_components::{ERef, EntityEnumCommands, EnumComponent, WithVariant};
 use leafwing_input_manager::prelude::*;
 use nanorand::Rng;
 use particles::{
@@ -29,7 +28,6 @@ use particles::{
 	PreviousTransform, Spewer, SpewerBundle,
 };
 use rapier3d::{math::Point, prelude::Aabb};
-use shape::Torus;
 
 use camera::spawn_camera;
 use ctrl::{CtrlState, CtrlVel};
@@ -82,7 +80,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 	.add_systems(Startup, setup)
 	.add_systems(
 		First,
-		update_player_spawn_data.run_if(resource_exists::<PlayerAssets>()),
+		update_player_spawn_data.run_if(resource_exists::<PlayerAssets>),
 	)
 	.add_systems(PreUpdate, Prev::<CtrlState>::update_component)
 	.add_systems(
@@ -91,17 +89,17 @@ pub fn plugin(app: &mut App) -> &mut App {
 			ctrl::gravity
 				.ambiguous_with(input::InputSystems) // Gravity only affects z, input only affects xy
 				.before(terminal_velocity)
-				.run_if(resource_exists::<PlayerParams>()),
+				.run_if(resource_exists::<PlayerParams>),
 			camera::position_target.after(terminal_velocity),
 			camera::follow_target.after(camera::position_target),
 			ctrl::reset_jump_on_ground
 				.before(input::InputSystems)
-				.run_if(resource_exists::<PlayerParams>()),
+				.run_if(resource_exists::<PlayerParams>),
 			ctrl::move_player
 				.before(StepSimulation)
 				.after(terminal_velocity)
 				.after(input::InputSystems)
-				.run_if(resource_exists::<PlayerParams>()),
+				.run_if(resource_exists::<PlayerParams>),
 			idle,
 			orbs_follow_arms.after(idle),
 		),
@@ -115,8 +113,8 @@ pub fn plugin(app: &mut App) -> &mut App {
 			play_death_sound.after(kill_on_key).after(reset_oob),
 			spawn_players
 				.after(countdown_respawn)
-				.run_if(resource_exists::<PlayerParams>())
-				.run_if(resource_exists::<PlayerSpawnData>()),
+				.run_if(resource_exists::<PlayerParams>)
+				.run_if(resource_exists::<PlayerSpawnData>),
 		),
 	)
 	.add_event::<PlayerSpawnEvent>();
@@ -203,19 +201,14 @@ pub fn update_player_spawn_data(
 		data.ship_scene = asset_server.load(ship_scene);
 		*meshes
 			.get_mut(data.antigrav_pulse_mesh.clone_weak())
-			.unwrap() = Torus::from(antigrav_pulse_mesh).into();
+			.unwrap() = TorusMeshBuilder::from(antigrav_pulse_mesh).into();
 		*std_mats
 			.get_mut(data.antigrav_pulse_mat.clone_weak())
 			.unwrap() = antigrav_pulse_mat;
-		match Icosphere::from(arm_mesh).try_into() {
-			Ok(mesh) => *meshes.get_mut(data.arm_mesh.clone_weak()).unwrap() = mesh,
-			Err(e) => error!("{e}"),
-		}
-		*meshes.get_mut(data.arm_particle_mesh.clone_weak()).unwrap() = RegularPolygon {
-			radius: arm_particle_radius,
-			sides: 3,
-		}
-		.into();
+		*meshes.get_mut(data.arm_mesh.clone_weak()).unwrap() =
+			SphereMeshBuilder::from(arm_mesh).into();
+		*meshes.get_mut(data.arm_particle_mesh.clone_weak()).unwrap() =
+			RegularPolygon::new(arm_particle_radius, 3).into();
 		*std_mats.get_mut(data.arm_mats[0].clone_weak()).unwrap() = StandardMaterial {
 			emissive: arm_mats.0,
 			..arm_mat_template.clone()
@@ -229,16 +222,16 @@ pub fn update_player_spawn_data(
 			..arm_mat_template.clone()
 		};
 		*meshes.get_mut(data.crosshair_mesh.clone_weak()).unwrap() =
-			Torus::from(crosshair_mesh).into();
+			TorusMeshBuilder::from(crosshair_mesh).into();
 		*std_mats.get_mut(data.crosshair_mat.clone_weak()).unwrap() = crosshair_mat;
 		return;
 	}
-
+	// else insert spawn data
 	let ship_scene = asset_server.load(ship_scene);
-	let antigrav_pulse_mesh = Mesh::from(Torus::from(antigrav_pulse_mesh));
+	let antigrav_pulse_mesh = Mesh::from(TorusMeshBuilder::from(antigrav_pulse_mesh));
 	let antigrav_pulse_mesh = meshes.add(antigrav_pulse_mesh);
 	let antigrav_pulse_mat = std_mats.add(antigrav_pulse_mat);
-	let arm_mesh = Mesh::try_from(Icosphere::from(arm_mesh)).unwrap();
+	let arm_mesh = Mesh::from(SphereMeshBuilder::from(arm_mesh));
 	let arm_mesh = meshes.add(arm_mesh);
 	let arm_particle_mesh = meshes.add(Mesh::from(RegularPolygon::new(arm_particle_radius, 3)));
 
@@ -257,7 +250,7 @@ pub fn update_player_spawn_data(
 		}),
 	];
 
-	let crosshair_mesh = meshes.add(Torus::from(crosshair_mesh).into());
+	let crosshair_mesh = meshes.add(TorusMeshBuilder::from(crosshair_mesh));
 	let crosshair_mat = std_mats.add(crosshair_mat);
 
 	cmds.insert_resource(PlayerSpawnData {
@@ -281,36 +274,40 @@ pub fn update_player_spawn_data(
 
 #[derive(Clone, Reflect)]
 pub struct ReflectTorus {
-	pub radius: f32,
-	pub ring_radius: f32,
-	pub subdivisions_segments: usize,
-	pub subdivisions_sides: usize,
+	pub major_radius: f32,
+	pub minor_radius: f32,
+	pub major_resolution: usize,
+	pub minor_resolution: usize,
 }
 
 impl Default for ReflectTorus {
 	fn default() -> Self {
-		let Torus {
-			radius,
-			ring_radius,
-			subdivisions_segments,
-			subdivisions_sides,
-		} = default();
+		let TorusMeshBuilder {
+			torus: Torus {
+				minor_radius,
+				major_radius,
+			},
+			minor_resolution,
+			major_resolution,
+		} = Torus::default().mesh();
 		Self {
-			radius,
-			ring_radius,
-			subdivisions_segments,
-			subdivisions_sides,
+			minor_radius,
+			major_radius,
+			minor_resolution,
+			major_resolution,
 		}
 	}
 }
 
-impl From<ReflectTorus> for Torus {
+impl From<ReflectTorus> for TorusMeshBuilder {
 	fn from(value: ReflectTorus) -> Self {
 		Self {
-			radius: value.radius,
-			ring_radius: value.ring_radius,
-			subdivisions_segments: value.subdivisions_segments,
-			subdivisions_sides: value.subdivisions_sides,
+			torus: Torus {
+				major_radius: value.major_radius,
+				minor_radius: value.minor_radius,
+			},
+			major_resolution: value.major_resolution,
+			minor_resolution: value.minor_resolution,
 		}
 	}
 }
@@ -323,23 +320,21 @@ pub struct ReflectIcosphere {
 
 impl Default for ReflectIcosphere {
 	fn default() -> Self {
-		let Icosphere {
-			radius,
-			subdivisions,
-		} = default();
 		Self {
-			radius,
-			subdivisions,
+			radius: Sphere::default().radius,
+			subdivisions: 5,
 		}
 	}
 }
 
-impl From<ReflectIcosphere> for Icosphere {
+impl From<ReflectIcosphere> for SphereMeshBuilder {
 	fn from(value: ReflectIcosphere) -> Self {
-		Self {
-			radius: value.radius,
-			subdivisions: value.subdivisions,
-		}
+		SphereMeshBuilder::new(
+			value.radius,
+			SphereKind::Ico {
+				subdivisions: value.subdivisions,
+			},
+		)
 	}
 }
 
@@ -541,7 +536,7 @@ pub fn spawn_players(
 	mut pkv: ResMut<PkvStore>,
 	chunks: ChunkFinder,
 	frame: Res<Frame>,
-	live_players: Query<&BelongsToPlayer, ERef<Root>>,
+	live_players: Query<&BelongsToPlayer, WithVariant<Root>>,
 ) {
 	let mut to_retry = vec![];
 	for event in events.drain() {
@@ -674,7 +669,8 @@ fn player_vis(
 	arm_particle_mesh: Handle<Mesh>,
 	crosshair: PbrBundle,
 ) {
-	let camera_pivot = camera::spawn_pivot(root.commands(), owner, crosshair).id();
+	let mut cmds = root.commands();
+	let camera_pivot = camera::spawn_pivot(&mut cmds, owner, crosshair).id();
 	let root_id = root.id();
 	let ship_center = root
 		.commands()
@@ -777,7 +773,7 @@ fn player_vis(
 						PointLightBundle {
 							point_light: PointLight {
 								color: Color::rgb(0.0, 1.0, 0.6),
-								intensity: 2048.0,
+								intensity: 2_000_000.0,
 								range: 12.0,
 								shadows_enabled: false,
 								..default()
@@ -927,8 +923,8 @@ fn player_arms(
 			use_global_coords: true,
 			..default()
 		};
-		let mut orb = arms_pivot
-			.commands()
+		let mut cmds = arms_pivot.commands();
+		let mut orb = cmds
 			.spawn((
 				Name::new(format!(
 					"Player{}.ShipCenter.Arms.{which:?}.Orb",
@@ -955,7 +951,7 @@ fn player_arms(
 pub fn reset_oob(
 	mut cmds: Commands,
 	q: Query<(&GlobalTransform, &BelongsToPlayer)>,
-	roots: Query<(&GlobalTransform, &BelongsToPlayer), ERef<Root>>,
+	roots: Query<(&GlobalTransform, &BelongsToPlayer), WithVariant<Root>>,
 	player_nodes: Query<(Entity, &BelongsToPlayer), (Without<NeverDespawn>, Without<Parent>)>,
 	bounds: Res<PlayerBounds>,
 	mut respawn_timers: ResMut<PlayerRespawnTimers>,
@@ -967,24 +963,28 @@ pub fn reset_oob(
 			.aabb
 			.contains_local_point(&xform.translation().into())
 		{
-			bevy::log::error!("Player {owner:?} is out of bounds. Respawning.");
+			error!("Player {owner:?} is out of bounds. Respawning.");
 			to_respawn.insert(owner);
 		}
 	}
+	let mut started_timers = HashSet::new();
 	for (id, owner) in &player_nodes {
-		if to_respawn.remove(&owner) {
+		if to_respawn.contains(owner) {
 			cmds.entity(id).despawn_recursive();
-			roots.iter().find_map(|(global, id)| {
-				(*id == *owner).then(|| {
-					respawn_timers
-						.start(
-							**id,
-							frame.planet_coords_of(global.translation().xy()),
-							Duration::from_secs(3),
-						)
-						.ok()
-				})
-			});
+			if !started_timers.contains(owner) {
+				started_timers.insert(*owner);
+				roots.iter().find_map(|(global, id)| {
+					(*id == *owner).then(|| {
+						respawn_timers
+							.start(
+								**id,
+								frame.planet_coords_of(global.translation().xy()),
+								Duration::from_secs(3),
+							)
+							.ok()
+					})
+				});
+			}
 		}
 	}
 }
@@ -995,9 +995,9 @@ pub struct PlayerBounds {
 }
 
 pub fn idle(
-	mut vis_q: Query<&mut Transform, ERef<Ship>>,
-	mut arms_q: Query<(&mut Transform, &RotVel), ERef<Arms>>,
-	mut arm_q: Query<&mut Transform, ERef<Arm>>,
+	mut vis_q: Query<&mut Transform, WithVariant<Ship>>,
+	mut arms_q: Query<(&mut Transform, &RotVel), WithVariant<Arms>>,
+	mut arm_q: Query<&mut Transform, WithVariant<Arm>>,
 	t: Res<Time>,
 ) {
 	let s = t.elapsed_seconds_wrapped();
@@ -1042,7 +1042,7 @@ pub fn orbs_follow_arms(
 					*val = *val + diff;
 				}
 			},
-		))
+		));
 	}
 }
 
@@ -1071,12 +1071,12 @@ pub fn countdown_respawn(
 pub fn kill_on_key(
 	mut cmds: Commands,
 	q: Query<(Entity, &BelongsToPlayer), (Without<NeverDespawn>, Without<Parent>)>,
-	roots: Query<(&GlobalTransform, &BelongsToPlayer), ERef<Root>>,
-	input: Res<Input<KeyCode>>,
+	roots: Query<(&GlobalTransform, &BelongsToPlayer), WithVariant<Root>>,
+	input: Res<ButtonInput<KeyCode>>,
 	mut respawn_timers: ResMut<PlayerRespawnTimers>,
 	frame: Res<Frame>,
 ) {
-	if input.just_pressed(KeyCode::K) {
+	if input.just_pressed(KeyCode::KeyK) {
 		for (id, owner) in &q {
 			cmds.entity(id).despawn_recursive();
 			roots.iter().find_map(|(global, id)| {

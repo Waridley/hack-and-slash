@@ -4,7 +4,7 @@ use std::{
 };
 
 use bevy::{
-	app::{App, AppExit},
+	app::AppExit,
 	log::{error, info},
 	prelude::*,
 	utils::HashMap,
@@ -25,10 +25,7 @@ pub fn new_test_app() -> App {
 	#[cfg(feature = "vis_test")]
 	app.add_plugins(DefaultPlugins)
 		.add_systems(bevy::app::Update, bevy::window::close_on_esc)
-		.insert_resource(bevy::winit::WinitSettings {
-			return_from_run: true,
-			..default()
-		})
+		.insert_resource(bevy::winit::WinitSettings { ..default() })
 		.add_plugins(bevy_rapier3d::render::RapierDebugRenderPlugin {
 			enabled: true,
 			..default()
@@ -65,7 +62,7 @@ pub fn timeout(mut timer: ResMut<Timeout>, t: Res<Time>) {
 }
 
 pub fn exit_app(mut events: EventWriter<AppExit>) {
-	events.send(AppExit)
+	events.send(AppExit);
 }
 
 #[derive(Event)]
@@ -156,7 +153,7 @@ fn check_test_results(
 			panic!("1 test failed");
 		}
 	}
-	exits.send(AppExit)
+	exits.send(AppExit);
 }
 
 pub trait TestSystem<M>: IntoSystem<(), TestStatus, M> {

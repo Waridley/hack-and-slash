@@ -12,7 +12,7 @@ use bevy_rapier3d::{
 	plugin::RapierContext,
 	prelude::{Collider, RigidBody, TransformInterpolation},
 };
-use enum_components::{ERef, EntityEnumCommands};
+use enum_components::{EntityEnumCommands, WithVariant};
 use rand::{prelude::IteratorRandom, Rng};
 
 use crate::{
@@ -47,15 +47,12 @@ fn setup(
 	mut meshes: ResMut<Assets<Mesh>>,
 	mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-	let mesh = meshes.add(
-		shape::Capsule {
-			radius: 2.0,
-			depth: 4.0,
-			..default()
-		}
-		.into(),
-	);
-	let material = materials.add(Color::YELLOW.into());
+	let mesh = meshes.add(Capsule3d {
+		radius: 2.0,
+		half_length: 4.0,
+		..default()
+	});
+	let material = materials.add(Color::YELLOW);
 	let collider = Collider::capsule(Vect::NEG_Y * 2.0, Vect::Y * 2.0, 2.0);
 	let locked_axes = LockedAxes::ROTATION_LOCKED
 		| LockedAxes::TRANSLATION_LOCKED_X
@@ -86,7 +83,7 @@ impl Spawnable for Dummy {
 		cmds: &'a mut Commands<'w, 's>,
 		params: &mut SystemParamItem<'w, 's, Self::Params>,
 		NewDummy { transform }: Self::InstanceData,
-	) -> EntityCommands<'w, 's, 'a> {
+	) -> EntityCommands<'a> {
 		let DummyTemplate {
 			mesh,
 			material,
@@ -124,23 +121,22 @@ pub struct NewDummy {
 
 pub fn spawn_new_dummies(
 	mut events: EventWriter<NewDummy>,
-	mut timer: ResMut<DummySpawnTimer>,
-	players: Query<&GlobalTransform, ERef<Root>>,
+	keys: Res<ButtonInput<KeyCode>>,
+	players: Query<&GlobalTransform, WithVariant<Root>>,
 	frame: Res<Frame>,
 	chunks: ChunkFinder,
-	t: Res<Time>,
 ) {
-	timer.tick(t.delta());
-	if timer.just_finished() {
+	if keys.just_pressed(KeyCode::KeyC) {
 		let mut rng = rand::thread_rng();
 		let player = players
 			.iter()
 			.choose(&mut rng)
 			.map_or(Vec2::ZERO, |global| global.translation().xy());
-		let bounds = CHUNK_SCALE.xz() * 1.5;
+		let bounds = CHUNK_SCALE.xz() * 0.5;
 		let x = rng.gen_range(-bounds.x..=bounds.x) + player.x;
 		let y = rng.gen_range(-bounds.y..=bounds.y) + player.y;
 		let Some(z) = chunks.height_at(frame.planet_coords_of(Vec2::new(x, y))) else {
+			warn!("failed to spawn dummy");
 			return;
 		};
 
@@ -162,7 +158,7 @@ pub fn handle_hits(
 	mut cmds: Commands,
 	audio: Res<Audio>,
 	sfx: Res<Sfx>,
-	dummies: Query<(Entity, &GlobalTransform), (ERef<Dummy>, With<Alive>)>,
+	dummies: Query<(Entity, &GlobalTransform), (WithVariant<Dummy>, With<Alive>)>,
 	mut events: EventReader<Hurt>,
 ) {
 	for event in events.read() {

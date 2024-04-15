@@ -23,11 +23,11 @@ struct DistanceDither {
 	near_end: f32,
 };
 
-@group(1) @binding(100)
+@group(2) @binding(100)
 var<uniform> material: DistanceDither;
-@group(1) @binding(101)
+@group(2) @binding(101)
 var matrix_texture: texture_2d<f32>;
-@group(1) @binding(102)
+@group(2) @binding(102)
 var matrix_sampler: sampler;
 
 fn distance_dither(

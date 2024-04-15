@@ -10,7 +10,7 @@ use bevy_rapier3d::{
 	},
 	prelude::*,
 };
-use enum_components::ERef;
+use enum_components::WithVariant;
 use rapier3d::{
 	math::Isometry,
 	parry::query::ContactManifold,
@@ -186,7 +186,10 @@ pub fn gravity(mut q: Query<(&mut CtrlVel, &CtrlState)>, params: Res<PlayerParam
 
 pub fn move_player(
 	mut ctx: ResMut<RapierContext>,
-	mut body_q: Query<(Entity, &mut Transform, &GlobalTransform, &BelongsToPlayer), ERef<Root>>,
+	mut body_q: Query<
+		(Entity, &mut Transform, &GlobalTransform, &BelongsToPlayer),
+		WithVariant<Root>,
+	>,
 	mut ctrl_q: Query<
 		(
 			Entity,
@@ -197,7 +200,7 @@ pub fn move_player(
 			&BelongsToPlayer,
 			&mut CtrlState,
 		),
-		ERef<Controller>,
+		WithVariant<Controller>,
 	>,
 	mut vis_q: Query<
 		(
@@ -205,7 +208,7 @@ pub fn move_player(
 			&mut TransformInterpolation,
 			&BelongsToPlayer,
 		),
-		ERef<ShipCenter>,
+		WithVariant<ShipCenter>,
 	>,
 	params: Res<PlayerParams>,
 	sim_to_render: Res<SimulationToRenderTime>,

@@ -1,10 +1,3 @@
-use crate::util::{Diff, Target};
-use bevy::{
-	ecs::{query::QueryEntityError, system::EntityCommands},
-	prelude::*,
-	transform::TransformSystem::TransformPropagate,
-	utils::HashMap,
-};
 use std::{
 	cmp::Ordering,
 	fmt::{Debug, Formatter},
@@ -13,6 +6,15 @@ use std::{
 	ops::{Add, Mul},
 	time::Duration,
 };
+
+use bevy::{
+	ecs::{query::QueryEntityError, system::EntityCommands},
+	prelude::*,
+	transform::TransformSystem::TransformPropagate,
+	utils::HashMap,
+};
+
+use crate::util::{Diff, Target};
 
 #[derive(Debug)]
 pub struct BuiltinAnimations;
@@ -311,16 +313,16 @@ impl<T> Delta<T> {
 	}
 }
 
-pub struct AnimationController<'w, 's, 'a> {
-	cmds: EntityCommands<'w, 's, 'a>,
+pub struct AnimationController<'a> {
+	cmds: EntityCommands<'a>,
 }
 
-impl<'w, 's> AnimationController<'w, 's, '_> {
+impl AnimationController<'_> {
 	pub fn end(&mut self) {
 		self.cmds.despawn();
 	}
 
-	pub fn commands(&mut self) -> &mut Commands<'w, 's> {
+	pub fn commands(&mut self) -> Commands {
 		self.cmds.commands()
 	}
 }
@@ -354,7 +356,7 @@ impl<T: Resource> DynResAnimation<T> {
 				AnimationController {
 					cmds: cmds.entity(id),
 				},
-			))
+			));
 		}
 	}
 }
@@ -377,7 +379,9 @@ impl<T: Component> DynAnimation<T> {
 				},
 			};
 			match targets.get(target) {
-				Ok((id, val)) => sender.send(apply(id, val, Res::clone(&t), ctrl)),
+				Ok((id, val)) => {
+					sender.send(apply(id, val, Res::clone(&t), ctrl));
+				}
 				Err(e) => {
 					error!("{e}");
 					ctrl.end()
@@ -428,7 +432,7 @@ pub trait StartAnimation {
 	) -> AnimationHandle<DynAnimation<T>>;
 }
 
-impl StartAnimation for EntityCommands<'_, '_, '_> {
+impl StartAnimation for EntityCommands<'_> {
 	fn start_animation<T: Component>(
 		&mut self,
 		animation: impl FnMut(Entity, Ref<T>, Res<Time>, AnimationController) -> ComponentDelta<T>
@@ -437,7 +441,8 @@ impl StartAnimation for EntityCommands<'_, '_, '_> {
 			+ 'static,
 	) -> AnimationHandle<DynAnimation<T>> {
 		let id = self.id();
-		let mut cmds = self.commands().spawn(DynAnimation(id, Box::new(animation)));
+		let mut cmds = self.commands();
+		let mut cmds = cmds.spawn(DynAnimation(id, Box::new(animation)));
 		let handle = AnimationHandle(cmds.id(), default());
 		cmds.insert(handle);
 		handle
@@ -558,7 +563,7 @@ impl BlendTargets {
 				state.animated,
 				progress,
 				new,
-			))
+			));
 		}
 	}
 }
@@ -586,10 +591,12 @@ mod tests {
 				let dt = t.delta_seconds();
 				for Slide(target, vel) in animations.iter().copied() {
 					match q.get(target) {
-						Ok(_) => sender.send(ComponentDelta::<Transform>::indefinite(
-							target,
-							move |mut xform| xform.translation += vel * dt,
-						)),
+						Ok(_) => {
+							sender.send(ComponentDelta::<Transform>::indefinite(
+								target,
+								move |mut xform| xform.translation += vel * dt,
+							));
+						}
 						Err(e) => error!("{e}"),
 					}
 				}

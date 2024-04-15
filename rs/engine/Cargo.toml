@@ -16,7 +16,7 @@ particles = { workspace = true }
 macros = { workspace = true }
 
 # Engine
-bevy = { workspace = true }
+bevy = { workspace = true, features = ["bevy_ui"] }
 bevy_rapier3d = { workspace = true }
 rapier3d = { workspace = true }
 

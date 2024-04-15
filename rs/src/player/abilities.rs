@@ -8,7 +8,7 @@ use bevy_rapier3d::{
 	plugin::RapierContext,
 	prelude::{Collider, Toi},
 };
-use enum_components::ERef;
+use enum_components::{ERef, WithVariant};
 use leafwing_input_manager::{
 	action_state::ActionState, axislike::DualAxisData, systems::update_action_state,
 };
@@ -32,7 +32,7 @@ use crate::{
 		BelongsToPlayer, PlayerArm, PlayerId, RotVel,
 	},
 	terminal_velocity,
-	util::{Diff, DurationDelta, Easings, Lerp, LerpSlerp, Target},
+	util::{Diff, DurationDelta, Easings, LerpSlerp, Target},
 };
 
 pub struct AbilitiesPlugin;
@@ -47,7 +47,7 @@ impl Plugin for AbilitiesPlugin {
 				.after(ctrl::gravity)
 				.after(update_action_state::<PlayerAction>)
 				.before(terminal_velocity)
-				.run_if(resource_exists::<PlayerParams>()),),
+				.run_if(resource_exists::<PlayerParams>),),
 		)
 		.add_systems(
 			PostUpdate,
@@ -68,7 +68,7 @@ pub fn trigger_player_abilities(
 		&mut CtrlVel,
 		&BelongsToPlayer,
 	)>,
-	arms_q: Query<(Entity, &RotVel, &BelongsToPlayer), ERef<Arms>>,
+	arms_q: Query<(Entity, &RotVel, &BelongsToPlayer), WithVariant<Arms>>,
 	arm_q: Query<(
 		Entity,
 		&Transform,
@@ -85,8 +85,8 @@ pub fn trigger_player_abilities(
 		ERef<Orb>,
 	)>,
 	chunk_q: Query<&GlobalTransform, With<ChunkIndex>>,
-	cam_pivot_q: Query<(&GlobalTransform, &BelongsToPlayer), ERef<CamPivot>>,
-	antigrav_q: Query<(Entity, &BelongsToPlayer), ERef<AntigravParticles>>,
+	cam_pivot_q: Query<(&GlobalTransform, &BelongsToPlayer), WithVariant<CamPivot>>,
+	antigrav_q: Query<(Entity, &BelongsToPlayer), WithVariant<AntigravParticles>>,
 	sfx: Res<Sfx>,
 	audio: Res<Audio>,
 	params: Res<PlayerParams>,
@@ -105,7 +105,7 @@ pub fn trigger_player_abilities(
 	} = params.abil;
 	for (state, mut boost_charge, mut weap_charge, mut vel, player) in &mut q {
 		let player = **player;
-		if state.just_pressed(Jump) && *boost_charge >= jump_cost {
+		if state.just_pressed(&Jump) && *boost_charge >= jump_cost {
 			**boost_charge -= *jump_cost;
 			jump(
 				&mut cmds,
@@ -118,10 +118,10 @@ pub fn trigger_player_abilities(
 			);
 		}
 
-		if state.just_pressed(Dash) && *boost_charge >= dash_cost {
+		if state.just_pressed(&Dash) && *boost_charge >= dash_cost {
 			**boost_charge -= *dash_cost;
 			dash(
-				state.clamped_axis_pair(Move),
+				state.clamped_axis_pair(&Move),
 				dash_vel,
 				&mut vel.linvel,
 				&audio,
@@ -129,7 +129,7 @@ pub fn trigger_player_abilities(
 			);
 		}
 
-		if state.just_pressed(FireA) {
+		if state.just_pressed(&FireA) {
 			let cam_pivot = cam_pivot_q
 				.iter()
 				.find_map(|(global, owner)| (**owner == player).then_some(*global))
@@ -148,7 +148,7 @@ pub fn trigger_player_abilities(
 			)
 		}
 
-		if state.just_pressed(AoE) && *weap_charge >= aoe_cost {
+		if state.just_pressed(&AoE) && *weap_charge >= aoe_cost {
 			**weap_charge -= *aoe_cost;
 			aoe(&mut cmds, &audio, &sfx, &arms_q, &arm_q, &orb_q, player)
 		}
@@ -161,7 +161,7 @@ pub fn jump(
 	jump_vel: f32,
 	audio: &Audio,
 	sfx: &Sfx,
-	antigrav_q: &Query<(Entity, &BelongsToPlayer), ERef<AntigravParticles>>,
+	antigrav_q: &Query<(Entity, &BelongsToPlayer), WithVariant<AntigravParticles>>,
 	player: PlayerId,
 ) {
 	audio.play(sfx.jump.clone()).with_volume(0.1);
@@ -218,7 +218,7 @@ pub fn aoe(
 	cmds: &mut Commands,
 	audio: &Audio,
 	sfx: &Sfx,
-	arms_q: &Query<(Entity, &RotVel, &BelongsToPlayer), ERef<Arms>>,
+	arms_q: &Query<(Entity, &RotVel, &BelongsToPlayer), WithVariant<Arms>>,
 	arm_q: &Query<(
 		Entity,
 		&Transform,

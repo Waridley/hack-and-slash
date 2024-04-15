@@ -1,11 +1,10 @@
-use crate::{
-	mats::{fog::ExtMat, BubbleMaterial},
-	pickups::pickup::PickupItem,
-	planet::{chunks::ChunkFinder, frame::Frame},
-	player::abilities::Hurt,
-	util::Diff,
+use std::{
+	f32::consts::PI,
+	sync::atomic::{AtomicI64, Ordering::Relaxed},
+	time::Duration,
 };
-use bevy::prelude::{shape::Icosphere, *};
+
+use bevy::prelude::*;
 use bevy_kira_audio::{Audio, AudioControl, AudioSource};
 use bevy_rapier3d::{
 	geometry::Collider,
@@ -14,10 +13,15 @@ use bevy_rapier3d::{
 use enum_components::{EntityEnumCommands, EnumComponent};
 use rand::{Rng, SeedableRng};
 use rand_xorshift::XorShiftRng;
-use std::{
-	f32::consts::PI,
-	sync::atomic::{AtomicI64, Ordering::Relaxed},
-	time::Duration,
+
+use pickup::WithPickup;
+
+use crate::{
+	mats::{fog::ExtMat, BubbleMaterial},
+	pickups::pickup::PickupItem,
+	planet::{chunks::ChunkFinder, frame::Frame},
+	player::abilities::Hurt,
+	util::Diff,
 };
 
 pub const RADIUS: f32 = 8.0;
@@ -43,14 +47,7 @@ pub fn setup(mut cmds: Commands, mut meshes: ResMut<Assets<Mesh>>, asset_server:
 	cmds.insert_resource(MissSfx(asset_server.load("sfx/SFX_-_negative_09.ogg")));
 	cmds.insert_resource(PopSfx(asset_server.load("sfx/SFX_-_hit_big_02.ogg")));
 
-	let mesh = meshes.add(
-		Icosphere {
-			radius: RADIUS,
-			subdivisions: 0,
-		}
-		.try_into()
-		.expect("create icosphere mesh"),
-	);
+	let mesh = meshes.add(Sphere { radius: RADIUS }.mesh().ico(0).unwrap());
 
 	let material = asset_server.load("pickups/pickup_material.mat.ron");
 
@@ -156,7 +153,7 @@ pub fn collect(
 	}
 }
 
-pub fn movement(mut q: Query<&mut Transform, Pickup>, t: Res<Time>) {
+pub fn movement(mut q: Query<&mut Transform, WithPickup>, t: Res<Time>) {
 	// TODO: This is getting too complicated, just sample some noise or something
 	let s = t.elapsed_seconds();
 	let dt = t.delta_seconds();

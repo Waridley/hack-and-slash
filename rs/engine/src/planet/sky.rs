@@ -1,60 +1,40 @@
 use bevy::{
-	app::{App, Plugin},
-	asset::Handle,
-};
-
-use bevy::{
-	ecs::{
-		prelude::{Component, Entity},
-		schedule::IntoSystemConfigs,
-		system::{Commands, Query, Res, ResMut, Resource},
+	core_pipeline::{
+		core_3d::graph::{Core3d, Node3d},
+		Skybox,
 	},
+	ecs::query::QueryItem,
+	prelude::*,
 	render::{
 		extract_component::{ExtractComponent, ExtractComponentPlugin},
+		extract_resource::ExtractResourcePlugin,
+		globals::{GlobalsBuffer, GlobalsUniform},
 		render_asset::RenderAssets,
-		render_resource::{
-			BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutDescriptor,
-			BindGroupLayoutEntry, BindingType, BufferBindingType, CachedRenderPipelineId,
-			ColorTargetState, FragmentState, MultisampleState, PipelineCache, PrimitiveState,
-			RenderPipelineDescriptor, Shader, ShaderStages, ShaderType, SpecializedRenderPipeline,
-			SpecializedRenderPipelines, TextureFormat, TextureViewDimension, VertexState,
+		render_graph::{
+			NodeRunError, RenderGraphApp, RenderGraphContext, RenderLabel, ViewNode, ViewNodeRunner,
 		},
-		renderer::RenderDevice,
-		texture::Image,
-		view::{Msaa, ViewUniform, ViewUniforms},
+		render_resource::{
+			AsBindGroup, BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntry,
+			BindingType, BufferBindingType, CachedPipelineState, CachedRenderPipelineId,
+			ColorTargetState, FragmentState, MultisampleState, Pipeline, PipelineCache,
+			PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor,
+			RenderPipelineDescriptor, ShaderStages, ShaderType, SpecializedRenderPipeline,
+			SpecializedRenderPipelines, TextureFormat, TextureView, TextureViewDescriptor,
+			TextureViewDimension, VertexState,
+		},
+		renderer::{RenderContext, RenderDevice},
+		texture::FallbackImage,
+		view::{ViewUniform, ViewUniformOffset, ViewUniforms},
 		Render, RenderApp, RenderSet,
 	},
 };
 
-use bevy::{
-	core_pipeline::{
-		core_3d::{graph::node::MAIN_OPAQUE_PASS, CORE_3D},
-		Skybox,
-	},
-	ecs::query::QueryItem,
-	math::Vec3,
-};
-
-use bevy::{prelude::*, render::camera::ExtractedCamera};
-
 use crate::planet::day_night::DayNightCycle;
-use bevy::render::{
-	extract_resource::ExtractResourcePlugin,
-	globals::{GlobalsBuffer, GlobalsUniform},
-	render_graph::{
-		NodeRunError, OutputSlotError, RenderGraphApp, RenderGraphContext, SlotLabel, ViewNode,
-		ViewNodeRunner,
-	},
-	render_resource::{
-		AsBindGroup, RenderPassColorAttachment, RenderPassDescriptor, TextureView,
-		TextureViewDescriptor,
-	},
-	renderer::RenderContext,
-	texture::FallbackImage,
-	view::ViewUniformOffset,
-};
 
 pub struct SkyPlugin;
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
+pub struct SkyGeneratorNode;
 
 impl Plugin for SkyPlugin {
 	fn build(&self, app: &mut App) {
@@ -65,8 +45,8 @@ impl Plugin for SkyPlugin {
 
 		let render_app = app.get_sub_app_mut(RenderApp).unwrap();
 		render_app
-			.add_render_graph_node::<ViewNodeRunner<SkyNode>>(CORE_3D, "sky_generator")
-			.add_render_graph_edge(CORE_3D, "sky_generator", MAIN_OPAQUE_PASS)
+			.add_render_graph_node::<ViewNodeRunner<SkyNode>>(Core3d, SkyGeneratorNode)
+			.add_render_graph_edge(Core3d, SkyGeneratorNode, Node3d::MainOpaquePass)
 			.init_resource::<SpecializedRenderPipelines<SkyPipeline>>()
 			.add_systems(
 				Render,
@@ -79,8 +59,7 @@ impl Plugin for SkyPlugin {
 
 	fn finish(&self, app: &mut App) {
 		let render_app = app.get_sub_app_mut(RenderApp).unwrap();
-		let render_device = render_app.world.resource::<RenderDevice>().clone();
-		render_app.insert_resource(SkyPipeline::new(&render_device));
+		render_app.init_resource::<SkyPipeline>();
 	}
 }
 
@@ -93,14 +72,14 @@ pub fn prepare_sky_pipelines(
 	mut pipelines: ResMut<SpecializedRenderPipelines<SkyPipeline>>,
 	sky_pipeline: Res<SkyPipeline>,
 	msaa: Res<Msaa>,
-	q: Query<(Entity, &Skybox, &ExtractedCamera, &SkyShader)>,
+	q: Query<(Entity, &Skybox, &SkyShader)>,
 ) {
-	for (id, skybox, _cam, shader) in &q {
+	for (id, skybox, shader) in &q {
 		let pipeline = pipelines.specialize(
 			&pipeline_cache,
 			&sky_pipeline,
 			SkyPipelineKey {
-				skybox: skybox.0.clone(),
+				skybox: skybox.image.clone(),
 				shader: shader.0.clone(),
 				msaa: msaa.samples(),
 			},
@@ -114,8 +93,9 @@ pub struct SkyPipeline {
 	bind_group_layout: BindGroupLayout,
 }
 
-impl SkyPipeline {
-	fn new(render_device: &RenderDevice) -> Self {
+impl FromWorld for SkyPipeline {
+	fn from_world(world: &mut World) -> Self {
+		let render_device = world.resource::<RenderDevice>();
 		let mut entries = SkyCubeUniforms::bind_group_layout_entries(render_device);
 		entries.push(BindGroupLayoutEntry {
 			binding: 1,
@@ -138,10 +118,8 @@ impl SkyPipeline {
 			count: None,
 		});
 		Self {
-			bind_group_layout: render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-				label: "skybox_bind_group_layout".into(),
-				entries: &entries,
-			}),
+			bind_group_layout: render_device
+				.create_bind_group_layout("sky_bind_group_layout", &entries),
 		}
 	}
 }
@@ -197,7 +175,6 @@ pub struct SkyNode;
 
 impl ViewNode for SkyNode {
 	type ViewQuery = (
-		&'static Skybox,
 		&'static SkyPipelineId,
 		&'static SkyViews,
 		&'static ViewUniformOffset,
@@ -207,22 +184,21 @@ impl ViewNode for SkyNode {
 		&self,
 		_graph: &mut RenderGraphContext,
 		render_context: &mut RenderContext,
-		(skybox, pipeline_id, sky_views, view_uniform_offset): QueryItem<Self::ViewQuery>,
+		(pipeline_id, sky_views, view_uniform_offset): QueryItem<Self::ViewQuery>,
 		world: &World,
 	) -> Result<(), NodeRunError> {
 		let pipeline_cache = world.resource::<PipelineCache>();
-		let images = world.resource::<RenderAssets<Image>>();
-		let Some(_out) = images.get(skybox.0.clone()) else {
-			return Err(OutputSlotError::InvalidSlot(SlotLabel::Name("Skybox".into())).into());
+
+		let pipeline = match pipeline_cache.get_render_pipeline_state(pipeline_id.0) {
+			CachedPipelineState::Queued | CachedPipelineState::Creating(_) => return Ok(()),
+			CachedPipelineState::Ok(Pipeline::RenderPipeline(pipeline)) => pipeline,
+			CachedPipelineState::Ok(_) => unreachable!("SkyPipeline is a RenderPipeline"),
+			CachedPipelineState::Err(e) => {
+				error!("{e}");
+				return Ok(());
+			}
 		};
 
-		let Some(pipeline) = pipeline_cache.get_render_pipeline(pipeline_id.0) else {
-			return Ok(());
-		};
-		let _fallback_image = world.resource::<FallbackImage>();
-		let _sky_pipeline = world.resource::<SkyPipeline>();
-
-		// Option 2: separate pass for each face
 		{
 			for i in 0..6 {
 				let view = &sky_views.views[i];
@@ -237,7 +213,7 @@ impl ViewNode for SkyNode {
 								resolve_target: None,
 								ops: default(),
 							})],
-							depth_stencil_attachment: None,
+							..default()
 						});
 
 				render_pass.set_pipeline(pipeline);
@@ -331,7 +307,7 @@ fn prepare_sky_bind_groups(
 	};
 	for (entity, skybox) in &views {
 		if let (Some(skybox), Some(view_uniforms)) =
-			(images.get(&skybox.0), view_uniforms.uniforms.binding())
+			(images.get(&skybox.image), view_uniforms.uniforms.binding())
 		{
 			let bind_groups = array_init::array_init(|i| {
 				let uniforms = SkyCubeUniforms {

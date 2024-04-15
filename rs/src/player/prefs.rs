@@ -1,10 +1,12 @@
-use super::input::PlayerAction;
-use crate::player::{input::PlayerAction::*, player_entity::Root, BelongsToPlayer};
-use bevy::{ecs::query::WorldQuery, prelude::*};
+use bevy::{ecs::query::QueryData, prelude::*};
 use bevy_pkv::PkvStore;
-use enum_components::ERef;
+use enum_components::WithVariant;
 use leafwing_input_manager::prelude::*;
 use serde::{Deserialize, Serialize};
+
+use crate::player::{input::PlayerAction::*, player_entity::Root, BelongsToPlayer};
+
+use super::input::PlayerAction;
 
 pub struct PrefsPlugin;
 
@@ -20,7 +22,7 @@ impl Plugin for PrefsPlugin {
 
 pub fn save(
 	q: Query<(PlayerPrefsQueryReadOnly, &BelongsToPlayer), ChangedPrefs>,
-	usernames: Query<(&Name, &BelongsToPlayer), ERef<Root>>,
+	usernames: Query<(&Name, &BelongsToPlayer), WithVariant<Root>>,
 	mut pkv: ResMut<PkvStore>,
 ) {
 	for (prefs, owner) in &q {
@@ -91,8 +93,8 @@ impl<'w> From<PlayerPrefsQueryReadOnlyItem<'w, '_>> for PlayerPrefs {
 	}
 }
 
-#[derive(WorldQuery)]
-#[world_query(mutable, derive(Debug))]
+#[derive(QueryData)]
+#[query_data(mutable, derive(Debug))]
 pub struct PlayerPrefsQuery<'w> {
 	pub invert_camera: &'w mut InvertCamera,
 	pub fov: &'w mut Fov,
@@ -103,31 +105,32 @@ pub struct PlayerPrefsQuery<'w> {
 
 impl Default for PlayerPrefs {
 	fn default() -> Self {
+		use KeyCode::*;
 		let mut input_map = InputMap::new([
-			(KeyCode::Back, Jump),
-			(KeyCode::Space, Jump),
-			(KeyCode::ShiftLeft, Dash),
-			(KeyCode::ShiftRight, FireA),
-			(KeyCode::E, AoE),
-			(KeyCode::PageUp, AoE),
-			(KeyCode::Escape, Pause),
+			(Jump, Backspace),
+			(Jump, Space),
+			(Dash, ShiftLeft),
+			(FireA, ShiftRight),
+			(AoE, KeyE),
+			(AoE, PageUp),
+			(PauseGame, Escape),
 		]);
 		input_map.insert_multiple([
-			(DualAxis::left_stick(), Move),
-			(DualAxis::right_stick(), Look),
+			(Move, DualAxis::left_stick()),
+			(Look, DualAxis::right_stick()),
 		]);
 		input_map.insert_multiple([
-			(VirtualDPad::wasd(), Move),
-			(VirtualDPad::arrow_keys(), Look),
+			(Move, VirtualDPad::wasd()),
+			(Look, VirtualDPad::arrow_keys()),
 		]);
 		input_map.insert_multiple([
-			(GamepadButtonType::South, Jump),
-			(GamepadButtonType::West, Dash),
-			(GamepadButtonType::RightTrigger2, FireA),
-			(GamepadButtonType::RightTrigger, AoE),
-			(GamepadButtonType::Start, Pause),
+			(Jump, GamepadButtonType::South),
+			(Dash, GamepadButtonType::West),
+			(FireA, GamepadButtonType::RightTrigger2),
+			(AoE, GamepadButtonType::RightTrigger),
+			(PauseGame, GamepadButtonType::Start),
 		]);
-		input_map.insert_multiple([(MouseButton::Left, FireA), (MouseButton::Other(9), Dash)]);
+		input_map.insert_multiple([(FireA, MouseButton::Left), (Dash, MouseButton::Other(9))]);
 		Self {
 			input_map,
 			camera: default(),

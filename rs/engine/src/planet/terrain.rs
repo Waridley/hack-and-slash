@@ -9,6 +9,7 @@ use bevy::{
 	render::{
 		batching::NoAutomaticBatching,
 		mesh::{PrimitiveTopology, VertexAttributeValues::Float32x3},
+		render_asset::RenderAssetUsages,
 	},
 	utils::HashMap,
 };
@@ -83,11 +84,13 @@ pub fn setup(
 	cmds.insert_resource(seed);
 	cmds.insert_resource(noise);
 
-	let mesh = Mesh::from(shape::Cube { size: 64.0 })
-		// All of this makes cube meshes use the same compiled shader as heightmap terrain, preventing freezes
-		.with_duplicated_vertices()
-		.with_computed_flat_normals()
-		.with_removed_attribute(Mesh::ATTRIBUTE_UV_0);
+	let mesh = Mesh::from(Cuboid {
+		half_size: Vec3::splat(32.0),
+	})
+	// All of this makes cube meshes use the same compiled shader as heightmap terrain, preventing freezes
+	.with_duplicated_vertices()
+	.with_computed_flat_normals()
+	.with_removed_attribute(Mesh::ATTRIBUTE_UV_0);
 	let collider = Collider::cuboid(32.0, 32.0, 32.0);
 	let mesh = assets.add(mesh);
 
@@ -168,7 +171,10 @@ pub fn generate_chunk(
 				}
 			}
 
-			let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
+			let mut mesh = Mesh::new(
+				PrimitiveTopology::TriangleList,
+				RenderAssetUsages::RENDER_WORLD,
+			);
 			mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, Float32x3(vertices));
 			mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
 
@@ -194,7 +200,7 @@ impl Spawnable for TerrainObject {
 		cmds: &'a mut Commands<'w, 's>,
 		params: &mut SystemParamItem<'w, 's, Self::Params>,
 		transform: Transform,
-	) -> EntityCommands<'w, 's, 'a> {
+	) -> EntityCommands<'a> {
 		cmds.spawn(TerrainObject {
 			pbr: MaterialMeshBundle {
 				mesh: params.mesh.clone(),
