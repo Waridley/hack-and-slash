@@ -39,10 +39,12 @@ pub fn setup(
 			if ui_fonts.mono_3d.id() == *id {
 				cmds.spawn((
 					PanelBuilder {
-						size: Vec2::new(16.0, 12.0),
+						size: Vec3::new(16.0, 0.5, 12.0),
 						material: mats.add(StandardMaterial {
-							base_color: Color::rgba(0.0, 0.2, 0.2, 0.4),
-							alpha_mode: AlphaMode::Blend,
+							base_color: Color::rgba(0.0, 0.2, 0.2, 0.1),
+							alpha_mode: AlphaMode::Add,
+							double_sided: true,
+							cull_mode: None,
 							..default()
 						}),
 						visibility: Visibility::Hidden,

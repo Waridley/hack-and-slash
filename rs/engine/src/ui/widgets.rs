@@ -37,9 +37,9 @@ pub struct WidgetBundle {
 }
 
 #[derive(Clone, Debug)]
-pub struct PanelBuilder {
-	pub size: Vec2,
-	pub material: Handle<StandardMaterial>,
+pub struct PanelBuilder<M: Material> {
+	pub size: Vec3,
+	pub material: Handle<M>,
 	pub transform: Transform,
 	pub global_transform: GlobalTransform,
 	pub visibility: Visibility,
@@ -47,10 +47,10 @@ pub struct PanelBuilder {
 	pub layers: RenderLayers,
 }
 
-impl Default for PanelBuilder {
+impl<M: Material> Default for PanelBuilder<M> {
 	fn default() -> Self {
 		Self {
-			size: Vec2::ONE,
+			size: Vec3::ONE,
 			material: default(),
 			transform: default(),
 			global_transform: default(),
@@ -61,7 +61,7 @@ impl Default for PanelBuilder {
 	}
 }
 
-impl PanelBuilder {
+impl<M: Material> PanelBuilder<M> {
 	pub fn build(self, meshes: &mut Assets<Mesh>) -> impl Bundle {
 		let Self {
 			size,
@@ -72,10 +72,19 @@ impl PanelBuilder {
 			inherited_visibility,
 			layers,
 		} = self;
-		let mesh = meshes.add(Rectangle::new(size.x, size.y).z_up());
+		let mesh = meshes.add(
+			Cuboid::new(size.x, size.y, size.z)
+				.mesh()
+				.with_duplicated_vertices()
+				.with_computed_flat_normals(),
+		);
 		(
 			WidgetBundle {
-				shape: WidgetShape(SharedShape::cuboid(size.x * 0.5, size.y * 0.5, 0.1)),
+				shape: WidgetShape(SharedShape::cuboid(
+					size.x * 0.5,
+					size.y * 0.5,
+					size.z * 0.5,
+				)),
 				transform,
 				global_transform,
 				visibility,
@@ -175,11 +184,11 @@ pub const DEFAULT_TEXT_MAT: Handle<StandardMaterial> = Handle::Weak(AssetId::Uui
 });
 
 #[derive(Debug)]
-pub struct TextBuilder {
+pub struct TextBuilder<M: Material = StandardMaterial> {
 	pub text: CowArc<'static, str>,
 	pub font: Handle<Font3d>,
 	pub flat: bool,
-	pub material: Handle<StandardMaterial>,
+	pub material: Handle<M>,
 	pub vertex_transform: [f32; 16],
 	pub transform: Transform,
 	pub global_transform: GlobalTransform,
@@ -205,7 +214,7 @@ impl Default for TextBuilder {
 	}
 }
 
-impl TextBuilder {
+impl<M: Material> TextBuilder<M> {
 	pub fn build(
 		self,
 		mut meshes: Mut<Assets<Mesh>>,
@@ -238,14 +247,14 @@ impl TextBuilder {
 			.map(|c| [c[0], c[1], c[2]])
 			.collect::<Vec<_>>();
 		let len = verts.len();
-		let mut mesh = Mesh::new(TriangleList, RenderAssetUsages::RENDER_WORLD);
+		let mut mesh = Mesh::new(TriangleList, RenderAssetUsages::RENDER_WORLD).z_up();
 		mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, verts);
 		mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0.0, 0.0]; len]);
 		mesh.compute_flat_normals();
 		let mesh = meshes.add(mesh);
 
 		Ok((
-			PbrBundle {
+			MaterialMeshBundle {
 				mesh,
 				material,
 				transform,

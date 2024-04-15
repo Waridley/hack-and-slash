@@ -19,7 +19,7 @@ use bevy::{
 	prelude::*,
 	reflect::{serde::TypedReflectDeserializer, TypeRegistration, Typed},
 	render::{
-		mesh::{Indices, PrimitiveTopology},
+		mesh::{Indices, PrimitiveTopology, VertexAttributeValues},
 		render_asset::RenderAssetUsages,
 	},
 	scene::{SceneLoaderError, SceneLoaderError::RonSpannedError},
@@ -870,5 +870,23 @@ impl ZUp for Rectangle {
 		.with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
 		.with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
 		.with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
+	}
+}
+
+impl ZUp for Mesh {
+	type Output = Self;
+
+	fn z_up(mut self) -> Self::Output {
+		for (id, attr) in self.attributes_mut() {
+			debug!("Converting attribute {id:?}");
+			if let VertexAttributeValues::Float32x3(attr) = attr {
+				for [_, y, z] in attr.iter_mut() {
+					let oy = *y;
+					*y = -*z;
+					*z = oy;
+				}
+			}
+		}
+		self
 	}
 }
