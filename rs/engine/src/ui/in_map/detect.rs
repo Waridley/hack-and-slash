@@ -2,12 +2,12 @@ use crate::{
 	input::{ChordEntry, CurrentChord, InputState},
 	ui::{
 		in_map::{
-			icons::{Icon, IconBundleBuilder, InputIcons},
+			icons::{Icon, InputIcons},
 			GamepadSeries,
 		},
 		layout::ChildrenConstraint,
 		widgets::{Font3d, IconWidgetBuilder, PanelBuilder, TextBuilder},
-		UiFonts, UiRoot,
+		UiFonts,
 	},
 };
 use bevy::{

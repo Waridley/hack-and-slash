@@ -3,10 +3,7 @@ use crate::ui::{
 	widgets::{Font3d, TextBuilder},
 	GLOBAL_UI_RENDER_LAYERS,
 };
-use bevy::{
-	asset::AssetPath, ecs::system::EntityCommands, input::keyboard::Key, prelude::*,
-	render::view::RenderLayers, utils::CowArc,
-};
+use bevy::{asset::AssetPath, input::keyboard::Key, prelude::*, render::view::RenderLayers};
 use bevy_svg::prelude::{Origin, Svg3dBundle};
 use kenney::{base_dir, kb_mouse_base_dir};
 use leafwing_input_manager::{
@@ -268,7 +265,7 @@ impl IconBundleBuilder {
 		} = self;
 		let rot = Quat::from_rotation_x(std::f32::consts::FRAC_PI_2);
 		transform.rotation *= rot;
-		global_transform = self.global_transform * Transform::from_rotation(rot);
+		global_transform = global_transform * Transform::from_rotation(rot);
 		let svg = Svg3dBundle {
 			svg: asset_server.load(image),
 			origin,

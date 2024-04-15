@@ -1,5 +1,5 @@
 use super::widgets::WidgetShape;
-use bevy::{ecs::query::QueryEntityError, prelude::*};
+use bevy::prelude::*;
 use num_traits::Zero;
 use rapier3d::{math::Isometry, na::Vector3, parry::query::Unsupported};
 use serde::{Deserialize, Serialize};
@@ -73,7 +73,7 @@ pub fn apply_constraints(
 				b.1.rotation,
 				b.3,
 			);
-			separations.push(sep.unwrap_or_else(|e| {
+			separations.push(sep.unwrap_or_else(|_| {
 				error!("Computing separation between {a:?} and {b:?} is unsupported");
 				Vec3::ZERO
 			}));

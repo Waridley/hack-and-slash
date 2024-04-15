@@ -4,9 +4,7 @@ use bevy::{
 	ecs::system::EntityCommands,
 	prelude::*,
 	render::{
-		mesh::{MeshVertexAttribute, PrimitiveTopology::TriangleList},
-		render_asset::RenderAssetUsages,
-		view::RenderLayers,
+		mesh::PrimitiveTopology::TriangleList, render_asset::RenderAssetUsages, view::RenderLayers,
 	},
 	utils::CowArc,
 };
@@ -211,7 +209,7 @@ impl TextBuilder {
 	pub fn build(
 		self,
 		mut meshes: Mut<Assets<Mesh>>,
-		mut fonts: Mut<Assets<Font3d>>,
+		fonts: Mut<Assets<Font3d>>,
 	) -> Result<impl Bundle, Box<dyn MeshTextError>> {
 		let Self {
 			text,

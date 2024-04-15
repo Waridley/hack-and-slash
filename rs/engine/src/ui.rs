@@ -1,7 +1,7 @@
 use crate::{
-	anim::{ComponentDelta, Delta, StartAnimation},
+	anim::{ComponentDelta, StartAnimation},
 	ui::widgets::Font3d,
-	util::{Diff, TransformDelta},
+	util::Diff,
 };
 use bevy::{
 	asset::{io::Reader, AssetLoader, BoxedFuture, LoadContext},
@@ -14,10 +14,7 @@ use bevy::{
 };
 use futures_lite::AsyncReadExt;
 use meshtext::MeshGenerator;
-use std::{
-	f64::consts::TAU,
-	ops::{Add, Shl},
-};
+use std::f64::consts::TAU;
 
 #[cfg(feature = "debugging")]
 pub mod dbg;
@@ -92,7 +89,7 @@ pub fn setup(mut cmds: Commands) {
 	));
 
 	let mut loop_t = 0.0;
-	let cam_idle = global_ui_cam.start_animation::<Transform>(move |id, xform, t, ctrl| {
+	let _cam_idle = global_ui_cam.start_animation::<Transform>(move |id, xform, t, _| {
 		let dt = t.delta_seconds_f64();
 		loop_t = (loop_t + (dt * 2.0)) % TAU;
 		// lemniscate
@@ -254,8 +251,8 @@ impl AssetLoader for Font3dLoader {
 	fn load<'a>(
 		&'a self,
 		reader: &'a mut Reader,
-		settings: &'a Self::Settings,
-		load_context: &'a mut LoadContext,
+		_: &'a Self::Settings,
+		_: &'a mut LoadContext,
 	) -> BoxedFuture<'a, Result<Self::Asset, Self::Error>> {
 		Box::pin(async move {
 			let mut buf = vec![];

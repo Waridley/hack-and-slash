@@ -5,14 +5,12 @@ use bevy::{
 	ecs::system::EntityCommands,
 	prelude::*,
 	render::{
-		camera::{ManualTextureViewHandle, ManualTextureViews, RenderTarget},
 		render_asset::RenderAssetUsages,
 		render_resource::{
 			Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
 			TextureViewDescriptor, TextureViewDimension,
 		},
 	},
-	window::WindowRef,
 };
 use bevy_rapier3d::{
 	geometry::{Collider, CollisionGroups, Group},
@@ -20,7 +18,6 @@ use bevy_rapier3d::{
 	pipeline::QueryFilter,
 	plugin::RapierContext,
 };
-use engine::ui::{UiRoot, GLOBAL_UI_RENDER_LAYERS};
 use enum_components::{EntityEnumCommands, WithVariant};
 
 use crate::{

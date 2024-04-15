@@ -1,6 +1,9 @@
 use crate::player::PlayerId;
-use bevy::{prelude::*, render::view::RenderLayers};
-use engine::ui::GLOBAL_UI_RENDER_LAYERS;
+use bevy::{
+	prelude::*,
+	render::view::{Layer, RenderLayers},
+};
+use engine::ui::GLOBAL_UI_LAYER;
 use enum_components::EnumComponent;
 
 use crate::util::IntoFnPlugin;
@@ -24,5 +27,5 @@ pub enum GameMenu {
 }
 
 pub fn player_ui_layer(player: PlayerId) -> RenderLayers {
-	GLOBAL_UI_RENDER_LAYERS
+	RenderLayers::layer(GLOBAL_UI_LAYER + player.get() as Layer)
 }

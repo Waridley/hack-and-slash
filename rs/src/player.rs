@@ -5,9 +5,9 @@ use bevy::{
 	ecs::system::EntityCommands,
 	prelude::*,
 	render::{
-		camera::ManualTextureViews,
 		mesh::{SphereKind, SphereMeshBuilder, TorusMeshBuilder},
 		primitives::Sphere,
+		view::RenderLayers,
 	},
 	utils::{HashMap, HashSet},
 };
@@ -33,7 +33,7 @@ use camera::spawn_camera;
 use ctrl::{CtrlState, CtrlVel};
 use engine::{
 	planet::terrain::NeedsTerrain,
-	ui::{UiRoot, GLOBAL_UI_LAYER, GLOBAL_UI_RENDER_LAYERS},
+	ui::{UiRoot, GLOBAL_UI_LAYER},
 };
 use input::PlayerAction;
 use player_entity::*;
