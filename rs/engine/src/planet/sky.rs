@@ -1,41 +1,31 @@
 use bevy::{
-	app::{App, Plugin},
-	asset::Handle,
 	core_pipeline::{
 		core_3d::graph::{Core3d, Node3d},
 		Skybox,
 	},
-	ecs::{
-		prelude::{Component, Entity},
-		query::QueryItem,
-		schedule::IntoSystemConfigs,
-		system::{Commands, Query, Res, ResMut, Resource},
-	},
-	math::Vec3,
+	ecs::query::QueryItem,
 	prelude::*,
 	render::{
-		camera::ExtractedCamera,
 		extract_component::{ExtractComponent, ExtractComponentPlugin},
 		extract_resource::ExtractResourcePlugin,
 		globals::{GlobalsBuffer, GlobalsUniform},
 		render_asset::RenderAssets,
 		render_graph::{
-			NodeRunError, OutputSlotError, RenderGraphApp, RenderGraphContext, RenderLabel,
-			SlotLabel, ViewNode, ViewNodeRunner,
+			NodeRunError, RenderGraphApp, RenderGraphContext, RenderLabel, ViewNode, ViewNodeRunner,
 		},
 		render_resource::{
 			AsBindGroup, BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntry,
 			BindingType, BufferBindingType, CachedPipelineState, CachedRenderPipelineId,
 			ColorTargetState, FragmentState, MultisampleState, Pipeline, PipelineCache,
 			PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor,
-			RenderPipelineDescriptor, Shader, ShaderStages, ShaderType, SpecializedRenderPipeline,
+			RenderPipelineDescriptor, ShaderStages, ShaderType, SpecializedRenderPipeline,
 			SpecializedRenderPipelines, TextureFormat, TextureView, TextureViewDescriptor,
 			TextureViewDimension, VertexState,
 		},
 		renderer::{RenderContext, RenderDevice},
-		texture::{FallbackImage, Image},
-		view::{Msaa, ViewUniform, ViewUniformOffset, ViewUniforms},
-		Extract, Render, RenderApp, RenderSet,
+		texture::FallbackImage,
+		view::{ViewUniform, ViewUniformOffset, ViewUniforms},
+		Render, RenderApp, RenderSet,
 	},
 };
 

@@ -12,7 +12,7 @@ use bevy_dylib;
 use bevy_kira_audio::AudioPlugin;
 use bevy_pkv::PkvStore;
 use bevy_rapier3d::{plugin::PhysicsSet::StepSimulation, prelude::*};
-use enum_components::{ERef, WithVariant};
+use enum_components::WithVariant;
 use particles::{ParticlesPlugin, Spewer};
 
 pub use engine::{anim, mats, nav, offloading, planet, settings, util};

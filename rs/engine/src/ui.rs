@@ -1,11 +1,9 @@
-use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
-use bevy::ecs::query::QuerySingleError;
-use bevy::ui::FocusPolicy;
 use bevy::{
-	app::{App, Update},
-	ecs::schedule::SystemConfigs,
+	diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
+	ecs::{query::QuerySingleError, schedule::SystemConfigs},
 	input::common_conditions::input_toggle_active,
 	prelude::*,
+	ui::FocusPolicy,
 };
 
 #[cfg(feature = "debugging")]

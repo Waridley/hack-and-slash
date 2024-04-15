@@ -2,7 +2,7 @@ use std::f32::consts::FRAC_PI_2;
 
 use bevy::{
 	core_pipeline::{bloom::BloomSettings, fxaa::Fxaa, tonemapping::Tonemapping, Skybox},
-	ecs::system::{EntityCommands, Res},
+	ecs::system::EntityCommands,
 	prelude::*,
 	render::{
 		camera::{ManualTextureViewHandle, ManualTextureViews, RenderTarget},
@@ -12,7 +12,6 @@ use bevy::{
 			TextureViewDescriptor, TextureViewDimension,
 		},
 	},
-	transform::components::{GlobalTransform, Transform},
 	window::WindowRef,
 };
 use bevy_rapier3d::{
@@ -21,7 +20,7 @@ use bevy_rapier3d::{
 	pipeline::QueryFilter,
 	plugin::RapierContext,
 };
-use enum_components::{ERef, EntityEnumCommands, WithVariant};
+use enum_components::{EntityEnumCommands, WithVariant};
 
 use crate::{
 	anim::ComponentDelta,

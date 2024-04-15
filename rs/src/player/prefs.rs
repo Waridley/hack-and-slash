@@ -1,6 +1,6 @@
 use bevy::{ecs::query::QueryData, prelude::*};
 use bevy_pkv::PkvStore;
-use enum_components::{ERef, WithVariant};
+use enum_components::WithVariant;
 use leafwing_input_manager::prelude::*;
 use serde::{Deserialize, Serialize};
 

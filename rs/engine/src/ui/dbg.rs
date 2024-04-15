@@ -1,10 +1,6 @@
 use std::cmp::Ordering;
 
-use bevy::{
-	diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
-	prelude::*,
-	window::PrimaryWindow,
-};
+use bevy::{prelude::*, window::PrimaryWindow};
 use bevy_inspector_egui::{
 	bevy_egui::EguiContext, egui, egui::Color32, inspector_options::std_options::NumberOptions,
 	prelude::*, quick::WorldInspectorPlugin, reflect_inspector::InspectorUi,

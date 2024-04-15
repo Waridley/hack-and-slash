@@ -12,7 +12,6 @@ use std::{
 use bevy::{
 	asset::{io::Reader, AssetLoader, AsyncReadExt, BoxedFuture, LoadContext},
 	ecs::{
-		event::Event,
 		query::{QueryEntityError, QueryFilter},
 		system::{EntityCommands, StaticSystemParam, SystemParam, SystemParamItem},
 	},
