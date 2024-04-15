@@ -3,11 +3,12 @@ use std::{f32::consts::*, num::NonZeroU8, ops::Add, time::Duration};
 use bevy::{
 	asset::AssetPath,
 	ecs::system::EntityCommands,
-	prelude::{
-		shape::{Icosphere, RegularPolygon},
-		*,
+	prelude::*,
+	render::{
+		camera::ManualTextureViews,
+		mesh::{SphereKind, SphereMeshBuilder, TorusMeshBuilder},
+		primitives::Sphere,
 	},
-	render::camera::ManualTextureViews,
 	utils::{HashMap, HashSet},
 };
 use bevy_kira_audio::{Audio, AudioControl};
@@ -27,7 +28,6 @@ use particles::{
 	PreviousTransform, Spewer, SpewerBundle,
 };
 use rapier3d::{math::Point, prelude::Aabb};
-use shape::Torus;
 
 use camera::spawn_camera;
 use ctrl::{CtrlState, CtrlVel};
@@ -201,19 +201,14 @@ pub fn update_player_spawn_data(
 		data.ship_scene = asset_server.load(ship_scene);
 		*meshes
 			.get_mut(data.antigrav_pulse_mesh.clone_weak())
-			.unwrap() = Torus::from(antigrav_pulse_mesh).into();
+			.unwrap() = TorusMeshBuilder::from(antigrav_pulse_mesh).into();
 		*std_mats
 			.get_mut(data.antigrav_pulse_mat.clone_weak())
 			.unwrap() = antigrav_pulse_mat;
-		match Icosphere::from(arm_mesh).try_into() {
-			Ok(mesh) => *meshes.get_mut(data.arm_mesh.clone_weak()).unwrap() = mesh,
-			Err(e) => error!("{e}"),
-		}
-		*meshes.get_mut(data.arm_particle_mesh.clone_weak()).unwrap() = RegularPolygon {
-			radius: arm_particle_radius,
-			sides: 3,
-		}
-		.into();
+		*meshes.get_mut(data.arm_mesh.clone_weak()).unwrap() =
+			SphereMeshBuilder::from(arm_mesh).into();
+		*meshes.get_mut(data.arm_particle_mesh.clone_weak()).unwrap() =
+			RegularPolygon::new(arm_particle_radius, 3).into();
 		*std_mats.get_mut(data.arm_mats[0].clone_weak()).unwrap() = StandardMaterial {
 			emissive: arm_mats.0,
 			..arm_mat_template.clone()
@@ -227,16 +222,16 @@ pub fn update_player_spawn_data(
 			..arm_mat_template.clone()
 		};
 		*meshes.get_mut(data.crosshair_mesh.clone_weak()).unwrap() =
-			Torus::from(crosshair_mesh).into();
+			TorusMeshBuilder::from(crosshair_mesh).into();
 		*std_mats.get_mut(data.crosshair_mat.clone_weak()).unwrap() = crosshair_mat;
 		return;
 	}
 	// else insert spawn data
 	let ship_scene = asset_server.load(ship_scene);
-	let antigrav_pulse_mesh = Mesh::from(Torus::from(antigrav_pulse_mesh));
+	let antigrav_pulse_mesh = Mesh::from(TorusMeshBuilder::from(antigrav_pulse_mesh));
 	let antigrav_pulse_mesh = meshes.add(antigrav_pulse_mesh);
 	let antigrav_pulse_mat = std_mats.add(antigrav_pulse_mat);
-	let arm_mesh = Mesh::try_from(Icosphere::from(arm_mesh)).unwrap();
+	let arm_mesh = Mesh::from(SphereMeshBuilder::from(arm_mesh));
 	let arm_mesh = meshes.add(arm_mesh);
 	let arm_particle_mesh = meshes.add(Mesh::from(RegularPolygon::new(arm_particle_radius, 3)));
 
@@ -255,7 +250,7 @@ pub fn update_player_spawn_data(
 		}),
 	];
 
-	let crosshair_mesh = meshes.add(Torus::from(crosshair_mesh));
+	let crosshair_mesh = meshes.add(TorusMeshBuilder::from(crosshair_mesh));
 	let crosshair_mat = std_mats.add(crosshair_mat);
 
 	cmds.insert_resource(PlayerSpawnData {
@@ -279,36 +274,40 @@ pub fn update_player_spawn_data(
 
 #[derive(Clone, Reflect)]
 pub struct ReflectTorus {
-	pub radius: f32,
-	pub ring_radius: f32,
-	pub subdivisions_segments: usize,
-	pub subdivisions_sides: usize,
+	pub major_radius: f32,
+	pub minor_radius: f32,
+	pub major_resolution: usize,
+	pub minor_resolution: usize,
 }
 
 impl Default for ReflectTorus {
 	fn default() -> Self {
-		let Torus {
-			radius,
-			ring_radius,
-			subdivisions_segments,
-			subdivisions_sides,
-		} = default();
+		let TorusMeshBuilder {
+			torus: Torus {
+				minor_radius,
+				major_radius,
+			},
+			minor_resolution,
+			major_resolution,
+		} = Torus::default().mesh();
 		Self {
-			radius,
-			ring_radius,
-			subdivisions_segments,
-			subdivisions_sides,
+			minor_radius,
+			major_radius,
+			minor_resolution,
+			major_resolution,
 		}
 	}
 }
 
-impl From<ReflectTorus> for Torus {
+impl From<ReflectTorus> for TorusMeshBuilder {
 	fn from(value: ReflectTorus) -> Self {
 		Self {
-			radius: value.radius,
-			ring_radius: value.ring_radius,
-			subdivisions_segments: value.subdivisions_segments,
-			subdivisions_sides: value.subdivisions_sides,
+			torus: Torus {
+				major_radius: value.major_radius,
+				minor_radius: value.minor_radius,
+			},
+			major_resolution: value.major_resolution,
+			minor_resolution: value.minor_resolution,
 		}
 	}
 }
@@ -321,23 +320,21 @@ pub struct ReflectIcosphere {
 
 impl Default for ReflectIcosphere {
 	fn default() -> Self {
-		let Icosphere {
-			radius,
-			subdivisions,
-		} = default();
 		Self {
-			radius,
-			subdivisions,
+			radius: Sphere::default().radius,
+			subdivisions: 5,
 		}
 	}
 }
 
-impl From<ReflectIcosphere> for Icosphere {
+impl From<ReflectIcosphere> for SphereMeshBuilder {
 	fn from(value: ReflectIcosphere) -> Self {
-		Self {
-			radius: value.radius,
-			subdivisions: value.subdivisions,
-		}
+		SphereMeshBuilder::new(
+			value.radius,
+			SphereKind::Ico {
+				subdivisions: value.subdivisions,
+			},
+		)
 	}
 }
 

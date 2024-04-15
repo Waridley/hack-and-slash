@@ -47,9 +47,9 @@ fn setup(
 	mut meshes: ResMut<Assets<Mesh>>,
 	mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-	let mesh = meshes.add(shape::Capsule {
+	let mesh = meshes.add(Capsule3d {
 		radius: 2.0,
-		depth: 4.0,
+		half_length: 4.0,
 		..default()
 	});
 	let material = materials.add(Color::YELLOW);

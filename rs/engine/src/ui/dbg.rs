@@ -224,7 +224,7 @@ pub fn dbg_fps(
 					let mut size = fps.max_size();
 					let mut opts = NumberOptions::<usize>::default();
 					opts.min = Some(1);
-					opts.suffix = " frames".to_owned();
+					" frames".clone_into(&mut opts.suffix);
 					inspector.ui_for_reflect_with_options(
 						&mut size,
 						ui,

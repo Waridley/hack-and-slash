@@ -25,10 +25,10 @@
 		"sond_has::player::PlayerAssets": (
 			ship_scene: "ships/player.glb#Scene0",
 			antigrav_pulse_mesh: (
-				radius: 0.640,
-				ring_radius: 0.064,
-				subdivisions_segments: 6,
-				subdivisions_sides: 3,
+				major_radius: 0.640,
+				minor_radius: 0.064,
+				major_resolution: 6,
+				minor_resolution: 3,
 			),
 			antigrav_pulse_mat: (
 				base_color: Rgba( red: 0.0, green: 0.0, blue: 0.0, alpha: 0.0 ),
@@ -46,8 +46,8 @@
 				Rgba( red: 0.0, green: 60.0, blue: 60.0, alpha: 1.0 ),
 			),
 			crosshair_mesh: (
-				radius: 0.5,
-				ring_radius: 0.1,
+				major_radius: 0.5,
+				minor_radius: 0.1,
 			),
 			crosshair_mat: (
 				base_color: Rgba( red: 1.0, green: 1.0, blue: 0.0, alpha: 1.0 ),

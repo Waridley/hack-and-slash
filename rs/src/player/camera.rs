@@ -39,8 +39,8 @@ use super::{
 const MAX_CAM_DIST: f32 = 32.0;
 const MIN_CAM_DIST: f32 = 9.6;
 
-pub fn spawn_camera<'w, 's, 'a>(
-	cmds: &'a mut Commands<'w, 's>,
+pub fn spawn_camera<'a>(
+	cmds: &'a mut Commands,
 	player_id: PlayerId,
 	settings: &Settings,
 	images: &mut Assets<Image>,
@@ -167,8 +167,8 @@ pub fn spawn_camera<'w, 's, 'a>(
 	cmds
 }
 
-pub fn spawn_pivot<'w, 's, 'a>(
-	cmds: &'a mut Commands<'w, 's>,
+pub fn spawn_pivot<'a>(
+	cmds: &'a mut Commands,
 	owner: BelongsToPlayer,
 	crosshair: PbrBundle,
 ) -> EntityCommands<'a> {
