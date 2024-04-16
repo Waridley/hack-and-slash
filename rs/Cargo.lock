@@ -1106,7 +1106,7 @@ dependencies = [
 [[package]]
 name = "bevy_svg"
 version = "0.13.0"
-source = "git+https://github.com/arnfaldur/bevy_svg.git#53a53e5af050a7b5b236068546be46c5729674e3"
+source = "git+https://github.com/Waridley/bevy_svg.git?branch=bevy_0_13#a0b15c4d57acef83ea1370feab92634c3740856c"
 dependencies = [
  "anyhow",
  "bevy",
