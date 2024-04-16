@@ -13,10 +13,15 @@ use bevy::{
 	asset::{io::Reader, AssetLoader, AsyncReadExt, BoxedFuture, LoadContext},
 	ecs::{
 		query::{QueryEntityError, QueryFilter},
+		schedule::run_enter_schedule,
 		system::{EntityCommands, StaticSystemParam, SystemParam, SystemParamItem},
 	},
 	prelude::*,
 	reflect::{serde::TypedReflectDeserializer, TypeRegistration, Typed},
+	render::{
+		mesh::{Indices, PrimitiveTopology, VertexAttributeValues},
+		render_asset::RenderAssetUsages,
+	},
 	scene::{SceneLoaderError, SceneLoaderError::RonSpannedError},
 };
 use num_traits::NumCast;
@@ -767,3 +772,121 @@ macro_rules! impl_easings {
 
 impl_easings!(f32);
 impl_easings!(f64);
+
+#[derive(Resource, Clone, Debug, Deref, DerefMut)]
+pub struct StateStack<S>(pub Vec<S>);
+
+impl<S: FromWorld> FromWorld for StateStack<S> {
+	fn from_world(world: &mut World) -> Self {
+		Self(vec![S::from_world(world)])
+	}
+}
+
+pub fn set_state_to_top_of_stack<S: States>(
+	mut stack: ResMut<StateStack<S>>,
+	curr: Res<State<S>>,
+	mut next: ResMut<NextState<S>>,
+) {
+	if stack.last().is_none() {
+		error!("State stack should not be empty. Pushing current state.");
+		stack.push(curr.get().clone());
+	}
+	let top = stack.last().unwrap();
+	if **curr != *top {
+		next.0 = Some(top.clone());
+	}
+}
+
+pub trait AppExt {
+	fn insert_state_stack<S: States + Clone>(&mut self, init: S) -> &mut Self;
+	fn init_state_stack<S: States + FromWorld>(&mut self) -> &mut Self;
+}
+
+impl AppExt for App {
+	fn insert_state_stack<S: States + Clone>(&mut self, init: S) -> &mut Self {
+		self.insert_state::<S>(init.clone())
+			.insert_resource(StateStack(vec![init]))
+			.add_systems(
+				StateTransition,
+				set_state_to_top_of_stack::<S>.before(run_enter_schedule::<S>),
+			)
+	}
+
+	fn init_state_stack<S: States + FromWorld>(&mut self) -> &mut Self {
+		self.init_state::<S>()
+			.init_resource::<StateStack<S>>()
+			.add_systems(
+				StateTransition,
+				set_state_to_top_of_stack::<S>.before(run_enter_schedule::<S>),
+			)
+	}
+}
+
+/// Run condition that only returns true iff the given state is somewhere on the state stack.
+pub fn state_on_stack<S: States>(state: S) -> impl FnMut(Res<StateStack<S>>) -> bool {
+	move |stack: Res<StateStack<S>>| stack.contains(&state)
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), inline(always))]
+pub fn host_is_mac() -> bool {
+	#[cfg(target_arch = "wasm32")]
+	if let Some(window) = web_sys::window() {
+		if let Ok(platform) = window.navigator().platform().as_deref() {
+			if platform.starts_with("Mac") {
+				return true;
+			}
+		}
+	}
+	cfg!(target_os = "macos")
+}
+
+/// Convert a type from Y-up to Z-up coordinates
+pub trait ZUp {
+	type Output;
+	fn z_up(self) -> Self::Output;
+}
+
+/// Similar to the [bevy::render::mesh::Meshable] implementation but produces coordinates useful in Z-up space.
+impl ZUp for Rectangle {
+	type Output = Mesh;
+	/// Similar to `<Rectangle as Meshable::mesh` but produces coordinates useful in Z-up space.
+	fn z_up(self) -> Self::Output {
+		let [hw, hh] = [self.half_size.x, self.half_size.y];
+		let positions = vec![
+			[hw, 0.0, hh],
+			[-hw, 0.0, hh],
+			[-hw, 0.0, -hh],
+			[hw, 0.0, -hh],
+		];
+		let normals = vec![[0.0, -1.0, 0.0]; 4];
+		let uvs = vec![[1.0, 0.0], [0.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
+		let indices = Indices::U32(vec![0, 1, 2, 0, 2, 3]);
+
+		Mesh::new(
+			PrimitiveTopology::TriangleList,
+			RenderAssetUsages::default(),
+		)
+		.with_inserted_indices(indices)
+		.with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+		.with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
+		.with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
+	}
+}
+
+impl ZUp for Mesh {
+	type Output = Self;
+
+	fn z_up(mut self) -> Self::Output {
+		for (id, attr) in self.attributes_mut() {
+			debug!("Converting attribute {id:?}");
+			if let VertexAttributeValues::Float32x3(attr) = attr {
+				for [_, y, z] in attr.iter_mut() {
+					let oy = *y;
+					*y = -*z;
+					*z = oy;
+				}
+			}
+		}
+		self
+	}
+}

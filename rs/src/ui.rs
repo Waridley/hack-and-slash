@@ -1,4 +1,9 @@
-use bevy::prelude::*;
+use crate::player::PlayerId;
+use bevy::{
+	prelude::*,
+	render::view::{Layer, RenderLayers},
+};
+use engine::ui::GLOBAL_UI_LAYER;
 use enum_components::EnumComponent;
 
 use crate::util::IntoFnPlugin;
@@ -19,4 +24,8 @@ pub fn plugin(app: &mut App) -> &mut App {
 pub enum GameMenu {
 	MainMenu,
 	PauseMenu,
+}
+
+pub fn player_ui_layer(player: PlayerId) -> RenderLayers {
+	RenderLayers::layer(GLOBAL_UI_LAYER + player.get() as Layer)
 }

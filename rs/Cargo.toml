@@ -11,7 +11,7 @@ members = ["tools/*", "game-dylib", "engine", "engine-dylib", "engine/macros"]
 
 [features]
 dylib = ["bevy_dylib", "sond-has-engine-dylib"]
-debugging = ["engine/debugging", "bevy-inspector-egui", "egui_plot"]
+debugging = ["engine/debugging", "bevy-inspector-egui", "egui_plot", "leafwing-input-manager/egui"]
 vis_test = ["testing", "render", "engine/vis_test"]
 testing = ["engine/testing"]
 render = ["engine/render"]
@@ -72,11 +72,13 @@ bevy_common_assets = { version = "0.10.0", features = ["ron"] }
 array-init = "2.1.0"
 base64 = "0.21.7"
 bevy_pkv = "0.10.0" # settings
+bevy_svg = { version = "0.13.0", git = "https://github.com/Waridley/bevy_svg.git", branch = "bevy_0_13" }
 bytemuck = "1.14.1" # mostly for seeds
 crossbeam = "0.8.2"
 fixedbitset = "0.4.2" # navigation graph edge storage
 futures-lite = "2.1.0" # especially for `yield_now()`
 bimap = "0.6.3"
+meshtext = { version = "0.3.0", features = ["owned"] }
 nanorand = { version = "0.7.0", default-features = false, features = ["std", "wyrand", "getrandom"] } # wasm is broken without std and getrandom
 noise = "0.8.2"
 num-traits = "0.2.17"
@@ -86,6 +88,7 @@ rand_xorshift = "0.3.0"
 ron = "0.8.1"
 static_assertions = "1.1.0"
 serde = "1"
+smol_str = "0.2.1"
 web-time = "1.0.0"
 
 # Debugging/Editor

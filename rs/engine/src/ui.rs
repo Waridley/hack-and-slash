@@ -1,37 +1,141 @@
+use crate::{
+	anim::{ComponentDelta, StartAnimation},
+	ui::widgets::Font3d,
+	util::Diff,
+};
 use bevy::{
+	asset::{io::Reader, AssetLoader, BoxedFuture, LoadContext},
 	diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
 	ecs::{query::QuerySingleError, schedule::SystemConfigs},
 	input::common_conditions::input_toggle_active,
 	prelude::*,
+	render::view::{Layer, RenderLayers},
 	ui::FocusPolicy,
 };
+use futures_lite::AsyncReadExt;
+use meshtext::MeshGenerator;
+use std::f64::consts::TAU;
 
 #[cfg(feature = "debugging")]
 pub mod dbg;
+pub mod in_map;
+pub mod layout;
+pub mod widgets;
+
+pub const GLOBAL_UI_LAYER: Layer = (RenderLayers::TOTAL_LAYERS - 1) as Layer;
+pub const GLOBAL_UI_RENDER_LAYERS: RenderLayers = RenderLayers::layer(GLOBAL_UI_LAYER);
 
 pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
 	fn build(&self, app: &mut App) {
 		#[cfg(feature = "debugging")]
-		app.add_plugins(dbg::DebugUiPlugin);
+		app.add_plugins((dbg::DebugUiPlugin, in_map::detect::DetectBindingPopupPlugin));
 
 		app.init_resource::<UiHovered>()
-			.add_systems(Update, (reset_hovered, show_fps));
+			.init_asset::<Font3d>()
+			.register_asset_loader(Font3dLoader)
+			.add_systems(Startup, setup)
+			.add_systems(Update, (reset_hovered, show_fps))
+			.add_systems(PostUpdate, layout::apply_constraints);
 	}
 
 	fn finish(&self, app: &mut App) {
-		let mono = app
-			.world
-			.resource::<AssetServer>()
-			.load("ui/fonts/KodeMono/static/KodeMono-Bold.ttf");
-		app.insert_resource(UiFonts { mono });
+		let srv = app.world.resource::<AssetServer>();
+		let mono = srv.load("ui/fonts/KodeMono/static/KodeMono-Bold.ttf");
+		let mono_3d = srv.load("ui/fonts/Noto_Sans_Mono/static/NotoSansMono-Bold.ttf");
+		app.insert_resource(UiFonts { mono, mono_3d });
+		app.world.resource_mut::<Assets<StandardMaterial>>().insert(
+			widgets::DEFAULT_TEXT_MAT,
+			StandardMaterial {
+				base_color: Color::WHITE,
+				unlit: true,
+				..default()
+			},
+		);
 	}
 }
+
+pub fn setup(mut cmds: Commands) {
+	let cam_pos = Vec3::new(0.0, -8.0, 0.0);
+	let mut global_ui_cam = cmds.spawn((
+		Camera3dBundle {
+			camera: Camera {
+				hdr: true,
+				order: GLOBAL_UI_LAYER as _,
+				clear_color: ClearColorConfig::None,
+				..default()
+			},
+			projection: PerspectiveProjection {
+				fov: std::f32::consts::FRAC_PI_2,
+				..default()
+			}
+			.into(),
+			transform: Transform {
+				translation: cam_pos,
+				rotation: Quat::from_rotation_arc(
+					// default forward
+					Vec3::NEG_Z,
+					// desired forward
+					-cam_pos.normalize(),
+				),
+				..default()
+			},
+			..default()
+		},
+		GLOBAL_UI_RENDER_LAYERS,
+		GlobalUiCam,
+		UiCam,
+	));
+
+	let mut loop_t = 0.0;
+	let _cam_idle = global_ui_cam.start_animation::<Transform>(move |id, xform, t, _| {
+		let dt = t.delta_seconds_f64();
+		loop_t = (loop_t + (dt * 2.0)) % TAU;
+		// lemniscate
+		let a = 0.16;
+		let sin_t = loop_t.sin();
+		let cos_t = loop_t.cos();
+		let x = (a * cos_t) / (1.0 + (sin_t * sin_t));
+		let z = (a * sin_t * cos_t) / (1.0 + (sin_t * sin_t));
+		let new_pos = Vec3::new(x as f32, xform.translation.y, z as f32);
+		let new_rot = Quat::from_rotation_arc(Vec3::NEG_Z, -new_pos.normalize());
+		ComponentDelta::<Transform>::new(id, f32::NAN, move |mut xform, coef| {
+			*xform = *xform
+				+ Transform {
+					translation: new_pos,
+					rotation: new_rot,
+					scale: xform.scale,
+				}
+				.delta_from(&xform) * coef;
+		})
+	});
+
+	cmds.spawn((
+		DirectionalLightBundle {
+			transform: Transform::from_rotation(Quat::from_rotation_arc(
+				Vec3::NEG_Z,
+				Vec3::new(0.0, 1.0, -0.01).normalize(),
+			)),
+			..default()
+		},
+		GLOBAL_UI_RENDER_LAYERS,
+	));
+}
+
+/// Add this component to each entity that should be the root of a player's UI tree.
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct UiRoot;
+
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct GlobalUiLight;
 
 #[derive(Resource)]
 pub struct UiFonts {
 	pub mono: Handle<Font>,
+	pub mono_3d: Handle<Font3d>,
 }
 
 /// Keeps track of whether a UI element is hovered over so that clicking
@@ -136,3 +240,36 @@ pub fn show_fps(
 		text.sections.first_mut().unwrap().value = format!("{val:.2}");
 	}
 }
+
+pub struct Font3dLoader;
+
+impl AssetLoader for Font3dLoader {
+	type Asset = Font3d;
+	type Settings = ();
+	type Error = std::io::Error;
+
+	fn load<'a>(
+		&'a self,
+		reader: &'a mut Reader,
+		_: &'a Self::Settings,
+		_: &'a mut LoadContext,
+	) -> BoxedFuture<'a, Result<Self::Asset, Self::Error>> {
+		Box::pin(async move {
+			let mut buf = vec![];
+			reader.read_to_end(&mut buf).await?;
+			Ok(Font3d(MeshGenerator::new(buf)))
+		})
+	}
+
+	fn extensions(&self) -> &[&str] {
+		&["ttf"]
+	}
+}
+
+/// Component for any UI camera entity, player or global.
+#[derive(Component)]
+pub struct UiCam;
+
+/// Marker for the camera entity that displays UI for the game not tied to a specific player.
+#[derive(Component)]
+pub struct GlobalUiCam;

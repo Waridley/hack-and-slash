@@ -5,14 +5,12 @@ use bevy::{
 	ecs::system::EntityCommands,
 	prelude::*,
 	render::{
-		camera::{ManualTextureViewHandle, ManualTextureViews, RenderTarget},
 		render_asset::RenderAssetUsages,
 		render_resource::{
 			Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
 			TextureViewDescriptor, TextureViewDimension,
 		},
 	},
-	window::WindowRef,
 };
 use bevy_rapier3d::{
 	geometry::{Collider, CollisionGroups, Group},
@@ -33,7 +31,7 @@ use crate::{
 
 use super::{
 	player_entity::{Cam, CamPivot},
-	BelongsToPlayer, G1,
+	player_ui_layer, BelongsToPlayer, G1, PLAYER_UI_CAM_ORDER,
 };
 
 const MAX_CAM_DIST: f32 = 32.0;
@@ -45,7 +43,6 @@ pub fn spawn_camera<'a>(
 	settings: &Settings,
 	images: &mut Assets<Image>,
 	asset_server: &AssetServer,
-	manual_texture_views: &ManualTextureViews,
 ) -> EntityCommands<'a> {
 	let (sky_texture, sky_diffuse) = {
 		let size = Extent3d {
@@ -116,24 +113,19 @@ pub fn spawn_camera<'a>(
 		BelongsToPlayer::with_id(player_id),
 		// Start the camera above the player in the fog, then zoom down
 		TransformBundle::from_transform(Transform::from_translation(Vec3::Z * 4096.0)),
+		VisibilityBundle::default(),
 		Collider::ball(2.0),
 		CollisionGroups::new(Group::empty(), Group::empty()),
 		CamTarget::default(),
 		NeverDespawn,
 	));
-	cmds.set_enum(Cam).with_children(|builder| {
-		let manual_tv_handle = ManualTextureViewHandle(player_id.get() as u32 - 1);
+	cmds.set_enum(Cam).with_children(|cmds| {
 		// Adjusting transform of Camera entity causes weird visual glitches,
 		// but parenting handles it properly
-		builder.spawn((
+		cmds.spawn((
 			Camera3dBundle {
 				camera: Camera {
 					hdr: true,
-					target: if manual_texture_views.contains_key(&manual_tv_handle) {
-						RenderTarget::TextureView(manual_tv_handle)
-					} else {
-						RenderTarget::Window(WindowRef::Primary)
-					},
 					..default()
 				},
 				transform: Transform {
@@ -143,6 +135,7 @@ pub fn spawn_camera<'a>(
 				tonemapping: Tonemapping::BlenderFilmic,
 				..default()
 			},
+			VisibilityBundle::default(),
 			Skybox {
 				image: sky_texture.clone(),
 				brightness: 1_000.0,
@@ -162,7 +155,21 @@ pub fn spawn_camera<'a>(
 				..default()
 			},
 			NeverDespawn,
-		));
+		))
+		.with_children(|cmds| {
+			cmds.spawn((
+				Camera3dBundle {
+					camera: Camera {
+						hdr: true,
+						order: PLAYER_UI_CAM_ORDER,
+						clear_color: ClearColorConfig::None,
+						..default()
+					},
+					..default()
+				},
+				player_ui_layer(player_id),
+			));
+		});
 	});
 	cmds
 }
@@ -180,6 +187,7 @@ pub fn spawn_pivot<'a>(
 				translation: Vect::new(0.0, 0.0, MIN_CAM_DIST),
 				..default()
 			}),
+			VisibilityBundle::default(),
 		))
 		.with_enum(CamPivot);
 	cmds.with_children(|builder| {

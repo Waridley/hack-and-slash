@@ -5,9 +5,9 @@ use bevy::{
 	ecs::system::EntityCommands,
 	prelude::*,
 	render::{
-		camera::ManualTextureViews,
 		mesh::{SphereKind, SphereMeshBuilder, TorusMeshBuilder},
 		primitives::Sphere,
+		view::RenderLayers,
 	},
 	utils::{HashMap, HashSet},
 };
@@ -31,7 +31,10 @@ use rapier3d::{math::Point, prelude::Aabb};
 
 use camera::spawn_camera;
 use ctrl::{CtrlState, CtrlVel};
-use engine::planet::terrain::NeedsTerrain;
+use engine::{
+	planet::terrain::NeedsTerrain,
+	ui::{UiRoot, GLOBAL_UI_LAYER},
+};
 use input::PlayerAction;
 use player_entity::*;
 use prefs::PlayerPrefs;
@@ -58,6 +61,10 @@ pub mod prefs;
 pub mod tune;
 
 const G1: Group = Group::GROUP_1;
+pub const PLAYER_UI_CAM_ORDER: isize = 1;
+pub const fn player_ui_layer(player: PlayerId) -> RenderLayers {
+	RenderLayers::layer(GLOBAL_UI_LAYER - player.get())
+}
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugins((
@@ -126,7 +133,6 @@ pub fn setup(
 	asset_server: Res<AssetServer>,
 	mut images: ResMut<Assets<Image>>,
 	settings: Res<Settings>,
-	manual_texture_views: Res<ManualTextureViews>,
 ) {
 	cmds.insert_resource(PlayerBounds {
 		aabb: Aabb::new(
@@ -151,14 +157,7 @@ pub fn setup(
 	let Some(id) = PlayerId::new(1) else {
 		unreachable!()
 	};
-	spawn_camera(
-		&mut cmds,
-		id,
-		&settings,
-		&mut images,
-		&asset_server,
-		&manual_texture_views,
-	);
+	spawn_camera(&mut cmds, id, &settings, &mut images, &asset_server);
 }
 
 pub fn update_player_spawn_data(
@@ -614,6 +613,16 @@ fn populate_player_scene(
 	crosshair: PbrBundle,
 	prefs: PlayerPrefs,
 ) {
+	root.with_children(|cmds| {
+		cmds.spawn((
+			TransformBundle::from_transform(Transform {
+				translation: Vec3::NEG_Z * 64.0,
+				..default()
+			}),
+			VisibilityBundle::default(),
+			UiRoot,
+		));
+	});
 	player_controller(root, owner, char_collider, prefs);
 	player_vis(
 		root,
