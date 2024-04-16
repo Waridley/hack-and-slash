@@ -831,7 +831,7 @@ pub fn state_on_stack<S: States>(state: S) -> impl FnMut(Res<StateStack<S>>) -> 
 pub fn host_is_mac() -> bool {
 	#[cfg(target_arch = "wasm32")]
 	if let Some(window) = web_sys::window() {
-		if let Ok(platform) = window.navigator.platform().as_deref() {
+		if let Ok(platform) = window.navigator().platform().as_deref() {
 			if platform.starts_with("Mac") {
 				return true;
 			}

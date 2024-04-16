@@ -5,7 +5,7 @@ use std::{
 	any::Any,
 	future::Future,
 	pin::Pin,
-	sync::{Arc, Weak},
+	sync::Arc,
 	task::{Context, Poll},
 };
 
@@ -64,7 +64,7 @@ impl Offload for TaskOffloader<'_, '_> {
 impl<Out: Any + Send + 'static> Future for private::Task<Out> {
 	type Output = Out;
 
-	fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+	fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
 		match self.0.swap(Poll::Pending) {
 			Poll::Ready(out) => {
 				let out = *out.downcast::<Out>().expect(
