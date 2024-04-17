@@ -1,6 +1,8 @@
 use super::widgets::WidgetShape;
 use bevy::prelude::*;
 use num_traits::Zero;
+use rapier3d::math::Point;
+use rapier3d::parry::query::Ray;
 use rapier3d::{math::Isometry, na::Vector3, parry::query::Unsupported};
 use serde::{Deserialize, Serialize};
 
@@ -73,10 +75,7 @@ pub fn apply_constraints(
 				b.1.rotation,
 				b.3,
 			);
-			separations.push(sep.unwrap_or_else(|_| {
-				error!("Computing separation between {a:?} and {b:?} is unsupported");
-				Vec3::ZERO
-			}));
+			separations.push(sep);
 		}
 		let sep_sum = separations.iter().sum::<Vec3>();
 		let offset = sep_sum * ((-constraint.alignment + 1.0) * 0.5);
@@ -102,19 +101,15 @@ pub fn apply_constraints(
 			continue;
 		}
 
-		match compute_separation(
+		let sep = compute_separation(
 			constraint.relative_pos,
 			a.1.rotation,
 			a.3,
 			b.1.rotation,
 			b.3,
-		) {
-			Ok(sep) => {
-				if b.1.translation != a.1.translation + sep {
-					b.1.translation = a.1.translation + sep;
-				}
-			}
-			Err(e) => error!("{e}"),
+		);
+		if b.1.translation != a.1.translation + sep {
+			b.1.translation = a.1.translation + sep;
 		}
 	}
 }
@@ -125,31 +120,30 @@ fn compute_separation(
 	a_shape: &WidgetShape,
 	b_rot: Quat,
 	b_shape: &WidgetShape,
-) -> Result<Vec3, Unsupported> {
-	const CAST_FROM_DIST: f32 = 100.0;
-	let ray = desired_relative * CAST_FROM_DIST;
-	let a_iso = Isometry::new(Vector3::zero(), a_rot.to_scaled_axis().into());
-	let b_iso = Isometry::new(Vector3::from(ray), b_rot.to_scaled_axis().into());
-
-	let Some(contact) = rapier3d::parry::query::contact(
-		&a_iso,
-		&***a_shape,
-		&b_iso,
-		&***b_shape,
-		desired_relative.length() * (CAST_FROM_DIST * 1.1),
-	)?
-	else {
+) -> Vec3 {
+	let a_bs = a_shape.compute_local_bounding_sphere();
+	let b_bs = b_shape.compute_local_bounding_sphere();
+	let dir = desired_relative.normalize();
+	let a_len = a_bs.radius * 1.1;
+	let b_len = b_bs.radius * 1.1;
+	let a_ray = Ray::new((a_rot * -dir * a_len).into(), dir.into());
+	let b_ray = Ray::new((b_rot * dir * b_len).into(), (-dir).into());
+	let ta = a_shape.cast_local_ray(&a_ray, a_len, true);
+	let tb = b_shape.cast_local_ray(&b_ray, b_len, true);
+	let (Some(ta), Some(tb)) = (ta, tb) else {
+		let msg = "Unexpectedly unable to find contact between shapes";
 		if cfg!(debug_assertions) {
-			unreachable!("Prediction is too small");
+			panic!("{msg}");
 		} else {
 			// Don't crash in production
-			error!("Unexpectedly unable to find contact between shapes");
-			return Ok(Vec3::ZERO);
+			error!("{msg}");
+			return Vec3::ZERO;
 		}
 	};
 
-	let pa = Vec3::from(contact.point1);
-	let pb = Vec3::from(contact.point2) - ray;
 	let rel = desired_relative;
-	Ok(pa + (rel - rel.normalize_or_zero()) - pb)
+	let pa = (a_len - ta) * dir;
+	let pb = (b_len - tb) * dir;
+	let space = rel - rel.normalize_or_zero();
+	pa + space + pb
 }

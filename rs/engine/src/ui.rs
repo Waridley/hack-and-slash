@@ -1,8 +1,10 @@
+use crate::ui::widgets::WidgetShape;
 use crate::{
 	anim::{ComponentDelta, StartAnimation},
 	ui::widgets::Font3d,
 	util::Diff,
 };
+use bevy::utils::{CowArc, HashMap};
 use bevy::{
 	asset::{io::Reader, AssetLoader, BoxedFuture, LoadContext},
 	diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
@@ -13,7 +15,8 @@ use bevy::{
 	ui::FocusPolicy,
 };
 use futures_lite::AsyncReadExt;
-use meshtext::MeshGenerator;
+use meshtext::{MeshGenerator, QualitySettings};
+use serde::{Deserialize, Serialize};
 use std::f64::consts::TAU;
 
 #[cfg(feature = "debugging")]
@@ -33,6 +36,7 @@ impl Plugin for UiPlugin {
 		app.add_plugins((dbg::DebugUiPlugin, in_map::detect::DetectBindingPopupPlugin));
 
 		app.init_resource::<UiHovered>()
+			.init_resource::<TextMeshCache>()
 			.init_asset::<Font3d>()
 			.register_asset_loader(Font3dLoader)
 			.add_systems(Startup, setup)
@@ -57,7 +61,7 @@ impl Plugin for UiPlugin {
 }
 
 pub fn setup(mut cmds: Commands) {
-	let cam_pos = Vec3::new(0.0, -8.0, 0.0);
+	let cam_pos = Vec3::new(0.0, -16.0, 0.0);
 	let mut global_ui_cam = cmds.spawn((
 		Camera3dBundle {
 			camera: Camera {
@@ -85,15 +89,15 @@ pub fn setup(mut cmds: Commands) {
 		},
 		GLOBAL_UI_RENDER_LAYERS,
 		GlobalUiCam,
-		UiCam,
+		UiCam::default(),
 	));
 
 	let mut loop_t = 0.0;
 	let _cam_idle = global_ui_cam.start_animation::<Transform>(move |id, xform, t, _| {
 		let dt = t.delta_seconds_f64();
-		loop_t = (loop_t + (dt * 2.0)) % TAU;
+		loop_t = (loop_t + dt) % TAU;
 		// lemniscate
-		let a = 0.16;
+		let a = 0.32;
 		let sin_t = loop_t.sin();
 		let cos_t = loop_t.cos();
 		let x = (a * cos_t) / (1.0 + (sin_t * sin_t));
@@ -242,22 +246,48 @@ pub fn show_fps(
 }
 
 pub struct Font3dLoader;
+#[derive(Copy, Clone, Debug, Reflect, Serialize, Deserialize)]
+#[reflect(Serialize, Deserialize)]
+#[serde(default)]
+pub struct Font3dLoaderSettings {
+	pub quad_interpolation_steps: u32,
+	pub cubic_interpolation_steps: u32,
+}
+
+impl Default for Font3dLoaderSettings {
+	fn default() -> Self {
+		Self {
+			quad_interpolation_steps: 5,
+			cubic_interpolation_steps: 3,
+		}
+	}
+}
 
 impl AssetLoader for Font3dLoader {
 	type Asset = Font3d;
-	type Settings = ();
+	type Settings = Font3dLoaderSettings;
 	type Error = std::io::Error;
 
 	fn load<'a>(
 		&'a self,
 		reader: &'a mut Reader,
-		_: &'a Self::Settings,
+		settings: &'a Self::Settings,
 		_: &'a mut LoadContext,
 	) -> BoxedFuture<'a, Result<Self::Asset, Self::Error>> {
+		let Font3dLoaderSettings {
+			quad_interpolation_steps,
+			cubic_interpolation_steps,
+		} = *settings;
 		Box::pin(async move {
 			let mut buf = vec![];
 			reader.read_to_end(&mut buf).await?;
-			Ok(Font3d(MeshGenerator::new(buf)))
+			Ok(Font3d(MeshGenerator::new_without_cache(
+				buf,
+				QualitySettings {
+					quad_interpolation_steps,
+					cubic_interpolation_steps,
+				},
+			)))
 		})
 	}
 
@@ -266,9 +296,14 @@ impl AssetLoader for Font3dLoader {
 	}
 }
 
+#[derive(Resource, Default, Clone, Debug, Deref, DerefMut)]
+pub struct TextMeshCache(pub HashMap<CowArc<'static, str>, Option<(Handle<Mesh>, WidgetShape)>>);
+
 /// Component for any UI camera entity, player or global.
-#[derive(Component)]
-pub struct UiCam;
+#[derive(Component, Default)]
+pub struct UiCam {
+	pub focus: Option<Entity>,
+}
 
 /// Marker for the camera entity that displays UI for the game not tied to a specific player.
 #[derive(Component)]
