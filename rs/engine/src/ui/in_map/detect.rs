@@ -1,3 +1,4 @@
+use crate::ui::TextMeshCache;
 use crate::{
 	input::{ChordEntry, CurrentChord, InputState},
 	ui::{
@@ -29,6 +30,7 @@ pub fn setup(
 	mut events: EventReader<AssetEvent<Font3d>>,
 	mut cmds: Commands,
 	mut meshes: ResMut<Assets<Mesh>>,
+	mut cache: ResMut<TextMeshCache>,
 	mut mats: ResMut<Assets<StandardMaterial>>,
 	mut fonts: ResMut<Assets<Font3d>>,
 	ui_fonts: Res<UiFonts>,
@@ -39,7 +41,7 @@ pub fn setup(
 			if ui_fonts.mono_3d.id() == *id {
 				cmds.spawn((
 					PanelBuilder {
-						size: Vec3::new(16.0, 0.5, 12.0),
+						size: Vec3::new(32.0, 2.0, 24.0),
 						material: mats.add(StandardMaterial {
 							base_color: Color::rgba(0.0, 0.2, 0.2, 0.1),
 							alpha_mode: AlphaMode::Add,
@@ -59,26 +61,27 @@ pub fn setup(
 						font: ui_fonts.mono_3d.clone(),
 						flat: false,
 						material: mats.add(Color::AQUAMARINE),
+						vertex_scale: Vec3::new(1.5, 1.5, 0.4),
+						vertex_translation: Vec3::new(-9.0, 0.0, 0.0),
 						transform: Transform {
-							translation: Vec3::new(-6.0, 0.0, 4.0),
-							rotation: Quat::from_rotation_arc(Vec3::Z, Vec3::NEG_Y),
+							translation: Vec3::new(0.0, -2.0, 6.0),
 							..default()
 						},
 						..default()
 					}
-					.build(meshes.reborrow(), fonts.reborrow())
+					.build(meshes.reborrow(), cache.reborrow(), fonts.reborrow())
 					.unwrap(),));
 
 					cmds.spawn((
 						TransformBundle::from_transform(Transform {
-							translation: Vec3::new(0.0, -0.1, 0.0),
+							translation: Vec3::new(-2.0, 0.0, 0.0),
 							..default()
 						}),
 						VisibilityBundle::default(),
 						CurrChordIcons::default(),
 						ChildrenConstraint {
+							relative_positions: Vec3::new(1.5, -0.64, -0.32),
 							alignment: 0.0,
-							..default()
 						},
 					));
 				});
@@ -115,6 +118,7 @@ pub fn display_curr_chord(
 	mut q: Query<(Entity, &mut CurrChordIcons)>,
 	asset_server: Res<AssetServer>,
 	mut meshes: ResMut<Assets<Mesh>>,
+	mut cache: ResMut<TextMeshCache>,
 	mut fonts: ResMut<Assets<Font3d>>,
 	ui_fonts: Res<UiFonts>,
 	curr_chord: Res<CurrentChord>,
@@ -161,12 +165,11 @@ pub fn display_curr_chord(
 			for icon in entry_icons {
 				let icon_id = IconWidgetBuilder {
 					icon,
-					size: Vec2::splat(2.0),
+					size: Vec3::splat(3.0),
 					font: ui_fonts.mono_3d.clone(),
 					origin: Origin::Center,
 					transform: Transform {
-						translation: Vec3::NEG_Y * 0.1,
-						scale: Vec3::splat(0.04),
+						scale: Vec3::splat(0.06),
 						..default()
 					},
 					..default()
@@ -175,6 +178,7 @@ pub fn display_curr_chord(
 					&mut cmds,
 					&asset_server,
 					meshes.reborrow(),
+					cache.reborrow(),
 					fonts.reborrow(),
 				)
 				.id();

@@ -1,7 +1,7 @@
 use crate::ui::{
 	in_map::{icons::kenney::generic_base_dir, GamepadSeries},
 	widgets::{Font3d, TextBuilder},
-	GLOBAL_UI_RENDER_LAYERS,
+	TextMeshCache, GLOBAL_UI_RENDER_LAYERS,
 };
 use bevy::{asset::AssetPath, input::keyboard::Key, prelude::*, render::view::RenderLayers};
 use bevy_svg::prelude::{Origin, Svg3dBundle};
@@ -215,7 +215,7 @@ pub struct IconBundleBuilder {
 	pub icon: Icon,
 	pub font: Handle<Font3d>,
 	pub origin: Origin,
-	pub size: Vec2,
+	pub size: Vec3,
 	pub transform: Transform,
 	pub global_transform: GlobalTransform,
 	pub visibility: Visibility,
@@ -229,7 +229,7 @@ impl Default for IconBundleBuilder {
 			icon: default(),
 			font: default(),
 			origin: default(),
-			size: Vec2::ONE,
+			size: Vec3::ONE,
 			transform: default(),
 			global_transform: default(),
 			visibility: default(),
@@ -250,6 +250,7 @@ impl IconBundleBuilder {
 		self,
 		asset_server: &AssetServer,
 		meshes: Mut<Assets<Mesh>>,
+		cache: Mut<TextMeshCache>,
 		fonts: Mut<Assets<Font3d>>,
 	) -> (IconBundle, Option<impl Bundle>) {
 		let Self {
@@ -263,6 +264,7 @@ impl IconBundleBuilder {
 			inherited_visibility,
 			layers,
 		} = self;
+		// Compensate for lack of z-up convertibility in bevy_svg
 		let rot = Quat::from_rotation_x(std::f32::consts::FRAC_PI_2);
 		transform.rotation *= rot;
 		global_transform = global_transform * Transform::from_rotation(rot);
@@ -280,15 +282,13 @@ impl IconBundleBuilder {
 			TextBuilder {
 				text: text.to_string().into(),
 				font,
+				vertex_translation: Vec3::new(-8.0, -40.0, -32.0),
+				vertex_scale: Vec3::new(size.x * 12.0, size.y * 12.0, 0.0),
+				// Compensate for lack of z-up convertibility in bevy_svg
+				vertex_rotation: Quat::default(),
 				..default()
 			}
-			.with_size(Vec3::new(size.x * 16.0, size.y * 16.0, 0.0))
-			.with_offset(Vec3::new(-8.0, -40.0, -32.0))
-			.build(meshes, fonts)
-			.map_err(|e|
-				// `:?` because `GlyphTriangulationError` has a useless `Display` impl
-				error!(text = &*text, "{e:?}"))
-			.ok()
+			.build(meshes, cache, fonts)
 		});
 
 		(IconBundle { svg, layers }, text)

@@ -27,5 +27,5 @@ pub enum GameMenu {
 }
 
 pub fn player_ui_layer(player: PlayerId) -> RenderLayers {
-	RenderLayers::layer(GLOBAL_UI_LAYER + player.get() as Layer)
+	RenderLayers::layer(GLOBAL_UI_LAYER - player.get() as Layer)
 }

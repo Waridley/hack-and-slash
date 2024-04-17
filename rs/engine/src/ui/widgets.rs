@@ -1,5 +1,6 @@
 use super::in_map::icons::{Icon, IconBundleBuilder};
-use crate::{ui::GLOBAL_UI_RENDER_LAYERS, util::ZUp};
+use crate::ui::TextMeshCache;
+use crate::ui::GLOBAL_UI_RENDER_LAYERS;
 use bevy::{
 	ecs::system::EntityCommands,
 	prelude::*,
@@ -9,7 +10,7 @@ use bevy::{
 	utils::CowArc,
 };
 use bevy_svg::prelude::Origin;
-use meshtext::{error::MeshTextError, MeshGenerator, MeshText, OwnedFace, TextSection};
+use meshtext::{MeshGenerator, MeshText, OwnedFace, TextSection};
 use rapier3d::parry::shape::SharedShape;
 use std::fmt::{Debug, Formatter};
 
@@ -18,6 +19,12 @@ pub struct Font3d(pub MeshGenerator<OwnedFace>);
 
 #[derive(Component, Clone, Deref, DerefMut)]
 pub struct WidgetShape(pub SharedShape);
+
+impl Default for WidgetShape {
+	fn default() -> Self {
+		Self(SharedShape::cuboid(0.5, 0.5, 0.5))
+	}
+}
 
 impl Debug for WidgetShape {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -34,6 +41,20 @@ pub struct WidgetBundle {
 	pub inherited_visibility: InheritedVisibility,
 	pub view_visibility: ViewVisibility,
 	pub layers: RenderLayers,
+}
+
+impl Default for WidgetBundle {
+	fn default() -> Self {
+		Self {
+			shape: default(),
+			transform: default(),
+			global_transform: default(),
+			visibility: default(),
+			inherited_visibility: default(),
+			view_visibility: default(),
+			layers: GLOBAL_UI_RENDER_LAYERS,
+		}
+	}
 }
 
 #[derive(Clone, Debug)]
@@ -98,12 +119,12 @@ impl<M: Material> PanelBuilder<M> {
 	}
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct IconWidgetBuilder {
 	pub icon: Icon,
 	pub font: Handle<Font3d>,
 	pub origin: Origin,
-	pub size: Vec2,
+	pub size: Vec3,
 	pub transform: Transform,
 	pub global_transform: GlobalTransform,
 	pub visibility: Visibility,
@@ -117,7 +138,7 @@ impl Default for IconWidgetBuilder {
 			icon: default(),
 			font: default(),
 			origin: default(),
-			size: Vec2::ONE,
+			size: Vec3::ONE,
 			transform: default(),
 			global_transform: default(),
 			visibility: default(),
@@ -132,6 +153,7 @@ impl IconWidgetBuilder {
 		self,
 		asset_server: &AssetServer,
 		meshes: Mut<Assets<Mesh>>,
+		cache: Mut<TextMeshCache>,
 		fonts: Mut<Assets<Font3d>>,
 	) -> (impl Bundle, Option<impl Bundle>) {
 		let Self {
@@ -145,7 +167,11 @@ impl IconWidgetBuilder {
 			inherited_visibility,
 			layers,
 		} = self;
-		let widget = WidgetShape(SharedShape::cuboid(size.x * 0.5, size.y * 0.5, 0.1));
+		let widget = WidgetShape(SharedShape::cuboid(
+			size.x * 0.5,
+			size.y * 0.5,
+			size.z * 0.5,
+		));
 		let (svg, text) = IconBundleBuilder {
 			icon,
 			font,
@@ -157,7 +183,7 @@ impl IconWidgetBuilder {
 			inherited_visibility,
 			layers,
 		}
-		.build(asset_server, meshes, fonts);
+		.build(asset_server, meshes, cache, fonts);
 		((widget, svg), text)
 	}
 
@@ -166,9 +192,10 @@ impl IconWidgetBuilder {
 		cmds: &'a mut Commands,
 		asset_server: &AssetServer,
 		meshes: Mut<Assets<Mesh>>,
+		cache: Mut<TextMeshCache>,
 		fonts: Mut<Assets<Font3d>>,
 	) -> EntityCommands<'a> {
-		let (image, text) = self.build(asset_server, meshes, fonts);
+		let (image, text) = self.build(asset_server, meshes, cache, fonts);
 		let mut cmds = cmds.spawn(image);
 		text.map(|text| {
 			cmds.with_children(|cmds| {
@@ -183,13 +210,15 @@ pub const DEFAULT_TEXT_MAT: Handle<StandardMaterial> = Handle::Weak(AssetId::Uui
 	uuid: AssetId::<StandardMaterial>::DEFAULT_UUID,
 });
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct TextBuilder<M: Material = StandardMaterial> {
 	pub text: CowArc<'static, str>,
 	pub font: Handle<Font3d>,
 	pub flat: bool,
 	pub material: Handle<M>,
-	pub vertex_transform: [f32; 16],
+	pub vertex_translation: Vec3,
+	pub vertex_rotation: Quat,
+	pub vertex_scale: Vec3,
 	pub transform: Transform,
 	pub global_transform: GlobalTransform,
 	pub visibility: Visibility,
@@ -203,9 +232,9 @@ impl Default for TextBuilder {
 			font: default(),
 			flat: true,
 			material: DEFAULT_TEXT_MAT.clone(),
-			vertex_transform: [
-				1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.4, 0.0, 0.0, 0.0, 0.0, 1.0,
-			],
+			vertex_translation: default(),
+			vertex_rotation: Quat::from_rotation_arc(Vec3::Z, Vec3::NEG_Y),
+			vertex_scale: Vec3::new(1.0, 1.0, 0.4),
 			transform: default(),
 			global_transform: default(),
 			visibility: default(),
@@ -218,42 +247,65 @@ impl<M: Material> TextBuilder<M> {
 	pub fn build(
 		self,
 		mut meshes: Mut<Assets<Mesh>>,
+		mut cache: Mut<TextMeshCache>,
 		fonts: Mut<Assets<Font3d>>,
-	) -> Result<impl Bundle, Box<dyn MeshTextError>> {
+	) -> Option<impl Bundle> {
 		let Self {
 			text,
 			flat,
 			font,
 			material,
-			vertex_transform,
+			vertex_translation,
+			vertex_rotation,
+			vertex_scale,
 			transform,
 			global_transform,
 			visibility,
 			layers,
 		} = self;
 
-		let mut font = fonts.map_unchanged(|fonts| fonts.get_mut(font).unwrap());
-		let MeshText { bbox, vertices } =
-			font.generate_section(&text, flat, Some(&vertex_transform))?;
+		let (mesh, shape) = cache
+			.entry(text.clone())
+			.or_insert_with(|| {
+				let mut font = fonts.map_unchanged(|fonts| fonts.get_mut(font).unwrap());
+				let MeshText { bbox, vertices } = font
+					.generate_section(
+						&text,
+						flat,
+						Some(
+							&Mat4::from_scale_rotation_translation(
+								vertex_scale,
+								vertex_rotation,
+								vertex_translation,
+							)
+							.to_cols_array(),
+						),
+					)
+					.map_err(|e|
+						// `:?` because `GlyphTriangulationError` has a useless `Display` impl
+						error!("{e:?}"))
+					.ok()?;
 
-		let shape = WidgetShape(SharedShape::cuboid(
-			bbox.size().x * 0.5,
-			bbox.size().y * 0.5,
-			bbox.size().z * 0.5,
-		));
+				let shape = WidgetShape(SharedShape::cuboid(
+					bbox.size().x * 0.5,
+					bbox.size().y * 0.5,
+					bbox.size().z * 0.5,
+				));
 
-		let verts = vertices
-			.chunks(3)
-			.map(|c| [c[0], c[1], c[2]])
-			.collect::<Vec<_>>();
-		let len = verts.len();
-		let mut mesh = Mesh::new(TriangleList, RenderAssetUsages::RENDER_WORLD).z_up();
-		mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, verts);
-		mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0.0, 0.0]; len]);
-		mesh.compute_flat_normals();
-		let mesh = meshes.add(mesh);
+				let verts = vertices
+					.chunks(3)
+					.map(|c| [c[0], c[1], c[2]])
+					.collect::<Vec<_>>();
+				let len = verts.len();
+				let mut mesh = Mesh::new(TriangleList, RenderAssetUsages::RENDER_WORLD);
+				mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, verts);
+				mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0.0, 0.0]; len]);
+				mesh.compute_flat_normals();
+				Some((meshes.add(mesh), shape))
+			})
+			.clone()?;
 
-		Ok((
+		Some((
 			MaterialMeshBundle {
 				mesh,
 				material,
@@ -267,29 +319,40 @@ impl<M: Material> TextBuilder<M> {
 			layers,
 		))
 	}
+}
 
-	// TODO: Prevent corrupting transform if a rotation is already applied.
-	//    Maybe using a typestate pattern, or forcing these methods to build immediately.
-	//    Alternatively:
-	//      - Only store size, offset, and maybe rotation in builder.
-	//      - Compute correct values with existing rotation
-	//      - Use the Affine3A type and convert in `build`
-	pub fn with_size(mut self, size: Vec3) -> Self {
-		self.vertex_transform[0] = size.x;
-		self.vertex_transform[5] = size.y;
-		self.vertex_transform[10] = size.z;
-		self
-	}
+#[derive(Component, Default, Debug, Copy, Clone)]
+pub struct Button3d {
+	pub pressed: bool,
+	pub focused: bool,
+	pub hovered: bool,
+}
 
-	pub fn with_depth(mut self, depth: f32) -> Self {
-		self.vertex_transform[10] = depth;
-		self
-	}
+#[derive(Clone, Debug, Bundle)]
+pub struct ButtonBuilder<M: Material = StandardMaterial> {
+	pub state: Button3d,
+	pub shape: WidgetShape,
+	pub material: Handle<M>,
+	pub transform: Transform,
+	pub global_transform: GlobalTransform,
+	pub visibility: Visibility,
+	pub inherited_visibility: InheritedVisibility,
+	pub view_visibility: ViewVisibility,
+	pub layers: RenderLayers,
+}
 
-	pub fn with_offset(mut self, offset: Vec3) -> Self {
-		self.vertex_transform[12] = offset.x;
-		self.vertex_transform[13] = offset.y;
-		self.vertex_transform[14] = offset.z;
-		self
+impl<M: Material> Default for ButtonBuilder<M> {
+	fn default() -> Self {
+		Self {
+			state: default(),
+			shape: default(),
+			material: default(),
+			transform: default(),
+			global_transform: default(),
+			visibility: default(),
+			inherited_visibility: default(),
+			view_visibility: default(),
+			layers: GLOBAL_UI_RENDER_LAYERS,
+		}
 	}
 }
