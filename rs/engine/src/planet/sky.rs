@@ -81,7 +81,6 @@ pub fn prepare_sky_pipelines(
 			SkyPipelineKey {
 				skybox: skybox.image.clone(),
 				shader: shader.0.clone(),
-				msaa: msaa.samples(),
 			},
 		);
 		cmds.entity(id).insert(SkyPipelineId(pipeline));
@@ -128,7 +127,6 @@ impl FromWorld for SkyPipeline {
 pub struct SkyPipelineKey {
 	skybox: Handle<Image>,
 	shader: Handle<Shader>,
-	msaa: u32,
 }
 
 #[derive(Component, Debug)]
@@ -156,10 +154,7 @@ impl SpecializedRenderPipeline for SkyPipeline {
 			},
 			primitive: PrimitiveState::default(),
 			depth_stencil: None,
-			multisample: MultisampleState {
-				count: key.msaa,
-				..default()
-			},
+			multisample: MultisampleState::default(),
 			fragment: Some(FragmentState {
 				shader: key.shader,
 				shader_defs: vec![],
