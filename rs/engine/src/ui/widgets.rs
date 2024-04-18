@@ -1,11 +1,16 @@
 use super::in_map::icons::{Icon, IconBundleBuilder};
-use crate::ui::TextMeshCache;
-use crate::ui::GLOBAL_UI_RENDER_LAYERS;
+use crate::{
+	ui::{a11y::AKNode, TextMeshCache, GLOBAL_UI_RENDER_LAYERS},
+	util::Prev,
+};
 use bevy::{
+	a11y::accesskit::{NodeBuilder, Role},
 	ecs::system::EntityCommands,
 	prelude::*,
 	render::{
-		mesh::PrimitiveTopology::TriangleList, render_asset::RenderAssetUsages, view::RenderLayers,
+		mesh::{Indices, PrimitiveTopology, PrimitiveTopology::TriangleList},
+		render_asset::RenderAssetUsages,
+		view::RenderLayers,
 	},
 	utils::CowArc,
 };
@@ -13,9 +18,6 @@ use bevy_svg::prelude::Origin;
 use meshtext::{MeshGenerator, MeshText, OwnedFace, TextSection};
 use rapier3d::parry::shape::SharedShape;
 use std::fmt::{Debug, Formatter};
-
-#[derive(Asset, Deref, DerefMut, TypePath)]
-pub struct Font3d(pub MeshGenerator<OwnedFace>);
 
 #[derive(Component, Clone, Deref, DerefMut)]
 pub struct WidgetShape(pub SharedShape);
@@ -32,7 +34,7 @@ impl Debug for WidgetShape {
 	}
 }
 
-#[derive(Bundle, Clone, Debug)]
+#[derive(Bundle, Clone)]
 pub struct WidgetBundle {
 	pub shape: WidgetShape,
 	pub transform: Transform,
@@ -41,6 +43,7 @@ pub struct WidgetBundle {
 	pub inherited_visibility: InheritedVisibility,
 	pub view_visibility: ViewVisibility,
 	pub layers: RenderLayers,
+	pub ak_node: AKNode,
 }
 
 impl Default for WidgetBundle {
@@ -53,6 +56,7 @@ impl Default for WidgetBundle {
 			inherited_visibility: default(),
 			view_visibility: default(),
 			layers: GLOBAL_UI_RENDER_LAYERS,
+			ak_node: NodeBuilder::new(default()).into(),
 		}
 	}
 }
@@ -61,6 +65,8 @@ impl Default for WidgetBundle {
 pub struct PanelBuilder<M: Material> {
 	pub size: Vec3,
 	pub material: Handle<M>,
+	pub colors: Option<CuboidFaces<Color>>,
+	pub borders: CuboidFaces<Option<RectBorderDesc>>,
 	pub transform: Transform,
 	pub global_transform: GlobalTransform,
 	pub visibility: Visibility,
@@ -73,6 +79,8 @@ impl<M: Material> Default for PanelBuilder<M> {
 		Self {
 			size: Vec3::ONE,
 			material: default(),
+			colors: default(),
+			borders: default(),
 			transform: default(),
 			global_transform: default(),
 			visibility: default(),
@@ -83,39 +91,87 @@ impl<M: Material> Default for PanelBuilder<M> {
 }
 
 impl<M: Material> PanelBuilder<M> {
-	pub fn build(self, meshes: &mut Assets<Mesh>) -> impl Bundle {
+	pub fn build(self, meshes: &mut Assets<Mesh>) -> (impl Bundle, CuboidFaces<Option<Mesh>>) {
 		let Self {
 			size,
 			material,
+			colors,
+			borders,
 			transform,
 			global_transform,
 			visibility,
 			inherited_visibility,
 			layers,
 		} = self;
-		let mesh = meshes.add(
-			Cuboid::new(size.x, size.y, size.z)
-				.mesh()
-				.with_duplicated_vertices()
-				.with_computed_flat_normals(),
+		let mut mesh = Cuboid::new(size.x, size.y, size.z).mesh();
+		if let Some(colors) = colors {
+			mesh.insert_attribute(
+				Mesh::ATTRIBUTE_COLOR,
+				colors
+					.into_iter()
+					.flat_map(|color| [color.as_rgba_f32(); 4])
+					.collect::<Vec<_>>(),
+			)
+		}
+		let mesh = mesh.with_duplicated_vertices().with_computed_flat_normals();
+
+		let borders = <[Option<RectBorderDesc>; 6]>::from(borders);
+		let border_meshes = CuboidFaces::new(
+			borders[0].map(|desc| desc.mesh_for(Rectangle::new(size.x, size.z))),
+			borders[1].map(|desc| desc.mesh_for(Rectangle::new(size.x, size.z))),
+			borders[2].map(|desc| desc.mesh_for(Rectangle::new(size.y, size.z))),
+			borders[3].map(|desc| desc.mesh_for(Rectangle::new(size.y, size.z))),
+			borders[4].map(|desc| desc.mesh_for(Rectangle::new(size.x, size.y))),
+			borders[5].map(|desc| desc.mesh_for(Rectangle::new(size.x, size.y))),
 		);
+
+		let mesh = meshes.add(mesh);
 		(
-			WidgetBundle {
-				shape: WidgetShape(SharedShape::cuboid(
-					size.x * 0.5,
-					size.y * 0.5,
-					size.z * 0.5,
-				)),
-				transform,
-				global_transform,
-				visibility,
-				inherited_visibility,
-				view_visibility: default(),
-				layers,
-			},
-			mesh,
-			material,
+			(
+				WidgetBundle {
+					shape: WidgetShape(SharedShape::cuboid(
+						size.x * 0.5,
+						size.y * 0.5,
+						size.z * 0.5,
+					)),
+					transform,
+					global_transform,
+					visibility,
+					inherited_visibility,
+					view_visibility: default(),
+					layers,
+					ak_node: NodeBuilder::new(Role::Pane).into(),
+				},
+				mesh,
+				material,
+			),
+			border_meshes,
 		)
+	}
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct RectBorderDesc {
+	pub width: f32,
+	pub depth: f32,
+	pub dilation: f32,
+	pub colors: Option<RectCorners<Color>>,
+}
+
+impl Default for RectBorderDesc {
+	fn default() -> Self {
+		Self {
+			width: 0.5,
+			depth: 0.5,
+			dilation: 0.0,
+			colors: default(),
+		}
+	}
+}
+
+impl RectBorderDesc {
+	pub fn mesh_for(self, rect: Rectangle) -> Mesh {
+		rect.border(self.width, self.depth, self.dilation, self.colors)
 	}
 }
 
@@ -243,6 +299,9 @@ impl Default for TextBuilder {
 	}
 }
 
+#[derive(Asset, Deref, DerefMut, TypePath)]
+pub struct Font3d(pub MeshGenerator<OwnedFace>);
+
 impl<M: Material> TextBuilder<M> {
 	pub fn build(
 		self,
@@ -317,6 +376,7 @@ impl<M: Material> TextBuilder<M> {
 			},
 			shape,
 			layers,
+			AKNode::from(NodeBuilder::new(Role::StaticText)),
 		))
 	}
 }
@@ -328,9 +388,10 @@ pub struct Button3d {
 	pub hovered: bool,
 }
 
-#[derive(Clone, Debug, Bundle)]
-pub struct ButtonBuilder<M: Material = StandardMaterial> {
+#[derive(Clone, Bundle)]
+pub struct Button3dBundle<M: Material = StandardMaterial> {
 	pub state: Button3d,
+	pub prev_state: Prev<Button3d>,
 	pub shape: WidgetShape,
 	pub material: Handle<M>,
 	pub transform: Transform,
@@ -339,12 +400,14 @@ pub struct ButtonBuilder<M: Material = StandardMaterial> {
 	pub inherited_visibility: InheritedVisibility,
 	pub view_visibility: ViewVisibility,
 	pub layers: RenderLayers,
+	pub ak_node: AKNode,
 }
 
-impl<M: Material> Default for ButtonBuilder<M> {
+impl<M: Material> Default for Button3dBundle<M> {
 	fn default() -> Self {
 		Self {
 			state: default(),
+			prev_state: default(),
 			shape: default(),
 			material: default(),
 			transform: default(),
@@ -353,6 +416,231 @@ impl<M: Material> Default for ButtonBuilder<M> {
 			inherited_visibility: default(),
 			view_visibility: default(),
 			layers: GLOBAL_UI_RENDER_LAYERS,
+			ak_node: NodeBuilder::new(Role::Button).into(),
+		}
+	}
+}
+
+pub trait BorderMesh {
+	type Colors;
+
+	/// `width`: the thickness of the border when viewed straight-on.
+	/// `depth`: How far the border sticks out from the face of the rectangle.
+	/// `dilation`: `-1.0` = an internal border. `1.0` = an external border.
+	fn border(&self, width: f32, depth: f32, dilation: f32, colors: Option<Self::Colors>) -> Mesh;
+}
+
+impl BorderMesh for Rectangle {
+	type Colors = RectCorners<Color>;
+
+	fn border(&self, width: f32, depth: f32, dilation: f32, colors: Option<Self::Colors>) -> Mesh {
+		let tr = self.half_size;
+		let tl = Vec2::new(-tr.x, tr.y);
+		let bl = -tr;
+		let br = Vec2::new(tr.x, -tr.y);
+		let positions = [tr, tl, bl, br]
+			.into_iter()
+			.flat_map(|Vec2 { x, y }| {
+				let xs = x.signum();
+				let ys = y.signum();
+				let o_offset = width * (dilation + 1.0) * 0.5;
+				let outer = Vec2::new(x + (xs * o_offset), y + (ys * o_offset));
+				let i_offset = width * (dilation - 1.0) * 0.5;
+				let inner = Vec2::new(x + (xs * i_offset), y + (ys * i_offset));
+				[
+					[inner.x, -depth * 0.5, inner.y],
+					[outer.x, -depth * 0.5, outer.y],
+					[outer.x, depth * 0.5, outer.y],
+					[inner.x, depth * 0.5, inner.y],
+				]
+			})
+			.collect::<Vec<_>>();
+
+		let indices = [0, 1, 2, 3, 0]
+			.windows(2)
+			.flat_map(|vert_pair| {
+				[0, 1, 2, 3, 0].windows(2).flat_map(|corner_pair| {
+					[
+						(corner_pair[0] * 4) + vert_pair[0],
+						(corner_pair[0] * 4) + vert_pair[1],
+						(corner_pair[1] * 4) + vert_pair[0],
+						(corner_pair[1] * 4) + vert_pair[0],
+						(corner_pair[0] * 4) + vert_pair[1],
+						(corner_pair[1] * 4) + vert_pair[1],
+					]
+				})
+			})
+			.collect::<Vec<_>>();
+
+		let mut mesh = Mesh::new(TriangleList, RenderAssetUsages::RENDER_WORLD)
+			.with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+
+		if let Some(colors) = colors {
+			use std::iter::repeat;
+			let colors: [Color; 4] = colors.into();
+			let colors = repeat(colors[0].as_rgba_f32())
+				.take(4)
+				.chain(repeat(colors[1].as_rgba_f32()).take(4))
+				.chain(repeat(colors[2].as_rgba_f32()).take(4))
+				.chain(repeat(colors[3].as_rgba_f32()).take(4))
+				.collect::<Vec<_>>();
+
+			mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colors);
+		}
+
+		mesh.with_inserted_indices(Indices::U16(indices))
+			.with_duplicated_vertices()
+			.with_computed_flat_normals()
+	}
+}
+
+#[derive(Copy, Clone, Default, Debug)]
+pub struct RectCorners<T> {
+	pub top_right: T,
+	pub top_left: T,
+	pub bottom_left: T,
+	pub bottom_right: T,
+}
+
+impl<T> RectCorners<T> {
+	pub fn new(top_left: T, top_right: T, bottom_left: T, bottom_right: T) -> Self {
+		Self {
+			top_right,
+			top_left,
+			bottom_left,
+			bottom_right,
+		}
+	}
+}
+
+impl<T> From<RectCorners<T>> for [T; 4] {
+	fn from(value: RectCorners<T>) -> Self {
+		[
+			value.top_right,
+			value.top_left,
+			value.bottom_left,
+			value.bottom_right,
+		]
+	}
+}
+
+#[derive(Copy, Clone, Default, Debug)]
+pub struct CuboidCorners<T> {
+	pub front_top_right: T,
+	pub front_top_left: T,
+	pub front_bottom_left: T,
+	pub front_bottom_right: T,
+	pub back_top_right: T,
+	pub back_top_left: T,
+	pub back_bottom_left: T,
+	pub back_bottom_right: T,
+}
+
+impl<T> CuboidCorners<T> {
+	pub fn new(
+		front_top_left: T,
+		front_top_right: T,
+		front_bottom_left: T,
+		front_bottom_right: T,
+		back_top_left: T,
+		back_top_right: T,
+		back_bottom_left: T,
+		back_bottom_right: T,
+	) -> Self {
+		Self {
+			front_top_right,
+			front_top_left,
+			front_bottom_left,
+			front_bottom_right,
+			back_top_right,
+			back_top_left,
+			back_bottom_left,
+			back_bottom_right,
+		}
+	}
+}
+
+impl<T> From<CuboidCorners<T>> for [T; 8] {
+	fn from(value: CuboidCorners<T>) -> Self {
+		[
+			value.front_top_right,
+			value.front_top_left,
+			value.front_bottom_left,
+			value.front_bottom_right,
+			value.back_top_right,
+			value.back_top_left,
+			value.back_bottom_left,
+			value.back_bottom_right,
+		]
+	}
+}
+
+#[derive(Copy, Clone, Default, Debug)]
+pub struct CuboidFaces<T> {
+	pub front: T,
+	pub back: T,
+	pub left: T,
+	pub right: T,
+	pub top: T,
+	pub bottom: T,
+}
+
+impl<T> CuboidFaces<T> {
+	pub fn new(front: T, back: T, left: T, right: T, top: T, bottom: T) -> Self {
+		Self {
+			front,
+			back,
+			left,
+			right,
+			top,
+			bottom,
+		}
+	}
+}
+
+impl CuboidFaces<Vec3> {
+	pub const NORMALS: Self = Self {
+		front: Vec3::NEG_Y,
+		back: Vec3::Y,
+		left: Vec3::NEG_X,
+		right: Vec3::X,
+		top: Vec3::Z,
+		bottom: Vec3::NEG_Z,
+	};
+}
+
+impl<T> From<CuboidFaces<T>> for [T; 6] {
+	fn from(value: CuboidFaces<T>) -> Self {
+		[
+			value.front,
+			value.back,
+			value.left,
+			value.right,
+			value.top,
+			value.bottom,
+		]
+	}
+}
+
+impl<T> IntoIterator for CuboidFaces<T> {
+	type Item = T;
+	type IntoIter = <[T; 6] as IntoIterator>::IntoIter;
+
+	fn into_iter(self) -> Self::IntoIter {
+		<[T; 6]>::from(self).into_iter()
+	}
+}
+
+impl<F> FromIterator<F> for CuboidFaces<F> {
+	fn from_iter<T: IntoIterator<Item = F>>(iter: T) -> Self {
+		let mut iter = iter.into_iter();
+		Self {
+			front: iter.next().unwrap(),
+			back: iter.next().unwrap(),
+			left: iter.next().unwrap(),
+			right: iter.next().unwrap(),
+			top: iter.next().unwrap(),
+			bottom: iter.next().unwrap(),
 		}
 	}
 }

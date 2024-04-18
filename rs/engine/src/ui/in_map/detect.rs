@@ -1,4 +1,3 @@
-use crate::ui::TextMeshCache;
 use crate::{
 	input::{ChordEntry, CurrentChord, InputState},
 	ui::{
@@ -7,8 +6,11 @@ use crate::{
 			GamepadSeries,
 		},
 		layout::ChildrenConstraint,
-		widgets::{Font3d, IconWidgetBuilder, PanelBuilder, TextBuilder},
-		UiFonts,
+		widgets::{
+			CuboidFaces, Font3d, IconWidgetBuilder, PanelBuilder, RectBorderDesc, RectCorners,
+			TextBuilder,
+		},
+		TextMeshCache, UiFonts, GLOBAL_UI_RENDER_LAYERS,
 	},
 };
 use bevy::{
@@ -39,52 +41,82 @@ pub fn setup(
 	for event in events.read() {
 		if let AssetEvent::Added { id } = event {
 			if ui_fonts.mono_3d.id() == *id {
-				cmds.spawn((
-					PanelBuilder {
-						size: Vec3::new(32.0, 2.0, 24.0),
-						material: mats.add(StandardMaterial {
-							base_color: Color::rgba(0.0, 0.2, 0.2, 0.1),
-							alpha_mode: AlphaMode::Add,
-							double_sided: true,
-							cull_mode: None,
+				let size = Vec3::new(32.0, 1.0, 24.0);
+				let (panel, borders) = PanelBuilder {
+					size,
+					material: mats.add(StandardMaterial {
+						base_color: Color::rgba(0.0, 0.2, 0.2, 0.1),
+						alpha_mode: AlphaMode::Add,
+						double_sided: true,
+						cull_mode: None,
+						..default()
+					}),
+					borders: CuboidFaces {
+						front: Some(RectBorderDesc {
+							dilation: 1.0,
+							depth: 2.0,
+							colors: Some(RectCorners {
+								top_right: Color::rgba(0.0, 0.2, 0.2, 0.1),
+								top_left: Color::rgba(0.0, 0.4, 0.1, 0.1),
+								bottom_left: Color::rgba(0.0, 0.2, 0.2, 0.1),
+								bottom_right: Color::rgba(0.0, 0.1, 0.4, 0.1),
+							}),
 							..default()
 						}),
-						visibility: Visibility::Hidden,
 						..default()
-					}
-					.build(&mut meshes),
-					DetectBindingPopup,
-				))
-				.with_children(|cmds| {
-					cmds.spawn((TextBuilder {
-						text: "Press input(s) to bind...".into(),
-						font: ui_fonts.mono_3d.clone(),
-						flat: false,
-						material: mats.add(Color::AQUAMARINE),
-						vertex_scale: Vec3::new(1.5, 1.5, 0.4),
-						vertex_translation: Vec3::new(-9.0, 0.0, 0.0),
-						transform: Transform {
-							translation: Vec3::new(0.0, -2.0, 6.0),
-							..default()
-						},
-						..default()
-					}
-					.build(meshes.reborrow(), cache.reborrow(), fonts.reborrow())
-					.unwrap(),));
+					},
+					visibility: Visibility::Hidden,
+					..default()
+				}
+				.build(&mut meshes);
 
-					cmds.spawn((
-						TransformBundle::from_transform(Transform {
-							translation: Vec3::new(-2.0, 0.0, 0.0),
+				cmds.spawn((panel, DetectBindingPopup))
+					.with_children(|cmds| {
+						let border_mat = mats.add(StandardMaterial {
+							alpha_mode: AlphaMode::Add,
 							..default()
-						}),
-						VisibilityBundle::default(),
-						CurrChordIcons::default(),
-						ChildrenConstraint {
-							relative_positions: Vec3::new(1.5, -0.64, -0.32),
-							alignment: 0.0,
-						},
-					));
-				});
+						});
+						for (mesh, normal) in
+							borders.into_iter().zip(CuboidFaces::NORMALS.into_iter())
+						{
+							let Some(mesh) = mesh else { continue };
+							let mesh = meshes.add(dbg!(mesh));
+							cmds.spawn((
+								PbrBundle {
+									mesh,
+									material: border_mat.clone(),
+									..default()
+								},
+								GLOBAL_UI_RENDER_LAYERS,
+							));
+						}
+
+						cmds.spawn((TextBuilder {
+							text: "Press input(s) to bind...".into(),
+							font: ui_fonts.mono_3d.clone(),
+							flat: false,
+							material: mats.add(Color::AQUAMARINE),
+							vertex_scale: Vec3::new(2.0, 2.0, 0.5),
+							vertex_translation: Vec3::new(-11.0, 0.0, 0.0),
+							transform: Transform {
+								translation: Vec3::new(0.0, -2.0, 6.0),
+								..default()
+							},
+							..default()
+						}
+						.build(meshes.reborrow(), cache.reborrow(), fonts.reborrow())
+						.unwrap(),));
+
+						cmds.spawn((
+							TransformBundle::default(),
+							VisibilityBundle::default(),
+							CurrChordIcons::default(),
+							ChildrenConstraint {
+								relative_positions: Vec3::new(1.5, -0.64, -0.32),
+								alignment: 0.0,
+							},
+						));
+					});
 			}
 		}
 	}

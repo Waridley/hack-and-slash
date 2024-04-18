@@ -1,9 +1,16 @@
 use crate::ui::{
+	a11y::AKNode,
 	in_map::{icons::kenney::generic_base_dir, GamepadSeries},
 	widgets::{Font3d, TextBuilder},
 	TextMeshCache, GLOBAL_UI_RENDER_LAYERS,
 };
-use bevy::{asset::AssetPath, input::keyboard::Key, prelude::*, render::view::RenderLayers};
+use bevy::{
+	a11y::accesskit::{NodeBuilder, Role},
+	asset::AssetPath,
+	input::keyboard::Key,
+	prelude::*,
+	render::view::RenderLayers,
+};
 use bevy_svg::prelude::{Origin, Svg3dBundle};
 use kenney::{base_dir, kb_mouse_base_dir};
 use leafwing_input_manager::{
@@ -243,6 +250,7 @@ impl Default for IconBundleBuilder {
 pub struct IconBundle {
 	pub svg: Svg3dBundle,
 	pub layers: RenderLayers,
+	pub role: AKNode,
 }
 
 impl IconBundleBuilder {
@@ -291,7 +299,8 @@ impl IconBundleBuilder {
 			.build(meshes, cache, fonts)
 		});
 
-		(IconBundle { svg, layers }, text)
+		let role = NodeBuilder::new(Role::Image).into();
+		(IconBundle { svg, layers, role }, text)
 	}
 }
 
