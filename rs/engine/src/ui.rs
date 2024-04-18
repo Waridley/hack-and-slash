@@ -1,24 +1,25 @@
-use crate::ui::widgets::WidgetShape;
 use crate::{
 	anim::{ComponentDelta, StartAnimation},
-	ui::widgets::Font3d,
-	util::Diff,
+	ui::widgets::{Button3d, Font3d, WidgetShape},
+	util::{Diff, Prev},
 };
-use bevy::utils::{CowArc, HashMap};
 use bevy::{
 	asset::{io::Reader, AssetLoader, BoxedFuture, LoadContext},
+	core_pipeline::{experimental::taa::TemporalAntiAliasBundle, fxaa::Fxaa},
 	diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
 	ecs::{query::QuerySingleError, schedule::SystemConfigs},
 	input::common_conditions::input_toggle_active,
 	prelude::*,
 	render::view::{Layer, RenderLayers},
 	ui::FocusPolicy,
+	utils::{CowArc, HashMap},
 };
 use futures_lite::AsyncReadExt;
 use meshtext::{MeshGenerator, QualitySettings};
 use serde::{Deserialize, Serialize};
 use std::f64::consts::TAU;
 
+pub mod a11y;
 #[cfg(feature = "debugging")]
 pub mod dbg;
 pub mod in_map;
@@ -41,7 +42,8 @@ impl Plugin for UiPlugin {
 			.register_asset_loader(Font3dLoader)
 			.add_systems(Startup, setup)
 			.add_systems(Update, (reset_hovered, show_fps))
-			.add_systems(PostUpdate, layout::apply_constraints);
+			.add_systems(PostUpdate, layout::apply_constraints)
+			.add_systems(Last, Prev::<Button3d>::update_component);
 	}
 
 	fn finish(&self, app: &mut App) {
@@ -87,6 +89,8 @@ pub fn setup(mut cmds: Commands) {
 			},
 			..default()
 		},
+		TemporalAntiAliasBundle::default(),
+		Fxaa::default(),
 		GLOBAL_UI_RENDER_LAYERS,
 		GlobalUiCam,
 		UiCam::default(),
@@ -115,12 +119,44 @@ pub fn setup(mut cmds: Commands) {
 		})
 	});
 
+	// Lights add together to white in front, but tint the sides of UI elements
 	cmds.spawn((
 		DirectionalLightBundle {
+			directional_light: DirectionalLight {
+				color: Color::rgb(0.5, 0.75, 0.125),
+				..default()
+			},
 			transform: Transform::from_rotation(Quat::from_rotation_arc(
 				Vec3::NEG_Z,
-				Vec3::new(0.0, 1.0, -0.01).normalize(),
+				Vec3::new(-0.05, 1.0, -0.05).normalize(),
 			)),
+			..default()
+		},
+		GLOBAL_UI_RENDER_LAYERS,
+	));
+	cmds.spawn((
+		DirectionalLightBundle {
+			directional_light: DirectionalLight {
+				color: Color::rgb(0.5, 0.25, 0.875),
+				..default()
+			},
+			transform: Transform::from_rotation(Quat::from_rotation_arc(
+				Vec3::NEG_Z,
+				Vec3::new(0.05, 1.0, -0.05).normalize(),
+			)),
+			..default()
+		},
+		GLOBAL_UI_RENDER_LAYERS,
+	));
+
+	cmds.spawn((
+		DirectionalLightBundle {
+			directional_light: DirectionalLight {
+				illuminance: 400.0,
+				color: Color::rgb(1.0, 0.125, 1.0),
+				..default()
+			},
+			transform: Transform::from_rotation(Quat::from_rotation_arc(Vec3::NEG_Z, Vec3::Z)),
 			..default()
 		},
 		GLOBAL_UI_RENDER_LAYERS,

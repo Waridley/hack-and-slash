@@ -626,7 +626,7 @@ impl Add<DurationDelta> for Duration {
 	}
 }
 
-#[derive(Component, Default, Debug, Resource, Deref, DerefMut)]
+#[derive(Component, Default, Debug, Copy, Clone, Resource, Deref, DerefMut)]
 pub struct Prev<T>(pub T);
 
 impl<T: Clone> Prev<T> {
