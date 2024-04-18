@@ -3,9 +3,10 @@ use crate::{
 		chunks::{ChunkIndex, TERRAIN_CELL_SIZE},
 		PlanetVec2,
 	},
+	ui::GLOBAL_UI_RENDER_LAYERS,
 	util::Prev,
 };
-use bevy::prelude::*;
+use bevy::{prelude::*, render::view::RenderLayers};
 use bevy_rapier3d::{
 	dynamics::RapierRigidBodyHandle, na::Vector, plugin::RapierContext,
 	prelude::TransformInterpolation,
@@ -57,7 +58,12 @@ impl Default for Frame {
 
 pub fn reframe_all_entities(
 	mut ctx: ResMut<RapierContext>,
-	mut q: Query<(&mut Transform, &mut GlobalTransform, Has<Parent>)>,
+	mut q: Query<(
+		&mut Transform,
+		&mut GlobalTransform,
+		Has<Parent>,
+		Option<&RenderLayers>,
+	)>,
 	bodies: Query<&RapierRigidBodyHandle>,
 	mut interpolations: Query<&mut TransformInterpolation, Without<Parent>>,
 	mut prev_xforms: Query<&mut Prev<Transform>, Without<Parent>>,
@@ -82,7 +88,12 @@ pub fn reframe_all_entities(
 	let diff = Vec2::from(frame.center - prev_frame.center);
 	let offset = Vec3::new(-diff.x, -diff.y, 0.0);
 	q.par_iter_mut()
-		.for_each(|(mut xform, mut global, has_parent)| {
+		.for_each(|(mut xform, mut global, has_parent, layers)| {
+			if let Some(layers) = layers {
+				if !layers.intersects(&RenderLayers::default()) {
+					return;
+				}
+			}
 			if !has_parent {
 				xform.translation += offset;
 			}
