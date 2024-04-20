@@ -323,8 +323,17 @@ impl<M: Material> TextBuilder<M> {
 			layers,
 		} = self;
 
+		let xform = Mat4::from_scale_rotation_translation(
+			vertex_scale,
+			vertex_rotation,
+			vertex_translation,
+		)
+		.to_cols_array();
+
+		let xform_key = array_init::array_init(|i| xform[i].to_bits());
+
 		let (mesh, shape) = cache
-			.entry(text.clone())
+			.entry((text.clone(), xform_key, font.clone()))
 			.or_insert_with(|| {
 				let mut font = fonts.map_unchanged(|fonts| fonts.get_mut(font).unwrap());
 				let MeshText { bbox, vertices } = font

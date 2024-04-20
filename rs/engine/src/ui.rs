@@ -333,7 +333,12 @@ impl AssetLoader for Font3dLoader {
 }
 
 #[derive(Resource, Default, Clone, Debug, Deref, DerefMut)]
-pub struct TextMeshCache(pub HashMap<CowArc<'static, str>, Option<(Handle<Mesh>, WidgetShape)>>);
+pub struct TextMeshCache(
+	pub  HashMap<
+		(CowArc<'static, str>, [u32; 16], Handle<Font3d>),
+		Option<(Handle<Mesh>, WidgetShape)>,
+	>,
+);
 
 /// Component for any UI camera entity, player or global.
 #[derive(Component, Default)]
