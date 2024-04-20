@@ -108,12 +108,15 @@ pub fn setup(
 						.unwrap(),));
 
 						cmds.spawn((
-							TransformBundle::default(),
+							TransformBundle::from_transform(Transform {
+								translation: Vec3::NEG_Y * 6.0,
+								..default()
+							}),
 							VisibilityBundle::default(),
 							CurrChordIcons::default(),
 							ChildrenConstraint {
-								relative_positions: Vec3::new(1.5, -0.64, -0.32),
-								alignment: 0.0,
+								relative_positions: Vec3::new(1.5, -1.5, -0.32),
+								align: Vec3::new(-0.5, -1.0, 0.0),
 							},
 						));
 					});
