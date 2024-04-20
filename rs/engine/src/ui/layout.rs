@@ -14,17 +14,17 @@ pub struct ChildrenConstraint {
 	/// A unit vector indicates shapes will be touching. Any length over `1.0`
 	/// results in separating the shapes by that distance.
 	pub relative_positions: Vec3,
-	/// Alignment of children along the `relative_positions` axis.
-	/// `0.0` centers children at this entity's origin.
-	/// `-1.0` is analogous to `flex_start`, and `1.0` is analogous to `flex_end`.
-	pub alignment: f32,
+	/// Alignment of children. For each axis:
+	/// - `0.0` centers children at this entity's origin.
+	/// - `-1.0` is analogous to `flex_start`, and `1.0` is analogous to `flex_end`.
+	pub align: Vec3,
 }
 
 impl Default for ChildrenConstraint {
 	fn default() -> Self {
 		Self {
 			relative_positions: Vec3::X,
-			alignment: 1.0,
+			align: Vec3::ZERO,
 		}
 	}
 }
@@ -80,7 +80,7 @@ pub fn apply_constraints(
 			separations.push(sep);
 		}
 		let sep_sum = separations.iter().sum::<Vec3>();
-		let offset = sep_sum * ((-constraint.alignment + 1.0) * 0.5);
+		let offset = sep_sum * ((-constraint.align + Vec3::ONE) * 0.5);
 		transforms.get_mut(children[0]).unwrap().1.translation = -offset;
 		for (i, pair) in children.windows(2).enumerate() {
 			let [a, mut b] = transforms.get_many_mut([pair[0], pair[1]]).unwrap();
