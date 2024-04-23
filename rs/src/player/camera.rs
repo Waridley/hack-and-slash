@@ -110,6 +110,7 @@ pub fn spawn_camera<'a>(
 	let skybox_shader = asset_server.load::<Shader>("shaders/skybox.wgsl");
 
 	let mut cmds = cmds.spawn((
+		Name::new(format!("Player{}.Cam", player_id.get())),
 		BelongsToPlayer::with_id(player_id),
 		// Start the camera above the player in the fog, then zoom down
 		TransformBundle::from_transform(Transform::from_translation(Vec3::Z * 4096.0)),

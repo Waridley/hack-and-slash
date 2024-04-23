@@ -5,8 +5,9 @@ use bevy::{
 };
 use bevy_inspector_egui::{
 	bevy_egui::EguiContext,
+	bevy_inspector::ui_for_world_entities_filtered,
 	egui,
-	egui::{Color32, Ui},
+	egui::{Align2, Color32, Ui},
 };
 use egui_plot::{Legend, Line, Plot, PlotResponse};
 use enum_components::WithVariant;
@@ -19,12 +20,15 @@ use crate::{
 		frame::Frame,
 		terrain::Ground,
 	},
-	player::player_entity::Root,
+	player::player_entity::{Root, WithPlayerEntity},
 	util::History,
 };
 
 pub fn plugin(app: &mut App) -> &mut App {
-	app.add_debug_systems(height_under_player.show_with(KeyCode::KeyH))
+	app.add_debug_systems((
+		height_under_player.show_with(KeyCode::KeyH),
+		dbg_player_entities.hide_with(KeyCode::KeyL),
+	))
 }
 
 pub fn plot_res_history<T: Resource, const LINES: usize>(
@@ -122,4 +126,25 @@ pub fn height_under_player(
 			));
 		}
 	});
+}
+
+pub fn dbg_player_entities(world: &mut World) {
+	let egui_context = world
+		.query_filtered::<&mut EguiContext, With<PrimaryWindow>>()
+		.get_single(world);
+
+	let Ok(egui_context) = egui_context else {
+		return;
+	};
+	let mut ctx = egui_context.clone();
+
+	egui::Window::new("Player Entities")
+		.anchor(Align2::RIGHT_TOP, [0.0, 0.0])
+		.show(&ctx.get_mut(), |ui| {
+			egui::ScrollArea::both().show(ui, |ui| {
+				ui_for_world_entities_filtered::<(Without<Parent>, WithPlayerEntity)>(
+					world, ui, true,
+				);
+			})
+		});
 }

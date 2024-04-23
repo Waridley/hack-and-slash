@@ -241,6 +241,7 @@ fn startup(
 	#[cfg(all(feature = "debugging", feature = "render"))]
 	{
 		dbg_render_ctx.enabled = false;
+		dbg_render_ctx.pipeline.mode = DebugRenderMode::all();
 	}
 
 	cmds.insert_resource(AbsoluteBounds { extents: 65536.0 });
@@ -252,29 +253,28 @@ fn startup(
 	});
 }
 
-fn terminal_velocity(mut q: Query<(&mut CtrlVel, &TerminalVelocity)>, t: Res<Time>) {
-	let dt = t.delta_seconds();
+fn terminal_velocity(mut q: Query<(&mut CtrlVel, &TerminalVelocity)>) {
 	for (mut vel, term_vel) in q.iter_mut() {
 		// Don't trigger vel.deref_mut if not necessary
 		let term = term_vel.linvel;
 		if vel.linvel.x.abs() > term.x {
-			vel.linvel.x -= dt * vel.linvel.x.signum()
+			vel.linvel.x = term.x * vel.linvel.x.signum();
 		}
 		if vel.linvel.y.abs() > term.y {
-			vel.linvel.y -= dt * vel.linvel.y.signum()
+			vel.linvel.y = term.y * vel.linvel.y.signum();
 		}
 		if vel.linvel.z.abs() > term.z {
-			vel.linvel.z -= dt * vel.linvel.z.signum()
+			vel.linvel.z = term.z * vel.linvel.z.signum();
 		}
 		let term = term_vel.angvel;
 		if vel.angvel.x.abs() > term.x {
-			vel.angvel.x -= dt * vel.angvel.x.signum()
+			vel.angvel.x = term.x * vel.angvel.x.signum();
 		}
 		if vel.angvel.y.abs() > term.y {
-			vel.angvel.y -= dt * vel.angvel.y.signum()
+			vel.angvel.y = term.y * vel.angvel.y.signum();
 		}
 		if vel.angvel.z.abs() > term.z {
-			vel.angvel.z -= dt * vel.angvel.z.signum()
+			vel.angvel.z = term.z * vel.angvel.z.signum();
 		}
 	}
 }

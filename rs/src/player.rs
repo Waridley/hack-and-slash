@@ -83,6 +83,11 @@ pub fn plugin(app: &mut App) -> &mut App {
 	.register_type::<tune::PlayerCollider>()
 	.register_type::<PlayerPhysicsParams>()
 	.register_type::<PlayerParams>()
+	.register_type::<CtrlState>()
+	.register_type::<Prev<CtrlState>>()
+	.register_type::<CtrlVel>()
+	.register_type::<Prev<CtrlVel>>()
+	.register_type::<TerminalVelocity>()
 	.insert_resource(PlayerRespawnTimers::default())
 	.add_systems(Startup, setup)
 	.add_systems(
@@ -399,10 +404,6 @@ impl PlayerSpawnData {
 			root: (
 				Name::new(username.clone()),
 				owner,
-				TerminalVelocity(Velocity {
-					linvel: Vect::splat(96.0),
-					angvel: Vect::new(0.0, 0.0, PI / crate::DT), // Half a rotation per physics tick
-				}),
 				KinematicPositionBased,
 				TransformBundle::from_transform(transform),
 				Velocity::default(),
@@ -413,6 +414,10 @@ impl PlayerSpawnData {
 				VisibilityBundle::default(),
 				NeedsTerrain,
 			),
+			controller: (TerminalVelocity(Velocity {
+				linvel: Vect::new(256.0, 256.0, 128.0),
+				angvel: Vect::new(0.0, 0.0, PI / crate::DT), // Half a rotation per physics tick
+			}),),
 			vis: SceneBundle {
 				scene: ship_scene,
 				..default()
@@ -470,7 +475,6 @@ struct PlayerBundles {
 	root: (
 		Name,
 		BelongsToPlayer,
-		TerminalVelocity,
 		RigidBody,
 		TransformBundle,
 		Velocity,
@@ -478,6 +482,7 @@ struct PlayerBundles {
 		VisibilityBundle,
 		NeedsTerrain,
 	),
+	controller: (TerminalVelocity,),
 	vis: SceneBundle,
 	antigrav_pulse: PbrBundle,
 	arms: [(PbrBundle, PlayerArm); 3],
@@ -555,6 +560,7 @@ pub fn spawn_players(
 
 		let PlayerBundles {
 			root,
+			controller,
 			vis,
 			antigrav_pulse,
 			arms,
@@ -588,6 +594,7 @@ pub fn spawn_players(
 		populate_player_scene(
 			&mut root,
 			owner,
+			controller,
 			vis,
 			char_collider,
 			antigrav_pulse,
@@ -605,6 +612,7 @@ pub fn spawn_players(
 fn populate_player_scene(
 	root: &mut EntityCommands,
 	owner: BelongsToPlayer,
+	controller: (TerminalVelocity,),
 	vis: SceneBundle,
 	char_collider: Collider,
 	antigrav_pulse: PbrBundle,
@@ -623,7 +631,7 @@ fn populate_player_scene(
 			UiRoot,
 		));
 	});
-	player_controller(root, owner, char_collider, prefs);
+	player_controller(root, owner, controller, char_collider, prefs);
 	player_vis(
 		root,
 		owner,
@@ -638,6 +646,7 @@ fn populate_player_scene(
 fn player_controller(
 	root: &mut EntityCommands,
 	owner: BelongsToPlayer,
+	bundle: (TerminalVelocity,),
 	char_collider: Collider,
 	prefs: PlayerPrefs,
 ) {
@@ -664,6 +673,7 @@ fn player_controller(
 				BoosterCharge::default(),
 				WeaponCharge::default(),
 				cam_prefs,
+				bundle,
 			))
 			.with_enum(Controller);
 	});
