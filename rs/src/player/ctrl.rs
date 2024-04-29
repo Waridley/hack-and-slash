@@ -1,14 +1,24 @@
 use bevy::{
 	prelude::*,
 	render::primitives::{Aabb, Sphere},
+	utils::HashMap,
 };
 use bevy_rapier3d::{
 	na::Vector3,
 	parry::{
-		query::{DefaultQueryDispatcher, PersistentQueryDispatcher},
+		math::Vector,
+		query::{DefaultQueryDispatcher, PersistentQueryDispatcher, PointQuery},
 		shape::Capsule,
 	},
 	prelude::*,
+};
+use engine::{
+	nav::heightmap::FnsThatShouldBePub,
+	planet::{
+		chunks::{ChunkFinder, CHUNK_SCALE},
+		frame::Frame,
+	},
+	util::Diff,
 };
 use enum_components::WithVariant;
 use rapier3d::{
@@ -22,9 +32,9 @@ use crate::{
 		abilities::BoosterCharge,
 		player_entity::{Controller, Root, ShipCenter},
 		tune::PlayerParams,
-		BelongsToPlayer, G1,
+		BelongsToPlayer, PlayerId, G1,
 	},
-	UP,
+	EPS, UP,
 };
 
 #[derive(Component, Default, Clone, Debug, Reflect)]
@@ -212,14 +222,16 @@ pub fn move_player(
 	>,
 	params: Res<PlayerParams>,
 	sim_to_render: Res<SimulationToRenderTime>,
+	chunk_finder: ChunkFinder,
+	frame: Res<Frame>,
 	t: Res<Time>,
 ) {
 	let dt = crate::DT;
 	let mut diff = sim_to_render.diff + t.delta_seconds();
-	let mut iters = 4;
-	while diff > 0.0 && iters > 0 {
+	let mut max_iters = 4;
+	while diff > 0.0 && max_iters > 0 {
 		diff -= dt;
-		iters -= 1;
+		max_iters -= 1;
 
 		for (col_id, body_id, global, mut ctrl_vel, col, ctrl_owner, mut ctrl_state) in &mut ctrl_q
 		{
@@ -263,14 +275,14 @@ pub fn move_player(
 				predicate: None,
 			};
 
-			const BUFFER: f32 = 0.1;
+			const BUFFER: f32 = 0.2;
 
 			let mut rem = dt;
 			let mut result = Vec3::ZERO;
 			let mut dir = vel;
 			let mut manifolds: Vec<ContactManifold<ContactManifoldData, ContactData>> = vec![];
 			let mut contacts = vec![];
-			let mut pen_fix_iters = 20;
+			let mut pen_fix_iters = 8;
 			while rem > dt * BUFFER {
 				// Using custom shape casting because of too many bugs/design choices I don't want with rapier's character controller.
 				match ctx.cast_shape(
@@ -278,7 +290,7 @@ pub fn move_player(
 					body_global.rotation,
 					dir,
 					col,
-					rem * (1.0 + BUFFER),
+					rem,
 					true,
 					filter,
 				) {
@@ -290,7 +302,7 @@ pub fn move_player(
 							status: _status,
 						},
 					)) => {
-						let safe_toi = (toi - (dt * BUFFER)).clamp(0.0, rem);
+						let safe_toi = (toi - (dt * BUFFER)).max(0.0);
 						let penetrating_part = dir * ((rem - toi) / rem);
 						let reaction = -penetrating_part.dot(hit.normal1) * (hit.normal1 * 1.01);
 						let slide_dir = penetrating_part + reaction;
@@ -404,22 +416,23 @@ pub fn move_player(
 							true
 						});
 						let mut fix = Vec3::ZERO;
+						let coef = 1.0 / contacts.len() as f32;
 						for (dir, dist) in contacts.drain(..) {
-							fix += dir * f32::min(dt, dist * (1.0 + BUFFER));
+							fix += dir * f32::min(dt, dist * (1.0 + BUFFER)) * coef;
 						}
 						if fix.angle_between(UP) < params.phys.slide_angle.rad() {
 							// Even if individual surfaces were all too steep, getting stuck in a V should still bottom us out.
 							ctrl_state.bottom_out()
 						}
-						result += dbg!(fix);
+						result += fix;
 						pen_fix_iters -= 1;
-						if pen_fix_iters == 0 {
+						if pen_fix_iters <= 0 || fix.length_squared() == 0.0 {
 							rem = 0.0;
 						}
 					}
 					toi => {
 						if let Some(toi) = toi {
-							dbg!(toi);
+							warn!(?toi, "Not sure how this state was reached");
 						}
 						ctrl_state.bottomed_out = false;
 						result += dir * rem;
@@ -430,7 +443,33 @@ pub fn move_player(
 			}
 			let body = ctx.bodies.get_mut(body_handle).unwrap();
 			body.set_rotation(body_xform.rotation.into(), true);
-			if result.length() > 0.0 {
+
+			// Fix ground penetration -- always push player out of planet
+			let next = body_xform.translation + result;
+			let planet_pos = frame.planet_coords_of(next.xy());
+			let Some((_, chunk, center, ground)) = chunk_finder.closest_to(planet_pos) else {
+				error!("Missing chunk under player");
+				continue;
+			};
+			let Some((tri_id, tri)) = ground.tri_at(planet_pos.delta_from(&center)) else {
+				error!("Missing terrain under player");
+				continue;
+			};
+			let norm = tri.normal().unwrap();
+			let rel = planet_pos.delta_from(&center.0);
+			let rel = Vec2::new(rel.x, -rel.y) - Vec2::from(tri.a.xz());
+			let rel = Vector::new(rel.x, next.z - tri.a.y, rel.y);
+			let dot = rel.dot(&norm);
+			let r = col.raw.compute_local_bounding_sphere().radius;
+			let buf = r * 0.1;
+			if dot < buf {
+				let fix = *norm * (buf - dot);
+				let fix = Vec3::new(fix.x, -fix.z, fix.y);
+				warn!(dot, ?body_xform.translation, ?result, ?tri, ?fix);
+				result = result + fix;
+			}
+
+			if result.length_squared() > 0.0 {
 				vis_xform.translation -= result;
 				let end = vis_interp.end.unwrap();
 				vis_interp.start = Some(Isometry::new(
