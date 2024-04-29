@@ -1,11 +1,6 @@
 use super::widgets::WidgetShape;
 use bevy::prelude::*;
-use num_traits::Zero;
-use rapier3d::{
-	math::{Isometry, Point},
-	na::Vector3,
-	parry::query::{Ray, Unsupported},
-};
+use rapier3d::parry::query::Ray;
 use serde::{Deserialize, Serialize};
 
 #[derive(Component, Debug, Reflect, Serialize, Deserialize)]

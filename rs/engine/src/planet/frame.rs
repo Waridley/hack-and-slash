@@ -3,7 +3,6 @@ use crate::{
 		chunks::{ChunkIndex, TERRAIN_CELL_SIZE},
 		PlanetVec2,
 	},
-	ui::GLOBAL_UI_RENDER_LAYERS,
 	util::Prev,
 };
 use bevy::{prelude::*, render::view::RenderLayers};

@@ -22,7 +22,6 @@ use std::f64::consts::TAU;
 pub mod a11y;
 #[cfg(feature = "debugging")]
 pub mod dbg;
-pub mod in_map;
 pub mod layout;
 pub mod widgets;
 
@@ -34,7 +33,7 @@ pub struct UiPlugin;
 impl Plugin for UiPlugin {
 	fn build(&self, app: &mut App) {
 		#[cfg(feature = "debugging")]
-		app.add_plugins((dbg::DebugUiPlugin, in_map::detect::DetectBindingPopupPlugin));
+		app.add_plugins(dbg::DebugUiPlugin);
 
 		app.init_resource::<UiHovered>()
 			.init_resource::<TextMeshCache>()

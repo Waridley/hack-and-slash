@@ -1,15 +1,15 @@
 use crate::{
-	input::{ChordEntry, CurrentChord, InputState},
-	ui::{
-		in_map::{
+	input::{
+		map::{
 			icons::{Icon, InputIcons},
+			widgets::IconWidgetBuilder,
 			GamepadSeries,
 		},
+		ChordEntry, CurrentChord, InputState,
+	},
+	ui::{
 		layout::ChildrenConstraint,
-		widgets::{
-			CuboidFaces, Font3d, IconWidgetBuilder, PanelBuilder, RectBorderDesc, RectCorners,
-			TextBuilder,
-		},
+		widgets::{CuboidFaces, Font3d, PanelBuilder, RectBorderDesc, RectCorners, TextBuilder},
 		TextMeshCache, UiFonts, GLOBAL_UI_RENDER_LAYERS,
 	},
 };
@@ -76,9 +76,7 @@ pub fn setup(
 							alpha_mode: AlphaMode::Add,
 							..default()
 						});
-						for (mesh, normal) in
-							borders.into_iter().zip(CuboidFaces::NORMALS.into_iter())
-						{
+						for mesh in borders.into_iter() {
 							let Some(mesh) = mesh else { continue };
 							let mesh = meshes.add(dbg!(mesh));
 							cmds.spawn((
