@@ -15,11 +15,16 @@ use bevy::{
 };
 use bevy_rapier3d::{
 	geometry::shape_views::HeightFieldCellStatus,
-	na::Point3,
-	parry::shape::{SharedShape, Triangle},
+	na::{Point2, Point3, Vector2},
+	parry::{
+		bounding_volume::BoundingVolume,
+		math::Vector,
+		query::RayCast,
+		shape::{SharedShape, Triangle},
+	},
 	prelude::*,
 };
-use rapier3d::{geometry::HeightField, na::DMatrix};
+use rapier3d::{geometry::HeightField, na::DMatrix, prelude::Ray};
 use web_time::{Duration, Instant};
 
 use crate::{
@@ -251,19 +256,20 @@ impl Ground {
 
 	pub fn tri_at(&self, local_point: Vec2) -> Option<(TriId, Triangle)> {
 		// HeightField has to be inverted for chunk indices to follow PlanetVec2
-		let rel = Vec2::new(local_point.x, -local_point.y);
-		let point = Point3::new(rel.x, 0.0, rel.y);
+		let point = Point3::new(local_point.x, 0.0, -local_point.y);
 		let (i, j) = self.heights.cell_at_point(&point)?;
 		let (left, right) = self.heights.triangles_at(i, j);
 
-		// ZIG-ZAG
+		// NOTE: Inverted from parry3d to align with `PlanetVec2`
+		//
+		// REGULAR
 		// a -- c  c
 		// | L / / |
 		// |  / /  |
 		// | / / R |
 		// b  a -- b
 		//
-		// NORMAL
+		// ZIG-ZAG
 		// a  a -- c
 		// | \ \ R |
 		// |  \ \  |
@@ -280,7 +286,7 @@ impl Ground {
 							p.x * p.x + p.y * p.y + p.z * p.z
 						} <= f32::EPSILON
 					);
-					(left.a.xy(), right.b.xy())
+					(left.b.xz(), right.c.xz())
 				} else {
 					debug_assert!(
 						{
@@ -288,12 +294,12 @@ impl Ground {
 							p.x * p.x + p.y * p.y + p.z * p.z
 						} <= f32::EPSILON
 					);
-					(left.b.xy(), right.c.xy())
+					(left.a.xz(), right.b.xz())
 				};
-				// Checking the squared distances to the opposing points is at least as cheap as any other solution.
-				let p = point.xy();
-				let dl = l - p.xy();
-				let dr = r - p.xy();
+				// Comparing the squared distances to the opposing points is at least as cheap as any other solution.
+				let p = point.xz();
+				let dl = l - p;
+				let dr = r - p;
 				let dl = dl.x * dl.x + dl.y * dl.y;
 				let dr = dr.x * dr.x + dr.y * dr.y;
 				if dl < dr {
@@ -316,14 +322,17 @@ impl Ground {
 
 	pub fn tri_and_height_at(&self, local_point: Vec2) -> Option<(TriId, f32)> {
 		let (id, tri) = self.tri_at(local_point)?;
-		// HeightField has to be inverted for chunk indices to follow PlanetVec2
-		let rel = Vec2::new(local_point.x, -local_point.y);
-		let da = TERRAIN_CELL_SIZE - (Vec2::from(tri.a.xz()) - rel).length();
-		let db = TERRAIN_CELL_SIZE - (Vec2::from(tri.b.xz()) - rel).length();
-		let dc = TERRAIN_CELL_SIZE - (Vec2::from(tri.c.xz()) - rel).length();
-		let sum = da + db + dc;
-		let height = (da / sum) * tri.a.y + (db / sum) * tri.b.y + (dc / sum) * tri.c.y;
-		Some((id, height))
+
+		let ab = tri.b - tri.a;
+		let ac = tri.c - tri.a;
+		let p = Vector2::new(local_point.x - tri.a.x, -local_point.y - tri.a.z);
+		let pab = ab.xz().normalize().dot(&p);
+		let pac = ac.xz().normalize().dot(&p);
+		trace!(?p, pab, ?ab, pac, ?ac);
+		let pab = pab * ab.normalize();
+		let pac = pac * ac.normalize();
+		let projected = tri.a + pab + pac;
+		Some((id, projected.y))
 	}
 }
 
