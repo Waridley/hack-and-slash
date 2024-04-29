@@ -2,7 +2,7 @@
 
 use bevy::app::{App, Plugin};
 #[allow(unused_imports, clippy::single_component_path_imports)]
-#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+#[cfg(all(feature = "bevy_dylib", not(target_arch = "wasm32")))]
 use bevy_dylib;
 use bevy_svg::SvgPlugin;
 

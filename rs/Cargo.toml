@@ -10,7 +10,7 @@ resolver = "2"
 members = ["tools/*", "game-dylib", "engine", "engine-dylib", "engine/macros"]
 
 [features]
-dylib = ["bevy_dylib", "sond-has-engine-dylib"]
+dylib = ["sond-has-engine-dylib"]
 debugging = ["engine/debugging", "bevy-inspector-egui", "egui_plot", "leafwing-input-manager/egui"]
 vis_test = ["testing", "render", "engine/vis_test"]
 testing = ["engine/testing"]

@@ -23,6 +23,13 @@ pub fn main() {
 			..default()
 		})
 		.set(AssetPlugin {
+			#[cfg(feature = "debugging")]
+			file_path: dbg!(
+				std::env::var("ASSET_DIR").unwrap_or_else(|_| AssetPlugin::default().file_path)
+			),
+			#[cfg(feature = "debugging")]
+			processed_file_path: dbg!(std::env::var("PROC_ASSET_DIR")
+				.unwrap_or_else(|_| AssetPlugin::default().processed_file_path)),
 			mode: AssetMode::Processed,
 			..default()
 		});

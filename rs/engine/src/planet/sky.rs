@@ -189,7 +189,7 @@ impl ViewNode for SkyNode {
 			CachedPipelineState::Ok(Pipeline::RenderPipeline(pipeline)) => pipeline,
 			CachedPipelineState::Ok(_) => unreachable!("SkyPipeline is a RenderPipeline"),
 			CachedPipelineState::Err(e) => {
-				error!("{e}");
+				debug!("{e}");
 				return Ok(());
 			}
 		};

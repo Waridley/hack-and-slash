@@ -5,9 +5,9 @@ use std::{f32::consts::*, fmt::Debug, time::Duration};
 use bevy::{
 	diagnostic::FrameTimeDiagnosticsPlugin, prelude::*, render::RenderPlugin, window::PrimaryWindow,
 };
-#[allow(unused_imports, clippy::single_component_path_imports)]
-#[cfg(all(feature = "dylib", not(target_arch = "wasm32")))]
-use bevy_dylib;
+// #[allow(unused_imports, clippy::single_component_path_imports)]
+// #[cfg(all(feature = "dylib", not(target_arch = "wasm32")))]
+// use bevy_dylib;
 use bevy_kira_audio::AudioPlugin;
 use bevy_pkv::PkvStore;
 use bevy_rapier3d::{plugin::PhysicsSet::StepSimulation, prelude::*};
