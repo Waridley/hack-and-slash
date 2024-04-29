@@ -1,8 +1,10 @@
-use crate::ui::{
-	a11y::AKNode,
-	in_map::{icons::kenney::generic_base_dir, GamepadSeries},
-	widgets::{Font3d, TextBuilder},
-	TextMeshCache, GLOBAL_UI_RENDER_LAYERS,
+use crate::{
+	input::map::{icons::kenney::generic_base_dir, GamepadSeries},
+	ui::{
+		a11y::AKNode,
+		widgets::{Font3d, TextBuilder},
+		TextMeshCache, GLOBAL_UI_RENDER_LAYERS,
+	},
 };
 use bevy::{
 	a11y::accesskit::{NodeBuilder, Role},

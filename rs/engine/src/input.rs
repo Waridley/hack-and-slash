@@ -16,11 +16,14 @@ use crate::{
 	util::{AppExt, StateStack},
 };
 
+pub mod map;
+
 pub struct InputPlugin;
 
 impl Plugin for InputPlugin {
 	fn build(&self, app: &mut App) {
-		app.init_state_stack::<InputState>()
+		app.add_plugins((map::detect::DetectBindingPopupPlugin,))
+			.init_state_stack::<InputState>()
 			.init_resource::<CurrentChord>()
 			.add_event::<ToBind>()
 			.add_systems(
@@ -241,7 +244,7 @@ pub fn dbg_set_detect_binding_state(
 
 #[cfg(feature = "debugging")]
 pub fn dbg_detect_bindings(mut rx: EventReader<ToBind>, gamepads: Res<Gamepads>) {
-	use crate::ui::in_map::{icons::*, GamepadSeries};
+	use crate::input::map::{icons::*, GamepadSeries};
 	for event in rx.read() {
 		for ((input, gp), logical_key) in event.0.iter() {
 			let icons = if let Some(icon) = logical_key.as_ref() {

@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod detect;
 pub mod icons;
+pub mod widgets;
 
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Reflect)]
 #[reflect(Serialize, Deserialize)]
