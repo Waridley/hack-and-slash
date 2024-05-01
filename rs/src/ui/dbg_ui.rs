@@ -11,7 +11,7 @@ use bevy_inspector_egui::{
 use egui_plot::{Legend, Line, Plot, PlotResponse};
 use enum_components::WithVariant;
 
-use engine::ui::{AddDebugUi, ToggleUi, UiHovered};
+use engine::ui::{AddDebugUi, ToggleDbgUi, UiHovered};
 
 use crate::{
 	planet::{

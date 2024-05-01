@@ -1,5 +1,6 @@
 use std::{f32::consts::*, num::NonZeroU8, ops::Add, time::Duration};
 
+use bevy::render::view::Layer;
 use bevy::{
 	asset::AssetPath,
 	ecs::system::EntityCommands,
@@ -29,13 +30,12 @@ use particles::{
 };
 use rapier3d::{math::Point, prelude::Aabb};
 
-use camera::spawn_camera;
+use camera::spawn_cameras;
 use ctrl::{CtrlState, CtrlVel};
 use engine::{
 	planet::terrain::NeedsTerrain,
-	ui::{UiRoot, GLOBAL_UI_LAYER},
+	ui::{layout::ChildrenConstraint, UiRoot, GLOBAL_UI_LAYER},
 };
-use input::PlayerAction;
 use player_entity::*;
 use prefs::PlayerPrefs;
 
@@ -61,9 +61,11 @@ pub mod prefs;
 pub mod tune;
 
 const G1: Group = Group::GROUP_1;
-pub const PLAYER_UI_CAM_ORDER: isize = 1;
-pub const fn player_ui_layer(player: PlayerId) -> RenderLayers {
-	RenderLayers::layer(GLOBAL_UI_LAYER - player.get())
+pub const fn player_ui_layer(player: PlayerId) -> Layer {
+	GLOBAL_UI_LAYER - (player.get() * 2) + 1
+}
+pub const fn player_hud_layer(player: PlayerId) -> Layer {
+	GLOBAL_UI_LAYER - (player.get() * 2)
 }
 
 pub fn plugin(app: &mut App) -> &mut App {
@@ -157,7 +159,8 @@ pub fn setup(
 	let Some(id) = PlayerId::new(1) else {
 		unreachable!()
 	};
-	spawn_camera(&mut cmds, id, &settings, &mut images, &asset_server);
+	// TODO: Separate viewport for each player
+	spawn_cameras(&mut cmds, id, &settings, &mut images, &asset_server, None);
 }
 
 pub fn update_player_spawn_data(
@@ -620,6 +623,11 @@ fn populate_player_scene(
 				..default()
 			}),
 			VisibilityBundle::default(),
+			ChildrenConstraint {
+				relative_positions: Vec3::NEG_Y * 11.0,
+				align: Vec3::new(0.0, -1.0, 0.0),
+			},
+			RenderLayers::layer(player_ui_layer(owner.id())),
 			UiRoot,
 		));
 	});
@@ -645,6 +653,7 @@ fn player_controller(
 		let PlayerPrefs {
 			camera: cam_prefs,
 			input_map,
+			ui_input_map,
 		} = prefs;
 		builder
 			.spawn((
@@ -656,8 +665,12 @@ fn player_controller(
 				TransformBundle::default(),
 				CtrlVel::default(),
 				CollisionGroups::new(Group::GROUP_1, !Group::GROUP_1),
-				InputManagerBundle::<PlayerAction> {
+				InputManagerBundle {
 					input_map,
+					..default()
+				},
+				InputManagerBundle {
+					input_map: ui_input_map,
 					..default()
 				},
 				CtrlState::default(),

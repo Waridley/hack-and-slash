@@ -292,10 +292,11 @@ impl IconBundleBuilder {
 			TextBuilder {
 				text: text.to_string().into(),
 				font,
-				vertex_translation: Vec3::new(-8.0, -40.0, -32.0),
-				vertex_scale: Vec3::new(size.x * 12.0, size.y * 12.0, 0.0),
+				vertex_translation: Vec3::new(0.0, -32.0, -32.0),
+				vertex_scale: Vec3::new(size.x * 128.0, size.y * 128.0, 0.0),
 				// Compensate for lack of z-up convertibility in bevy_svg
 				vertex_rotation: Quat::default(),
+				// transform: Transform::from_translation(Vec3::NEG_Y * 32.0),
 				..default()
 			}
 			.build(meshes, cache, fonts)

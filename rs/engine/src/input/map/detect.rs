@@ -1,3 +1,4 @@
+use crate::ui::CamAnchor;
 use crate::{
 	input::{
 		map::{
@@ -10,7 +11,7 @@ use crate::{
 	ui::{
 		layout::ChildrenConstraint,
 		widgets::{CuboidFaces, Font3d, PanelBuilder, RectBorderDesc, RectCorners, TextBuilder},
-		TextMeshCache, UiFonts, GLOBAL_UI_RENDER_LAYERS,
+		GlobalUi, TextMeshCache, UiFonts, GLOBAL_UI_RENDER_LAYERS,
 	},
 };
 use bevy::{
@@ -24,7 +25,7 @@ pub struct DetectBindingPopupPlugin;
 impl Plugin for DetectBindingPopupPlugin {
 	fn build(&self, app: &mut App) {
 		app.add_systems(PreUpdate, setup)
-			.add_systems(Update, (manage_detect_popup_vis, display_curr_chord));
+			.add_systems(Update, (manage_detect_popup, display_curr_chord));
 	}
 }
 
@@ -41,30 +42,32 @@ pub fn setup(
 	for event in events.read() {
 		if let AssetEvent::Added { id } = event {
 			if ui_fonts.mono_3d.id() == *id {
-				let size = Vec3::new(32.0, 1.0, 24.0);
+				let size = Vec3::new(8.0, 1.0, 6.0);
 				let (panel, borders) = PanelBuilder {
 					size,
 					material: mats.add(StandardMaterial {
-						base_color: Color::rgba(0.0, 0.2, 0.2, 0.1),
-						alpha_mode: AlphaMode::Add,
+						base_color: Color::rgba(0.0, 0.001, 0.001, 0.6),
+						alpha_mode: AlphaMode::Blend,
 						double_sided: true,
 						cull_mode: None,
 						..default()
 					}),
 					borders: CuboidFaces {
 						front: Some(RectBorderDesc {
-							dilation: 1.0,
-							depth: 2.0,
+							width: 0.125,
+							dilation: 3.0,
+							depth: 0.125,
 							colors: Some(RectCorners {
-								top_right: Color::rgba(0.0, 0.2, 0.2, 0.1),
-								top_left: Color::rgba(0.0, 0.4, 0.1, 0.1),
-								bottom_left: Color::rgba(0.0, 0.2, 0.2, 0.1),
-								bottom_right: Color::rgba(0.0, 0.1, 0.4, 0.1),
+								top_right: Color::rgba(0.0, 0.2, 0.2, 0.6),
+								top_left: Color::rgba(0.0, 0.4, 0.1, 0.6),
+								bottom_left: Color::rgba(0.0, 0.2, 0.2, 0.6),
+								bottom_right: Color::rgba(0.0, 0.1, 0.4, 0.6),
 							}),
 							..default()
 						}),
 						..default()
 					},
+					transform: Transform::from_translation(Vec3::NEG_Y * 10.0),
 					visibility: Visibility::Hidden,
 					..default()
 				}
@@ -73,16 +76,17 @@ pub fn setup(
 				cmds.spawn((panel, DetectBindingPopup))
 					.with_children(|cmds| {
 						let border_mat = mats.add(StandardMaterial {
-							alpha_mode: AlphaMode::Add,
+							alpha_mode: AlphaMode::Blend,
 							..default()
 						});
-						for mesh in borders.into_iter() {
+						for (mesh, normal) in borders.into_iter().zip(CuboidFaces::NORMALS) {
 							let Some(mesh) = mesh else { continue };
 							let mesh = meshes.add(dbg!(mesh));
 							cmds.spawn((
 								PbrBundle {
 									mesh,
 									material: border_mat.clone(),
+									transform: Transform::from_translation(normal * (size * 0.6)),
 									..default()
 								},
 								GLOBAL_UI_RENDER_LAYERS,
@@ -94,10 +98,9 @@ pub fn setup(
 							font: ui_fonts.mono_3d.clone(),
 							flat: false,
 							material: mats.add(Color::AQUAMARINE),
-							vertex_scale: Vec3::new(2.0, 2.0, 0.5),
-							vertex_translation: Vec3::new(-11.0, 0.0, 0.0),
+							vertex_scale: Vec3::new(0.5, 0.5, 0.125),
 							transform: Transform {
-								translation: Vec3::new(0.0, -2.0, 6.0),
+								translation: Vec3::new(0.0, -1.0, 1.5),
 								..default()
 							},
 							..default()
@@ -107,7 +110,7 @@ pub fn setup(
 
 						cmds.spawn((
 							TransformBundle::from_transform(Transform {
-								translation: Vec3::NEG_Y * 6.0,
+								translation: Vec3::NEG_Y * 2.0,
 								..default()
 							}),
 							VisibilityBundle::default(),
@@ -126,20 +129,28 @@ pub fn setup(
 #[derive(Component, Default, Debug, Reflect)]
 pub struct DetectBindingPopup;
 
-pub fn manage_detect_popup_vis(
+pub fn manage_detect_popup(
+	mut cmds: Commands,
 	state: Res<State<InputState>>,
-	mut q: Query<&mut Visibility, With<DetectBindingPopup>>,
+	q: Query<(Entity, Option<&Parent>), With<DetectBindingPopup>>,
+	// Popups always show right in front of camera
+	anchor: Query<Entity, (With<GlobalUi>, With<CamAnchor>)>,
 ) {
-	let Ok(mut vis) = q.get_single_mut() else {
+	let Ok((id, parent)) = q.get_single() else {
 		return;
 	};
-	let new = if *state.get() == InputState::DetectingBinding {
-		Visibility::Visible
+	let root = anchor.single();
+	if *state.get() == InputState::DetectingBinding {
+		if parent.is_none() {
+			cmds.entity(id).set_parent(root);
+		} else {
+			debug_assert_eq!(parent.unwrap().get(), root)
+		}
 	} else {
-		Visibility::Hidden
-	};
-	if *vis != new {
-		*vis = new;
+		if parent.is_some() {
+			debug_assert_eq!(parent.unwrap().get(), root);
+			cmds.entity(id).remove_parent();
+		}
 	}
 }
 
@@ -198,11 +209,11 @@ pub fn display_curr_chord(
 			for icon in entry_icons {
 				let icon_id = IconWidgetBuilder {
 					icon,
-					size: Vec3::splat(3.0),
+					size: Vec3::splat(0.3),
 					font: ui_fonts.mono_3d.clone(),
 					origin: Origin::Center,
 					transform: Transform {
-						scale: Vec3::splat(0.06),
+						scale: Vec3::splat(0.02),
 						..default()
 					},
 					..default()
