@@ -1,11 +1,11 @@
 use bevy::{ecs::query::QueryData, prelude::*};
 use bevy_pkv::PkvStore;
-use engine::util::Angle;
+use engine::{ui::UiAction, util::Angle};
 use enum_components::WithVariant;
 use leafwing_input_manager::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::player::{input::PlayerAction::*, player_entity::Root, BelongsToPlayer};
+use crate::player::{player_entity::Root, BelongsToPlayer};
 
 use super::input::PlayerAction;
 
@@ -46,6 +46,7 @@ pub fn save(
 pub struct PlayerPrefs {
 	pub camera: CameraPrefs,
 	pub input_map: InputMap<PlayerAction>,
+	pub ui_input_map: InputMap<UiAction>,
 }
 
 pub type ChangedPrefs = Or<(ChangedCameraPrefs, Changed<InputMap<PlayerAction>>)>;
@@ -76,6 +77,7 @@ impl<'w> From<PlayerPrefsQueryItem<'w, '_>> for PlayerPrefs {
 				smoothing: *value.cam_smoothing,
 			},
 			input_map: value.input_map.clone(),
+			ui_input_map: value.ui_input_map.clone(),
 		}
 	}
 }
@@ -90,6 +92,7 @@ impl<'w> From<PlayerPrefsQueryReadOnlyItem<'w, '_>> for PlayerPrefs {
 				smoothing: *value.cam_smoothing,
 			},
 			input_map: value.input_map.clone(),
+			ui_input_map: value.ui_input_map.clone(),
 		}
 	}
 }
@@ -100,41 +103,17 @@ pub struct PlayerPrefsQuery<'w> {
 	pub invert_camera: &'w mut InvertCamera,
 	pub fov: &'w mut Fov,
 	pub input_map: &'w mut InputMap<PlayerAction>,
+	pub ui_input_map: &'w mut InputMap<UiAction>,
 	pub sens: &'w mut LookSensitivity,
 	pub cam_smoothing: &'w mut CamSmoothing,
 }
 
 impl Default for PlayerPrefs {
 	fn default() -> Self {
-		use KeyCode::*;
-		let mut input_map = InputMap::new([
-			(Jump, Backspace),
-			(Jump, Space),
-			(Dash, ShiftLeft),
-			(FireA, ShiftRight),
-			(AoE, KeyE),
-			(AoE, PageUp),
-			(PauseGame, Escape),
-		]);
-		input_map.insert_multiple([
-			(Move, DualAxis::left_stick()),
-			(Look, DualAxis::right_stick()),
-		]);
-		input_map.insert_multiple([
-			(Move, VirtualDPad::wasd()),
-			(Look, VirtualDPad::arrow_keys()),
-		]);
-		input_map.insert_multiple([
-			(Jump, GamepadButtonType::South),
-			(Dash, GamepadButtonType::West),
-			(FireA, GamepadButtonType::RightTrigger2),
-			(AoE, GamepadButtonType::RightTrigger),
-			(PauseGame, GamepadButtonType::Start),
-		]);
-		input_map.insert_multiple([(FireA, MouseButton::Left), (Dash, MouseButton::Other(9))]);
 		Self {
-			input_map,
 			camera: default(),
+			input_map: PlayerAction::default_mappings(),
+			ui_input_map: UiAction::default_mappings(),
 		}
 	}
 }

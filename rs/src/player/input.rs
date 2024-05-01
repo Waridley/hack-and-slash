@@ -83,6 +83,42 @@ pub enum PlayerAction {
 	PauseGame,
 }
 
+impl PlayerAction {
+	pub fn default_mappings() -> InputMap<Self> {
+		use KeyCode::*;
+		use PlayerAction::*;
+		InputMap::new([
+			// KB & Mouse
+			(Move, UserInput::from(VirtualDPad::wasd())),
+			(Look, VirtualDPad::arrow_keys().into()),
+			(Jump, Space.into()),
+			(Jump, Backspace.into()),
+			(FireA, ShiftRight.into()),
+			(FireA, MouseButton::Left.into()),
+			(FireB, MouseButton::Right.into()),
+			(FireB, Enter.into()),
+			(FireC, MouseButton::Middle.into()),
+			(FireC, ControlRight.into()),
+			(FireC, KeyQ.into()),
+			(AoE, KeyE.into()),
+			(AoE, PageUp.into()),
+			(Dash, ShiftLeft.into()),
+			(Dash, MouseButton::Other(9).into()),
+			(PauseGame, Escape.into()),
+			// Controller
+			(Move, DualAxis::left_stick().into()),
+			(Look, DualAxis::right_stick().into()),
+			(Jump, GamepadButtonType::South.into()),
+			(FireA, GamepadButtonType::RightTrigger2.into()),
+			(FireB, GamepadButtonType::LeftTrigger2.into()),
+			(FireC, GamepadButtonType::LeftTrigger.into()),
+			(AoE, GamepadButtonType::RightTrigger.into()),
+			(Dash, GamepadButtonType::West.into()),
+			(PauseGame, GamepadButtonType::Start.into()),
+		])
+	}
+}
+
 #[derive(Component, Resource, Reflect, Default, Debug, Clone, Deref, DerefMut)]
 pub struct InputStorageTimer(Timer);
 

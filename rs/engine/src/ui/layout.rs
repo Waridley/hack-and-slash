@@ -50,8 +50,13 @@ pub fn apply_constraints(
 	mut transforms: Query<(Entity, &mut Transform, Option<&Parent>, &WidgetShape)>,
 ) {
 	for (id, constraint, children) in &child_constraints {
-		if children.len() < 2 {
-			continue;
+		match children.len() {
+			0 => continue,
+			1 => {
+				transforms.get_mut(children[0]).unwrap().1.translation = Vec3::ZERO;
+				continue;
+			}
+			_ => {}
 		}
 		let mut separations = Vec::with_capacity(children.len());
 		for pair in children.windows(2) {
@@ -125,18 +130,22 @@ fn compute_separation(
 	let b_len = b_bs.radius;
 	let a_to_b = a_rot * (dir * a_len);
 	let b_to_a = b_rot * (-dir * b_len);
-	let a_ray = Ray::new(a_to_b.into(), b_to_a.into());
-	let b_ray = Ray::new(b_to_a.into(), a_to_b.into());
+	let a_ray = Ray::new(a_to_b.into(), b_to_a.normalize_or_zero().into());
+	let b_ray = Ray::new(b_to_a.into(), a_to_b.normalize_or_zero().into());
 	let ta = a_shape.cast_local_ray(&a_ray, a_len, true);
 	let tb = b_shape.cast_local_ray(&b_ray, b_len, true);
 	let (Some(ta), Some(tb)) = (ta, tb) else {
 		let msg = "Unexpectedly unable to find contact between shapes";
 		if cfg!(debug_assertions) {
 			// Catch bad values in development
-			panic!("{msg}: ta={ta:?}, tb={tb:?}");
+			panic!(
+				"{msg}:\n
+			\ta_bs={a_bs:?}, a_to_b={a_to_b:?}, ta={ta:?}\n
+			\tb_bs={b_bs:?}, b_to_a={b_to_a:?}, tb={tb:?}"
+			);
 		} else {
 			// Don't crash in production
-			error!(?ta, ?tb, "{msg}");
+			error!(?a_bs, ?a_to_b, ?ta, ?b_bs, ?b_to_a, ?tb, "{msg}");
 			return Vec3::ZERO;
 		}
 	};

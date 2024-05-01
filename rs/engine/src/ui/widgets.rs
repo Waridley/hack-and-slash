@@ -59,7 +59,7 @@ impl Default for WidgetBundle {
 }
 
 #[derive(Clone, Debug)]
-pub struct PanelBuilder<M: Material> {
+pub struct PanelBuilder<M: Material = StandardMaterial> {
 	pub size: Vec3,
 	pub material: Handle<M>,
 	pub colors: Option<CuboidFaces<Color>>,
@@ -264,15 +264,16 @@ impl<M: Material> TextBuilder<M> {
 						error!("{e:?}"))
 					.ok()?;
 
-				let shape = WidgetShape(SharedShape::cuboid(
+				let half_size = Vec3::new(
 					bbox.size().x * 0.5,
 					bbox.size().y * 0.5,
 					bbox.size().z * 0.5,
-				));
+				);
+				let shape = WidgetShape(SharedShape::cuboid(half_size.x, half_size.y, half_size.z));
 
 				let verts = vertices
 					.chunks(3)
-					.map(|c| [c[0], c[1], c[2]])
+					.map(|c| [c[0] - half_size.x, c[1] - half_size.y, c[2] - half_size.z])
 					.collect::<Vec<_>>();
 				let len = verts.len();
 				let mut mesh = Mesh::new(TriangleList, RenderAssetUsages::RENDER_WORLD);
@@ -303,8 +304,6 @@ impl<M: Material> TextBuilder<M> {
 #[derive(Component, Default, Debug, Copy, Clone)]
 pub struct Button3d {
 	pub pressed: bool,
-	pub focused: bool,
-	pub hovered: bool,
 }
 
 #[derive(Clone, Bundle)]

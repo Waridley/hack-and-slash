@@ -890,3 +890,36 @@ impl ZUp for Mesh {
 		self
 	}
 }
+
+/// Run condition that matches on a state pattern instead of using `PartialEq`
+///
+///
+/// ### Usage:
+/// Due to limitations in `macro_rules` syntax, this only works for enums,
+/// and the type must be included in angle brackets.
+/// ```
+/// # fn in_baz() {}
+/// # use bevy::prelude::*;
+/// # use sond_has_engine::state_matches;
+///
+/// #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default, States)]
+/// enum Foo {
+///     #[default]
+///     Bar,
+///     Baz(i8),
+/// }
+///
+/// App::new().add_systems(
+///     Update,
+///     in_baz.run_if(state_matches!(<Foo>::Baz(_)))
+/// );
+/// ```
+#[macro_export]
+macro_rules! state_matches {
+	(<$T:ty>::$pat:pat) => {
+		|state: Res<State<$T>>| {
+			use $T::*;
+			matches!(state.get(), $pat)
+		}
+	};
+}

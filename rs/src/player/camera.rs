@@ -1,5 +1,6 @@
 use std::f32::consts::FRAC_PI_2;
 
+use bevy::render::camera::Viewport;
 use bevy::{
 	core_pipeline::{bloom::BloomSettings, fxaa::Fxaa, tonemapping::Tonemapping, Skybox},
 	ecs::system::EntityCommands,
@@ -18,6 +19,7 @@ use bevy_rapier3d::{
 	pipeline::QueryFilter,
 	plugin::RapierContext,
 };
+use engine::ui::spawn_ui_camera;
 use enum_components::{EntityEnumCommands, WithVariant};
 
 use crate::{
@@ -31,19 +33,20 @@ use crate::{
 
 use super::{
 	player_entity::{Cam, CamPivot},
-	player_ui_layer, BelongsToPlayer, G1, PLAYER_UI_CAM_ORDER,
+	player_ui_layer, BelongsToPlayer, G1,
 };
 
 const MAX_CAM_DIST: f32 = 32.0;
 const MIN_CAM_DIST: f32 = 9.6;
 
-pub fn spawn_camera<'a>(
-	cmds: &'a mut Commands,
+pub fn spawn_cameras(
+	cmds: &mut Commands,
 	player_id: PlayerId,
 	settings: &Settings,
 	images: &mut Assets<Image>,
 	asset_server: &AssetServer,
-) -> EntityCommands<'a> {
+	viewport: Option<Viewport>,
+) {
 	let (sky_texture, sky_diffuse) = {
 		let size = Extent3d {
 			width: 16,
@@ -109,8 +112,9 @@ pub fn spawn_camera<'a>(
 
 	let skybox_shader = asset_server.load::<Shader>("shaders/skybox.wgsl");
 
+	let owner = BelongsToPlayer::with_id(player_id);
 	let mut cmds = cmds.spawn((
-		BelongsToPlayer::with_id(player_id),
+		owner,
 		// Start the camera above the player in the fog, then zoom down
 		TransformBundle::from_transform(Transform::from_translation(Vec3::Z * 4096.0)),
 		VisibilityBundle::default(),
@@ -155,23 +159,16 @@ pub fn spawn_camera<'a>(
 				..default()
 			},
 			NeverDespawn,
-		))
-		.with_children(|cmds| {
-			cmds.spawn((
-				Camera3dBundle {
-					camera: Camera {
-						hdr: true,
-						order: PLAYER_UI_CAM_ORDER,
-						clear_color: ClearColorConfig::None,
-						..default()
-					},
-					..default()
-				},
-				player_ui_layer(player_id),
-			));
-		});
+		));
 	});
-	cmds
+
+	spawn_ui_camera(
+		cmds.commands(),
+		owner,
+		player_ui_layer(player_id),
+		viewport,
+		player_id.get() as f64,
+	);
 }
 
 pub fn spawn_pivot<'a>(
