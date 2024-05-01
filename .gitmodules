@@ -4,3 +4,6 @@
 [submodule "sond-bevy-particles"]
 	path = sond-bevy-particles
 	url = https://github.com/Waridley/bevy-particles.git
+[submodule "vend/bevy_svg"]
+	path = vend/bevy_svg
+	url = https://github.com/Waridley/bevy_svg.git

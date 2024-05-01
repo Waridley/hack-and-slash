@@ -72,7 +72,7 @@ bevy_common_assets = { version = "0.10.0", features = ["ron"] }
 array-init = "2.1.0"
 base64 = "0.21.7"
 bevy_pkv = "0.10.0" # settings
-bevy_svg = { version = "0.13.0", git = "https://github.com/Waridley/bevy_svg.git", branch = "bevy_0_13" }
+bevy_svg = { version = "0.13.0", path = "../vend/bevy_svg" }
 bytemuck = "1.14.1" # mostly for seeds
 crossbeam = "0.8.2"
 fixedbitset = "0.4.2" # navigation graph edge storage
