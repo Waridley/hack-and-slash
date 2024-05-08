@@ -1113,6 +1113,7 @@ dependencies = [
  "lyon_geom",
  "lyon_path",
  "lyon_tessellation",
+ "serde",
  "svgtypes 0.11.0",
  "thiserror",
  "usvg",

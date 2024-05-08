@@ -1,42 +1,41 @@
 use super::icons::{Icon, IconBundleBuilder};
 use crate::ui::{
-	widgets::{Font3d, WidgetShape},
+	widgets::{Font3d, WidgetShape, UNLIT_MATERIAL_ID},
 	TextMeshCache, GLOBAL_UI_RENDER_LAYERS,
 };
 use bevy::{ecs::system::EntityCommands, prelude::*, render::view::RenderLayers};
 use bevy_rapier3d::parry::shape::SharedShape;
-use bevy_svg::prelude::Origin;
 
 #[derive(Clone, Debug)]
-pub struct IconWidgetBuilder {
+pub struct IconWidgetBuilder<M: Material = StandardMaterial> {
 	pub icon: Icon,
 	pub font: Handle<Font3d>,
-	pub origin: Origin,
 	pub size: Vec3,
 	pub transform: Transform,
 	pub global_transform: GlobalTransform,
 	pub visibility: Visibility,
 	pub inherited_visibility: InheritedVisibility,
 	pub layers: RenderLayers,
+	pub material: Handle<M>,
 }
 
-impl Default for IconWidgetBuilder {
+impl<M: Material> Default for IconWidgetBuilder<M> {
 	fn default() -> Self {
 		Self {
 			icon: default(),
 			font: default(),
-			origin: default(),
 			size: Vec3::ONE,
 			transform: default(),
 			global_transform: default(),
 			visibility: default(),
 			inherited_visibility: default(),
 			layers: GLOBAL_UI_RENDER_LAYERS,
+			material: Handle::weak_from_u128(UNLIT_MATERIAL_ID),
 		}
 	}
 }
 
-impl IconWidgetBuilder {
+impl<M: Material> IconWidgetBuilder<M> {
 	pub fn build(
 		self,
 		asset_server: &AssetServer,
@@ -47,14 +46,15 @@ impl IconWidgetBuilder {
 		let Self {
 			icon,
 			font,
-			origin,
 			size,
 			transform,
 			global_transform,
 			visibility,
 			inherited_visibility,
 			layers,
+			material,
 		} = self;
+		// TODO: Should be `Aabb`, but that doesn't implement `Shape`
 		let widget = WidgetShape(SharedShape::cuboid(
 			size.x * 0.5,
 			size.y * 0.5,
@@ -63,13 +63,13 @@ impl IconWidgetBuilder {
 		let (svg, text) = IconBundleBuilder {
 			icon,
 			font,
-			origin,
 			size,
 			transform,
 			global_transform,
 			visibility,
 			inherited_visibility,
 			layers,
+			material,
 		}
 		.build(asset_server, meshes, cache, fonts);
 		((widget, svg), text)

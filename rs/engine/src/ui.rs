@@ -1,9 +1,18 @@
+use crate::ui::widgets::CuboidFaces;
+use crate::util::LerpSlerp;
 use crate::{
 	anim::{AnimationController, ComponentDelta, StartAnimation},
-	ui::widgets::{Button3d, Font3d, PanelBuilder, TextBuilder, WidgetShape},
+	ui::{
+		layout::LineUpChildren,
+		widgets::{
+			draw_widget_shape_gizmos, Button3d, Button3dBundle, Font3d, Node3dBundle, PanelBuilder,
+			RectBorderDesc, RectCorners, TextBuilder, WidgetBundle, WidgetShape,
+		},
+	},
 	util::{Diff, Prev},
 };
-use bevy::render::camera::Viewport;
+use bevy::a11y::Focus;
+use bevy::ecs::query::QueryEntityError;
 use bevy::{
 	asset::{io::Reader, AssetLoader, BoxedFuture, LoadContext},
 	core_pipeline::{experimental::taa::TemporalAntiAliasBundle, fxaa::Fxaa},
@@ -11,13 +20,17 @@ use bevy::{
 	ecs::{query::QuerySingleError, schedule::SystemConfigs},
 	input::common_conditions::input_toggle_active,
 	prelude::*,
-	render::view::{Layer, RenderLayers},
+	render::{
+		camera::Viewport,
+		view::{Layer, RenderLayers, VisibilitySystems::CheckVisibility},
+	},
 	ui::FocusPolicy,
 	utils::{CowArc, HashMap},
 };
 use futures_lite::AsyncReadExt;
 use leafwing_input_manager::{prelude::*, Actionlike};
 use meshtext::{MeshGenerator, QualitySettings};
+use rapier3d::{geometry::SharedShape, math::Point};
 use serde::{Deserialize, Serialize};
 use std::f64::consts::TAU;
 
@@ -38,14 +51,20 @@ impl Plugin for UiPlugin {
 		#[cfg(feature = "debugging")]
 		app.add_plugins(dbg::DebugUiPlugin)
 			.add_systems(PreUpdate, spawn_test_menu)
-			.add_systems(Update, toggle_test_menu);
-
-		app.world.spawn((
-			GlobalUi,
-			UiRoot,
-			TransformBundle::default(),
-			VisibilityBundle::default(),
-		));
+			.add_systems(Update, toggle_test_menu)
+			.add_systems(
+				PostUpdate,
+				draw_widget_shape_gizmos::<GLOBAL_UI_LAYER>
+					.run_if(input_toggle_active(false, KeyCode::KeyG))
+					.after(CheckVisibility),
+			)
+			.insert_gizmo_group(
+				widgets::WidgetGizmos::<GLOBAL_UI_LAYER>,
+				GizmoConfig {
+					render_layers: GLOBAL_UI_RENDER_LAYERS,
+					..default()
+				},
+			);
 
 		app.init_resource::<UiHovered>()
 			.init_resource::<TextMeshCache>()
@@ -56,7 +75,11 @@ impl Plugin for UiPlugin {
 			.add_systems(PostUpdate, layout::apply_constraints)
 			.add_systems(
 				Last,
-				(Prev::<Button3d>::update_component, hide_orphaned_ui_nodes),
+				(
+					Prev::<Button3d>::update_component,
+					hide_orphaned_ui_nodes,
+					anchor_follow_menu,
+				),
 			);
 	}
 
@@ -66,7 +89,7 @@ impl Plugin for UiPlugin {
 		let mono_3d = srv.load("ui/fonts/Noto_Sans_Mono/static/NotoSansMono-Bold.ttf");
 		app.insert_resource(UiFonts { mono, mono_3d });
 		app.world.resource_mut::<Assets<StandardMaterial>>().insert(
-			widgets::DEFAULT_TEXT_MAT,
+			Handle::weak_from_u128(widgets::UNLIT_MATERIAL_ID),
 			StandardMaterial {
 				base_color: Color::WHITE,
 				unlit: true,
@@ -77,72 +100,39 @@ impl Plugin for UiPlugin {
 }
 
 pub fn setup(mut cmds: Commands) {
-	spawn_ui_camera(cmds.reborrow(), GlobalUi, GLOBAL_UI_LAYER, None, 0.0);
-
-	// Lights add together to white in front, but tint the sides of UI elements
-	cmds.spawn((
-		DirectionalLightBundle {
-			directional_light: DirectionalLight {
-				color: Color::rgb(0.5, 0.75, 0.125),
-				illuminance: 5000.0,
-				..default()
-			},
-			transform: Transform::from_rotation(Quat::from_rotation_arc(
-				Vec3::NEG_Z,
-				Vec3::new(-0.05, 1.0, -0.05).normalize(),
-			)),
-			..default()
-		},
-		ALL_UI_RENDER_LAYERS,
-	));
-	cmds.spawn((
-		DirectionalLightBundle {
-			directional_light: DirectionalLight {
-				color: Color::rgb(0.5, 0.25, 0.875),
-				illuminance: 5000.0,
-				..default()
-			},
-			transform: Transform::from_rotation(Quat::from_rotation_arc(
-				Vec3::NEG_Z,
-				Vec3::new(0.05, 1.0, -0.05).normalize(),
-			)),
-			..default()
-		},
-		ALL_UI_RENDER_LAYERS,
-	));
-
-	cmds.spawn((
-		DirectionalLightBundle {
-			directional_light: DirectionalLight {
-				illuminance: 400.0,
-				color: Color::rgb(1.0, 0.125, 1.0),
-				..default()
-			},
-			transform: Transform::from_rotation(Quat::from_rotation_arc(Vec3::NEG_Z, Vec3::Z)),
-			..default()
-		},
-		ALL_UI_RENDER_LAYERS,
-	));
+	let root = cmds
+		.spawn((
+			GlobalUi,
+			UiRoot,
+			TransformBundle::default(),
+			VisibilityBundle::default(),
+			GLOBAL_UI_RENDER_LAYERS,
+		))
+		.id();
+	spawn_ui_camera(root, cmds.reborrow(), GlobalUi, GLOBAL_UI_LAYER, None, 0.0);
 }
 
 pub fn spawn_ui_camera<ID: Bundle + Clone>(
+	root: Entity,
 	mut cmds: Commands,
 	identifier: ID,
 	layer: Layer,
 	viewport: Option<Viewport>,
 	animation_time_offset: f64,
 ) {
-	let cam_pos = Vec3::new(0.0, -16.0, 0.0);
+	let cam_pos = Vec3::new(0.0, -20.0, 0.0);
 	let layers = RenderLayers::layer(layer);
 	cmds.spawn((
 		identifier.clone(),
 		CamAnchor,
 		TransformBundle::default(),
 		VisibilityBundle::default(),
+		MenuStack::default(),
+		FocusStack(vec![root]),
 		layers,
 	))
 	.with_children(|cmds| {
-		let mut global_ui_cam = cmds.spawn((
+		let mut cam = cmds.spawn((
 			identifier,
 			UiCam::default(),
 			Camera3dBundle {
@@ -154,7 +144,7 @@ pub fn spawn_ui_camera<ID: Bundle + Clone>(
 					..default()
 				},
 				projection: PerspectiveProjection {
-					fov: std::f32::consts::FRAC_PI_2,
+					fov: std::f32::consts::FRAC_PI_3,
 					..default()
 				}
 				.into(),
@@ -175,7 +165,52 @@ pub fn spawn_ui_camera<ID: Bundle + Clone>(
 			layers,
 		));
 
-		global_ui_cam.start_animation::<Transform>(cam_idle_animation(animation_time_offset));
+		cam.start_animation::<Transform>(cam_idle_animation(animation_time_offset));
+
+		// Lights add together to white in front, but tint the sides of UI elements
+		cmds.spawn((
+			DirectionalLightBundle {
+				directional_light: DirectionalLight {
+					color: Color::rgb(0.5, 0.75, 0.125),
+					illuminance: 5000.0,
+					..default()
+				},
+				transform: Transform::from_rotation(Quat::from_rotation_arc(
+					Vec3::NEG_Z,
+					Vec3::new(-0.05, 1.0, -0.05).normalize(),
+				)),
+				..default()
+			},
+			layers,
+		));
+		cmds.spawn((
+			DirectionalLightBundle {
+				directional_light: DirectionalLight {
+					color: Color::rgb(0.5, 0.25, 0.875),
+					illuminance: 5000.0,
+					..default()
+				},
+				transform: Transform::from_rotation(Quat::from_rotation_arc(
+					Vec3::NEG_Z,
+					Vec3::new(0.05, 1.0, -0.05).normalize(),
+				)),
+				..default()
+			},
+			layers,
+		));
+
+		cmds.spawn((
+			DirectionalLightBundle {
+				directional_light: DirectionalLight {
+					illuminance: 400.0,
+					color: Color::rgb(1.0, 0.125, 1.0),
+					..default()
+				},
+				transform: Transform::from_rotation(Quat::from_rotation_arc(Vec3::NEG_Z, Vec3::Z)),
+				..default()
+			},
+			layers,
+		));
 	});
 }
 
@@ -475,6 +510,37 @@ pub fn reset_hovered(mut ui_hovered: ResMut<UiHovered>) {
 	}
 }
 
+#[derive(Component, Default, Debug, Reflect, Deref, DerefMut)]
+#[reflect(Component)]
+pub struct MenuStack(pub Vec<Entity>);
+
+#[derive(Component, Default, Debug, Reflect, Deref, DerefMut)]
+#[reflect(Component)]
+pub struct FocusStack(pub Vec<Entity>);
+
+pub fn anchor_follow_menu(
+	mut q: Query<(&mut Transform, &MenuStack)>,
+	nodes: Query<&Transform, Without<MenuStack>>,
+	t: Res<Time>,
+) {
+	for (mut xform, stack) in &mut q {
+		if let Some(node) = stack.last() {
+			let target = match nodes.get(*node) {
+				Ok(node) => node,
+				Err(e) => {
+					error!("{e}");
+					continue;
+				}
+			};
+
+			let new = xform.lerp_slerp(*target, t.delta_seconds() * 3.0);
+			if *xform != new {
+				*xform = new;
+			}
+		}
+	}
+}
+
 #[cfg(feature = "debugging")]
 fn spawn_test_menu(
 	mut cmds: Commands,
@@ -502,58 +568,154 @@ fn spawn_test_menu(
 		return;
 	};
 
-	cmds.spawn((
-		PanelBuilder {
-			size: Vec3::new(16.0, 1.0, 9.0),
-			visibility: Visibility::Hidden,
-			material: mats.add(StandardMaterial {
-				base_color: Color::rgba(0.1, 0.1, 0.1, 0.9),
-				reflectance: 0.0,
-				alpha_mode: AlphaMode::Blend,
-				..default()
-			}),
+	let border_mat = mats.add(StandardMaterial::default());
+	let size = Vec3::new(16.0, 16.0, 9.0);
+	let mut test_menu = PanelBuilder {
+		size,
+		visibility: Visibility::Hidden,
+		material: mats.add(StandardMaterial {
+			base_color: Color::rgba(0.1, 0.1, 0.1, 0.8),
+			reflectance: 0.0,
+			alpha_mode: AlphaMode::Blend,
+			double_sided: true,
+			cull_mode: None,
 			..default()
-		}
-		.build(&mut meshes)
-		.0,
-		TestMenu,
-	))
-	.with_children(|cmds| {
-		cmds.spawn(
-			TextBuilder {
-				text: "Testing...".into(),
-				font: ui_fonts.mono_3d.clone(),
-				transform: Transform::from_translation(Vec3::NEG_Y),
+		}),
+		borders: std::iter::repeat(vec![
+			RectBorderDesc {
+				colors: Some([Color::BLACK; 4].into()),
+				material: border_mat.clone(),
 				..default()
-			}
-			.build(meshes.reborrow(), cache.reborrow(), fonts.reborrow())
-			.unwrap(),
-		);
+			},
+			RectBorderDesc {
+				dilation: -6.0,
+				colors: Some([Color::DARK_GRAY; 4].into()),
+				material: border_mat,
+				..default()
+			},
+		])
+		.collect(),
+		..default()
+	}
+	.spawn(&mut cmds, &mut meshes);
+	let mut faces = [Entity::PLACEHOLDER; 6];
+	test_menu.with_children(|cmds| {
+		for (i, transform) in CuboidFaces::origins(size + Vec3::ONE)
+			.into_iter()
+			.enumerate()
+		{
+			faces[i] = cmds
+				.spawn((
+					Node3dBundle {
+						transform,
+						..default()
+					},
+					LineUpChildren {
+						relative_positions: Vec3::NEG_Z * 1.25,
+						align: Vec3::ZERO,
+					},
+				))
+				.with_children(|cmds| {
+					cmds.spawn(
+						TextBuilder::<StandardMaterial> {
+							text: "Testing...".into(),
+							font: ui_fonts.mono_3d.clone(),
+							transform: Transform::from_translation(Vec3::NEG_Y),
+							..default()
+						}
+						.build(meshes.reborrow(), cache.reborrow(), fonts.reborrow())
+						.unwrap(),
+					);
+					cmds.spawn((Button3dBundle {
+						shape: WidgetShape(SharedShape::capsule(
+							Point::new(0.0, -2.5, 0.0),
+							Point::new(0.0, 2.5, 0.0),
+							0.5,
+						)),
+						mesh: meshes.add(Capsule3d::new(0.5, 5.0)),
+						material: mats.add(Color::ORANGE),
+						transform: Transform {
+							rotation: Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
+							..default()
+						},
+						..default()
+					},))
+						.with_children(|cmds| {
+							cmds.spawn((TextBuilder::<StandardMaterial> {
+								text: "Test button".into(),
+								font: ui_fonts.mono_3d.clone(),
+								transform: Transform {
+									translation: Vec3::X,
+									rotation: Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
+									..default()
+								},
+								..default()
+							}
+							.build(meshes.reborrow(), cache.reborrow(), fonts.reborrow())
+							.unwrap(),));
+						});
+				})
+				.id();
+		}
 	});
+	test_menu.insert(TestMenu { faces });
 	*spawned = true;
 }
 
 #[cfg(feature = "debugging")]
 #[derive(Component)]
-struct TestMenu;
+struct TestMenu {
+	faces: [Entity; 6],
+}
 
 #[cfg(feature = "debugging")]
 fn toggle_test_menu(
 	mut cmds: Commands,
 	root: Query<Entity, IsGlobalUiRoot>,
-	q: Query<(Entity, Has<Parent>), With<TestMenu>>,
+	q: Query<(Entity, Has<Parent>, &TestMenu)>,
+	mut cam: Query<&mut MenuStack, With<GlobalUi>>,
 	input: Res<ButtonInput<KeyCode>>,
+	mut focus: ResMut<Focus>,
+	mut i: Local<usize>,
 ) {
 	let Ok(root) = root.get_single() else { return };
-	let Ok((menu, has_parent)) = q.get_single() else {
+	let Ok((menu, has_parent, info)) = q.get_single() else {
 		return;
 	};
-	if input.just_pressed(KeyCode::KeyM) {
-		let mut cmds = cmds.entity(menu);
-		if has_parent {
-			cmds.remove_parent();
-		} else {
+	let mut cmds = cmds.entity(menu);
+	if input.just_pressed(KeyCode::Period) {
+		if *i >= info.faces.len() {
+			return;
+		}
+		let child = info.faces[*i];
+
+		if !has_parent {
 			cmds.set_parent(root);
 		}
+
+		**focus = Some(child);
+		match cam.get_single_mut() {
+			Ok(mut stack) => {
+				stack.push(child);
+				*i = usize::min(*i + 1, info.faces.len());
+			}
+			Err(e) => error!("{e}"),
+		};
+	}
+	if input.just_pressed(KeyCode::Comma) {
+		match cam.get_single_mut() {
+			Ok(mut stack) => {
+				*i = i.saturating_sub(1);
+				if *i == 0 {
+					if has_parent {
+						**focus = None;
+						cmds.remove_parent();
+					}
+				} else {
+					stack.pop();
+				}
+			}
+			Err(e) => error!("{e}"),
+		};
 	}
 }

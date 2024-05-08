@@ -1,4 +1,3 @@
-use crate::ui::CamAnchor;
 use crate::{
 	input::{
 		map::{
@@ -9,9 +8,9 @@ use crate::{
 		ChordEntry, CurrentChord, InputState,
 	},
 	ui::{
-		layout::ChildrenConstraint,
+		layout::LineUpChildren,
 		widgets::{CuboidFaces, Font3d, PanelBuilder, RectBorderDesc, RectCorners, TextBuilder},
-		GlobalUi, TextMeshCache, UiFonts, GLOBAL_UI_RENDER_LAYERS,
+		CamAnchor, GlobalUi, TextMeshCache, UiFonts, GLOBAL_UI_RENDER_LAYERS,
 	},
 };
 use bevy::{
@@ -43,7 +42,7 @@ pub fn setup(
 		if let AssetEvent::Added { id } = event {
 			if ui_fonts.mono_3d.id() == *id {
 				let size = Vec3::new(8.0, 1.0, 6.0);
-				let (panel, borders) = PanelBuilder {
+				let mut cmds = PanelBuilder {
 					size,
 					material: mats.add(StandardMaterial {
 						base_color: Color::rgba(0.0, 0.001, 0.001, 0.6),
@@ -53,7 +52,7 @@ pub fn setup(
 						..default()
 					}),
 					borders: CuboidFaces {
-						front: Some(RectBorderDesc {
+						front: vec![RectBorderDesc {
 							width: 0.125,
 							dilation: 3.0,
 							depth: 0.125,
@@ -63,64 +62,51 @@ pub fn setup(
 								bottom_left: Color::rgba(0.0, 0.2, 0.2, 0.6),
 								bottom_right: Color::rgba(0.0, 0.1, 0.4, 0.6),
 							}),
+							material: mats.add(StandardMaterial {
+								alpha_mode: AlphaMode::Blend,
+								..default()
+							}),
 							..default()
-						}),
+						}],
 						..default()
 					},
 					transform: Transform::from_translation(Vec3::NEG_Y * 10.0),
 					visibility: Visibility::Hidden,
 					..default()
 				}
-				.build(&mut meshes);
+				.spawn(&mut cmds, &mut meshes);
 
-				cmds.spawn((panel, DetectBindingPopup))
-					.with_children(|cmds| {
-						let border_mat = mats.add(StandardMaterial {
-							alpha_mode: AlphaMode::Blend,
+				cmds.insert(DetectBindingPopup);
+				cmds.with_children(|cmds| {
+					cmds.spawn((TextBuilder {
+						text: "Press input(s) to bind...".into(),
+						font: ui_fonts.mono_3d.clone(),
+						flat: false,
+						material: mats.add(Color::AQUAMARINE),
+						vertex_scale: Vec3::new(0.5, 0.5, 0.125),
+						transform: Transform {
+							translation: Vec3::new(0.0, -1.0, 2.0),
 							..default()
-						});
-						for (mesh, normal) in borders.into_iter().zip(CuboidFaces::NORMALS) {
-							let Some(mesh) = mesh else { continue };
-							let mesh = meshes.add(dbg!(mesh));
-							cmds.spawn((
-								PbrBundle {
-									mesh,
-									material: border_mat.clone(),
-									transform: Transform::from_translation(normal * (size * 0.6)),
-									..default()
-								},
-								GLOBAL_UI_RENDER_LAYERS,
-							));
-						}
+						},
+						..default()
+					}
+					.build(meshes.reborrow(), cache.reborrow(), fonts.reborrow())
+					.unwrap(),));
 
-						cmds.spawn((TextBuilder {
-							text: "Press input(s) to bind...".into(),
-							font: ui_fonts.mono_3d.clone(),
-							flat: false,
-							material: mats.add(Color::AQUAMARINE),
-							vertex_scale: Vec3::new(0.5, 0.5, 0.125),
-							transform: Transform {
-								translation: Vec3::new(0.0, -1.0, 1.5),
-								..default()
-							},
+					cmds.spawn((
+						TransformBundle::from_transform(Transform {
+							translation: Vec3::new(-0.0, -2.0, -1.0),
 							..default()
-						}
-						.build(meshes.reborrow(), cache.reborrow(), fonts.reborrow())
-						.unwrap(),));
-
-						cmds.spawn((
-							TransformBundle::from_transform(Transform {
-								translation: Vec3::NEG_Y * 2.0,
-								..default()
-							}),
-							VisibilityBundle::default(),
-							CurrChordIcons::default(),
-							ChildrenConstraint {
-								relative_positions: Vec3::new(1.5, -1.5, -0.32),
-								align: Vec3::new(-0.5, -1.0, 0.0),
-							},
-						));
-					});
+						}),
+						VisibilityBundle::default(),
+						CurrChordIcons::default(),
+						LineUpChildren {
+							relative_positions: Vec3::new(1.5, -1.5, -0.32).normalize(),
+							align: Vec3::new(-0.5, -1.0, 0.0),
+						},
+						GLOBAL_UI_RENDER_LAYERS,
+					));
+				});
 			}
 		}
 	}
@@ -162,12 +148,15 @@ pub fn display_curr_chord(
 	mut q: Query<(Entity, &mut CurrChordIcons)>,
 	asset_server: Res<AssetServer>,
 	mut meshes: ResMut<Assets<Mesh>>,
+	mut mats: ResMut<Assets<StandardMaterial>>,
 	mut cache: ResMut<TextMeshCache>,
 	mut fonts: ResMut<Assets<Font3d>>,
 	ui_fonts: Res<UiFonts>,
 	curr_chord: Res<CurrentChord>,
 	gamepads: Res<Gamepads>,
+	mut icon_mat: Local<Option<Handle<StandardMaterial>>>,
 ) {
+	let icon_mat = icon_mat.get_or_insert_with(|| mats.add(StandardMaterial::default()));
 	let Ok((id, mut icons)) = q.get_single_mut() else {
 		return;
 	};
@@ -207,15 +196,15 @@ pub fn display_curr_chord(
 			};
 			let mut ids = SmallVec::new();
 			for icon in entry_icons {
-				let icon_id = IconWidgetBuilder {
+				let icon_id = IconWidgetBuilder::<StandardMaterial> {
 					icon,
-					size: Vec3::splat(0.3),
+					size: Vec3::splat(1.0),
 					font: ui_fonts.mono_3d.clone(),
-					origin: Origin::Center,
 					transform: Transform {
-						scale: Vec3::splat(0.02),
+						// scale: Vec3::splat(0.02),
 						..default()
 					},
+					material: icon_mat.clone(),
 					..default()
 				}
 				.spawn(

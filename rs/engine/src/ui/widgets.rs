@@ -4,17 +4,22 @@ use crate::{
 };
 use bevy::{
 	a11y::accesskit::{NodeBuilder, Role},
+	ecs::system::EntityCommands,
 	prelude::*,
 	render::{
 		mesh::{Indices, PrimitiveTopology::TriangleList},
 		render_asset::RenderAssetUsages,
-		view::RenderLayers,
+		view::{Layer, RenderLayers},
 	},
 	utils::CowArc,
 };
+use bevy_rapier3d::parry::shape::TypedShape;
 use meshtext::{MeshGenerator, MeshText, OwnedFace, TextSection};
 use rapier3d::parry::shape::SharedShape;
-use std::fmt::{Debug, Formatter};
+use std::{
+	f32::consts::PI,
+	fmt::{Debug, Formatter},
+};
 
 #[derive(Component, Clone, Deref, DerefMut)]
 pub struct WidgetShape(pub SharedShape);
@@ -31,17 +36,43 @@ impl Debug for WidgetShape {
 	}
 }
 
-#[derive(Bundle, Clone)]
-pub struct WidgetBundle {
-	pub shape: WidgetShape,
-	pub transform: Transform,
-	pub global_transform: GlobalTransform,
-	pub visibility: Visibility,
-	pub inherited_visibility: InheritedVisibility,
-	pub view_visibility: ViewVisibility,
-	pub layers: RenderLayers,
-	pub ak_node: AKNode,
+macro_rules! node_3d {
+    {$T:ident $(<$G:ident $(: $Constraints:tt)? $(= $Def:ident)?>)? $(where $($W:ident: $WConstraints:tt),*)? {
+	    $($fields:ident: $tys:ty),* $(,)?
+    }} => {
+	    #[derive(Bundle, Clone)]
+	    pub struct $T$(<$G $(: $Constraints)? $(= $Def)?>)? $(where $($W: $WConstraints)*)? {
+		    $(pub $fields: $tys,)*
+				pub transform: Transform,
+				pub global_transform: GlobalTransform,
+				pub visibility: Visibility,
+				pub inherited_visibility: InheritedVisibility,
+				pub view_visibility: ViewVisibility,
+				pub layers: RenderLayers,
+				pub ak_node: AKNode,
+	    }
+    }
 }
+
+node_3d! { Node3dBundle {} }
+
+impl Default for Node3dBundle {
+	fn default() -> Self {
+		Self {
+			transform: default(),
+			global_transform: default(),
+			visibility: default(),
+			inherited_visibility: default(),
+			view_visibility: default(),
+			layers: GLOBAL_UI_RENDER_LAYERS,
+			ak_node: NodeBuilder::new(Role::Unknown).into(),
+		}
+	}
+}
+
+node_3d! { WidgetBundle {
+	shape: WidgetShape,
+}}
 
 impl Default for WidgetBundle {
 	fn default() -> Self {
@@ -59,19 +90,18 @@ impl Default for WidgetBundle {
 }
 
 #[derive(Clone, Debug)]
-pub struct PanelBuilder<M: Material = StandardMaterial> {
+pub struct PanelBuilder<M: Material = StandardMaterial, BM: Material = StandardMaterial> {
 	pub size: Vec3,
 	pub material: Handle<M>,
 	pub colors: Option<CuboidFaces<Color>>,
-	pub borders: CuboidFaces<Option<RectBorderDesc>>,
+	pub borders: CuboidFaces<Vec<RectBorderDesc<BM>>>,
 	pub transform: Transform,
 	pub global_transform: GlobalTransform,
 	pub visibility: Visibility,
-	pub inherited_visibility: InheritedVisibility,
 	pub layers: RenderLayers,
 }
 
-impl<M: Material> Default for PanelBuilder<M> {
+impl<M: Material, BM: Material> Default for PanelBuilder<M, BM> {
 	fn default() -> Self {
 		Self {
 			size: Vec3::ONE,
@@ -81,14 +111,13 @@ impl<M: Material> Default for PanelBuilder<M> {
 			transform: default(),
 			global_transform: default(),
 			visibility: default(),
-			inherited_visibility: default(),
 			layers: GLOBAL_UI_RENDER_LAYERS,
 		}
 	}
 }
 
-impl<M: Material> PanelBuilder<M> {
-	pub fn build(self, meshes: &mut Assets<Mesh>) -> (impl Bundle, CuboidFaces<Option<Mesh>>) {
+impl<M: Material, BM: Material> PanelBuilder<M, BM> {
+	fn build(self, meshes: &mut Assets<Mesh>) -> (impl Bundle, CuboidFaces<Vec<impl Bundle>>) {
 		let Self {
 			size,
 			material,
@@ -97,7 +126,6 @@ impl<M: Material> PanelBuilder<M> {
 			transform,
 			global_transform,
 			visibility,
-			inherited_visibility,
 			layers,
 		} = self;
 		let mut mesh = Cuboid::new(size.x, size.y, size.z).mesh();
@@ -112,15 +140,47 @@ impl<M: Material> PanelBuilder<M> {
 		}
 		let mesh = mesh.with_duplicated_vertices().with_computed_flat_normals();
 
-		let borders = <[Option<RectBorderDesc>; 6]>::from(borders);
-		let border_meshes = CuboidFaces::new(
-			borders[0].map(|desc| desc.mesh_for(Rectangle::new(size.x, size.z))),
-			borders[1].map(|desc| desc.mesh_for(Rectangle::new(size.x, size.z))),
-			borders[2].map(|desc| desc.mesh_for(Rectangle::new(size.y, size.z))),
-			borders[3].map(|desc| desc.mesh_for(Rectangle::new(size.y, size.z))),
-			borders[4].map(|desc| desc.mesh_for(Rectangle::new(size.x, size.y))),
-			borders[5].map(|desc| desc.mesh_for(Rectangle::new(size.x, size.y))),
-		);
+		let borders = CuboidFaces {
+			front: Rectangle::new(size.x, size.z),
+			back: Rectangle::new(size.x, size.z),
+			left: Rectangle::new(size.y, size.z),
+			right: Rectangle::new(size.y, size.z),
+			top: Rectangle::new(size.x, size.y),
+			bottom: Rectangle::new(size.x, size.y),
+		}
+		.into_iter()
+		.zip(borders)
+		.zip(CuboidFaces::NORMALS)
+		.map(|((rect, desc), norm)| {
+			desc.into_iter()
+				.map(|desc| {
+					let RectBorderDesc {
+						width,
+						depth,
+						dilation,
+						protrusion,
+						colors,
+						material,
+					} = desc;
+					let mesh = rect.border(width, depth, dilation, colors);
+					(
+						MaterialMeshBundle {
+							mesh: meshes.add(mesh),
+							material,
+							transform: Transform {
+								translation: (norm * size * 0.5)
+									+ (norm * (depth * protrusion * 0.5)),
+								rotation: Quat::from_rotation_arc(Vec3::NEG_Y, norm),
+								..default()
+							},
+							..default()
+						},
+						layers,
+					)
+				})
+				.collect()
+		})
+		.collect();
 
 		let mesh = meshes.add(mesh);
 		(
@@ -134,7 +194,7 @@ impl<M: Material> PanelBuilder<M> {
 					transform,
 					global_transform,
 					visibility,
-					inherited_visibility,
+					inherited_visibility: default(),
 					view_visibility: default(),
 					layers,
 					ak_node: NodeBuilder::new(Role::Pane).into(),
@@ -142,39 +202,65 @@ impl<M: Material> PanelBuilder<M> {
 				mesh,
 				material,
 			),
-			border_meshes,
+			borders,
 		)
+	}
+
+	pub fn spawn<'a>(
+		self,
+		cmds: &'a mut Commands,
+		meshes: &mut Assets<Mesh>,
+	) -> EntityCommands<'a> {
+		let (panel, borders) = self.build(meshes);
+
+		let mut cmds = cmds.spawn(panel);
+		cmds.with_children(|cmds| {
+			borders.into_iter().flatten().for_each(|border| {
+				cmds.spawn(border);
+			});
+		});
+		cmds
 	}
 }
 
-#[derive(Debug, Copy, Clone)]
-pub struct RectBorderDesc {
+#[derive(Debug, Clone)]
+pub struct RectBorderDesc<M: Material = StandardMaterial> {
 	pub width: f32,
 	pub depth: f32,
+	/// Grow or shrink the border proportional to `width`.
+	/// - Default = `-1.0`
 	pub dilation: f32,
+	/// Offset the border behind (negative) or in front of (positive) the panel,
+	/// proportional to `depth`.
+	/// - Default = `1.01` (to avoid z-fighting)
+	pub protrusion: f32,
 	pub colors: Option<RectCorners<Color>>,
+	pub material: Handle<M>,
 }
 
-impl Default for RectBorderDesc {
+impl<M: Material> Default for RectBorderDesc<M> {
 	fn default() -> Self {
 		Self {
-			width: 0.5,
-			depth: 0.5,
-			dilation: 0.0,
+			width: 0.25,
+			depth: 0.25,
+			dilation: -1.0,
+			protrusion: 1.01,
 			colors: default(),
+			material: default(),
 		}
 	}
 }
 
-impl RectBorderDesc {
+impl<M: Material> RectBorderDesc<M> {
 	pub fn mesh_for(self, rect: Rectangle) -> Mesh {
 		rect.border(self.width, self.depth, self.dilation, self.colors)
 	}
 }
 
-pub const DEFAULT_TEXT_MAT: Handle<StandardMaterial> = Handle::Weak(AssetId::Uuid {
-	uuid: AssetId::<StandardMaterial>::DEFAULT_UUID,
-});
+/// The default for text and SVG should be unlit, so this ID allows setting
+/// the default handle while still implementing `Default` for bundles with
+/// non-Standard materials.
+pub const UNLIT_MATERIAL_ID: u128 = 142787604504081244242314226814361396251;
 
 #[derive(Clone, Debug)]
 pub struct TextBuilder<M: Material = StandardMaterial> {
@@ -182,7 +268,6 @@ pub struct TextBuilder<M: Material = StandardMaterial> {
 	pub font: Handle<Font3d>,
 	pub flat: bool,
 	pub material: Handle<M>,
-	pub vertex_translation: Vec3,
 	pub vertex_rotation: Quat,
 	pub vertex_scale: Vec3,
 	pub transform: Transform,
@@ -191,14 +276,13 @@ pub struct TextBuilder<M: Material = StandardMaterial> {
 	pub layers: RenderLayers,
 }
 
-impl Default for TextBuilder {
+impl<M: Material> Default for TextBuilder<M> {
 	fn default() -> Self {
 		Self {
 			text: default(),
 			font: default(),
 			flat: true,
-			material: DEFAULT_TEXT_MAT.clone(),
-			vertex_translation: default(),
+			material: Handle::weak_from_u128(UNLIT_MATERIAL_ID),
 			vertex_rotation: Quat::from_rotation_arc(Vec3::Z, Vec3::NEG_Y),
 			vertex_scale: Vec3::new(1.0, 1.0, 0.4),
 			transform: default(),
@@ -224,7 +308,6 @@ impl<M: Material> TextBuilder<M> {
 			flat,
 			font,
 			material,
-			vertex_translation,
 			vertex_rotation,
 			vertex_scale,
 			transform,
@@ -233,12 +316,9 @@ impl<M: Material> TextBuilder<M> {
 			layers,
 		} = self;
 
-		let xform = Mat4::from_scale_rotation_translation(
-			vertex_scale,
-			vertex_rotation,
-			vertex_translation,
-		)
-		.to_cols_array();
+		let xform =
+			Mat4::from_scale_rotation_translation(vertex_scale, vertex_rotation, Vec3::ZERO)
+				.to_cols_array();
 
 		let xform_key = array_init::array_init(|i| xform[i].to_bits());
 
@@ -254,7 +334,7 @@ impl<M: Material> TextBuilder<M> {
 							&Mat4::from_scale_rotation_translation(
 								vertex_scale,
 								vertex_rotation,
-								vertex_translation,
+								Vec3::ZERO,
 							)
 							.to_cols_array(),
 						),
@@ -266,14 +346,15 @@ impl<M: Material> TextBuilder<M> {
 
 				let half_size = Vec3::new(
 					bbox.size().x * 0.5,
-					bbox.size().y * 0.5,
+					// For some reason, bbox is not accounting for depth
+					vertex_scale.z * 0.5,
 					bbox.size().z * 0.5,
 				);
 				let shape = WidgetShape(SharedShape::cuboid(half_size.x, half_size.y, half_size.z));
 
 				let verts = vertices
 					.chunks(3)
-					.map(|c| [c[0] - half_size.x, c[1] - half_size.y, c[2] - half_size.z])
+					.map(|c| [c[0] - half_size.x, c[1], c[2] - half_size.z])
 					.collect::<Vec<_>>();
 				let len = verts.len();
 				let mut mesh = Mesh::new(TriangleList, RenderAssetUsages::RENDER_WORLD);
@@ -306,20 +387,14 @@ pub struct Button3d {
 	pub pressed: bool,
 }
 
-#[derive(Clone, Bundle)]
-pub struct Button3dBundle<M: Material = StandardMaterial> {
-	pub state: Button3d,
-	pub prev_state: Prev<Button3d>,
-	pub shape: WidgetShape,
-	pub material: Handle<M>,
-	pub transform: Transform,
-	pub global_transform: GlobalTransform,
-	pub visibility: Visibility,
-	pub inherited_visibility: InheritedVisibility,
-	pub view_visibility: ViewVisibility,
-	pub layers: RenderLayers,
-	pub ak_node: AKNode,
-}
+node_3d! { Button3dBundle<M = StandardMaterial>
+where M: Material {
+	state: Button3d,
+	prev_state: Prev<Button3d>,
+	shape: WidgetShape,
+	mesh: Handle<Mesh>,
+	material: Handle<M>,
+}}
 
 impl<M: Material> Default for Button3dBundle<M> {
 	fn default() -> Self {
@@ -327,6 +402,7 @@ impl<M: Material> Default for Button3dBundle<M> {
 			state: default(),
 			prev_state: default(),
 			shape: default(),
+			mesh: default(),
 			material: default(),
 			transform: default(),
 			global_transform: default(),
@@ -442,6 +518,18 @@ impl<T> From<RectCorners<T>> for [T; 4] {
 	}
 }
 
+impl<T> From<[T; 4]> for RectCorners<T> {
+	fn from(value: [T; 4]) -> Self {
+		let [top_right, top_left, bottom_left, bottom_right] = value;
+		Self {
+			top_right,
+			top_left,
+			bottom_left,
+			bottom_right,
+		}
+	}
+}
+
 #[derive(Copy, Clone, Default, Debug)]
 pub struct CuboidCorners<T> {
 	pub front_top_right: T,
@@ -527,6 +615,19 @@ impl CuboidFaces<Vec3> {
 	};
 }
 
+impl CuboidFaces<Transform> {
+	pub fn origins(size: Vec3) -> Self {
+		CuboidFaces::<Vec3>::NORMALS
+			.into_iter()
+			.map(|norm| Transform {
+				translation: norm * size * 0.5,
+				rotation: Quat::from_rotation_arc(Vec3::NEG_Y, norm),
+				..default()
+			})
+			.collect()
+	}
+}
+
 impl<T> From<CuboidFaces<T>> for [T; 6] {
 	fn from(value: CuboidFaces<T>) -> Self {
 		[
@@ -537,6 +638,20 @@ impl<T> From<CuboidFaces<T>> for [T; 6] {
 			value.top,
 			value.bottom,
 		]
+	}
+}
+
+impl<T> From<[T; 6]> for CuboidFaces<T> {
+	fn from(value: [T; 6]) -> Self {
+		let [front, back, left, right, top, bottom] = value;
+		Self {
+			front,
+			back,
+			left,
+			right,
+			top,
+			bottom,
+		}
 	}
 }
 
@@ -561,4 +676,128 @@ impl<F> FromIterator<F> for CuboidFaces<F> {
 			bottom: iter.next().unwrap(),
 		}
 	}
+}
+
+#[derive(Default, Debug, GizmoConfigGroup, Reflect)]
+pub struct WidgetGizmos<const LAYER: Layer>;
+
+pub fn draw_widget_shape_gizmos<const LAYER: Layer>(
+	mut gizmos: Gizmos<WidgetGizmos<LAYER>>,
+	q: Query<(
+		&GlobalTransform,
+		&WidgetShape,
+		&ViewVisibility,
+		&RenderLayers,
+	)>,
+) {
+	let color = Color::PURPLE;
+	for (xform, shape, vis, layers) in &q {
+		if !**vis {
+			continue;
+		}
+		if !gizmos.config.render_layers.intersects(layers) {
+			continue;
+		}
+		shape.draw_gizmo(&mut gizmos, xform, color);
+	}
+}
+
+impl WidgetShape {
+	pub fn draw_gizmo<T: GizmoConfigGroup>(
+		&self,
+		gizmos: &mut Gizmos<T>,
+		xform: &GlobalTransform,
+		color: Color,
+	) {
+		let mut xform = xform.compute_transform();
+		match self.as_typed_shape() {
+			TypedShape::Ball(ball) => {
+				gizmos.sphere(xform.translation, xform.rotation, ball.radius, color);
+			}
+			TypedShape::Cuboid(cuboid) => {
+				xform.scale *= Vec3::from(cuboid.half_extents) * 2.0;
+				gizmos.cuboid(xform, color);
+			}
+			TypedShape::Capsule(capsule) => {
+				let a = xform * Vec3::from(capsule.segment.a);
+				let b = xform * Vec3::from(capsule.segment.b);
+				cylinder_gizmo(gizmos, a, b, capsule.radius, color);
+				let dir = (b - a).normalize();
+				let a_rot = Quat::from_rotation_arc(Vec3::Z, dir);
+				let b_rot = a_rot.inverse();
+				gizmos.arc_3d(PI, capsule.radius, a, a_rot, color);
+				gizmos.arc_3d(PI, capsule.radius, b, b_rot, color);
+			}
+			TypedShape::Segment(segment) => {
+				let a = xform.rotation * (Vec3::from(segment.a) * xform.scale);
+				let b = xform.rotation * (Vec3::from(segment.b) * xform.scale);
+				gizmos.line(a, b, color);
+			}
+			TypedShape::Triangle(tri) => {
+				let [a, b, c]: [Vec3; 3] = [tri.a.into(), tri.b.into(), tri.c.into()];
+				let [a, b, c] = [xform * a, xform * b, xform * c];
+				gizmos.line(a, b, color);
+				gizmos.line(b, c, color);
+				gizmos.line(c, a, color);
+			}
+			TypedShape::TriMesh(_) => warn!("Gizmo not implemented for WidgetShape(TriMesh)"),
+			TypedShape::Polyline(lines) => {
+				for [ia, ib] in lines.indices() {
+					let a = xform * Vec3::from(lines.vertices()[*ia as usize]);
+					let b = xform * Vec3::from(lines.vertices()[*ib as usize]);
+					gizmos.line(a, b, color);
+				}
+			}
+			TypedShape::HalfSpace(_) => warn!("Gizmo not implemented for WidgetShape(HalfSpace)"),
+			TypedShape::HeightField(_) => {
+				warn!("Gizmo not implemented for WidgetShape(HeightField)")
+			}
+			TypedShape::Compound(_) => warn!("Gizmo not implemented for WidgetShape(Compound)"),
+			TypedShape::ConvexPolyhedron(_) => {
+				warn!("Gizmo not implemented for WidgetShape(ConvexPolyhedron)")
+			}
+			TypedShape::Cylinder(cylinder) => {
+				let a = xform * Vec3::Y * cylinder.half_height;
+				let b = xform * Vec3::NEG_Y * cylinder.half_height;
+				cylinder_gizmo(gizmos, a, b, cylinder.radius, color);
+			}
+			TypedShape::Cone(_) => warn!("Gizmo not implemented for WidgetShape(Cone)"),
+			TypedShape::RoundCuboid(_) => {
+				warn!("Gizmo not implemented for WidgetShape(RoundCuboid)")
+			}
+			TypedShape::RoundTriangle(_) => {
+				warn!("Gizmo not implemented for WidgetShape(RoundTriangle)")
+			}
+			TypedShape::RoundCylinder(_) => {
+				warn!("Gizmo not implemented for WidgetShape(RoundCylinder)")
+			}
+			TypedShape::RoundCone(_) => warn!("Gizmo not implemented for WidgetShape(RoundCone)"),
+			TypedShape::RoundConvexPolyhedron(_) => {
+				warn!("Gizmo not implemented for WidgetShape(RoundConvexPolyhedron)")
+			}
+			TypedShape::Custom(_) => warn!("Gizmo not implemented for WidgetShape(Custom)"),
+		}
+	}
+}
+
+fn cylinder_gizmo<T: GizmoConfigGroup>(
+	gizmos: &mut Gizmos<T>,
+	a: Vec3,
+	b: Vec3,
+	r: f32,
+	color: Color,
+) {
+	let dir = Direction3d::new(b - a)
+		.expect("capsule or cylinder WidgetShape should be created with non-zero, finite length");
+	gizmos.circle(a, dir, r, color);
+	gizmos.circle(b, dir, r, color);
+	let rot = Quat::from_rotation_arc(Vec3::Z, *dir);
+	let tan = rot * Vec3::X;
+	let r = tan * r;
+	let a_l = a - r;
+	let a_r = a + r;
+	let b_l = b - r;
+	let b_r = b + r;
+	gizmos.line(a_l, b_l, color);
+	gizmos.line(a_r, b_r, color);
 }
