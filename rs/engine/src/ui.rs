@@ -1,23 +1,25 @@
-use crate::ui::widgets::CuboidFaces;
-use crate::util::LerpSlerp;
 use crate::{
 	anim::{AnimationController, ComponentDelta, StartAnimation},
 	ui::{
+		a11y::AKNode,
 		layout::LineUpChildren,
 		widgets::{
-			draw_widget_shape_gizmos, Button3d, Button3dBundle, Font3d, Node3dBundle, PanelBuilder,
-			RectBorderDesc, RectCorners, TextBuilder, WidgetBundle, WidgetShape,
+			draw_widget_shape_gizmos, Button3d, Button3dBundle, CuboidFaces, Font3d, Node3dBundle,
+			Panel, PanelBundle, RectBorderDesc, RectCorners, Text3d, Text3dBundle, WidgetBundle,
+			WidgetShape,
 		},
 	},
-	util::{Diff, Prev},
+	util::{Diff, LerpSlerp, Prev},
 };
-use bevy::a11y::Focus;
-use bevy::ecs::query::QueryEntityError;
 use bevy::{
+	a11y::Focus,
 	asset::{io::Reader, AssetLoader, BoxedFuture, LoadContext},
 	core_pipeline::{experimental::taa::TemporalAntiAliasBundle, fxaa::Fxaa},
 	diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
-	ecs::{query::QuerySingleError, schedule::SystemConfigs},
+	ecs::{
+		query::{QueryEntityError, QuerySingleError},
+		schedule::SystemConfigs,
+	},
 	input::common_conditions::input_toggle_active,
 	prelude::*,
 	render::{
@@ -79,6 +81,8 @@ impl Plugin for UiPlugin {
 					Prev::<Button3d>::update_component,
 					hide_orphaned_ui_nodes,
 					anchor_follow_menu,
+					Panel::<StandardMaterial>::sync,
+					Text3d::sync,
 				),
 			);
 	}
@@ -365,7 +369,7 @@ impl AssetLoader for Font3dLoader {
 }
 
 pub fn hide_orphaned_ui_nodes(
-	mut q: Query<(Option<&Parent>, &mut Visibility), With<WidgetShape>>,
+	mut q: Query<(Option<&Parent>, &mut Visibility), With<AKNode>>,
 	// Popups are spawned on `CamAnchor`
 	roots: Query<(), Or<(With<UiRoot>, With<CamAnchor>)>>,
 ) {
@@ -570,95 +574,100 @@ fn spawn_test_menu(
 
 	let border_mat = mats.add(StandardMaterial::default());
 	let size = Vec3::new(16.0, 16.0, 9.0);
-	let mut test_menu = PanelBuilder {
-		size,
-		visibility: Visibility::Hidden,
-		material: mats.add(StandardMaterial {
-			base_color: Color::rgba(0.1, 0.1, 0.1, 0.8),
-			reflectance: 0.0,
-			alpha_mode: AlphaMode::Blend,
-			double_sided: true,
-			cull_mode: None,
-			..default()
-		}),
-		borders: std::iter::repeat(vec![
-			RectBorderDesc {
-				colors: Some([Color::BLACK; 4].into()),
-				material: border_mat.clone(),
-				..default()
-			},
-			RectBorderDesc {
-				dilation: -6.0,
-				colors: Some([Color::DARK_GRAY; 4].into()),
-				material: border_mat,
-				..default()
-			},
-		])
-		.collect(),
-		..default()
-	}
-	.spawn(&mut cmds, &mut meshes);
 	let mut faces = [Entity::PLACEHOLDER; 6];
-	test_menu.with_children(|cmds| {
-		for (i, transform) in CuboidFaces::origins(size + Vec3::ONE)
-			.into_iter()
-			.enumerate()
-		{
-			faces[i] = cmds
-				.spawn((
-					Node3dBundle {
-						transform,
+	for (i, transform) in CuboidFaces::origins(size + Vec3::ONE)
+		.into_iter()
+		.enumerate()
+	{
+		faces[i] = cmds
+			.spawn((
+				Node3dBundle {
+					transform,
+					..default()
+				},
+				LineUpChildren {
+					relative_positions: Vec3::NEG_Z * 1.25,
+					align: Vec3::ZERO,
+				},
+			))
+			.with_children(|cmds| {
+				cmds.spawn(Text3dBundle::<StandardMaterial> {
+					text_3d: Text3d {
+						text: "Testing...".into(),
 						..default()
 					},
-					LineUpChildren {
-						relative_positions: Vec3::NEG_Z * 1.25,
-						align: Vec3::ZERO,
-					},
-				))
-				.with_children(|cmds| {
-					cmds.spawn(
-						TextBuilder::<StandardMaterial> {
-							text: "Testing...".into(),
-							font: ui_fonts.mono_3d.clone(),
-							transform: Transform::from_translation(Vec3::NEG_Y),
-							..default()
-						}
-						.build(meshes.reborrow(), cache.reborrow(), fonts.reborrow())
-						.unwrap(),
-					);
-					cmds.spawn((Button3dBundle {
-						shape: WidgetShape(SharedShape::capsule(
-							Point::new(0.0, -2.5, 0.0),
-							Point::new(0.0, 2.5, 0.0),
-							0.5,
-						)),
-						mesh: meshes.add(Capsule3d::new(0.5, 5.0)),
-						material: mats.add(Color::ORANGE),
-						transform: Transform {
-							rotation: Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
-							..default()
-						},
+					font: ui_fonts.mono_3d.clone(),
+					transform: Transform::from_translation(Vec3::NEG_Y),
+					..default()
+				});
+				cmds.spawn((Button3dBundle {
+					shape: WidgetShape(SharedShape::capsule(
+						Point::new(0.0, -2.5, 0.0),
+						Point::new(0.0, 2.5, 0.0),
+						0.5,
+					)),
+					mesh: meshes.add(Capsule3d::new(0.5, 5.0)),
+					material: mats.add(Color::ORANGE),
+					transform: Transform {
+						rotation: Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
 						..default()
-					},))
-						.with_children(|cmds| {
-							cmds.spawn((TextBuilder::<StandardMaterial> {
+					},
+					..default()
+				},))
+					.with_children(|cmds| {
+						cmds.spawn((Text3dBundle::<StandardMaterial> {
+							text_3d: Text3d {
 								text: "Test button".into(),
-								font: ui_fonts.mono_3d.clone(),
-								transform: Transform {
-									translation: Vec3::X,
-									rotation: Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
-									..default()
-								},
 								..default()
-							}
-							.build(meshes.reborrow(), cache.reborrow(), fonts.reborrow())
-							.unwrap(),));
-						});
-				})
-				.id();
-		}
-	});
-	test_menu.insert(TestMenu { faces });
+							},
+							font: ui_fonts.mono_3d.clone(),
+							transform: Transform {
+								translation: Vec3::X,
+								rotation: Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
+								..default()
+							},
+							..default()
+						},));
+					});
+			})
+			.id();
+	}
+	let mut test_menu = cmds.spawn((
+		PanelBundle {
+			data: Panel {
+				size,
+				borders: std::iter::repeat(vec![
+					RectBorderDesc {
+						colors: Some([Color::BLACK; 4].into()),
+						material: border_mat.clone(),
+						..default()
+					},
+					RectBorderDesc {
+						dilation: -6.0,
+						colors: Some([Color::DARK_GRAY; 4].into()),
+						material: border_mat,
+						..default()
+					},
+				])
+				.collect(),
+				..default()
+			},
+			visibility: Visibility::Hidden,
+			material: mats.add(StandardMaterial {
+				base_color: Color::rgba(0.1, 0.1, 0.1, 0.8),
+				reflectance: 0.0,
+				alpha_mode: AlphaMode::Blend,
+				double_sided: true,
+				cull_mode: None,
+				..default()
+			}),
+			..default()
+		},
+		TestMenu { faces },
+	));
+	for face in faces {
+		test_menu.add_child(face);
+	}
 	*spawned = true;
 }
 

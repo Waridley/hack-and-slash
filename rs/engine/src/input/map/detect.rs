@@ -2,14 +2,17 @@ use crate::{
 	input::{
 		map::{
 			icons::{Icon, InputIcons},
-			widgets::IconWidgetBuilder,
+			widgets::{InputIcon, InputIconBundle},
 			GamepadSeries,
 		},
 		ChordEntry, CurrentChord, InputState,
 	},
 	ui::{
 		layout::LineUpChildren,
-		widgets::{CuboidFaces, Font3d, PanelBuilder, RectBorderDesc, RectCorners, TextBuilder},
+		widgets::{
+			CuboidFaces, Font3d, Panel, PanelBundle, RectBorderDesc, RectCorners, Text3d,
+			Text3dBundle,
+		},
 		CamAnchor, GlobalUi, TextMeshCache, UiFonts, GLOBAL_UI_RENDER_LAYERS,
 	},
 };
@@ -24,7 +27,8 @@ pub struct DetectBindingPopupPlugin;
 impl Plugin for DetectBindingPopupPlugin {
 	fn build(&self, app: &mut App) {
 		app.add_systems(PreUpdate, setup)
-			.add_systems(Update, (manage_detect_popup, display_curr_chord));
+			.add_systems(Update, (manage_detect_popup, display_curr_chord))
+			.add_systems(Last, InputIcon::sync::<StandardMaterial>);
 	}
 }
 
@@ -42,56 +46,61 @@ pub fn setup(
 		if let AssetEvent::Added { id } = event {
 			if ui_fonts.mono_3d.id() == *id {
 				let size = Vec3::new(8.0, 1.0, 6.0);
-				let mut cmds = PanelBuilder {
-					size,
-					material: mats.add(StandardMaterial {
-						base_color: Color::rgba(0.0, 0.001, 0.001, 0.6),
-						alpha_mode: AlphaMode::Blend,
-						double_sided: true,
-						cull_mode: None,
-						..default()
-					}),
-					borders: CuboidFaces {
-						front: vec![RectBorderDesc {
-							width: 0.125,
-							dilation: 3.0,
-							depth: 0.125,
-							colors: Some(RectCorners {
-								top_right: Color::rgba(0.0, 0.2, 0.2, 0.6),
-								top_left: Color::rgba(0.0, 0.4, 0.1, 0.6),
-								bottom_left: Color::rgba(0.0, 0.2, 0.2, 0.6),
-								bottom_right: Color::rgba(0.0, 0.1, 0.4, 0.6),
-							}),
-							material: mats.add(StandardMaterial {
-								alpha_mode: AlphaMode::Blend,
+				let mut cmds = cmds.spawn((
+					PanelBundle {
+						data: Panel {
+							size,
+							borders: CuboidFaces {
+								front: vec![RectBorderDesc {
+									width: 0.125,
+									dilation: 3.0,
+									depth: 0.125,
+									colors: Some(RectCorners {
+										top_right: Color::rgba(0.0, 0.2, 0.2, 0.6),
+										top_left: Color::rgba(0.0, 0.4, 0.1, 0.6),
+										bottom_left: Color::rgba(0.0, 0.2, 0.2, 0.6),
+										bottom_right: Color::rgba(0.0, 0.1, 0.4, 0.6),
+									}),
+									material: mats.add(StandardMaterial {
+										alpha_mode: AlphaMode::Blend,
+										..default()
+									}),
+									..default()
+								}],
 								..default()
-							}),
+							},
 							..default()
-						}],
+						},
+						material: mats.add(StandardMaterial {
+							base_color: Color::rgba(0.0, 0.001, 0.001, 0.6),
+							alpha_mode: AlphaMode::Blend,
+							double_sided: true,
+							cull_mode: None,
+							..default()
+						}),
+						transform: Transform::from_translation(Vec3::NEG_Y * 10.0),
+						visibility: Visibility::Hidden,
 						..default()
 					},
-					transform: Transform::from_translation(Vec3::NEG_Y * 10.0),
-					visibility: Visibility::Hidden,
-					..default()
-				}
-				.spawn(&mut cmds, &mut meshes);
+					DetectBindingPopup,
+				));
 
-				cmds.insert(DetectBindingPopup);
 				cmds.with_children(|cmds| {
-					cmds.spawn((TextBuilder {
-						text: "Press input(s) to bind...".into(),
+					cmds.spawn((Text3dBundle {
+						text_3d: Text3d {
+							text: "Press input(s) to bind...".into(),
+							flat: false,
+							vertex_scale: Vec3::new(0.5, 0.5, 0.5),
+							..default()
+						},
 						font: ui_fonts.mono_3d.clone(),
-						flat: false,
 						material: mats.add(Color::AQUAMARINE),
-						vertex_scale: Vec3::new(0.5, 0.5, 0.125),
 						transform: Transform {
 							translation: Vec3::new(0.0, -1.0, 2.0),
 							..default()
 						},
 						..default()
-					}
-					.build(meshes.reborrow(), cache.reborrow(), fonts.reborrow())
-					.unwrap(),));
+					},));
 
 					cmds.spawn((
 						TransformBundle::from_transform(Transform {
@@ -196,25 +205,22 @@ pub fn display_curr_chord(
 			};
 			let mut ids = SmallVec::new();
 			for icon in entry_icons {
-				let icon_id = IconWidgetBuilder::<StandardMaterial> {
-					icon,
-					size: Vec3::splat(1.0),
-					font: ui_fonts.mono_3d.clone(),
-					transform: Transform {
-						// scale: Vec3::splat(0.02),
+				let icon_id = cmds
+					.spawn(InputIconBundle::<StandardMaterial> {
+						input_icon: InputIcon {
+							icon,
+							size: Vec3::splat(1.0),
+							..default()
+						},
+						font: ui_fonts.mono_3d.clone(),
+						transform: Transform {
+							// scale: Vec3::splat(0.02),
+							..default()
+						},
+						material: icon_mat.clone(),
 						..default()
-					},
-					material: icon_mat.clone(),
-					..default()
-				}
-				.spawn(
-					&mut cmds,
-					&asset_server,
-					meshes.reborrow(),
-					cache.reborrow(),
-					fonts.reborrow(),
-				)
-				.id();
+					})
+					.id();
 				cmds.entity(id).add_child(icon_id);
 				ids.push(icon_id);
 			}

@@ -36,12 +36,13 @@ impl Debug for WidgetShape {
 	}
 }
 
+#[macro_export]
 macro_rules! node_3d {
-    {$T:ident $(<$G:ident $(: $Constraints:tt)? $(= $Def:ident)?>)? $(where $($W:ident: $WConstraints:tt),*)? {
+    {$T:ident $(<$($G:ident $(: $Constraints:tt)? $(= $Def:ident)?),*>)? $(where $($W:ident: $WConstraints:tt),*)? {
 	    $($fields:ident: $tys:ty),* $(,)?
     }} => {
 	    #[derive(Bundle, Clone)]
-	    pub struct $T$(<$G $(: $Constraints)? $(= $Def)?>)? $(where $($W: $WConstraints)*)? {
+	    pub struct $T$(<$($G $(: $Constraints)? $(= $Def)?),*>)? $(where $($W: $WConstraints)*)? {
 		    $(pub $fields: $tys,)*
 				pub transform: Transform,
 				pub global_transform: GlobalTransform,
@@ -89,137 +90,134 @@ impl Default for WidgetBundle {
 	}
 }
 
-#[derive(Clone, Debug)]
-pub struct PanelBuilder<M: Material = StandardMaterial, BM: Material = StandardMaterial> {
+#[derive(Component, Clone, Debug)]
+pub struct Panel<BM: Material = StandardMaterial> {
 	pub size: Vec3,
-	pub material: Handle<M>,
-	pub colors: Option<CuboidFaces<Color>>,
+	pub colors: Option<CuboidFaces<RectCorners<Color>>>,
 	pub borders: CuboidFaces<Vec<RectBorderDesc<BM>>>,
-	pub transform: Transform,
-	pub global_transform: GlobalTransform,
-	pub visibility: Visibility,
-	pub layers: RenderLayers,
 }
 
-impl<M: Material, BM: Material> Default for PanelBuilder<M, BM> {
+impl<BM: Material> Default for Panel<BM> {
 	fn default() -> Self {
 		Self {
 			size: Vec3::ONE,
-			material: default(),
 			colors: default(),
 			borders: default(),
-			transform: default(),
-			global_transform: default(),
-			visibility: default(),
-			layers: GLOBAL_UI_RENDER_LAYERS,
 		}
 	}
 }
 
-impl<M: Material, BM: Material> PanelBuilder<M, BM> {
-	fn build(self, meshes: &mut Assets<Mesh>) -> (impl Bundle, CuboidFaces<Vec<impl Bundle>>) {
-		let Self {
-			size,
-			material,
-			colors,
-			borders,
-			transform,
-			global_transform,
-			visibility,
-			layers,
-		} = self;
-		let mut mesh = Cuboid::new(size.x, size.y, size.z).mesh();
-		if let Some(colors) = colors {
-			mesh.insert_attribute(
-				Mesh::ATTRIBUTE_COLOR,
-				colors
-					.into_iter()
-					.flat_map(|color| [color.as_rgba_f32(); 4])
-					.collect::<Vec<_>>(),
-			)
-		}
-		let mesh = mesh.with_duplicated_vertices().with_computed_flat_normals();
+#[derive(Component, Default, Clone, Debug, Deref, DerefMut)]
+pub struct PanelBorders(pub CuboidFaces<Vec<Entity>>);
 
-		let borders = CuboidFaces {
-			front: Rectangle::new(size.x, size.z),
-			back: Rectangle::new(size.x, size.z),
-			left: Rectangle::new(size.y, size.z),
-			right: Rectangle::new(size.y, size.z),
-			top: Rectangle::new(size.x, size.y),
-			bottom: Rectangle::new(size.x, size.y),
-		}
-		.into_iter()
-		.zip(borders)
-		.zip(CuboidFaces::NORMALS)
-		.map(|((rect, desc), norm)| {
-			desc.into_iter()
-				.map(|desc| {
-					let RectBorderDesc {
-						width,
-						depth,
-						dilation,
-						protrusion,
-						colors,
-						material,
-					} = desc;
-					let mesh = rect.border(width, depth, dilation, colors);
-					(
-						MaterialMeshBundle {
-							mesh: meshes.add(mesh),
-							material,
-							transform: Transform {
-								translation: (norm * size * 0.5)
-									+ (norm * (depth * protrusion * 0.5)),
-								rotation: Quat::from_rotation_arc(Vec3::NEG_Y, norm),
-								..default()
-							},
-							..default()
-						},
-						layers,
-					)
-				})
-				.collect()
-		})
-		.collect();
+node_3d! { PanelBundle<M: Material = StandardMaterial, BM: Material = StandardMaterial> {
+	data: Panel<BM>,
+	material: Handle<M>,
+	border_entities: PanelBorders,
+}}
 
-		let mesh = meshes.add(mesh);
-		(
-			(
-				WidgetBundle {
-					shape: WidgetShape(SharedShape::cuboid(
-						size.x * 0.5,
-						size.y * 0.5,
-						size.z * 0.5,
-					)),
-					transform,
-					global_transform,
-					visibility,
-					inherited_visibility: default(),
-					view_visibility: default(),
-					layers,
-					ak_node: NodeBuilder::new(Role::Pane).into(),
-				},
-				mesh,
-				material,
-			),
-			borders,
-		)
+impl<M: Material, BM: Material> Default for PanelBundle<M, BM> {
+	fn default() -> Self {
+		Self {
+			data: default(),
+			material: default(),
+			border_entities: default(),
+			transform: default(),
+			global_transform: default(),
+			visibility: default(),
+			inherited_visibility: default(),
+			view_visibility: default(),
+			layers: GLOBAL_UI_RENDER_LAYERS,
+			ak_node: NodeBuilder::new(Role::Pane).into(),
+		}
 	}
+}
 
-	pub fn spawn<'a>(
-		self,
-		cmds: &'a mut Commands,
-		meshes: &mut Assets<Mesh>,
-	) -> EntityCommands<'a> {
-		let (panel, borders) = self.build(meshes);
-
-		let mut cmds = cmds.spawn(panel);
-		cmds.with_children(|cmds| {
-			borders.into_iter().flatten().for_each(|border| {
-				cmds.spawn(border);
+impl<BM: Material> Panel<BM> {
+	pub fn sync(
+		mut cmds: Commands,
+		mut q: Query<(Entity, &Self, &RenderLayers, &mut PanelBorders), Changed<Self>>,
+		mut meshes: ResMut<Assets<Mesh>>,
+	) {
+		for (
+			id,
+			Panel {
+				size,
+				colors,
+				borders,
+			},
+			layers,
+			mut border_entities,
+		) in &mut q
+		{
+			for id in border_entities.iter().flatten() {
+				cmds.get_entity(*id).map(EntityCommands::despawn_recursive);
+			}
+			let mut cmds = cmds.entity(id);
+			let Vec3 {
+				x: hx,
+				y: hy,
+				z: hz,
+			} = *size * 0.5;
+			cmds.insert(WidgetShape(SharedShape::cuboid(hx, hy, hz)));
+			let mut mesh = Cuboid::new(size.x, size.y, size.z).mesh();
+			if let Some(colors) = colors {
+				mesh.insert_attribute(
+					Mesh::ATTRIBUTE_COLOR,
+					colors
+						.into_iter()
+						.flatten()
+						.map(Color::as_rgba_f32)
+						.collect::<Vec<_>>(),
+				)
+			}
+			let mesh = mesh.with_duplicated_vertices().with_computed_flat_normals();
+			cmds.insert(meshes.add(mesh));
+			cmds.with_children(|cmds| {
+				**border_entities = CuboidFaces {
+					front: Rectangle::new(size.x, size.z),
+					back: Rectangle::new(size.x, size.z),
+					left: Rectangle::new(size.y, size.z),
+					right: Rectangle::new(size.y, size.z),
+					top: Rectangle::new(size.x, size.y),
+					bottom: Rectangle::new(size.x, size.y),
+				}
+				.into_iter()
+				.zip(borders.iter())
+				.zip(CuboidFaces::NORMALS)
+				.map(|((rect, desc), norm)| {
+					desc.into_iter()
+						.map(|desc| {
+							let RectBorderDesc {
+								width,
+								depth,
+								dilation,
+								protrusion,
+								colors,
+								material,
+							} = desc.clone();
+							let mesh = rect.border(width, depth, dilation, colors);
+							cmds.spawn((
+								MaterialMeshBundle {
+									mesh: meshes.add(mesh),
+									material,
+									transform: Transform {
+										translation: (norm * *size * 0.5)
+											+ (norm * (depth * protrusion * 0.5)),
+										rotation: Quat::from_rotation_arc(Vec3::NEG_Y, norm),
+										..default()
+									},
+									..default()
+								},
+								*layers,
+							))
+							.id()
+						})
+						.collect::<Vec<_>>()
+				})
+				.collect();
 			});
-		});
-		cmds
+		}
 	}
 }
 
@@ -262,33 +260,44 @@ impl<M: Material> RectBorderDesc<M> {
 /// non-Standard materials.
 pub const UNLIT_MATERIAL_ID: u128 = 142787604504081244242314226814361396251;
 
-#[derive(Clone, Debug)]
-pub struct TextBuilder<M: Material = StandardMaterial> {
+#[derive(Component, Clone, Debug)]
+pub struct Text3d {
 	pub text: CowArc<'static, str>,
-	pub font: Handle<Font3d>,
 	pub flat: bool,
-	pub material: Handle<M>,
 	pub vertex_rotation: Quat,
 	pub vertex_scale: Vec3,
-	pub transform: Transform,
-	pub global_transform: GlobalTransform,
-	pub visibility: Visibility,
-	pub layers: RenderLayers,
 }
 
-impl<M: Material> Default for TextBuilder<M> {
+impl Default for Text3d {
 	fn default() -> Self {
 		Self {
 			text: default(),
-			font: default(),
 			flat: true,
-			material: Handle::weak_from_u128(UNLIT_MATERIAL_ID),
 			vertex_rotation: Quat::from_rotation_arc(Vec3::Z, Vec3::NEG_Y),
 			vertex_scale: Vec3::new(1.0, 1.0, 0.4),
+		}
+	}
+}
+
+node_3d! { Text3dBundle<M: Material = StandardMaterial> {
+	text_3d: Text3d,
+	font: Handle<Font3d>,
+	material: Handle<M>,
+}}
+
+impl<M: Material> Default for Text3dBundle<M> {
+	fn default() -> Self {
+		Self {
+			text_3d: default(),
+			font: default(),
+			material: Handle::weak_from_u128(UNLIT_MATERIAL_ID),
 			transform: default(),
 			global_transform: default(),
 			visibility: default(),
+			inherited_visibility: Default::default(),
+			view_visibility: Default::default(),
 			layers: GLOBAL_UI_RENDER_LAYERS,
+			ak_node: NodeBuilder::new(Role::StaticText).into(),
 		}
 	}
 }
@@ -296,89 +305,81 @@ impl<M: Material> Default for TextBuilder<M> {
 #[derive(Asset, Deref, DerefMut, TypePath)]
 pub struct Font3d(pub MeshGenerator<OwnedFace>);
 
-impl<M: Material> TextBuilder<M> {
-	pub fn build(
-		self,
-		mut meshes: Mut<Assets<Mesh>>,
-		mut cache: Mut<TextMeshCache>,
-		fonts: Mut<Assets<Font3d>>,
-	) -> Option<impl Bundle> {
-		let Self {
-			text,
-			flat,
-			font,
-			material,
-			vertex_rotation,
-			vertex_scale,
-			transform,
-			global_transform,
-			visibility,
-			layers,
-		} = self;
+impl Text3d {
+	pub fn sync(
+		mut cmds: Commands,
+		mut q: Query<(Entity, &Text3d, &Handle<Font3d>, &mut AKNode), Changed<Text3d>>,
+		mut meshes: ResMut<Assets<Mesh>>,
+		mut cache: ResMut<TextMeshCache>,
+		mut fonts: ResMut<Assets<Font3d>>,
+	) {
+		for (id, this, font, mut ak_node) in &mut q {
+			let mut cmds = cmds.entity(id);
+			let Self {
+				text,
+				flat,
+				vertex_rotation,
+				vertex_scale,
+			} = &*this;
 
-		let xform =
-			Mat4::from_scale_rotation_translation(vertex_scale, vertex_rotation, Vec3::ZERO)
-				.to_cols_array();
+			ak_node.set_value(&**text);
+			let xform =
+				Mat4::from_scale_rotation_translation(*vertex_scale, *vertex_rotation, Vec3::ZERO)
+					.to_cols_array();
 
-		let xform_key = array_init::array_init(|i| xform[i].to_bits());
+			let xform_key = array_init::array_init(|i| xform[i].to_bits());
 
-		let (mesh, shape) = cache
-			.entry((text.clone(), xform_key, font.clone()))
-			.or_insert_with(|| {
-				let mut font = fonts.map_unchanged(|fonts| fonts.get_mut(font).unwrap());
-				let MeshText { bbox, vertices } = font
-					.generate_section(
-						&text,
-						flat,
-						Some(
-							&Mat4::from_scale_rotation_translation(
-								vertex_scale,
-								vertex_rotation,
-								Vec3::ZERO,
-							)
-							.to_cols_array(),
-						),
-					)
-					.map_err(|e|
-						// `:?` because `GlyphTriangulationError` has a useless `Display` impl
-						error!("{e:?}"))
-					.ok()?;
+			let Some((mesh, shape)) = cache
+				.entry((text.clone(), xform_key, font.clone()))
+				.or_insert_with(|| {
+					let mut font = fonts
+						.reborrow()
+						.map_unchanged(|fonts| fonts.get_mut(font).unwrap());
+					let MeshText { bbox, vertices } = font
+						.generate_section(
+							&text,
+							*flat,
+							Some(
+								&Mat4::from_scale_rotation_translation(
+									*vertex_scale,
+									*vertex_rotation,
+									Vec3::ZERO,
+								)
+								.to_cols_array(),
+							),
+						)
+						.map_err(|e|
+							// `:?` because `GlyphTriangulationError` has a useless `Display` impl
+							error!("{e:?}"))
+						.ok()?;
 
-				let half_size = Vec3::new(
-					bbox.size().x * 0.5,
-					// For some reason, bbox is not accounting for depth
-					vertex_scale.z * 0.5,
-					bbox.size().z * 0.5,
-				);
-				let shape = WidgetShape(SharedShape::cuboid(half_size.x, half_size.y, half_size.z));
+					let half_size = Vec3::new(
+						bbox.size().x * 0.5,
+						// For some reason, bbox is not accounting for depth
+						vertex_scale.z * 0.5,
+						bbox.size().z * 0.5,
+					);
+					let shape =
+						WidgetShape(SharedShape::cuboid(half_size.x, half_size.y, half_size.z));
 
-				let verts = vertices
-					.chunks(3)
-					.map(|c| [c[0] - half_size.x, c[1], c[2] - half_size.z])
-					.collect::<Vec<_>>();
-				let len = verts.len();
-				let mut mesh = Mesh::new(TriangleList, RenderAssetUsages::RENDER_WORLD);
-				mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, verts);
-				mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0.0, 0.0]; len]);
-				mesh.compute_flat_normals();
-				Some((meshes.add(mesh), shape))
-			})
-			.clone()?;
-
-		Some((
-			MaterialMeshBundle {
-				mesh,
-				material,
-				transform,
-				global_transform,
-				visibility,
-				inherited_visibility: default(),
-				..default()
-			},
-			shape,
-			layers,
-			AKNode::from(NodeBuilder::new(Role::StaticText)),
-		))
+					let verts = vertices
+						.chunks(3)
+						.map(|c| [c[0] - half_size.x, c[1], c[2] - half_size.z])
+						.collect::<Vec<_>>();
+					let len = verts.len();
+					let mut mesh = Mesh::new(TriangleList, RenderAssetUsages::RENDER_WORLD);
+					mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, verts);
+					mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0.0, 0.0]; len]);
+					mesh.compute_flat_normals();
+					Some((meshes.add(mesh), shape))
+				})
+				.clone()
+			else {
+				error!("Failed to generate text mesh");
+				continue;
+			};
+			cmds.insert((mesh, shape));
+		}
 	}
 }
 
@@ -530,6 +531,15 @@ impl<T> From<[T; 4]> for RectCorners<T> {
 	}
 }
 
+impl<T> IntoIterator for RectCorners<T> {
+	type Item = T;
+	type IntoIter = <[T; 4] as IntoIterator>::IntoIter;
+
+	fn into_iter(self) -> Self::IntoIter {
+		<[T; 4]>::from(self).into_iter()
+	}
+}
+
 #[derive(Copy, Clone, Default, Debug)]
 pub struct CuboidCorners<T> {
 	pub front_top_right: T,
@@ -601,6 +611,30 @@ impl<T> CuboidFaces<T> {
 			top,
 			bottom,
 		}
+	}
+
+	pub fn iter(&self) -> impl Iterator<Item = &T> {
+		[
+			&self.front,
+			&self.back,
+			&self.left,
+			&self.right,
+			&self.top,
+			&self.bottom,
+		]
+		.into_iter()
+	}
+
+	pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
+		[
+			&mut self.front,
+			&mut self.back,
+			&mut self.left,
+			&mut self.right,
+			&mut self.top,
+			&mut self.bottom,
+		]
+		.into_iter()
 	}
 }
 
