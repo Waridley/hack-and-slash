@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Component, Debug, Reflect, Serialize, Deserialize)]
 #[reflect(Component, Serialize, Deserialize)]
-pub struct ChildrenConstraint {
+pub struct LineUpChildren {
 	/// A unit vector indicates shapes will be touching. Any length over `1.0`
 	/// results in separating the shapes by that distance.
 	pub relative_positions: Vec3,
@@ -15,7 +15,7 @@ pub struct ChildrenConstraint {
 	pub align: Vec3,
 }
 
-impl Default for ChildrenConstraint {
+impl Default for LineUpChildren {
 	fn default() -> Self {
 		Self {
 			relative_positions: Vec3::X,
@@ -45,7 +45,7 @@ impl Default for SiblingConstraint {
 }
 
 pub fn apply_constraints(
-	child_constraints: Query<(Entity, &ChildrenConstraint, &Children)>,
+	child_constraints: Query<(Entity, &LineUpChildren, &Children)>,
 	sibling_constraints: Query<&SiblingConstraint>,
 	mut transforms: Query<(Entity, &mut Transform, Option<&Parent>, &WidgetShape)>,
 ) {
@@ -53,7 +53,10 @@ pub fn apply_constraints(
 		match children.len() {
 			0 => continue,
 			1 => {
-				transforms.get_mut(children[0]).unwrap().1.translation = Vec3::ZERO;
+				match transforms.get_mut(children[0]) {
+					Ok(mut child) => child.1.translation = Vec3::ZERO,
+					Err(e) => error!("{e}"),
+				}
 				continue;
 			}
 			_ => {}

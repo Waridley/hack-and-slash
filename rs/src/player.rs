@@ -1,14 +1,14 @@
 use std::{f32::consts::*, num::NonZeroU8, ops::Add, time::Duration};
 
-use bevy::render::view::Layer;
 use bevy::{
 	asset::AssetPath,
 	ecs::system::EntityCommands,
+	input::common_conditions::input_toggle_active,
 	prelude::*,
 	render::{
 		mesh::{SphereKind, SphereMeshBuilder, TorusMeshBuilder},
 		primitives::Sphere,
-		view::RenderLayers,
+		view::{Layer, RenderLayers},
 	},
 	utils::{HashMap, HashSet},
 };
@@ -34,7 +34,7 @@ use camera::spawn_cameras;
 use ctrl::{CtrlState, CtrlVel};
 use engine::{
 	planet::terrain::NeedsTerrain,
-	ui::{layout::ChildrenConstraint, UiRoot, GLOBAL_UI_LAYER},
+	ui::{layout::LineUpChildren, widgets::WidgetGizmos, UiRoot, GLOBAL_UI_LAYER},
 };
 use player_entity::*;
 use prefs::PlayerPrefs;
@@ -69,6 +69,32 @@ pub const fn player_hud_layer(player: PlayerId) -> Layer {
 }
 
 pub fn plugin(app: &mut App) -> &mut App {
+	#[cfg(feature = "debugging")]
+	{
+		macro_rules! init_gizmos {
+			($i:literal) => {
+				let layers = RenderLayers::layer(player_ui_layer(PlayerId::new($i).unwrap()));
+				app.add_systems(
+					PostUpdate,
+					engine::ui::widgets::draw_widget_shape_gizmos::<$i>
+						.run_if(input_toggle_active(false, KeyCode::KeyG))
+						.after(bevy::render::view::VisibilitySystems::CheckVisibility),
+				)
+				.insert_gizmo_group(
+					WidgetGizmos::<$i>,
+					GizmoConfig {
+						render_layers: layers,
+						..default()
+					},
+				);
+			};
+		}
+		init_gizmos!(1);
+		init_gizmos!(2);
+		init_gizmos!(3);
+		init_gizmos!(4);
+	}
+
 	app.add_plugins((
 		prefs::PrefsPlugin,
 		input::plugin.plugfn(),
@@ -159,8 +185,29 @@ pub fn setup(
 	let Some(id) = PlayerId::new(1) else {
 		unreachable!()
 	};
+
+	let ui_root = cmds
+		.spawn((
+			TransformBundle::from_transform(Transform {
+				translation: Vec3::NEG_Z * 64.0,
+				..default()
+			}),
+			VisibilityBundle::default(),
+			RenderLayers::layer(player_ui_layer(id)),
+			UiRoot,
+		))
+		.id();
+
 	// TODO: Separate viewport for each player
-	spawn_cameras(&mut cmds, id, &settings, &mut images, &asset_server, None);
+	spawn_cameras(
+		&mut cmds,
+		id,
+		&settings,
+		&mut images,
+		&asset_server,
+		None,
+		ui_root,
+	);
 }
 
 pub fn update_player_spawn_data(
@@ -616,21 +663,6 @@ fn populate_player_scene(
 	crosshair: PbrBundle,
 	prefs: PlayerPrefs,
 ) {
-	root.with_children(|cmds| {
-		cmds.spawn((
-			TransformBundle::from_transform(Transform {
-				translation: Vec3::NEG_Z * 64.0,
-				..default()
-			}),
-			VisibilityBundle::default(),
-			ChildrenConstraint {
-				relative_positions: Vec3::NEG_Y * 11.0,
-				align: Vec3::new(0.0, -1.0, 0.0),
-			},
-			RenderLayers::layer(player_ui_layer(owner.id())),
-			UiRoot,
-		));
-	});
 	player_controller(root, owner, char_collider, prefs);
 	player_vis(
 		root,

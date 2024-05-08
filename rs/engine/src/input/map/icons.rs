@@ -2,7 +2,7 @@ use crate::{
 	input::map::{icons::kenney::generic_base_dir, GamepadSeries},
 	ui::{
 		a11y::AKNode,
-		widgets::{Font3d, TextBuilder},
+		widgets::{Font3d, TextBuilder, UNLIT_MATERIAL_ID},
 		TextMeshCache, GLOBAL_UI_RENDER_LAYERS,
 	},
 };
@@ -13,7 +13,7 @@ use bevy::{
 	prelude::*,
 	render::view::RenderLayers,
 };
-use bevy_svg::prelude::{Origin, Svg3dBundle};
+use bevy_svg::{prelude::*, SvgSettings};
 use kenney::{base_dir, kb_mouse_base_dir};
 use leafwing_input_manager::{
 	axislike::{AxisType, AxisType::Gamepad, MouseMotionAxisType},
@@ -220,67 +220,68 @@ impl Default for Icon {
 }
 
 #[derive(Debug, Clone)]
-pub struct IconBundleBuilder {
+pub struct IconBundleBuilder<M: Material = StandardMaterial> {
 	pub icon: Icon,
 	pub font: Handle<Font3d>,
-	pub origin: Origin,
 	pub size: Vec3,
 	pub transform: Transform,
 	pub global_transform: GlobalTransform,
 	pub visibility: Visibility,
 	pub inherited_visibility: InheritedVisibility,
 	pub layers: RenderLayers,
+	pub material: Handle<M>,
 }
 
-impl Default for IconBundleBuilder {
+impl<M: Material> Default for IconBundleBuilder<M> {
 	fn default() -> Self {
 		Self {
 			icon: default(),
 			font: default(),
-			origin: default(),
 			size: Vec3::ONE,
 			transform: default(),
 			global_transform: default(),
 			visibility: default(),
 			inherited_visibility: default(),
 			layers: GLOBAL_UI_RENDER_LAYERS,
+			material: Handle::weak_from_u128(UNLIT_MATERIAL_ID),
 		}
 	}
 }
 
 #[derive(Bundle)]
-pub struct IconBundle {
-	pub svg: Svg3dBundle,
+pub struct IconBundle<M: Material> {
+	pub svg: Svg3dBundle<M>,
 	pub layers: RenderLayers,
 	pub role: AKNode,
 }
 
-impl IconBundleBuilder {
+impl<M: Material> IconBundleBuilder<M> {
 	pub fn build(
 		self,
 		asset_server: &AssetServer,
 		meshes: Mut<Assets<Mesh>>,
 		cache: Mut<TextMeshCache>,
 		fonts: Mut<Assets<Font3d>>,
-	) -> (IconBundle, Option<impl Bundle>) {
+	) -> (IconBundle<M>, Option<impl Bundle>) {
 		let Self {
 			icon: Icon { image, text },
 			font,
-			origin,
 			size,
 			mut transform,
 			mut global_transform,
 			visibility,
 			inherited_visibility,
 			layers,
+			material,
 		} = self;
-		// Compensate for lack of z-up convertibility in bevy_svg
-		let rot = Quat::from_rotation_x(std::f32::consts::FRAC_PI_2);
-		transform.rotation *= rot;
-		global_transform = global_transform * Transform::from_rotation(rot);
 		let svg = Svg3dBundle {
-			svg: asset_server.load(image),
-			origin,
+			svg: asset_server.load_with_settings::<_, SvgSettings>(image, move |settings| {
+				settings.transform.rotation *= Quat::from_rotation_arc(Vec3::Y, Vec3::Z);
+				settings.origin = Origin::Center;
+				settings.size = Some(size.xy());
+				settings.depth = Some(size.z);
+			}),
+			material: material.clone(),
 			transform,
 			global_transform,
 			visibility,
@@ -291,12 +292,10 @@ impl IconBundleBuilder {
 		let text = text.and_then(|text| {
 			TextBuilder {
 				text: text.to_string().into(),
+				flat: false,
 				font,
-				vertex_translation: Vec3::new(0.0, -32.0, -32.0),
-				vertex_scale: Vec3::new(size.x * 128.0, size.y * 128.0, 0.0),
-				// Compensate for lack of z-up convertibility in bevy_svg
-				vertex_rotation: Quat::default(),
-				// transform: Transform::from_translation(Vec3::NEG_Y * 32.0),
+				material,
+				vertex_scale: Vec3::new(size.x * 0.5, size.y * 0.5, size.z),
 				..default()
 			}
 			.build(meshes, cache, fonts)

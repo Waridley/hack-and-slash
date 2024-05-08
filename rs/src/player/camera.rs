@@ -1,11 +1,11 @@
 use std::f32::consts::FRAC_PI_2;
 
-use bevy::render::camera::Viewport;
 use bevy::{
 	core_pipeline::{bloom::BloomSettings, fxaa::Fxaa, tonemapping::Tonemapping, Skybox},
 	ecs::system::EntityCommands,
 	prelude::*,
 	render::{
+		camera::Viewport,
 		render_asset::RenderAssetUsages,
 		render_resource::{
 			Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
@@ -46,6 +46,7 @@ pub fn spawn_cameras(
 	images: &mut Assets<Image>,
 	asset_server: &AssetServer,
 	viewport: Option<Viewport>,
+	ui_root: Entity,
 ) {
 	let (sky_texture, sky_diffuse) = {
 		let size = Extent3d {
@@ -163,6 +164,7 @@ pub fn spawn_cameras(
 	});
 
 	spawn_ui_camera(
+		ui_root,
 		cmds.commands(),
 		owner,
 		player_ui_layer(player_id),
