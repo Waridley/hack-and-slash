@@ -89,7 +89,7 @@ pub fn reframe_all_entities(
 	q.par_iter_mut()
 		.for_each(|(mut xform, mut global, has_parent, layers)| {
 			if let Some(layers) = layers {
-				if !layers.intersects(&RenderLayers::default()) {
+				if !layers.intersects(&RenderLayers::layer(0)) {
 					return;
 				}
 			}

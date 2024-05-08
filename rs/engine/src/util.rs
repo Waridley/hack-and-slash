@@ -923,3 +923,41 @@ macro_rules! state_matches {
 		}
 	};
 }
+
+/// Shorthand for spawning a tree of entities.
+/// ```
+/// # use bevy::prelude::*;
+/// # use sond_has_engine::entity_tree;
+/// # fn test_entity_tree_macro(mut commands: Commands) {
+/// let root = entity_tree!(commands; (
+///     TransformBundle::default(),
+///     VisibilityBundle::default();
+///     // children
+///     (
+///         TransformBundle {
+///             local: Transform::from_translation(Vec3::splat(3.0)),
+///             ..default()
+///         },
+///         VisibilityBundle::default();
+///         // grandchildren
+///         (
+///             TransformBundle::default(),
+///             VisibilityBundle::default(),
+///         ),
+///     ),
+///     (
+///         PbrBundle::default(),
+///     ),
+/// )).id();
+/// # }
+/// ```
+#[macro_export]
+macro_rules! entity_tree {
+	($cmds:ident; ( $($bundles:expr),* $(,)? $(; $($children:tt),* $(,)?)? )) => {
+	  $cmds.spawn((
+	    $($bundles),*
+	  ))$(.with_children(|cmds| {
+	    $(entity_tree!(cmds; $children);)*
+	  }))?
+	}
+}

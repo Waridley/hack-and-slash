@@ -1,18 +1,13 @@
 use crate::{
 	input::map::{icons::kenney::generic_base_dir, GamepadSeries},
+	node_3d,
 	ui::{
 		a11y::AKNode,
-		widgets::{Font3d, TextBuilder, UNLIT_MATERIAL_ID},
-		TextMeshCache, GLOBAL_UI_RENDER_LAYERS,
+		widgets::{Font3d, Text3d, Text3dBundle, UNLIT_MATERIAL_ID},
+		TextMeshCache, UiFonts, GLOBAL_UI_RENDER_LAYERS,
 	},
 };
-use bevy::{
-	a11y::accesskit::{NodeBuilder, Role},
-	asset::AssetPath,
-	input::keyboard::Key,
-	prelude::*,
-	render::view::RenderLayers,
-};
+use bevy::{asset::AssetPath, input::keyboard::Key, prelude::*, render::view::RenderLayers};
 use bevy_svg::{prelude::*, SvgSettings};
 use kenney::{base_dir, kb_mouse_base_dir};
 use leafwing_input_manager::{
@@ -216,93 +211,6 @@ impl Default for Icon {
 			image: default_icon(),
 			text: None,
 		}
-	}
-}
-
-#[derive(Debug, Clone)]
-pub struct IconBundleBuilder<M: Material = StandardMaterial> {
-	pub icon: Icon,
-	pub font: Handle<Font3d>,
-	pub size: Vec3,
-	pub transform: Transform,
-	pub global_transform: GlobalTransform,
-	pub visibility: Visibility,
-	pub inherited_visibility: InheritedVisibility,
-	pub layers: RenderLayers,
-	pub material: Handle<M>,
-}
-
-impl<M: Material> Default for IconBundleBuilder<M> {
-	fn default() -> Self {
-		Self {
-			icon: default(),
-			font: default(),
-			size: Vec3::ONE,
-			transform: default(),
-			global_transform: default(),
-			visibility: default(),
-			inherited_visibility: default(),
-			layers: GLOBAL_UI_RENDER_LAYERS,
-			material: Handle::weak_from_u128(UNLIT_MATERIAL_ID),
-		}
-	}
-}
-
-#[derive(Bundle)]
-pub struct IconBundle<M: Material> {
-	pub svg: Svg3dBundle<M>,
-	pub layers: RenderLayers,
-	pub role: AKNode,
-}
-
-impl<M: Material> IconBundleBuilder<M> {
-	pub fn build(
-		self,
-		asset_server: &AssetServer,
-		meshes: Mut<Assets<Mesh>>,
-		cache: Mut<TextMeshCache>,
-		fonts: Mut<Assets<Font3d>>,
-	) -> (IconBundle<M>, Option<impl Bundle>) {
-		let Self {
-			icon: Icon { image, text },
-			font,
-			size,
-			mut transform,
-			mut global_transform,
-			visibility,
-			inherited_visibility,
-			layers,
-			material,
-		} = self;
-		let svg = Svg3dBundle {
-			svg: asset_server.load_with_settings::<_, SvgSettings>(image, move |settings| {
-				settings.transform.rotation *= Quat::from_rotation_arc(Vec3::Y, Vec3::Z);
-				settings.origin = Origin::Center;
-				settings.size = Some(size.xy());
-				settings.depth = Some(size.z);
-			}),
-			material: material.clone(),
-			transform,
-			global_transform,
-			visibility,
-			inherited_visibility,
-			..default()
-		};
-
-		let text = text.and_then(|text| {
-			TextBuilder {
-				text: text.to_string().into(),
-				flat: false,
-				font,
-				material,
-				vertex_scale: Vec3::new(size.x * 0.5, size.y * 0.5, size.z),
-				..default()
-			}
-			.build(meshes, cache, fonts)
-		});
-
-		let role = NodeBuilder::new(Role::Image).into();
-		(IconBundle { svg, layers, role }, text)
 	}
 }
 

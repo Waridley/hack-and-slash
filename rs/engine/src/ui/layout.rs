@@ -1,5 +1,5 @@
 use super::widgets::WidgetShape;
-use bevy::prelude::*;
+use bevy::{ecs::query::QueryEntityError, prelude::*};
 use rapier3d::parry::query::Ray;
 use serde::{Deserialize, Serialize};
 
@@ -55,7 +55,7 @@ pub fn apply_constraints(
 			1 => {
 				match transforms.get_mut(children[0]) {
 					Ok(mut child) => child.1.translation = Vec3::ZERO,
-					Err(e) => error!("{e}"),
+					Err(e) => debug!("{e}"),
 				}
 				continue;
 			}
@@ -66,7 +66,7 @@ pub fn apply_constraints(
 			let [a, b] = match transforms.get_many([pair[0], pair[1]]) {
 				Ok(pair) => pair,
 				Err(e) => {
-					error!("{e}");
+					debug!("{e}");
 					continue;
 				}
 			};
@@ -84,9 +84,22 @@ pub fn apply_constraints(
 		}
 		let sep_sum = separations.iter().sum::<Vec3>();
 		let offset = sep_sum * ((-constraint.align + Vec3::ONE) * 0.5);
-		transforms.get_mut(children[0]).unwrap().1.translation = -offset;
+		let mut first_child = match transforms.get_mut(children[0]) {
+			Ok(child) => child,
+			Err(e) => {
+				debug!("{e}");
+				continue;
+			}
+		};
+		first_child.1.translation = -offset;
 		for (i, pair) in children.windows(2).enumerate() {
-			let [a, mut b] = transforms.get_many_mut([pair[0], pair[1]]).unwrap();
+			let [a, mut b] = match transforms.get_many_mut([pair[0], pair[1]]) {
+				Ok(pair) => pair,
+				Err(e) => {
+					debug!("{e}");
+					continue;
+				}
+			};
 			b.1.translation = a.1.translation + separations[i];
 		}
 	}
@@ -96,7 +109,7 @@ pub fn apply_constraints(
 		let [a, mut b] = match transforms.get_many_mut([constraint.a, constraint.b]) {
 			Ok(pair) => pair,
 			Err(e) => {
-				error!("{e}");
+				debug!("{e}");
 				continue;
 			}
 		};
