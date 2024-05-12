@@ -8,6 +8,7 @@ use std::{
 	ops::{Add, Div, Index, IndexMut, Mul, Sub},
 	time::Duration,
 };
+use std::sync::OnceLock;
 
 use bevy::{
 	asset::{io::Reader, AssetLoader, AsyncReadExt, BoxedFuture, LoadContext},
@@ -24,6 +25,9 @@ use bevy::{
 	},
 	scene::{SceneLoaderError, SceneLoaderError::RonSpannedError},
 };
+use bevy::ecs::component::ComponentInfo;
+use bevy::ecs::system::SystemId;
+use bevy::utils::tracing::event;
 use num_traits::NumCast;
 use ron::Error::InvalidValueForType;
 use serde::{de::DeserializeSeed, Deserialize, Serialize};
@@ -959,5 +963,51 @@ macro_rules! entity_tree {
 	  ))$(.with_children(|cmds| {
 	    $(entity_tree!(cmds; $children);)*
 	  }))?
+	}
+}
+
+/// SystemId's for logging components of an entity
+pub static DEBUG_COMPONENTS: OnceLock<SystemId<(Entity, String)>> = OnceLock::new();
+/// Register this system and call it to print the names of all of an entity's components.
+pub fn debug_component_names(In((id, msg)): In<(Entity, String)>, world: &mut World) {
+	let components = world.inspect_entity(id)
+		.into_iter()
+		.map(ComponentInfo::name)
+		.collect::<Vec<_>>();
+	debug!(?components, "{msg}");
+}
+
+/// [error_component_names]
+pub static ERROR_COMPONENTS: OnceLock<SystemId<(Entity, String)>> = OnceLock::new();
+/// Register this system and call it to print the names of all of an entity's components.
+/// Useful when an entity unexpectedly fails to match a query.
+pub fn error_component_names(In((id, msg)): In<(Entity, String)>, world: &mut World) {
+	let components = world.inspect_entity(id)
+		.into_iter()
+		.map(ComponentInfo::name)
+		.collect::<Vec<_>>();
+	error!(?components, "{msg}");
+}
+
+pub trait LogComponentNames {
+	/// Run [debug_component_names]
+	fn debug_components(&mut self, id: Entity, msg: impl std::fmt::Display);
+	/// Run [error_component_names]
+	fn error_components(&mut self, id: Entity, msg: impl std::fmt::Display);
+}
+
+impl LogComponentNames for Commands<'_, '_> {
+	#[inline(never)]
+	#[track_caller]
+	fn debug_components(&mut self, id: Entity, msg: impl std::fmt::Display) {
+		let location = std::panic::Location::caller();
+		self.run_system_with_input(*DEBUG_COMPONENTS.get().unwrap(), (id, format!("{location}: {msg}")));
+	}
+	
+	#[inline(never)]
+	#[track_caller]
+	fn error_components(&mut self, id: Entity, msg: impl std::fmt::Display) {
+		let location = std::panic::Location::caller();
+		self.run_system_with_input(*ERROR_COMPONENTS.get().unwrap(), (id, format!("{location}: {msg}")));
 	}
 }
