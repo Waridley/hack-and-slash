@@ -5,6 +5,7 @@ use bevy::app::{App, Plugin};
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
 use bevy_dylib;
 use bevy_svg::SvgPlugin;
+use crate::util::{debug_component_names, DEBUG_COMPONENTS, error_component_names, ERROR_COMPONENTS};
 
 pub mod anim;
 pub mod input;
@@ -24,5 +25,9 @@ pub struct EnginePlugin;
 impl Plugin for EnginePlugin {
 	fn build(&self, app: &mut App) {
 		app.add_plugins((ui::UiPlugin, input::InputPlugin, SvgPlugin));
+		DEBUG_COMPONENTS.set(app.world.register_system(debug_component_names))
+			.expect("`DEBUG_COMPONENTS` shouldn't already be set");
+		ERROR_COMPONENTS.set(app.world.register_system(error_component_names))
+			.expect("`ERROR_COMPONENTS` shouldn't already be set");
 	}
 }

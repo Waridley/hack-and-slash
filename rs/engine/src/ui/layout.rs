@@ -2,6 +2,7 @@ use super::widgets::WidgetShape;
 use bevy::{ecs::query::QueryEntityError, prelude::*};
 use rapier3d::parry::query::Ray;
 use serde::{Deserialize, Serialize};
+use crate::util::{DEBUG_COMPONENTS, LogComponentNames};
 
 #[derive(Component, Debug, Reflect, Serialize, Deserialize)]
 #[reflect(Component, Serialize, Deserialize)]
@@ -45,6 +46,7 @@ impl Default for SiblingConstraint {
 }
 
 pub fn apply_constraints(
+	mut cmds: Commands,
 	child_constraints: Query<(Entity, &LineUpChildren, &Children)>,
 	sibling_constraints: Query<&SiblingConstraint>,
 	mut transforms: Query<(Entity, &mut Transform, Option<&Parent>, &WidgetShape)>,
@@ -55,7 +57,7 @@ pub fn apply_constraints(
 			1 => {
 				match transforms.get_mut(children[0]) {
 					Ok(mut child) => child.1.translation = Vec3::ZERO,
-					Err(e) => debug!("{e}"),
+					Err(e) => cmds.debug_components(id, e),
 				}
 				continue;
 			}
@@ -66,7 +68,7 @@ pub fn apply_constraints(
 			let [a, b] = match transforms.get_many([pair[0], pair[1]]) {
 				Ok(pair) => pair,
 				Err(e) => {
-					debug!("{e}");
+					cmds.debug_components(id, e);
 					continue;
 				}
 			};
@@ -87,7 +89,7 @@ pub fn apply_constraints(
 		let mut first_child = match transforms.get_mut(children[0]) {
 			Ok(child) => child,
 			Err(e) => {
-				debug!("{e}");
+				cmds.debug_components(id, e);
 				continue;
 			}
 		};
@@ -96,7 +98,7 @@ pub fn apply_constraints(
 			let [a, mut b] = match transforms.get_many_mut([pair[0], pair[1]]) {
 				Ok(pair) => pair,
 				Err(e) => {
-					debug!("{e}");
+					cmds.debug_components(id, e);
 					continue;
 				}
 			};
