@@ -1,7 +1,4 @@
-use crate::{
-	ui::{a11y::AKNode, TextMeshCache, GLOBAL_UI_RENDER_LAYERS},
-	util::Prev,
-};
+use crate::{todo_warn, ui::{a11y::AKNode, TextMeshCache, GLOBAL_UI_RENDER_LAYERS}, util::Prev};
 use bevy::{
 	a11y::accesskit::{NodeBuilder, Role},
 	ecs::system::EntityCommands,
@@ -774,7 +771,7 @@ impl WidgetShape {
 				gizmos.line(b, c, color);
 				gizmos.line(c, a, color);
 			}
-			TypedShape::TriMesh(_) => warn!("Gizmo not implemented for WidgetShape(TriMesh)"),
+			TypedShape::TriMesh(_) => todo_warn!("Gizmo for WidgetShape(TriMesh)"),
 			TypedShape::Polyline(lines) => {
 				for [ia, ib] in lines.indices() {
 					let a = xform * Vec3::from(lines.vertices()[*ia as usize]);
@@ -782,34 +779,34 @@ impl WidgetShape {
 					gizmos.line(a, b, color);
 				}
 			}
-			TypedShape::HalfSpace(_) => warn!("Gizmo not implemented for WidgetShape(HalfSpace)"),
+			TypedShape::HalfSpace(_) => todo_warn!("Gizmo for WidgetShape(HalfSpace)"),
 			TypedShape::HeightField(_) => {
-				warn!("Gizmo not implemented for WidgetShape(HeightField)")
+				todo_warn!("Gizmo for WidgetShape(HeightField)")
 			}
-			TypedShape::Compound(_) => warn!("Gizmo not implemented for WidgetShape(Compound)"),
+			TypedShape::Compound(_) => todo_warn!("Gizmo for WidgetShape(Compound)"),
 			TypedShape::ConvexPolyhedron(_) => {
-				warn!("Gizmo not implemented for WidgetShape(ConvexPolyhedron)")
+				todo_warn!("Gizmo for WidgetShape(ConvexPolyhedron)")
 			}
 			TypedShape::Cylinder(cylinder) => {
 				let a = xform * Vec3::Y * cylinder.half_height;
 				let b = xform * Vec3::NEG_Y * cylinder.half_height;
 				cylinder_gizmo(gizmos, a, b, cylinder.radius, color);
 			}
-			TypedShape::Cone(_) => warn!("Gizmo not implemented for WidgetShape(Cone)"),
+			TypedShape::Cone(_) => todo_warn!("Gizmo for WidgetShape(Cone)"),
 			TypedShape::RoundCuboid(_) => {
-				warn!("Gizmo not implemented for WidgetShape(RoundCuboid)")
+				todo_warn!("Gizmo for WidgetShape(RoundCuboid)")
 			}
 			TypedShape::RoundTriangle(_) => {
-				warn!("Gizmo not implemented for WidgetShape(RoundTriangle)")
+				todo_warn!("Gizmo for WidgetShape(RoundTriangle)")
 			}
 			TypedShape::RoundCylinder(_) => {
-				warn!("Gizmo not implemented for WidgetShape(RoundCylinder)")
+				todo_warn!("Gizmo for WidgetShape(RoundCylinder)")
 			}
-			TypedShape::RoundCone(_) => warn!("Gizmo not implemented for WidgetShape(RoundCone)"),
+			TypedShape::RoundCone(_) => todo_warn!("Gizmo for WidgetShape(RoundCone)"),
 			TypedShape::RoundConvexPolyhedron(_) => {
-				warn!("Gizmo not implemented for WidgetShape(RoundConvexPolyhedron)")
+				todo_warn!("Gizmo for WidgetShape(RoundConvexPolyhedron)")
 			}
-			TypedShape::Custom(_) => warn!("Gizmo not implemented for WidgetShape(Custom)"),
+			TypedShape::Custom(_) => todo_warn!("Gizmo for WidgetShape(Custom)"),
 		}
 	}
 }
