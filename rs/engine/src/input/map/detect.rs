@@ -35,10 +35,7 @@ impl Plugin for DetectBindingPopupPlugin {
 pub fn setup(
 	mut events: EventReader<AssetEvent<Font3d>>,
 	mut cmds: Commands,
-	mut meshes: ResMut<Assets<Mesh>>,
-	mut cache: ResMut<TextMeshCache>,
 	mut mats: ResMut<Assets<StandardMaterial>>,
-	mut fonts: ResMut<Assets<Font3d>>,
 	ui_fonts: Res<UiFonts>,
 ) {
 	// TODO: Use bevy_asset_loader
@@ -155,11 +152,7 @@ pub struct CurrChordIcons(HashMap<ChordEntry, SmallVec<[Entity; 4]>>);
 pub fn display_curr_chord(
 	mut cmds: Commands,
 	mut q: Query<(Entity, &mut CurrChordIcons)>,
-	asset_server: Res<AssetServer>,
-	mut meshes: ResMut<Assets<Mesh>>,
 	mut mats: ResMut<Assets<StandardMaterial>>,
-	mut cache: ResMut<TextMeshCache>,
-	mut fonts: ResMut<Assets<Font3d>>,
 	ui_fonts: Res<UiFonts>,
 	curr_chord: Res<CurrentChord>,
 	gamepads: Res<Gamepads>,

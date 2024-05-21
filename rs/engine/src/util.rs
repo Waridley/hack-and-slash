@@ -936,15 +936,13 @@ macro_rules! state_matches {
 /// let root = entity_tree!(commands; (
 ///     TransformBundle::default(),
 ///     VisibilityBundle::default();
-///     // children
-///     (
+///     #children: (
 ///         TransformBundle {
 ///             local: Transform::from_translation(Vec3::splat(3.0)),
 ///             ..default()
 ///         },
 ///         VisibilityBundle::default();
-///         // grandchildren
-///         (
+///         #children: (// grandchildren
 ///             TransformBundle::default(),
 ///             VisibilityBundle::default(),
 ///         ),
@@ -957,7 +955,7 @@ macro_rules! state_matches {
 /// ```
 #[macro_export]
 macro_rules! entity_tree {
-	($cmds:ident; ( $($bundles:expr),* $(,)? $(; $($children:tt),* $(,)?)? )) => {
+	($cmds:ident; ( $($bundles:expr),* $(,)? $(; #children: $($children:tt),* $(,)?)? )) => {
 	  $cmds.spawn((
 	    $($bundles),*
 	  ))$(.with_children(|cmds| {
@@ -1010,4 +1008,14 @@ impl LogComponentNames for Commands<'_, '_> {
 		let location = std::panic::Location::caller();
 		self.run_system_with_input(*ERROR_COMPONENTS.get().unwrap(), (id, format!("{location}: {msg}")));
 	}
+}
+
+#[macro_export]
+macro_rules! todo_warn {
+	() => {
+		::bevy::log::warn!("not yet implemented")
+	};
+	($($arg:tt)+) => {
+		::bevy::log::warn!("not yet implemented: {}", format_args!($($arg)+))
+	};
 }

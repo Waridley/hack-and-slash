@@ -1,16 +1,12 @@
-use crate::{
-	anim::{AnimationController, ComponentDelta, StartAnimation},
-	ui::{
-		a11y::AKNode,
-		layout::LineUpChildren,
-		widgets::{
-			draw_widget_shape_gizmos, Button3d, Button3dBundle, CuboidFaces, Font3d, Node3dBundle,
-			Panel, PanelBundle, RectBorderDesc, RectCorners, Text3d, Text3dBundle, WidgetBundle,
-			WidgetShape,
-		},
+use crate::{anim::{AnimationController, ComponentDelta, StartAnimation}, entity_tree, ui::{
+	a11y::AKNode,
+	layout::LineUpChildren,
+	widgets::{
+		draw_widget_shape_gizmos, Button3d, Button3dBundle, CuboidFaces, Font3d, Node3dBundle,
+		Panel, PanelBundle, RectBorderDesc, RectCorners, Text3d, Text3dBundle, WidgetBundle,
+		WidgetShape,
 	},
-	util::{Diff, LerpSlerp, Prev},
-};
+}, util::{Diff, LerpSlerp, Prev}};
 use bevy::{
 	a11y::Focus,
 	asset::{io::Reader, AssetLoader, BoxedFuture, LoadContext},
@@ -550,8 +546,6 @@ fn spawn_test_menu(
 	mut cmds: Commands,
 	mut meshes: ResMut<Assets<Mesh>>,
 	mut mats: ResMut<Assets<StandardMaterial>>,
-	mut cache: ResMut<TextMeshCache>,
-	mut fonts: ResMut<Assets<Font3d>>,
 	ui_fonts: Res<UiFonts>,
 	mut events: EventReader<AssetEvent<Font3d>>,
 	mut spawned: Local<bool>,
@@ -579,8 +573,8 @@ fn spawn_test_menu(
 		.into_iter()
 		.enumerate()
 	{
-		faces[i] = cmds
-			.spawn((
+		faces[i] = entity_tree!(cmds;
+			( // Face container
 				Node3dBundle {
 					transform,
 					..default()
@@ -588,49 +582,52 @@ fn spawn_test_menu(
 				LineUpChildren {
 					relative_positions: Vec3::NEG_Z * 1.25,
 					align: Vec3::ZERO,
-				},
-			))
-			.with_children(|cmds| {
-				cmds.spawn(Text3dBundle::<StandardMaterial> {
-					text_3d: Text3d {
-						text: "Testing...".into(),
-						..default()
-					},
-					font: ui_fonts.mono_3d.clone(),
-					transform: Transform::from_translation(Vec3::NEG_Y),
-					..default()
-				});
-				cmds.spawn((Button3dBundle {
-					shape: WidgetShape(SharedShape::capsule(
-						Point::new(0.0, -2.5, 0.0),
-						Point::new(0.0, 2.5, 0.0),
-						0.5,
-					)),
-					mesh: meshes.add(Capsule3d::new(0.5, 5.0)),
-					material: mats.add(Color::ORANGE),
-					transform: Transform {
-						rotation: Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
-						..default()
-					},
-					..default()
-				},))
-					.with_children(|cmds| {
-						cmds.spawn((Text3dBundle::<StandardMaterial> {
+				};
+				#children:
+					( // "Testing..." text
+						Text3dBundle::<StandardMaterial> {
 							text_3d: Text3d {
-								text: "Test button".into(),
+								text: "Testing...".into(),
 								..default()
 							},
 							font: ui_fonts.mono_3d.clone(),
+							transform: Transform::from_translation(Vec3::NEG_Y),
+							..default()
+						},
+					),
+					( // Test button
+						Button3dBundle {
+							shape: WidgetShape(SharedShape::capsule(
+								Point::new(0.0, -2.5, 0.0),
+								Point::new(0.0, 2.5, 0.0),
+								0.5,
+							)),
+							mesh: meshes.add(Capsule3d::new(0.5, 5.0)),
+							material: mats.add(Color::ORANGE),
 							transform: Transform {
-								translation: Vec3::X,
-								rotation: Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
+								rotation: Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
 								..default()
 							},
 							..default()
-						},));
-					});
-			})
-			.id();
+						};
+						#children: ( // Test button text
+							Text3dBundle::<StandardMaterial> {
+								text_3d: Text3d {
+									text: "Test button".into(),
+									..default()
+								},
+								font: ui_fonts.mono_3d.clone(),
+								transform: Transform {
+									translation: Vec3::X,
+									rotation: Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
+									..default()
+								},
+								..default()
+							},
+						),
+					),
+				)
+		).id();
 	}
 	let mut test_menu = cmds.spawn((
 		PanelBundle {
