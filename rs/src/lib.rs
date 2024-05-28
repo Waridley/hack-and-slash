@@ -158,7 +158,7 @@ impl AbsoluteBounds {
 
 pub type InBounds = bool;
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Copy, Clone)]
 pub struct NeverDespawn;
 
 fn despawn_oob(

@@ -166,7 +166,7 @@ pub fn spawn_cameras(
 	spawn_ui_camera(
 		ui_root,
 		cmds.commands(),
-		owner,
+		(owner, NeverDespawn),
 		player_ui_layer(player_id),
 		viewport,
 		player_id.get() as f64,

@@ -8,6 +8,7 @@ use std::{
 	ops::{Add, Div, Index, IndexMut, Mul, Sub},
 	time::Duration,
 };
+use std::f32::consts::FRAC_1_SQRT_2;
 use std::sync::OnceLock;
 
 use bevy::{
@@ -1013,9 +1014,113 @@ impl LogComponentNames for Commands<'_, '_> {
 #[macro_export]
 macro_rules! todo_warn {
 	() => {
+
 		::bevy::log::warn!("not yet implemented")
 	};
 	($($arg:tt)+) => {
 		::bevy::log::warn!("not yet implemented: {}", format_args!($($arg)+))
 	};
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Reflect)]
+#[reflect(Serialize, Deserialize)]
+#[repr(u8)]
+pub enum CompassDirection {
+	North,
+	NorthEast,
+	East,
+	SouthEast,
+	South,
+	SouthWest,
+	West,
+	NorthWest,
+}
+
+impl CompassDirection {
+	pub const N: Self = Self::North;
+	pub const NE: Self = Self::NorthEast;
+	pub const E: Self = Self::East;
+	pub const SE: Self = Self::SouthEast;
+	pub const S: Self = Self::South;
+	pub const SW: Self = Self::SouthWest;
+	pub const W: Self = Self::West;
+	pub const NW: Self = Self::NorthWest;
+	
+	///  All directions in clockwise order starting at `North`
+	pub const CLOCKWISE: [Self; 8] = [
+		Self::N,
+		Self::NE,
+		Self::E,
+		Self::SE,
+		Self::S,
+		Self::SW,
+		Self::W,
+		Self::NW,
+	];
+	
+	/// All directions in trigonometric order -- counter-clockwise starting at `East`
+	pub const TRIG_ORDER: [Self; 8] = [
+		Self::E,
+		Self::NE,
+		Self::N,
+		Self::NW,
+		Self::W,
+		Self::SW,
+		Self::S,
+		Self::SE,
+	];
+	
+	#[inline]
+	pub fn direction(self) -> Direction2d {
+		use std::f32::consts::FRAC_1_SQRT_2;
+		match self {
+			Self::North => Direction2d::Y,
+			Self::NorthEast => Direction2d::new_unchecked(Vec2::new(FRAC_1_SQRT_2, FRAC_1_SQRT_2)),
+			Self::East => Direction2d::X,
+			Self::SouthEast => Direction2d::new_unchecked(Vec2::new(FRAC_1_SQRT_2, -FRAC_1_SQRT_2)),
+			Self::South => Direction2d::NEG_Y,
+			Self::SouthWest => Direction2d::new_unchecked(Vec2::new(-FRAC_1_SQRT_2, -FRAC_1_SQRT_2)),
+			Self::West => Direction2d::NEG_X,
+			Self::NorthWest => Direction2d::new_unchecked(Vec2::new(-FRAC_1_SQRT_2, FRAC_1_SQRT_2)),
+		}
+	}
+	
+	/// Rotation around the origin in radians, starting at `East` (positive `x`)
+	#[inline]
+	pub const fn radians(self) -> f32 {
+		use std::f32::consts::{FRAC_PI_2, FRAC_PI_4};
+		const FRAC_PI_3_4: f32 = 2.35619449615478515625;
+		const NEG_FRAC_PI_3_4: f32 = -2.35619449615478515625;
+		const NEG_FRAC_PI_4: f32 = -0.785398163397448309615660845819875721;
+		const NEG_FRAC_PI_2: f32 = -1.57079632679489661923132169163975144;
+		match self {
+			Self::North => FRAC_PI_2,
+			Self::NorthEast => FRAC_PI_4,
+			Self::East => 0.0,
+			Self::SouthEast => NEG_FRAC_PI_4,
+			Self::South => NEG_FRAC_PI_2,
+			Self::SouthWest => NEG_FRAC_PI_3_4,
+			Self::West => PI,
+			Self::NorthWest => FRAC_PI_3_4,
+		}
+	}
+	
+	pub fn nearest_to_angle(radians: f32) -> Self {
+		// Ensure positive
+		let rot = radians + TAU;
+		Self::TRIG_ORDER[((rot * 8.0) / TAU).round() as usize % 8]
+	}
+	
+	pub fn nearest_to(direction: Vec2) -> Self {
+		Self::nearest_to_angle(direction.to_angle())
+	}
+}
+
+#[cfg(test)]
+#[test]
+fn test_compass_directions() {
+	for dir in CompassDirection::CLOCKWISE {
+		assert_eq!(dir, CompassDirection::nearest_to_angle(dir.radians()));
+		assert_eq!(dir, CompassDirection::nearest_to(*dir.direction()));
+	}
 }

@@ -31,10 +31,14 @@ use meshtext::{MeshGenerator, QualitySettings};
 use rapier3d::{geometry::SharedShape, math::Point};
 use serde::{Deserialize, Serialize};
 use std::f64::consts::TAU;
+use crate::input::InputState;
+use crate::ui::focus::{AdjacentWidgets, FocusTarget, highlight_focus, Wedge2d};
+use crate::util::CompassDirection;
 
 pub mod a11y;
 #[cfg(feature = "debugging")]
 pub mod dbg;
+pub mod focus;
 pub mod layout;
 pub mod widgets;
 
@@ -64,13 +68,24 @@ impl Plugin for UiPlugin {
 				},
 			);
 
-		app.init_resource::<UiHovered>()
+		app
+			.add_plugins(InputManagerPlugin::<UiAction>::default())
+			.init_resource::<ActionState<UiAction>>()
+			.insert_resource(UiAction::default_mappings())
+			.init_resource::<UiHovered>()
 			.init_resource::<TextMeshCache>()
 			.init_asset::<Font3d>()
 			.register_asset_loader(Font3dLoader)
 			.add_systems(Startup, setup)
-			.add_systems(Update, (reset_hovered, show_fps))
-			.add_systems(PostUpdate, layout::apply_constraints)
+			.add_systems(Update, (
+				reset_hovered,
+				show_fps,
+				focus::resolve_focus,
+			))
+			.add_systems(PostUpdate, (
+				layout::apply_constraints,
+				highlight_focus::<GLOBAL_UI_LAYER>,
+			))
 			.add_systems(
 				Last,
 				(
@@ -80,6 +95,14 @@ impl Plugin for UiPlugin {
 					Panel::<StandardMaterial>::sync,
 					Text3d::sync,
 				),
+			)
+			.insert_gizmo_group(
+				focus::FocusGizmos::<GLOBAL_UI_LAYER>,
+				GizmoConfig {
+					line_width: 6.0,
+					render_layers: GLOBAL_UI_RENDER_LAYERS,
+					..default()
+				}
 			);
 	}
 
@@ -575,13 +598,19 @@ fn spawn_test_menu(
 	{
 		faces[i] = entity_tree!(cmds;
 			( // Face container
-				Node3dBundle {
+				WidgetBundle {
+					shape: WidgetShape(SharedShape::cuboid(3.5, 0.5, 3.5)),
 					transform,
 					..default()
 				},
 				LineUpChildren {
 					relative_positions: Vec3::NEG_Z * 1.25,
 					align: Vec3::ZERO,
+				},
+				AdjacentWidgets {
+					next: Some(FocusTarget::Child(0)),
+					directions: vec![(Wedge2d::circle(), FocusTarget::Child(0))],
+					..default()
 				};
 				#children:
 					( // "Testing..." text
@@ -594,6 +623,7 @@ fn spawn_test_menu(
 							transform: Transform::from_translation(Vec3::NEG_Y),
 							..default()
 						},
+						AdjacentWidgets::vertical_siblings(),
 					),
 					( // Test button
 						Button3dBundle {
@@ -609,7 +639,8 @@ fn spawn_test_menu(
 								..default()
 							},
 							..default()
-						};
+						},
+						AdjacentWidgets::vertical_siblings();
 						#children: ( // Test button text
 							Text3dBundle::<StandardMaterial> {
 								text_3d: Text3d {
@@ -629,12 +660,82 @@ fn spawn_test_menu(
 				)
 		).id();
 	}
+	// use micromap::Map as MicroMap;
+	// use crate::util::CompassDirection::*;
+	// // Front
+	// let mut directions = MicroMap::new();
+	// directions.insert(West, FocusTarget::Entity(faces[2]));
+	// directions.insert(East, FocusTarget::Entity(faces[3]));
+	// directions.insert(North, FocusTarget::Entity(faces[4]));
+	// directions.insert(South, FocusTarget::Entity(faces[5]));
+	// cmds.entity(faces[0]).insert(AdjacentWidgets {
+	// 	prev: Some(FocusTarget::Entity(faces[5])),
+	// 	next: Some(FocusTarget::Entity(faces[1])),
+	// 	directions,
+	// });
+	// // Back
+	// let mut directions = MicroMap::new();
+	// directions.insert(West, FocusTarget::Entity(faces[3]));
+	// directions.insert(East, FocusTarget::Entity(faces[2]));
+	// directions.insert(North, FocusTarget::Entity(faces[4]));
+	// directions.insert(South, FocusTarget::Entity(faces[5]));
+	// cmds.entity(faces[1]).insert(AdjacentWidgets {
+	// 	prev: Some(FocusTarget::Entity(faces[0])),
+	// 	next: Some(FocusTarget::Entity(faces[2])),
+	// 	directions,
+	// });
+	// // Left
+	// let mut directions = MicroMap::new();
+	// directions.insert(West, FocusTarget::Entity(faces[1]));
+	// directions.insert(East, FocusTarget::Entity(faces[0]));
+	// directions.insert(North, FocusTarget::Entity(faces[4]));
+	// directions.insert(South, FocusTarget::Entity(faces[5]));
+	// cmds.entity(faces[2]).insert(AdjacentWidgets {
+	// 	prev: Some(FocusTarget::Entity(faces[1])),
+	// 	next: Some(FocusTarget::Entity(faces[3])),
+	// 	directions,
+	// });
+	// // Right
+	// let mut directions = MicroMap::new();
+	// directions.insert(West, FocusTarget::Entity(faces[0]));
+	// directions.insert(East, FocusTarget::Entity(faces[1]));
+	// directions.insert(North, FocusTarget::Entity(faces[4]));
+	// directions.insert(South, FocusTarget::Entity(faces[5]));
+	// cmds.entity(faces[3]).insert(AdjacentWidgets {
+	// 	prev: Some(FocusTarget::Entity(faces[2])),
+	// 	next: Some(FocusTarget::Entity(faces[4])),
+	// 	directions,
+	// });
+	// // Top
+	// let mut directions = MicroMap::new();
+	// directions.insert(West, FocusTarget::Entity(faces[2]));
+	// directions.insert(East, FocusTarget::Entity(faces[3]));
+	// directions.insert(North, FocusTarget::Entity(faces[1]));
+	// directions.insert(South, FocusTarget::Entity(faces[0]));
+	// cmds.entity(faces[4]).insert(AdjacentWidgets {
+	// 	prev: Some(FocusTarget::Entity(faces[3])),
+	// 	next: Some(FocusTarget::Entity(faces[5])),
+	// 	directions,
+	// });
+	// // Bottom
+	// let mut directions = MicroMap::new();
+	// directions.insert(West, FocusTarget::Entity(faces[2]));
+	// directions.insert(East, FocusTarget::Entity(faces[3]));
+	// directions.insert(North, FocusTarget::Entity(faces[0]));
+	// directions.insert(South, FocusTarget::Entity(faces[1]));
+	// cmds.entity(faces[5]).insert(AdjacentWidgets {
+	// 	prev: Some(FocusTarget::Entity(faces[4])),
+	// 	next: Some(FocusTarget::Entity(faces[0])),
+	// 	directions,
+	// });
+	
 	let mut test_menu = cmds.spawn((
 		PanelBundle {
 			data: Panel {
 				size,
 				borders: std::iter::repeat(vec![
 					RectBorderDesc {
+						dilation: 1.0,
 						colors: Some([Color::BLACK; 4].into()),
 						material: border_mat.clone(),
 						..default()
@@ -679,7 +780,8 @@ fn toggle_test_menu(
 	mut cmds: Commands,
 	root: Query<Entity, IsGlobalUiRoot>,
 	q: Query<(Entity, Has<Parent>, &TestMenu)>,
-	mut cam: Query<&mut MenuStack, With<GlobalUi>>,
+	mut cam_anchor: Query<&mut MenuStack, With<GlobalUi>>,
+	mut cam: Query<&mut UiCam, With<GlobalUi>>,
 	input: Res<ButtonInput<KeyCode>>,
 	mut focus: ResMut<Focus>,
 	mut i: Local<usize>,
@@ -700,16 +802,22 @@ fn toggle_test_menu(
 		}
 
 		**focus = Some(child);
-		match cam.get_single_mut() {
+		match cam_anchor.get_single_mut() {
 			Ok(mut stack) => {
 				stack.push(child);
 				*i = usize::min(*i + 1, info.faces.len());
 			}
 			Err(e) => error!("{e}"),
 		};
+		match cam.get_single_mut() {
+			Ok(mut cam) => {
+				cam.focus = Some(child);
+			}
+			Err(e) => error!("{e}"),
+		}
 	}
 	if input.just_pressed(KeyCode::Comma) {
-		match cam.get_single_mut() {
+		match cam_anchor.get_single_mut() {
 			Ok(mut stack) => {
 				*i = i.saturating_sub(1);
 				if *i == 0 {
@@ -719,6 +827,12 @@ fn toggle_test_menu(
 					}
 				} else {
 					stack.pop();
+				}
+				match cam.get_single_mut() {
+					Ok(mut cam) => {
+						cam.focus = stack.last().copied();
+					}
+					Err(e) => error!("{e}"),
 				}
 			}
 			Err(e) => error!("{e}"),
