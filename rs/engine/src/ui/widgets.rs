@@ -17,6 +17,7 @@ use std::{
 	f32::consts::PI,
 	fmt::{Debug, Formatter},
 };
+use crate::ui::UiCam;
 
 #[derive(Component, Clone, Deref, DerefMut)]
 pub struct WidgetShape(pub SharedShape);
@@ -715,6 +716,7 @@ pub struct WidgetGizmos<const LAYER: Layer>;
 pub fn draw_widget_shape_gizmos<const LAYER: Layer>(
 	mut gizmos: Gizmos<WidgetGizmos<LAYER>>,
 	q: Query<(
+		Entity,
 		&GlobalTransform,
 		&WidgetShape,
 		&ViewVisibility,
@@ -722,14 +724,19 @@ pub fn draw_widget_shape_gizmos<const LAYER: Layer>(
 	)>,
 ) {
 	let color = Color::PURPLE;
-	for (xform, shape, vis, layers) in &q {
+	for (id, xform, shape, vis, layers) in &q {
 		if !**vis {
 			continue;
 		}
 		if !gizmos.config.render_layers.intersects(layers) {
 			continue;
 		}
-		shape.draw_gizmo(&mut gizmos, xform, color);
+		let (scale, rot, pos) = xform.to_scale_rotation_translation();
+		#[cfg(feature = "debugging")]
+		if (scale.x - scale.y).abs() > 0.000001 || (scale.x - scale.z).abs() > 0.000001 {
+			warn!(?id, ?shape, ?scale, "widgets should have a uniform scale -- only drawing using `scale.x`")
+		}
+		shape.draw_gizmo(&mut gizmos, pos, rot, scale.x, color);
 	}
 }
 
@@ -737,31 +744,40 @@ impl WidgetShape {
 	pub fn draw_gizmo<T: GizmoConfigGroup>(
 		&self,
 		gizmos: &mut Gizmos<T>,
-		xform: &GlobalTransform,
+		global_position: Vec3,
+		rotation: Quat,
+		scale: f32,
 		color: Color,
 	) {
-		let mut xform = xform.compute_transform();
+		let xform = Transform {
+			translation: global_position,
+			rotation,
+			scale: Vec3::splat(scale),
+		};
 		match self.as_typed_shape() {
 			TypedShape::Ball(ball) => {
-				gizmos.sphere(xform.translation, xform.rotation, ball.radius, color);
+				gizmos.sphere(global_position, rotation, ball.radius * scale, color);
 			}
 			TypedShape::Cuboid(cuboid) => {
-				xform.scale *= Vec3::from(cuboid.half_extents) * 2.0;
+				let xform = Transform {
+					scale: Vec3::from(cuboid.half_extents) * 2.0 * scale,
+					..xform
+				};
 				gizmos.cuboid(xform, color);
 			}
 			TypedShape::Capsule(capsule) => {
 				let a = xform * Vec3::from(capsule.segment.a);
 				let b = xform * Vec3::from(capsule.segment.b);
-				cylinder_gizmo(gizmos, a, b, capsule.radius, color);
+				cylinder_gizmo(gizmos, a, b, capsule.radius * scale, color);
 				let dir = (b - a).normalize();
 				let a_rot = Quat::from_rotation_arc(Vec3::Z, dir);
 				let b_rot = a_rot.inverse();
-				gizmos.arc_3d(PI, capsule.radius, a, a_rot, color);
-				gizmos.arc_3d(PI, capsule.radius, b, b_rot, color);
+				gizmos.arc_3d(PI, capsule.radius * scale, a, a_rot, color);
+				gizmos.arc_3d(PI, capsule.radius * scale, b, b_rot, color);
 			}
 			TypedShape::Segment(segment) => {
-				let a = xform.rotation * (Vec3::from(segment.a) * xform.scale);
-				let b = xform.rotation * (Vec3::from(segment.b) * xform.scale);
+				let a = xform * Vec3::from(segment.a);
+				let b = xform * Vec3::from(segment.b);
 				gizmos.line(a, b, color);
 			}
 			TypedShape::Triangle(tri) => {
@@ -790,7 +806,7 @@ impl WidgetShape {
 			TypedShape::Cylinder(cylinder) => {
 				let a = xform * Vec3::Y * cylinder.half_height;
 				let b = xform * Vec3::NEG_Y * cylinder.half_height;
-				cylinder_gizmo(gizmos, a, b, cylinder.radius, color);
+				cylinder_gizmo(gizmos, a, b, cylinder.radius * scale, color);
 			}
 			TypedShape::Cone(_) => todo_warn!("Gizmo for WidgetShape(Cone)"),
 			TypedShape::RoundCuboid(_) => {
