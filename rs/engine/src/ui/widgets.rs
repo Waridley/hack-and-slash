@@ -1,23 +1,30 @@
-use crate::{todo_warn, ui::{a11y::AKNode, TextMeshCache, GLOBAL_UI_RENDER_LAYERS}, util::Prev};
+use crate::{
+	todo_warn,
+	ui::{a11y::AKNode, TextMeshCache, UiAction, UiCam, GLOBAL_UI_RENDER_LAYERS},
+	util::Prev,
+};
 use bevy::{
 	a11y::accesskit::{NodeBuilder, Role},
-	ecs::system::EntityCommands,
+	ecs::system::{EntityCommand, EntityCommands},
 	prelude::*,
 	render::{
 		mesh::{Indices, PrimitiveTopology::TriangleList},
 		render_asset::RenderAssetUsages,
 		view::{Layer, RenderLayers},
 	},
-	utils::CowArc,
+	utils::{CowArc, HashMap},
 };
 use bevy_rapier3d::parry::shape::TypedShape;
+use leafwing_input_manager::prelude::ActionState;
 use meshtext::{MeshGenerator, MeshText, OwnedFace, TextSection};
 use rapier3d::parry::shape::SharedShape;
 use std::{
 	f32::consts::PI,
 	fmt::{Debug, Formatter},
+	ops::ControlFlow,
+	sync::Arc,
 };
-use crate::ui::UiCam;
+use web_time::Duration;
 
 #[derive(Component, Clone, Deref, DerefMut)]
 pub struct WidgetShape(pub SharedShape);
@@ -42,6 +49,7 @@ macro_rules! node_3d {
 	    #[derive(Bundle, Clone)]
 	    pub struct $T$(<$($G $(: $Constraints)? $(= $Def)?),*>)? $(where $($W: $WConstraints)*)? {
 		    $(pub $fields: $tys,)*
+		    pub handlers: crate::ui::widgets::InteractHandlers,
 				pub transform: Transform,
 				pub global_transform: GlobalTransform,
 				pub visibility: Visibility,
@@ -58,6 +66,7 @@ node_3d! { Node3dBundle {} }
 impl Default for Node3dBundle {
 	fn default() -> Self {
 		Self {
+			handlers: default(),
 			transform: default(),
 			global_transform: default(),
 			visibility: default(),
@@ -77,6 +86,7 @@ impl Default for WidgetBundle {
 	fn default() -> Self {
 		Self {
 			shape: default(),
+			handlers: default(),
 			transform: default(),
 			global_transform: default(),
 			visibility: default(),
@@ -120,6 +130,7 @@ impl<M: Material, BM: Material> Default for PanelBundle<M, BM> {
 			data: default(),
 			material: default(),
 			border_entities: default(),
+			handlers: default(),
 			transform: default(),
 			global_transform: default(),
 			visibility: default(),
@@ -289,6 +300,7 @@ impl<M: Material> Default for Text3dBundle<M> {
 			text_3d: default(),
 			font: default(),
 			material: Handle::weak_from_u128(UNLIT_MATERIAL_ID),
+			handlers: default(),
 			transform: default(),
 			global_transform: default(),
 			visibility: default(),
@@ -403,6 +415,7 @@ impl<M: Material> Default for Button3dBundle<M> {
 			shape: default(),
 			mesh: default(),
 			material: default(),
+			handlers: default(),
 			transform: default(),
 			global_transform: default(),
 			visibility: default(),
@@ -734,7 +747,12 @@ pub fn draw_widget_shape_gizmos<const LAYER: Layer>(
 		let (scale, rot, pos) = xform.to_scale_rotation_translation();
 		#[cfg(feature = "debugging")]
 		if (scale.x - scale.y).abs() > 0.000001 || (scale.x - scale.z).abs() > 0.000001 {
-			warn!(?id, ?shape, ?scale, "widgets should have a uniform scale -- only drawing using `scale.x`")
+			warn!(
+				?id,
+				?shape,
+				?scale,
+				"widgets should have a uniform scale -- only drawing using `scale.x`"
+			)
 		}
 		shape.draw_gizmo(&mut gizmos, pos, rot, scale.x, color);
 	}
@@ -847,4 +865,160 @@ fn cylinder_gizmo<T: GizmoConfigGroup>(
 	let b_r = b + r;
 	gizmos.line(a_l, b_l, color);
 	gizmos.line(a_r, b_r, color);
+}
+
+pub type InteractHandler =
+	dyn Fn(Interaction, &mut EntityCommands) -> ControlFlow<()> + Send + Sync + 'static;
+
+#[derive(Component, Deref, DerefMut, Clone)]
+pub struct InteractHandlers(pub Vec<(Arc<InteractHandler>)>);
+
+impl Default for InteractHandlers {
+	fn default() -> Self {
+		Self(vec![dbg_event()])
+	}
+}
+
+pub fn dbg_event() -> Arc<InteractHandler> {
+	Arc::new(|ev, _| {
+		match &ev.kind {
+			InteractionKind::Hold(_) => trace!(?ev),
+			_ => debug!(?ev),
+		};
+		ControlFlow::Continue(())
+	})
+}
+
+pub fn on_ok(
+	handler: impl Fn(&mut EntityCommands) -> ControlFlow<()> + Send + Sync + 'static,
+) -> Arc<InteractHandler> {
+	Arc::new(move |ev, cmds| {
+		if ev
+			== (Interaction {
+				source: InteractionSource::Action(UiAction::Ok),
+				kind: InteractionKind::Begin,
+			}) {
+			(&handler)(cmds)
+		} else {
+			ControlFlow::Continue(())
+		}
+	})
+}
+
+impl InteractHandlers {
+	pub fn on_ok(
+		handler: impl Fn(&mut EntityCommands) -> ControlFlow<()> + Send + Sync + 'static,
+	) -> Self {
+		Self(vec![dbg_event(), on_ok(handler)])
+	}
+
+	pub fn handle(&self, event: Interaction, cmds: &mut EntityCommands) -> ControlFlow<()> {
+		self.iter().try_for_each(|handler| handler(event, cmds))
+	}
+
+	pub fn system(
+		mut cmds: Commands,
+		q: Query<&InteractHandlers>,
+		parents: Query<&Parent>,
+		global_state: Res<ActionState<UiAction>>,
+		states: Query<(&ActionState<UiAction>, &RenderLayers)>,
+		cams: Query<(Ref<UiCam>, &RenderLayers)>,
+	) {
+		for (state, layers) in
+			std::iter::once((&*global_state, &GLOBAL_UI_RENDER_LAYERS)).chain(&states)
+		{
+			let Some((cam, _)) = cams
+				.iter()
+				.find(|(cam, cam_layers)| **cam_layers == *layers)
+			else {
+				error!("no camera for {layers:?}");
+				continue;
+			};
+			let Some(focus) = cam.focus else { continue };
+			for action in state.get_just_pressed() {
+				let ev = Interaction {
+					source: InteractionSource::Action(action),
+					kind: InteractionKind::Begin,
+				};
+				propagate_interaction(&mut cmds, focus, ev, &q, &parents);
+			}
+			for action in state.get_pressed() {
+				let data = state
+					.action_data(&action)
+					.expect("action is pressed ∴ ActionData exists");
+				let ev = Interaction {
+					source: InteractionSource::Action(action),
+					kind: InteractionKind::Hold(data.timing.current_duration),
+				};
+				propagate_interaction(&mut cmds, focus, ev, &q, &parents);
+			}
+			for action in state.get_just_released() {
+				let ev = Interaction {
+					source: InteractionSource::Action(action),
+					kind: InteractionKind::Release,
+				};
+				propagate_interaction(&mut cmds, focus, ev, &q, &parents);
+			}
+			if cam.is_changed() {
+				// FIXME: If other fields are added to `UiCam`, this might create false positives
+				let ev = Interaction {
+					source: InteractionSource::Focus,
+					kind: InteractionKind::Begin,
+				};
+				// Focus events don't propagate
+				q.get(focus)
+					.map(|handlers| handlers.handle(ev, &mut cmds.entity(focus)))
+					.inspect_err(|e| error!("{e}"))
+					.ok();
+			}
+			// FIXME: Hold/release focus events
+		}
+	}
+}
+
+fn propagate_interaction(
+	cmds: &mut Commands,
+	entity: Entity,
+	event: Interaction,
+	q: &Query<&InteractHandlers>,
+	parents: &Query<&Parent>,
+) -> ControlFlow<()> {
+	q.get(entity)
+		.map(|handlers| handlers.handle(event, &mut cmds.entity(entity)))
+		.unwrap_or(ControlFlow::Continue(()))?;
+	for entity in parents.iter_ancestors(entity) {
+		q.get(entity)
+			.map(|handlers| handlers.handle(event, &mut cmds.entity(entity)))
+			.unwrap_or(ControlFlow::Continue(()))?;
+	}
+	ControlFlow::Continue(())
+}
+
+impl FromIterator<Arc<InteractHandler>> for InteractHandlers {
+	fn from_iter<T: IntoIterator<Item = Arc<InteractHandler>>>(iter: T) -> Self {
+		Self(iter.into_iter().collect())
+	}
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum InteractionSource {
+	Action(UiAction),
+	/// Focus status changed.
+	Focus,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum InteractionKind {
+	/// Pressed button or gained focus.
+	Begin,
+	/// Still holding button or maintaining focus.
+	Hold(Duration),
+	/// Released button or lost focus.
+	Release,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Interaction {
+	pub source: InteractionSource,
+	pub kind: InteractionKind,
 }

@@ -1,8 +1,8 @@
 use super::widgets::WidgetShape;
+use crate::util::{LogComponentNames, DEBUG_COMPONENTS};
 use bevy::{ecs::query::QueryEntityError, prelude::*};
 use rapier3d::parry::query::Ray;
 use serde::{Deserialize, Serialize};
-use crate::util::{DEBUG_COMPONENTS, LogComponentNames};
 
 #[derive(Component, Debug, Reflect, Serialize, Deserialize)]
 #[reflect(Component, Serialize, Deserialize)]

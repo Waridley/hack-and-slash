@@ -34,7 +34,11 @@ use camera::spawn_cameras;
 use ctrl::{CtrlState, CtrlVel};
 use engine::{
 	planet::terrain::NeedsTerrain,
-	ui::{focus::{FocusGizmos, highlight_focus}, layout::LineUpChildren, UiRoot, GLOBAL_UI_LAYER},
+	ui::{
+		focus::{highlight_focus, FocusGizmos},
+		layout::LineUpChildren,
+		UiRoot, GLOBAL_UI_LAYER,
+	},
 };
 use player_entity::*;
 use prefs::PlayerPrefs;
@@ -94,15 +98,11 @@ pub fn plugin(app: &mut App) -> &mut App {
 		init_dbg_gizmos!(3);
 		init_dbg_gizmos!(4);
 	}
-	
-	
+
 	macro_rules! init_hightlight_gizmos {
-			($i:literal) => {
-				let layers = RenderLayers::layer(player_ui_layer(PlayerId::new($i).unwrap()));
-				app.add_systems(
-					PostUpdate,
-					highlight_focus::<$i>,
-				)
+		($i:literal) => {
+			let layers = RenderLayers::layer(player_ui_layer(PlayerId::new($i).unwrap()));
+			app.add_systems(PostUpdate, highlight_focus::<$i>)
 				.insert_gizmo_group(
 					FocusGizmos::<$i>,
 					GizmoConfig {
@@ -111,8 +111,8 @@ pub fn plugin(app: &mut App) -> &mut App {
 						..default()
 					},
 				);
-			};
-		}
+		};
+	}
 	init_hightlight_gizmos!(1);
 	init_hightlight_gizmos!(2);
 	init_hightlight_gizmos!(3);

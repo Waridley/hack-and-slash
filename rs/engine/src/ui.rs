@@ -1,12 +1,19 @@
-use crate::{anim::{AnimationController, ComponentDelta, StartAnimation}, entity_tree, ui::{
-	a11y::AKNode,
-	layout::LineUpChildren,
-	widgets::{
-		draw_widget_shape_gizmos, Button3d, Button3dBundle, CuboidFaces, Font3d, Node3dBundle,
-		Panel, PanelBundle, RectBorderDesc, RectCorners, Text3d, Text3dBundle, WidgetBundle,
-		WidgetShape,
+use crate::{
+	anim::{AnimationController, ComponentDelta, StartAnimation},
+	entity_tree,
+	input::InputState,
+	ui::{
+		a11y::AKNode,
+		focus::{highlight_focus, AdjacentWidgets, FocusTarget, Wedge2d},
+		layout::LineUpChildren,
+		widgets::{
+			draw_widget_shape_gizmos, Button3d, Button3dBundle, CuboidFaces, Font3d, Node3dBundle,
+			Panel, PanelBundle, RectBorderDesc, RectCorners, Text3d, Text3dBundle, WidgetBundle,
+			WidgetShape,
+		},
 	},
-}, util::{Diff, LerpSlerp, Prev}};
+	util::{CompassDirection, Diff, LerpSlerp, Prev},
+};
 use bevy::{
 	a11y::Focus,
 	asset::{io::Reader, AssetLoader, BoxedFuture, LoadContext},
@@ -31,9 +38,6 @@ use meshtext::{MeshGenerator, QualitySettings};
 use rapier3d::{geometry::SharedShape, math::Point};
 use serde::{Deserialize, Serialize};
 use std::f64::consts::TAU;
-use crate::input::InputState;
-use crate::ui::focus::{AdjacentWidgets, FocusTarget, highlight_focus, Wedge2d};
-use crate::util::CompassDirection;
 
 pub mod a11y;
 #[cfg(feature = "debugging")]
@@ -68,8 +72,7 @@ impl Plugin for UiPlugin {
 				},
 			);
 
-		app
-			.add_plugins(InputManagerPlugin::<UiAction>::default())
+		app.add_plugins(InputManagerPlugin::<UiAction>::default())
 			.init_resource::<ActionState<UiAction>>()
 			.insert_resource(UiAction::default_mappings())
 			.init_resource::<UiHovered>()
@@ -77,15 +80,15 @@ impl Plugin for UiPlugin {
 			.init_asset::<Font3d>()
 			.register_asset_loader(Font3dLoader)
 			.add_systems(Startup, setup)
-			.add_systems(Update, (
-				reset_hovered,
-				show_fps,
-				focus::resolve_focus,
-			))
-			.add_systems(PostUpdate, (
-				layout::apply_constraints,
-				highlight_focus::<GLOBAL_UI_LAYER>,
-			))
+			.add_systems(Update, (reset_hovered, show_fps, focus::resolve_focus))
+			.add_systems(
+				PostUpdate,
+				(
+					layout::apply_constraints,
+					highlight_focus::<GLOBAL_UI_LAYER>,
+					widgets::InteractHandlers::system,
+				),
+			)
 			.add_systems(
 				Last,
 				(
@@ -102,7 +105,7 @@ impl Plugin for UiPlugin {
 					line_width: 6.0,
 					render_layers: GLOBAL_UI_RENDER_LAYERS,
 					..default()
-				}
+				},
 			);
 	}
 
@@ -294,6 +297,8 @@ pub struct UiHovered(bool);
 )]
 pub enum UiAction {
 	Ok,
+	Opt1,
+	Opt2,
 	Back,
 	MoveCursor,
 	FocusNext,
@@ -658,7 +663,8 @@ fn spawn_test_menu(
 						),
 					),
 				)
-		).id();
+		)
+		.id();
 	}
 	// use micromap::Map as MicroMap;
 	// use crate::util::CompassDirection::*;
@@ -728,7 +734,7 @@ fn spawn_test_menu(
 	// 	next: Some(FocusTarget::Entity(faces[0])),
 	// 	directions,
 	// });
-	
+
 	let mut test_menu = cmds.spawn((
 		PanelBundle {
 			data: Panel {

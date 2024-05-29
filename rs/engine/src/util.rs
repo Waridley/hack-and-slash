@@ -1,22 +1,22 @@
 use std::{
 	cmp::Ordering,
 	collections::VecDeque,
-	f32::consts::{PI, TAU},
+	f32::consts::{FRAC_1_SQRT_2, PI, TAU},
 	hash::Hash,
 	iter::Sum,
 	marker::PhantomData,
 	ops::{Add, Div, Index, IndexMut, Mul, Sub},
+	sync::OnceLock,
 	time::Duration,
 };
-use std::f32::consts::FRAC_1_SQRT_2;
-use std::sync::OnceLock;
 
 use bevy::{
 	asset::{io::Reader, AssetLoader, AsyncReadExt, BoxedFuture, LoadContext},
 	ecs::{
+		component::ComponentInfo,
 		query::{QueryEntityError, QueryFilter},
 		schedule::run_enter_schedule,
-		system::{EntityCommands, StaticSystemParam, SystemParam, SystemParamItem},
+		system::{EntityCommands, StaticSystemParam, SystemId, SystemParam, SystemParamItem},
 	},
 	prelude::*,
 	reflect::{serde::TypedReflectDeserializer, TypeRegistration, Typed},
@@ -25,10 +25,8 @@ use bevy::{
 		render_asset::RenderAssetUsages,
 	},
 	scene::{SceneLoaderError, SceneLoaderError::RonSpannedError},
+	utils::tracing::event,
 };
-use bevy::ecs::component::ComponentInfo;
-use bevy::ecs::system::SystemId;
-use bevy::utils::tracing::event;
 use num_traits::NumCast;
 use ron::Error::InvalidValueForType;
 use serde::{de::DeserializeSeed, Deserialize, Serialize};
@@ -969,7 +967,8 @@ macro_rules! entity_tree {
 pub static DEBUG_COMPONENTS: OnceLock<SystemId<(Entity, String)>> = OnceLock::new();
 /// Register this system and call it to print the names of all of an entity's components.
 pub fn debug_component_names(In((id, msg)): In<(Entity, String)>, world: &mut World) {
-	let components = world.inspect_entity(id)
+	let components = world
+		.inspect_entity(id)
 		.into_iter()
 		.map(ComponentInfo::name)
 		.collect::<Vec<_>>();
@@ -981,7 +980,8 @@ pub static ERROR_COMPONENTS: OnceLock<SystemId<(Entity, String)>> = OnceLock::ne
 /// Register this system and call it to print the names of all of an entity's components.
 /// Useful when an entity unexpectedly fails to match a query.
 pub fn error_component_names(In((id, msg)): In<(Entity, String)>, world: &mut World) {
-	let components = world.inspect_entity(id)
+	let components = world
+		.inspect_entity(id)
 		.into_iter()
 		.map(ComponentInfo::name)
 		.collect::<Vec<_>>();
@@ -1000,14 +1000,20 @@ impl LogComponentNames for Commands<'_, '_> {
 	#[track_caller]
 	fn debug_components(&mut self, id: Entity, msg: impl std::fmt::Display) {
 		let location = std::panic::Location::caller();
-		self.run_system_with_input(*DEBUG_COMPONENTS.get().unwrap(), (id, format!("{location}: {msg}")));
+		self.run_system_with_input(
+			*DEBUG_COMPONENTS.get().unwrap(),
+			(id, format!("{location}: {msg}")),
+		);
 	}
-	
+
 	#[inline(never)]
 	#[track_caller]
 	fn error_components(&mut self, id: Entity, msg: impl std::fmt::Display) {
 		let location = std::panic::Location::caller();
-		self.run_system_with_input(*ERROR_COMPONENTS.get().unwrap(), (id, format!("{location}: {msg}")));
+		self.run_system_with_input(
+			*ERROR_COMPONENTS.get().unwrap(),
+			(id, format!("{location}: {msg}")),
+		);
 	}
 }
 
@@ -1045,7 +1051,7 @@ impl CompassDirection {
 	pub const SW: Self = Self::SouthWest;
 	pub const W: Self = Self::West;
 	pub const NW: Self = Self::NorthWest;
-	
+
 	///  All directions in clockwise order starting at `North`
 	pub const CLOCKWISE: [Self; 8] = [
 		Self::N,
@@ -1057,7 +1063,7 @@ impl CompassDirection {
 		Self::W,
 		Self::NW,
 	];
-	
+
 	/// All directions in trigonometric order -- counter-clockwise starting at `East`
 	pub const TRIG_ORDER: [Self; 8] = [
 		Self::E,
@@ -1069,7 +1075,7 @@ impl CompassDirection {
 		Self::S,
 		Self::SE,
 	];
-	
+
 	#[inline]
 	pub fn direction(self) -> Direction2d {
 		use std::f32::consts::FRAC_1_SQRT_2;
@@ -1079,12 +1085,14 @@ impl CompassDirection {
 			Self::East => Direction2d::X,
 			Self::SouthEast => Direction2d::new_unchecked(Vec2::new(FRAC_1_SQRT_2, -FRAC_1_SQRT_2)),
 			Self::South => Direction2d::NEG_Y,
-			Self::SouthWest => Direction2d::new_unchecked(Vec2::new(-FRAC_1_SQRT_2, -FRAC_1_SQRT_2)),
+			Self::SouthWest => {
+				Direction2d::new_unchecked(Vec2::new(-FRAC_1_SQRT_2, -FRAC_1_SQRT_2))
+			}
 			Self::West => Direction2d::NEG_X,
 			Self::NorthWest => Direction2d::new_unchecked(Vec2::new(-FRAC_1_SQRT_2, FRAC_1_SQRT_2)),
 		}
 	}
-	
+
 	/// Rotation around the origin in radians, starting at `East` (positive `x`)
 	#[inline]
 	pub const fn radians(self) -> f32 {
@@ -1104,13 +1112,13 @@ impl CompassDirection {
 			Self::NorthWest => FRAC_PI_3_4,
 		}
 	}
-	
+
 	pub fn nearest_to_angle(radians: f32) -> Self {
 		// Ensure positive
 		let rot = radians + TAU;
 		Self::TRIG_ORDER[((rot * 8.0) / TAU).round() as usize % 8]
 	}
-	
+
 	pub fn nearest_to(direction: Vec2) -> Self {
 		Self::nearest_to_angle(direction.to_angle())
 	}

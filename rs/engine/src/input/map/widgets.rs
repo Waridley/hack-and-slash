@@ -47,13 +47,14 @@ impl<M: Material> Default for InputIconBundle<M> {
 		Self {
 			input_icon: default(),
 			font: default(),
+			material: Handle::weak_from_u128(UNLIT_MATERIAL_ID),
+			handlers: default(),
 			transform: default(),
 			global_transform: default(),
 			visibility: default(),
 			inherited_visibility: default(),
 			view_visibility: default(),
 			layers: GLOBAL_UI_RENDER_LAYERS,
-			material: Handle::weak_from_u128(UNLIT_MATERIAL_ID),
 			ak_node: NodeBuilder::new(Role::Image).into(),
 		}
 	}
