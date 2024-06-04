@@ -10,7 +10,7 @@ use crate::{
 	ui::{
 		layout::LineUpChildren,
 		widgets::{
-			CuboidFaces, Font3d, Panel, PanelBundle, RectBorderDesc, RectCorners, Text3d,
+			CuboidFaces, Font3d, CuboidPanel, CuboidPanelBundle, RectBorderDesc, RectCorners, Text3d,
 			Text3dBundle,
 		},
 		CamAnchor, GlobalUi, TextMeshCache, UiFonts, GLOBAL_UI_RENDER_LAYERS,
@@ -21,6 +21,7 @@ use bevy::{
 	utils::{smallvec::SmallVec, HashMap},
 };
 use bevy_svg::prelude::Origin;
+use crate::ui::{Popup, PopupsRoot};
 
 pub struct DetectBindingPopupPlugin;
 
@@ -44,8 +45,9 @@ pub fn setup(
 			if ui_fonts.mono_3d.id() == *id {
 				let size = Vec3::new(8.0, 1.0, 6.0);
 				let mut cmds = cmds.spawn((
-					PanelBundle {
-						data: Panel {
+					Popup,
+					CuboidPanelBundle {
+						panel: CuboidPanel {
 							size,
 							borders: CuboidFaces {
 								front: vec![RectBorderDesc {
@@ -75,7 +77,6 @@ pub fn setup(
 							cull_mode: None,
 							..default()
 						}),
-						transform: Transform::from_translation(Vec3::NEG_Y * 10.0),
 						visibility: Visibility::Hidden,
 						..default()
 					},
@@ -126,7 +127,7 @@ pub fn manage_detect_popup(
 	state: Res<State<InputState>>,
 	q: Query<(Entity, Option<&Parent>), With<DetectBindingPopup>>,
 	// Popups always show right in front of camera
-	anchor: Query<Entity, (With<GlobalUi>, With<CamAnchor>)>,
+	anchor: Query<Entity, (With<GlobalUi>, With<PopupsRoot>)>,
 ) {
 	let Ok((id, parent)) = q.get_single() else {
 		return;

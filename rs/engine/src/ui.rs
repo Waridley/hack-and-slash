@@ -8,7 +8,7 @@ use crate::{
 		layout::LineUpChildren,
 		widgets::{
 			draw_widget_shape_gizmos, Button3d, Button3dBundle, CuboidFaces, Font3d, Node3dBundle,
-			Panel, PanelBundle, RectBorderDesc, RectCorners, Text3d, Text3dBundle, WidgetBundle,
+			CuboidPanel, CuboidPanelBundle, RectBorderDesc, RectCorners, Text3d, Text3dBundle, WidgetBundle,
 			WidgetShape,
 		},
 	},
@@ -38,6 +38,7 @@ use meshtext::{MeshGenerator, QualitySettings};
 use rapier3d::{geometry::SharedShape, math::Point};
 use serde::{Deserialize, Serialize};
 use std::f64::consts::TAU;
+use crate::util::StateStack;
 
 pub mod a11y;
 #[cfg(feature = "debugging")]
@@ -73,6 +74,8 @@ impl Plugin for UiPlugin {
 			);
 
 		app.add_plugins(InputManagerPlugin::<UiAction>::default())
+			.register_type::<MenuStack>()
+			.register_type::<UiCam>()
 			.init_resource::<ActionState<UiAction>>()
 			.insert_resource(UiAction::default_mappings())
 			.init_resource::<UiHovered>()
@@ -93,9 +96,9 @@ impl Plugin for UiPlugin {
 				Last,
 				(
 					Prev::<Button3d>::update_component,
-					hide_orphaned_ui_nodes,
+					hide_orphaned_popups,
 					anchor_follow_menu,
-					Panel::<StandardMaterial>::sync,
+					CuboidPanel::<StandardMaterial>::sync,
 					Text3d::sync,
 				),
 			)
@@ -132,6 +135,10 @@ pub fn setup(mut cmds: Commands) {
 			UiRoot,
 			TransformBundle::default(),
 			VisibilityBundle::default(),
+			LineUpChildren {
+				relative_positions: Vec3::Y * 22.0,
+				align: Vec3::Y,
+			},
 			GLOBAL_UI_RENDER_LAYERS,
 		))
 		.id();
@@ -158,6 +165,17 @@ pub fn spawn_ui_camera<ID: Bundle + Clone>(
 		layers,
 	))
 	.with_children(|cmds| {
+		cmds.spawn((
+			identifier.clone(),
+			PopupsRoot,
+			TransformBundle::from_transform(Transform {
+				translation: Vec3::NEG_Y * 10.0,
+				..default()
+			}),
+			VisibilityBundle::default(),
+			layers,
+		));
+		
 		let mut cam = cmds.spawn((
 			identifier,
 			UiCam::default(),
@@ -253,7 +271,8 @@ pub struct GlobalUi;
 pub type IsGlobalUiRoot = (With<UiRoot>, With<GlobalUi>);
 
 /// Component for any UI camera entity, player or global.
-#[derive(Component, Default, Copy, Clone, Debug)]
+#[derive(Component, Default, Copy, Clone, Debug, Reflect)]
+#[reflect(Component)]
 pub struct UiCam {
 	pub focus: Option<Entity>,
 }
@@ -303,8 +322,10 @@ pub enum UiAction {
 	MoveCursor,
 	FocusNext,
 	FocusPrev,
-	NextTab,
+	NextTab, // TODO: Should these be an Axis or even DualAxis instead?
 	PrevTab,
+	Zoom,
+	Pan,
 }
 
 impl UiAction {
@@ -321,22 +342,18 @@ impl UiAction {
 			(FocusNext, Tab.into()),
 			(
 				FocusPrev,
-				UserInput::Chord(vec![ShiftLeft.into(), Tab.into()]),
+				UserInput::Chord(vec![Modifier::Shift.into(), Tab.into()]),
 			),
-			(
-				FocusPrev,
-				UserInput::Chord(vec![ShiftRight.into(), Tab.into()]),
-			),
+			(Zoom, UserInput::Chord(vec![Modifier::Control.into(), SingleAxis::mouse_wheel_y().into()])),
 			// Controller
 			(Ok, GamepadButtonType::South.into()),
 			(Back, GamepadButtonType::East.into()),
 			(MoveCursor, VirtualDPad::dpad().into()),
 			(MoveCursor, DualAxis::left_stick().into()),
-			(MoveCursor, DualAxis::right_stick().into()),
-			(FocusNext, GamepadButtonType::RightTrigger.into()),
-			(FocusPrev, GamepadButtonType::LeftTrigger.into()),
-			(NextTab, GamepadButtonType::RightTrigger2.into()),
-			(PrevTab, GamepadButtonType::LeftTrigger2.into()),
+			(NextTab, GamepadButtonType::RightTrigger.into()),
+			(PrevTab, GamepadButtonType::LeftTrigger.into()),
+			(Zoom, UserInput::Chord(vec![GamepadButtonType::LeftTrigger2.into(), SingleAxis::symmetric(GamepadAxisType::RightStickY, 0.1).into()])),
+			(Pan, DualAxis::right_stick().into()),
 		])
 	}
 }
@@ -392,10 +409,23 @@ impl AssetLoader for Font3dLoader {
 	}
 }
 
-pub fn hide_orphaned_ui_nodes(
-	mut q: Query<(Option<&Parent>, &mut Visibility), With<AKNode>>,
+/// Marker for the parents of all popup menus.
+#[derive(Component, Debug, Reflect)]
+#[reflect(Component)]
+pub struct PopupsRoot;
+
+/// Marker for Popup entities. Required for automatic visibility management.
+/// Popups can display on top of any UI element anywhere in the world.
+/// Thus they are added as children of the [PopupsRoot] which is always in
+/// front of the camera.
+#[derive(Component, Debug, Reflect)]
+#[reflect(Component)]
+pub struct Popup;
+
+pub fn hide_orphaned_popups(
+	mut q: Query<(Option<&Parent>, &mut Visibility), With<Popup>>,
 	// Popups are spawned on `CamAnchor`
-	roots: Query<(), Or<(With<UiRoot>, With<CamAnchor>)>>,
+	roots: Query<(), With<PopupsRoot>>,
 ) {
 	for (parent, mut vis) in &mut q {
 		match (parent.map(Parent::get), *vis) {
@@ -548,7 +578,7 @@ pub struct FocusStack(pub Vec<Entity>);
 
 pub fn anchor_follow_menu(
 	mut q: Query<(&mut Transform, &MenuStack)>,
-	nodes: Query<&Transform, Without<MenuStack>>,
+	nodes: Query<&GlobalTransform, Without<MenuStack>>,
 	t: Res<Time>,
 ) {
 	for (mut xform, stack) in &mut q {
@@ -561,7 +591,7 @@ pub fn anchor_follow_menu(
 				}
 			};
 
-			let new = xform.lerp_slerp(*target, t.delta_seconds() * 3.0);
+			let new = xform.lerp_slerp(target.compute_transform(), t.delta_seconds() * 3.0);
 			if *xform != new {
 				*xform = new;
 			}
@@ -604,7 +634,7 @@ fn spawn_test_menu(
 		faces[i] = entity_tree!(cmds;
 			( // Face container
 				WidgetBundle {
-					shape: WidgetShape(SharedShape::cuboid(3.5, 0.5, 3.5)),
+					shape: WidgetShape(SharedShape::cuboid(6.3, 0.5, 3.0)),
 					transform,
 					..default()
 				},
@@ -666,78 +696,10 @@ fn spawn_test_menu(
 		)
 		.id();
 	}
-	// use micromap::Map as MicroMap;
-	// use crate::util::CompassDirection::*;
-	// // Front
-	// let mut directions = MicroMap::new();
-	// directions.insert(West, FocusTarget::Entity(faces[2]));
-	// directions.insert(East, FocusTarget::Entity(faces[3]));
-	// directions.insert(North, FocusTarget::Entity(faces[4]));
-	// directions.insert(South, FocusTarget::Entity(faces[5]));
-	// cmds.entity(faces[0]).insert(AdjacentWidgets {
-	// 	prev: Some(FocusTarget::Entity(faces[5])),
-	// 	next: Some(FocusTarget::Entity(faces[1])),
-	// 	directions,
-	// });
-	// // Back
-	// let mut directions = MicroMap::new();
-	// directions.insert(West, FocusTarget::Entity(faces[3]));
-	// directions.insert(East, FocusTarget::Entity(faces[2]));
-	// directions.insert(North, FocusTarget::Entity(faces[4]));
-	// directions.insert(South, FocusTarget::Entity(faces[5]));
-	// cmds.entity(faces[1]).insert(AdjacentWidgets {
-	// 	prev: Some(FocusTarget::Entity(faces[0])),
-	// 	next: Some(FocusTarget::Entity(faces[2])),
-	// 	directions,
-	// });
-	// // Left
-	// let mut directions = MicroMap::new();
-	// directions.insert(West, FocusTarget::Entity(faces[1]));
-	// directions.insert(East, FocusTarget::Entity(faces[0]));
-	// directions.insert(North, FocusTarget::Entity(faces[4]));
-	// directions.insert(South, FocusTarget::Entity(faces[5]));
-	// cmds.entity(faces[2]).insert(AdjacentWidgets {
-	// 	prev: Some(FocusTarget::Entity(faces[1])),
-	// 	next: Some(FocusTarget::Entity(faces[3])),
-	// 	directions,
-	// });
-	// // Right
-	// let mut directions = MicroMap::new();
-	// directions.insert(West, FocusTarget::Entity(faces[0]));
-	// directions.insert(East, FocusTarget::Entity(faces[1]));
-	// directions.insert(North, FocusTarget::Entity(faces[4]));
-	// directions.insert(South, FocusTarget::Entity(faces[5]));
-	// cmds.entity(faces[3]).insert(AdjacentWidgets {
-	// 	prev: Some(FocusTarget::Entity(faces[2])),
-	// 	next: Some(FocusTarget::Entity(faces[4])),
-	// 	directions,
-	// });
-	// // Top
-	// let mut directions = MicroMap::new();
-	// directions.insert(West, FocusTarget::Entity(faces[2]));
-	// directions.insert(East, FocusTarget::Entity(faces[3]));
-	// directions.insert(North, FocusTarget::Entity(faces[1]));
-	// directions.insert(South, FocusTarget::Entity(faces[0]));
-	// cmds.entity(faces[4]).insert(AdjacentWidgets {
-	// 	prev: Some(FocusTarget::Entity(faces[3])),
-	// 	next: Some(FocusTarget::Entity(faces[5])),
-	// 	directions,
-	// });
-	// // Bottom
-	// let mut directions = MicroMap::new();
-	// directions.insert(West, FocusTarget::Entity(faces[2]));
-	// directions.insert(East, FocusTarget::Entity(faces[3]));
-	// directions.insert(North, FocusTarget::Entity(faces[0]));
-	// directions.insert(South, FocusTarget::Entity(faces[1]));
-	// cmds.entity(faces[5]).insert(AdjacentWidgets {
-	// 	prev: Some(FocusTarget::Entity(faces[4])),
-	// 	next: Some(FocusTarget::Entity(faces[0])),
-	// 	directions,
-	// });
 
 	let mut test_menu = cmds.spawn((
-		PanelBundle {
-			data: Panel {
+		CuboidPanelBundle {
+			panel: CuboidPanel {
 				size,
 				borders: std::iter::repeat(vec![
 					RectBorderDesc {
@@ -754,6 +716,10 @@ fn spawn_test_menu(
 					},
 				])
 				.collect(),
+				..default()
+			},
+			transform: Transform {
+				translation: Vec3::new(6900.0, 4200.0, 0.0),
 				..default()
 			},
 			visibility: Visibility::Hidden,
@@ -783,33 +749,30 @@ struct TestMenu {
 
 #[cfg(feature = "debugging")]
 fn toggle_test_menu(
-	mut cmds: Commands,
-	root: Query<Entity, IsGlobalUiRoot>,
-	q: Query<(Entity, Has<Parent>, &TestMenu)>,
-	mut cam_anchor: Query<&mut MenuStack, With<GlobalUi>>,
+	mut q: Query<(&mut Visibility, &TestMenu)>,
+	mut stack: Query<&mut MenuStack, With<GlobalUi>>,
 	mut cam: Query<&mut UiCam, With<GlobalUi>>,
 	input: Res<ButtonInput<KeyCode>>,
 	mut focus: ResMut<Focus>,
+	mut state: ResMut<StateStack<InputState>>,
 	mut i: Local<usize>,
 ) {
-	let Ok(root) = root.get_single() else { return };
-	let Ok((menu, has_parent, info)) = q.get_single() else {
+	let Ok((mut vis, info)) = q.get_single_mut() else {
 		return;
 	};
-	let mut cmds = cmds.entity(menu);
 	if input.just_pressed(KeyCode::Period) {
 		if *i >= info.faces.len() {
 			return;
 		}
 		let child = info.faces[*i];
-
-		if !has_parent {
-			cmds.set_parent(root);
-		}
-
+		
 		**focus = Some(child);
-		match cam_anchor.get_single_mut() {
+		match stack.get_single_mut() {
 			Ok(mut stack) => {
+				if *vis == Visibility::Hidden {
+					*vis = Visibility::Inherited;
+					state.push(InputState::InMenu);
+				}
 				stack.push(child);
 				*i = usize::min(*i + 1, info.faces.len());
 			}
@@ -823,13 +786,15 @@ fn toggle_test_menu(
 		}
 	}
 	if input.just_pressed(KeyCode::Comma) {
-		match cam_anchor.get_single_mut() {
+		match stack.get_single_mut() {
 			Ok(mut stack) => {
 				*i = i.saturating_sub(1);
 				if *i == 0 {
-					if has_parent {
+					if *vis != Visibility::Hidden {
 						**focus = None;
-						cmds.remove_parent();
+						*vis = Visibility::Hidden;
+						stack.pop();
+						state.pop();
 					}
 				} else {
 					stack.pop();
