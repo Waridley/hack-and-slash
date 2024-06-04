@@ -42,8 +42,8 @@ impl Plugin for InputPlugin {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default, States)]
 pub enum InputState {
 	#[default]
-	InMenu,
 	InGame,
+	InMenu,
 	DetectingBinding,
 }
 

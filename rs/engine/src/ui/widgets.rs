@@ -24,6 +24,7 @@ use std::{
 	ops::ControlFlow,
 	sync::Arc,
 };
+use bevy::utils::HashSet;
 use web_time::Duration;
 
 #[derive(Component, Clone, Deref, DerefMut)]
@@ -99,13 +100,13 @@ impl Default for WidgetBundle {
 }
 
 #[derive(Component, Clone, Debug)]
-pub struct Panel<BM: Material = StandardMaterial> {
+pub struct CuboidPanel<BM: Material = StandardMaterial> {
 	pub size: Vec3,
 	pub colors: Option<CuboidFaces<RectCorners<Color>>>,
 	pub borders: CuboidFaces<Vec<RectBorderDesc<BM>>>,
 }
 
-impl<BM: Material> Default for Panel<BM> {
+impl<BM: Material> Default for CuboidPanel<BM> {
 	fn default() -> Self {
 		Self {
 			size: Vec3::ONE,
@@ -116,18 +117,18 @@ impl<BM: Material> Default for Panel<BM> {
 }
 
 #[derive(Component, Default, Clone, Debug, Deref, DerefMut)]
-pub struct PanelBorders(pub CuboidFaces<Vec<Entity>>);
+pub struct CuboidPanelBorders(pub CuboidFaces<Vec<Entity>>);
 
-node_3d! { PanelBundle<M: Material = StandardMaterial, BM: Material = StandardMaterial> {
-	data: Panel<BM>,
+node_3d! { CuboidPanelBundle<M: Material = StandardMaterial, BM: Material = StandardMaterial> {
+	panel: CuboidPanel<BM>,
 	material: Handle<M>,
-	border_entities: PanelBorders,
+	border_entities: CuboidPanelBorders,
 }}
 
-impl<M: Material, BM: Material> Default for PanelBundle<M, BM> {
+impl<M: Material, BM: Material> Default for CuboidPanelBundle<M, BM> {
 	fn default() -> Self {
 		Self {
-			data: default(),
+			panel: default(),
 			material: default(),
 			border_entities: default(),
 			handlers: default(),
@@ -142,15 +143,15 @@ impl<M: Material, BM: Material> Default for PanelBundle<M, BM> {
 	}
 }
 
-impl<BM: Material> Panel<BM> {
+impl<BM: Material> CuboidPanel<BM> {
 	pub fn sync(
 		mut cmds: Commands,
-		mut q: Query<(Entity, &Self, &RenderLayers, &mut PanelBorders), Changed<Self>>,
+		mut q: Query<(Entity, &Self, &RenderLayers, &mut CuboidPanelBorders), Changed<Self>>,
 		mut meshes: ResMut<Assets<Mesh>>,
 	) {
 		for (
 			id,
-			Panel {
+			CuboidPanel {
 				size,
 				colors,
 				borders,
@@ -264,6 +265,80 @@ impl<M: Material> RectBorderDesc<M> {
 	}
 }
 
+#[derive(Component, Debug, Clone)]
+pub struct CylinderPanel<BM: Material> {
+	pub radius: f32,
+	pub length: f32,
+	pub subdivisions: usize,
+	pub borders: CylinderFaces<Option<CircleBorderDesc<BM>>, Option<RectBorderDesc<BM>>>,
+}
+
+impl<BM: Material> Default for CylinderPanel<BM> {
+	fn default() -> Self {
+		Self {
+			radius: 1.0,
+			length: 1.0,
+			subdivisions: 6,
+			borders: default(),
+		}
+	}
+}
+
+node_3d! { CylinderPanelBundle<M: Material, BM: Material> {
+	panel: CylinderPanel<BM>,
+	material: Handle<M>,
+	border_entities: CylinderPanelBorderEntities,
+}}
+
+impl<M: Material, BM: Material> Default for CylinderPanelBundle<M, BM> {
+	fn default() -> Self {
+		Self {
+			panel: default(),
+			material: default(),
+			border_entities: default(),
+			handlers: default(),
+			transform: default(),
+			global_transform: default(),
+			visibility: default(),
+			inherited_visibility: default(),
+			view_visibility: default(),
+			layers: default(),
+			ak_node: NodeBuilder::new(Role::Pane).into(),
+		}
+	}
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct CylinderFaces<Ends, Sides> {
+	pub top: Ends,
+	pub bottom: Ends,
+	pub sides: Vec<Sides>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CircleBorderDesc<M: Material> {
+	pub subdivisions: usize,
+	pub dilation: f32,
+	pub width: f32,
+	pub depth: f32,
+	pub protrusion: f32,
+	pub colors: Vec<Color>,
+	pub material: Handle<M>,
+}
+
+#[derive(Component, Deref, DerefMut, Clone)]
+pub struct CylinderPanelBorderEntities(pub CylinderFaces<Entity, Entity>);
+
+impl Default for CylinderPanelBorderEntities {
+	fn default() -> Self {
+		Self(CylinderFaces {
+			top: Entity::PLACEHOLDER,
+			bottom: Entity::PLACEHOLDER,
+			sides: default(),
+		})
+	}
+}
+
 /// The default for text and SVG should be unlit, so this ID allows setting
 /// the default handle while still implementing `Default` for bundles with
 /// non-Standard materials.
@@ -318,12 +393,19 @@ pub struct Font3d(pub MeshGenerator<OwnedFace>);
 impl Text3d {
 	pub fn sync(
 		mut cmds: Commands,
-		mut q: Query<(Entity, &Text3d, &Handle<Font3d>, &mut AKNode), Changed<Text3d>>,
+		mut q: Query<(&Text3d, &Handle<Font3d>, &mut AKNode)>,
+		changed_text: Query<Entity, Changed<Text3d>>,
 		mut meshes: ResMut<Assets<Mesh>>,
 		mut cache: ResMut<TextMeshCache>,
 		mut fonts: ResMut<Assets<Font3d>>,
+		mut to_retry: Local<HashSet<Entity>>,
 	) {
-		for (id, this, font, mut ak_node) in &mut q {
+		let mut to_try = to_retry.drain().chain(&changed_text).collect::<Vec<_>>();
+		for id in to_try {
+			let Ok((this, font, mut ak_node)) = q.get_mut(id) else {
+				to_retry.insert(id);
+				continue
+			};
 			let mut cmds = cmds.entity(id);
 			let Self {
 				text,
@@ -338,13 +420,20 @@ impl Text3d {
 					.to_cols_array();
 
 			let xform_key = array_init::array_init(|i| xform[i].to_bits());
-
+			
+			if !fonts.contains(font) {
+				warn!("{font:?} does not (yet) exist. Retrying next frame...");
+				to_retry.insert(id);
+				return
+			}
 			let Some((mesh, shape)) = cache
 				.entry((text.clone(), xform_key, font.clone()))
 				.or_insert_with(|| {
 					let mut font = fonts
 						.reborrow()
-						.map_unchanged(|fonts| fonts.get_mut(font).unwrap());
+						.map_unchanged(|fonts| fonts.get_mut(font)
+							.expect("Font was already confirmed to exist")
+						);
 					let MeshText { bbox, vertices } = font
 						.generate_section(
 							&text,

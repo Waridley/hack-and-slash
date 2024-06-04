@@ -260,7 +260,7 @@ pub fn highlight_focus<const LAYER: Layer>(
 			}
 			let (scale, rot, pos) = xform.to_scale_rotation_translation();
 			#[cfg(feature = "debugging")]
-			if (scale.x - scale.y).abs() > 0.000001 || (scale.x - scale.z).abs() > 0.000001 {
+			if (scale.x - scale.y).abs() > 0.00001 || (scale.x - scale.z).abs() > 0.00001 {
 				warn!(
 					?id,
 					?shape,
