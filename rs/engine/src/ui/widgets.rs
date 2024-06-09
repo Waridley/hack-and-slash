@@ -1,6 +1,6 @@
 use crate::{
 	todo_warn,
-	ui::{a11y::AKNode, TextMeshCache, UiAction, UiCam, GLOBAL_UI_RENDER_LAYERS},
+	ui::{a11y::AKNode, TextMeshCache, UiAction, UiCam, UiMat, GLOBAL_UI_RENDER_LAYERS},
 	util::Prev,
 };
 use bevy::{
@@ -12,7 +12,7 @@ use bevy::{
 		render_asset::RenderAssetUsages,
 		view::{Layer, RenderLayers},
 	},
-	utils::{CowArc, HashMap},
+	utils::{CowArc, HashMap, HashSet},
 };
 use bevy_rapier3d::parry::shape::TypedShape;
 use leafwing_input_manager::prelude::ActionState;
@@ -24,8 +24,10 @@ use std::{
 	ops::ControlFlow,
 	sync::Arc,
 };
-use bevy::utils::HashSet;
+use bevy::pbr::ExtendedMaterial;
 use web_time::Duration;
+use crate::mats::fade::DitherFade;
+use crate::mats::fog::DistanceDither;
 
 #[derive(Component, Clone, Deref, DerefMut)]
 pub struct WidgetShape(pub SharedShape);
@@ -100,7 +102,7 @@ impl Default for WidgetBundle {
 }
 
 #[derive(Component, Clone, Debug)]
-pub struct CuboidPanel<BM: Material = StandardMaterial> {
+pub struct CuboidPanel<BM: Material = UiMat> {
 	pub size: Vec3,
 	pub colors: Option<CuboidFaces<RectCorners<Color>>>,
 	pub borders: CuboidFaces<Vec<RectBorderDesc<BM>>>,
@@ -119,7 +121,7 @@ impl<BM: Material> Default for CuboidPanel<BM> {
 #[derive(Component, Default, Clone, Debug, Deref, DerefMut)]
 pub struct CuboidPanelBorders(pub CuboidFaces<Vec<Entity>>);
 
-node_3d! { CuboidPanelBundle<M: Material = StandardMaterial, BM: Material = StandardMaterial> {
+node_3d! { CuboidPanelBundle<M: Material = UiMat, BM: Material = UiMat> {
 	panel: CuboidPanel<BM>,
 	material: Handle<M>,
 	border_entities: CuboidPanelBorders,
@@ -161,6 +163,7 @@ impl<BM: Material> CuboidPanel<BM> {
 		) in &mut q
 		{
 			for id in border_entities.iter().flatten() {
+				// Despawn old borders if changed rather than just added
 				cmds.get_entity(*id).map(EntityCommands::despawn_recursive);
 			}
 			let mut cmds = cmds.entity(id);
@@ -232,7 +235,7 @@ impl<BM: Material> CuboidPanel<BM> {
 }
 
 #[derive(Debug, Clone)]
-pub struct RectBorderDesc<M: Material = StandardMaterial> {
+pub struct RectBorderDesc<M: Material = UiMat> {
 	pub width: f32,
 	pub depth: f32,
 	/// Grow or shrink the border proportional to `width`.
@@ -342,7 +345,26 @@ impl Default for CylinderPanelBorderEntities {
 /// The default for text and SVG should be unlit, so this ID allows setting
 /// the default handle while still implementing `Default` for bundles with
 /// non-Standard materials.
+///
+/// Any child of a branch with a `Fade` component should not use the default
+/// material, since fading happens per-material instead of per-entity. This
+/// may change in the future if material instancing is implemented in Bevy,
+/// or we write a custom pipeline to handle fading per-entity.
 pub const UNLIT_MATERIAL_ID: u128 = 142787604504081244242314226814361396251;
+
+pub fn new_unlit_material() -> UiMat {
+	ExtendedMaterial {
+		extension: DitherFade::default(),
+		base: ExtendedMaterial {
+			extension: DistanceDither::ui(),
+			base: StandardMaterial {
+				base_color: Color::WHITE,
+				unlit: true,
+				..default()
+			},
+		},
+	}
+}
 
 #[derive(Component, Clone, Debug)]
 pub struct Text3d {
@@ -363,7 +385,7 @@ impl Default for Text3d {
 	}
 }
 
-node_3d! { Text3dBundle<M: Material = StandardMaterial> {
+node_3d! { Text3dBundle<M: Material = UiMat> {
 	text_3d: Text3d,
 	font: Handle<Font3d>,
 	material: Handle<M>,
@@ -404,7 +426,7 @@ impl Text3d {
 		for id in to_try {
 			let Ok((this, font, mut ak_node)) = q.get_mut(id) else {
 				to_retry.insert(id);
-				continue
+				continue;
 			};
 			let mut cmds = cmds.entity(id);
 			let Self {
@@ -420,20 +442,20 @@ impl Text3d {
 					.to_cols_array();
 
 			let xform_key = array_init::array_init(|i| xform[i].to_bits());
-			
+
 			if !fonts.contains(font) {
 				warn!("{font:?} does not (yet) exist. Retrying next frame...");
 				to_retry.insert(id);
-				return
+				return;
 			}
 			let Some((mesh, shape)) = cache
 				.entry((text.clone(), xform_key, font.clone()))
 				.or_insert_with(|| {
-					let mut font = fonts
-						.reborrow()
-						.map_unchanged(|fonts| fonts.get_mut(font)
+					let mut font = fonts.reborrow().map_unchanged(|fonts| {
+						fonts
+							.get_mut(font)
 							.expect("Font was already confirmed to exist")
-						);
+					});
 					let MeshText { bbox, vertices } = font
 						.generate_section(
 							&text,
@@ -487,7 +509,7 @@ pub struct Button3d {
 	pub pressed: bool,
 }
 
-node_3d! { Button3dBundle<M = StandardMaterial>
+node_3d! { Button3dBundle<M = UiMat>
 where M: Material {
 	state: Button3d,
 	prev_state: Prev<Button3d>,

@@ -7,13 +7,18 @@ use crate::{
 		},
 		ChordEntry, CurrentChord, InputState,
 	},
+	mats::{
+		fade::DitherFade,
+		fog::{DistanceDither, Matter},
+		ExtMat,
+	},
 	ui::{
 		layout::LineUpChildren,
 		widgets::{
-			CuboidFaces, Font3d, CuboidPanel, CuboidPanelBundle, RectBorderDesc, RectCorners, Text3d,
-			Text3dBundle,
+			CuboidFaces, CuboidPanel, CuboidPanelBundle, Font3d, RectBorderDesc, RectCorners,
+			Text3d, Text3dBundle,
 		},
-		CamAnchor, GlobalUi, TextMeshCache, UiFonts, GLOBAL_UI_RENDER_LAYERS,
+		CamAnchor, GlobalUi, Popup, PopupsRoot, TextMeshCache, UiFonts, GLOBAL_UI_RENDER_LAYERS,
 	},
 };
 use bevy::{
@@ -21,7 +26,6 @@ use bevy::{
 	utils::{smallvec::SmallVec, HashMap},
 };
 use bevy_svg::prelude::Origin;
-use crate::ui::{Popup, PopupsRoot};
 
 pub struct DetectBindingPopupPlugin;
 
@@ -36,7 +40,7 @@ impl Plugin for DetectBindingPopupPlugin {
 pub fn setup(
 	mut events: EventReader<AssetEvent<Font3d>>,
 	mut cmds: Commands,
-	mut mats: ResMut<Assets<StandardMaterial>>,
+	mut mats: ResMut<Assets<ExtMat<DitherFade>>>,
 	ui_fonts: Res<UiFonts>,
 ) {
 	// TODO: Use bevy_asset_loader
@@ -60,9 +64,15 @@ pub fn setup(
 										bottom_left: Color::rgba(0.0, 0.2, 0.2, 0.6),
 										bottom_right: Color::rgba(0.0, 0.1, 0.4, 0.6),
 									}),
-									material: mats.add(StandardMaterial {
-										alpha_mode: AlphaMode::Blend,
-										..default()
+									material: mats.add(ExtMat {
+										extension: default(),
+										base: Matter {
+											extension: DistanceDither::ui(),
+											base: StandardMaterial {
+												alpha_mode: AlphaMode::Blend,
+												..default()
+											},
+										},
 									}),
 									..default()
 								}],
@@ -70,12 +80,18 @@ pub fn setup(
 							},
 							..default()
 						},
-						material: mats.add(StandardMaterial {
-							base_color: Color::rgba(0.0, 0.001, 0.001, 0.6),
-							alpha_mode: AlphaMode::Blend,
-							double_sided: true,
-							cull_mode: None,
-							..default()
+						material: mats.add(ExtMat {
+							extension: default(),
+							base: Matter {
+								extension: DistanceDither::ui(),
+								base: StandardMaterial {
+									base_color: Color::rgba(0.0, 0.001, 0.001, 0.6),
+									alpha_mode: AlphaMode::Blend,
+									double_sided: true,
+									cull_mode: None,
+									..default()
+								},
+							},
 						}),
 						visibility: Visibility::Hidden,
 						..default()
@@ -92,7 +108,13 @@ pub fn setup(
 							..default()
 						},
 						font: ui_fonts.mono_3d.clone(),
-						material: mats.add(Color::AQUAMARINE),
+						material: mats.add(ExtMat {
+							extension: default(),
+							base: Matter {
+								extension: DistanceDither::ui(),
+								base: Color::AQUAMARINE.into(),
+							},
+						}),
 						transform: Transform {
 							translation: Vec3::new(0.0, -1.0, 2.0),
 							..default()

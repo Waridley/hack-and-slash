@@ -1,17 +1,27 @@
-use bevy::ecs::query::QuerySingleError;
-use bevy::prelude::*;
-use leafwing_input_manager::action_state::ActionState;
-use rapier3d::geometry::SharedShape;
+use crate::player::input::PlayerAction;
+use bevy::{ecs::query::QuerySingleError, prelude::*};
 use engine::{
 	entity_tree,
-	ui::widgets::{CuboidPanel, CuboidPanelBundle},
+	input::InputState,
+	mats::{
+		fade::DitherFade,
+		fog::{DistanceDither, Matter},
+		ExtMat,
+	},
+	ui::{
+		layout::LineUpChildren,
+		widgets::{
+			CuboidPanel, CuboidPanelBundle, Text3d, Text3dBundle, WidgetBundle, WidgetShape,
+		},
+		Fade, GlobalUi, MenuStack, UiCam, UiFonts, UiMat,
+	},
+	util::StateStack,
 };
-use engine::input::InputState;
-use engine::ui::{GlobalUi, IsGlobalUiRoot, MenuStack, UiCam, UiFonts};
-use engine::ui::layout::LineUpChildren;
-use engine::ui::widgets::{Text3d, Text3dBundle, WidgetBundle, WidgetShape};
-use engine::util::StateStack;
-use crate::player::input::PlayerAction;
+use leafwing_input_manager::action_state::ActionState;
+use rapier3d::geometry::SharedShape;
+use web_time::Duration;
+use engine::ui::FadeCommands;
+use engine::ui::widgets::new_unlit_material;
 
 pub struct PauseMenuPlugin;
 
@@ -22,23 +32,25 @@ impl Plugin for PauseMenuPlugin {
 	}
 }
 
-pub fn setup(
-	mut cmds: Commands,
-	mut mats: ResMut<Assets<StandardMaterial>>,
-	ui_fonts: Res<UiFonts>,
-) {
-	let material = mats.add(Color::rgba(0.5, 0.5, 0.5, 0.5));
+pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<UiFonts>) {
+	let material = mats.add(UiMat {
+		extension: default(),
+		base: Matter {
+			extension: DistanceDither::ui(),
+			base: Color::rgba(0.5, 0.5, 0.5, 0.5).into(),
+		},
+	});
 	let pause_menu = entity_tree!(cmds; (
 		PauseMenu,
 		CuboidPanelBundle {
-			panel: CuboidPanel::<StandardMaterial> {
+			panel: CuboidPanel::<UiMat> {
 				size: Vec3::new(12.0, 12.0, 12.0),
 				..default()
 			},
-			visibility: Visibility::Hidden,
 			material,
 			..default()
-		};
+		},
+		Fade::ZERO;
 		#children:
 			(
 				WidgetBundle {
@@ -51,17 +63,19 @@ pub fn setup(
 				},
 				LineUpChildren::vertical();
 				#children: (
-					Text3dBundle::<StandardMaterial> {
+					Text3dBundle::<ExtMat<DitherFade>> {
 						text_3d: Text3d {
 							text: "Game Paused".into(),
 							..default()
 						},
+						material: mats.add(new_unlit_material()),
 						font: ui_fonts.mono_3d.clone(),
 						..default()
 					},
 				),
 			),
-	)).id();
+	))
+	.id();
 	cmds.insert_resource(PauseMenuId(pause_menu));
 }
 
@@ -73,35 +87,29 @@ pub struct PauseMenuId(pub Entity);
 pub struct PauseMenu;
 
 pub fn show_pause_menu(
-	mut q: Query<&mut Visibility, With<PauseMenu>>,
+	mut cmds: Commands,
 	mut stack: Query<&mut MenuStack, With<GlobalUi>>,
 	mut cam: Query<&mut UiCam, With<GlobalUi>>,
 	id: Res<PauseMenuId>,
 	actions_q: Query<&ActionState<PlayerAction>>,
 	mut states: ResMut<StateStack<InputState>>,
 ) {
+	let id = **id;
 	for actions in &actions_q {
 		if actions.just_pressed(&PlayerAction::PauseGame) {
-			let mut vis = match q.get_single_mut() {
-				Ok(mut vis) => vis,
-				Err(e) => {
-					error!("{e}");
-					return
-				}
-			};
 			let mut stack = stack.single_mut();
 			let mut cam = cam.single_mut();
-			if stack.last() == Some(&**id) {
+			if stack.last() == Some(&id) {
 				debug_assert_eq!(states.last(), Some(&InputState::InMenu));
-				*vis = Visibility::Hidden;
+				cmds.entity(id).fade_out_secs(0.5);
 				states.pop();
 				stack.pop();
 				cam.focus = stack.last().copied();
 			} else if states.last() == Some(&InputState::InGame) {
-				*vis = Visibility::Inherited;
+				cmds.entity(id).fade_in_secs(0.5);
 				states.push(InputState::InMenu);
-				stack.push(**id);
-				cam.focus = Some(**id);
+				stack.push(id);
+				cam.focus = Some(id);
 			}
 		}
 	}

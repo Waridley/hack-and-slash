@@ -1,18 +1,23 @@
 use crate::{
-	anim::{AnimationController, ComponentDelta, StartAnimation},
+	anim::{AnimationPlugin, AnimationController, ComponentDelta, StartAnimation},
 	entity_tree,
 	input::InputState,
+	mats::{
+		fade::DitherFade,
+		fog::{DistanceDither, Matter},
+		ExtMat,
+	},
 	ui::{
 		a11y::AKNode,
 		focus::{highlight_focus, AdjacentWidgets, FocusTarget, Wedge2d},
 		layout::LineUpChildren,
 		widgets::{
-			draw_widget_shape_gizmos, Button3d, Button3dBundle, CuboidFaces, Font3d, Node3dBundle,
-			CuboidPanel, CuboidPanelBundle, RectBorderDesc, RectCorners, Text3d, Text3dBundle, WidgetBundle,
-			WidgetShape,
+			draw_widget_shape_gizmos, Button3d, Button3dBundle, CuboidFaces, CuboidPanel,
+			CuboidPanelBundle, Font3d, Node3dBundle, RectBorderDesc, RectCorners, Text3d,
+			Text3dBundle, WidgetBundle, WidgetShape,
 		},
 	},
-	util::{CompassDirection, Diff, LerpSlerp, Prev},
+	util::{CompassDirection, Diff, LerpSlerp, Prev, StateStack},
 };
 use bevy::{
 	a11y::Focus,
@@ -24,6 +29,7 @@ use bevy::{
 		schedule::SystemConfigs,
 	},
 	input::common_conditions::input_toggle_active,
+	pbr::ExtendedMaterial,
 	prelude::*,
 	render::{
 		camera::Viewport,
@@ -37,8 +43,9 @@ use leafwing_input_manager::{prelude::*, Actionlike};
 use meshtext::{MeshGenerator, QualitySettings};
 use rapier3d::{geometry::SharedShape, math::Point};
 use serde::{Deserialize, Serialize};
-use std::f64::consts::TAU;
-use crate::util::StateStack;
+use std::{collections::VecDeque, f64::consts::TAU};
+use std::ops::{Add, Mul};
+use bevy::ecs::system::EntityCommands;
 
 pub mod a11y;
 #[cfg(feature = "debugging")]
@@ -50,6 +57,8 @@ pub mod widgets;
 pub const GLOBAL_UI_LAYER: Layer = (RenderLayers::TOTAL_LAYERS - 1) as Layer;
 pub const GLOBAL_UI_RENDER_LAYERS: RenderLayers = RenderLayers::layer(GLOBAL_UI_LAYER);
 pub const ALL_UI_RENDER_LAYERS: RenderLayers = RenderLayers::all().without(0);
+
+pub type UiMat = ExtMat<DitherFade>;
 
 pub struct UiPlugin;
 
@@ -73,9 +82,14 @@ impl Plugin for UiPlugin {
 				},
 			);
 
-		app.add_plugins(InputManagerPlugin::<UiAction>::default())
+		app
+			.add_plugins((
+				InputManagerPlugin::<UiAction>::default(),
+				AnimationPlugin::<Fade>::default(),
+			))
 			.register_type::<MenuStack>()
 			.register_type::<UiCam>()
+			.register_type::<Fade>()
 			.init_resource::<ActionState<UiAction>>()
 			.insert_resource(UiAction::default_mappings())
 			.init_resource::<UiHovered>()
@@ -97,8 +111,10 @@ impl Plugin for UiPlugin {
 				(
 					Prev::<Button3d>::update_component,
 					hide_orphaned_popups,
+					propagate_fade::<UiMat>.before(Fade::hide_faded_out),
+					Fade::hide_faded_out,
 					anchor_follow_menu,
-					CuboidPanel::<StandardMaterial>::sync,
+					CuboidPanel::<UiMat>::sync,
 					Text3d::sync,
 				),
 			)
@@ -117,36 +133,27 @@ impl Plugin for UiPlugin {
 		let mono = srv.load("ui/fonts/KodeMono/static/KodeMono-Bold.ttf");
 		let mono_3d = srv.load("ui/fonts/Noto_Sans_Mono/static/NotoSansMono-Bold.ttf");
 		app.insert_resource(UiFonts { mono, mono_3d });
-		app.world.resource_mut::<Assets<StandardMaterial>>().insert(
+		app.world.resource_mut::<Assets<_>>().insert(
 			Handle::weak_from_u128(widgets::UNLIT_MATERIAL_ID),
-			StandardMaterial {
-				base_color: Color::WHITE,
-				unlit: true,
-				..default()
-			},
+			new_unlit_material(),
 		);
 	}
 }
 
+impl DistanceDither {
+	pub fn ui() -> Self {
+		Self {
+			near_start: 5.0,
+			..default()
+		}
+	}
+}
+
 pub fn setup(mut cmds: Commands) {
-	let root = cmds
-		.spawn((
-			GlobalUi,
-			UiRoot,
-			TransformBundle::default(),
-			VisibilityBundle::default(),
-			LineUpChildren {
-				relative_positions: Vec3::Y * 22.0,
-				align: Vec3::Y,
-			},
-			GLOBAL_UI_RENDER_LAYERS,
-		))
-		.id();
-	spawn_ui_camera(root, cmds.reborrow(), GlobalUi, GLOBAL_UI_LAYER, None, 0.0);
+	spawn_ui_camera(cmds.reborrow(), GlobalUi, GLOBAL_UI_LAYER, None, 0.0);
 }
 
 pub fn spawn_ui_camera<ID: Bundle + Clone>(
-	root: Entity,
 	mut cmds: Commands,
 	identifier: ID,
 	layer: Layer,
@@ -161,7 +168,7 @@ pub fn spawn_ui_camera<ID: Bundle + Clone>(
 		TransformBundle::default(),
 		VisibilityBundle::default(),
 		MenuStack::default(),
-		FocusStack(vec![root]),
+		FocusStack::default(),
 		layers,
 	))
 	.with_children(|cmds| {
@@ -175,7 +182,7 @@ pub fn spawn_ui_camera<ID: Bundle + Clone>(
 			VisibilityBundle::default(),
 			layers,
 		));
-		
+
 		let mut cam = cmds.spawn((
 			identifier,
 			UiCam::default(),
@@ -258,17 +265,10 @@ pub fn spawn_ui_camera<ID: Bundle + Clone>(
 	});
 }
 
-/// Add this component to each entity that should be the root of a player's UI tree.
-#[derive(Component, Reflect, Copy, Clone, Debug)]
-#[reflect(Component)]
-pub struct UiRoot;
-
 /// Marker for entities that belong to the global UI (not tied to a player).
 #[derive(Component, Reflect, Copy, Clone, Debug)]
 #[reflect(Component)]
 pub struct GlobalUi;
-
-pub type IsGlobalUiRoot = (With<UiRoot>, With<GlobalUi>);
 
 /// Component for any UI camera entity, player or global.
 #[derive(Component, Default, Copy, Clone, Debug, Reflect)]
@@ -344,7 +344,13 @@ impl UiAction {
 				FocusPrev,
 				UserInput::Chord(vec![Modifier::Shift.into(), Tab.into()]),
 			),
-			(Zoom, UserInput::Chord(vec![Modifier::Control.into(), SingleAxis::mouse_wheel_y().into()])),
+			(
+				Zoom,
+				UserInput::Chord(vec![
+					Modifier::Control.into(),
+					SingleAxis::mouse_wheel_y().into(),
+				]),
+			),
 			// Controller
 			(Ok, GamepadButtonType::South.into()),
 			(Back, GamepadButtonType::East.into()),
@@ -352,7 +358,13 @@ impl UiAction {
 			(MoveCursor, DualAxis::left_stick().into()),
 			(NextTab, GamepadButtonType::RightTrigger.into()),
 			(PrevTab, GamepadButtonType::LeftTrigger.into()),
-			(Zoom, UserInput::Chord(vec![GamepadButtonType::LeftTrigger2.into(), SingleAxis::symmetric(GamepadAxisType::RightStickY, 0.1).into()])),
+			(
+				Zoom,
+				UserInput::Chord(vec![
+					GamepadButtonType::LeftTrigger2.into(),
+					SingleAxis::symmetric(GamepadAxisType::RightStickY, 0.1).into(),
+				]),
+			),
 			(Pan, DualAxis::right_stick().into()),
 		])
 	}
@@ -600,10 +612,193 @@ pub fn anchor_follow_menu(
 }
 
 #[cfg(feature = "debugging")]
+use bevy_inspector_egui::{
+	inspector_options::std_options::NumberDisplay::Slider,
+	prelude::{InspectorOptions, ReflectInspectorOptions},
+};
+use web_time::Duration;
+use crate::anim::{AnimationHandle, Delta, DynAnimation};
+use crate::ui::widgets::new_unlit_material;
+
+/// Component that starts a new branch of a tree of entities that can be
+/// faded in an out together.
+///
+/// Note: Materials should not be shared between different branches of
+/// fade-able trees, otherwise fading one branch can affect entities from
+/// another. In particular, this means the default material should
+/// generally not be used for any fade-able entities.
+#[derive(Component, Debug, Copy, Clone, PartialEq, PartialOrd, Reflect, Deref, DerefMut)]
+#[cfg_attr(
+	feature = "debugging",
+	derive(InspectorOptions),
+	reflect(InspectorOptions)
+)]
+#[reflect(Component)]
+pub struct Fade(
+	#[cfg_attr(feature = "debugging", inspector(
+		min = 0.0,
+		max = 1.0,
+		speed = 0.00389, // 1.0 / 257.0
+		display = Slider,
+	))]
+	pub f32,
+);
+
+impl Fade {
+	pub const ZERO: Self = Self(0.0);
+	pub const ONE: Self = Self(1.0);
+	
+	pub fn hide_faded_out(
+		mut q: Query<(&Self, &mut Visibility), Changed<Self>>,
+	) {
+		for (fade, mut vis) in &mut q {
+			let new = if fade.0 <= 0.0 {
+				Visibility::Hidden
+			} else {
+				Visibility::Inherited
+			};
+			if *vis != new {
+				*vis = new;
+			}
+		}
+	}
+}
+
+impl Default for Fade {
+	fn default() -> Self {
+		Self(1.0)
+	}
+}
+
+impl Diff for Fade {
+	type Delta = Self;
+	
+	fn delta_from(&self, rhs: &Self) -> Self::Delta {
+		Self(self.0 - rhs.0)
+	}
+}
+
+impl Mul<f32> for Fade {
+	type Output = Self;
+	
+	fn mul(self, rhs: f32) -> Self::Output {
+		Self(self.0 * rhs)
+	}
+}
+
+impl Add for Fade {
+	type Output = Self;
+	
+	fn add(self, rhs: Self) -> Self::Output {
+		Self(self.0 + rhs.0)
+	}
+}
+
+pub fn propagate_fade<M: Asset + AsMut<DitherFade>>(
+	q: Query<&Handle<M>>,
+	roots: Query<(Entity, Ref<Fade>)>,
+	children_q: Query<&Children>,
+	mut mats: ResMut<Assets<M>>,
+) {
+	for (root, fade) in &roots {
+		if !fade.is_changed() {
+			continue;
+		}
+
+		let mut set_fade = |handle: &Handle<M>| {
+			let Some(mut mat) = mats.get_mut(handle.clone()) else {
+				warn!("missing {handle:?}");
+				return;
+			};
+			mat.as_mut().fade = **fade;
+		};
+
+		if let Ok(mat) = q.get(root) {
+			set_fade(mat)
+		}
+
+		let Ok(children) = children_q.get(root) else {
+			continue;
+		};
+
+		// Manually build queue instead of using `iter_descendants` to filter
+		// out children with `Fade` components which override their ancestor's.
+		let mut queue = children
+			.into_iter()
+			.copied()
+			.filter(|&child| !roots.contains(child))
+			.collect::<VecDeque<_>>();
+
+		loop {
+			let Some(child) = queue.pop_front() else {
+				break;
+			};
+			if let Ok(mat) = q.get(child) {
+				set_fade(mat);
+			}
+			if let Ok(children) = children_q.get(child) {
+				queue.extend(
+					children
+						.into_iter()
+						.copied()
+						.filter(|&child| !roots.contains(child)),
+				);
+			}
+		}
+	}
+}
+
+pub trait FadeCommands {
+	fn fade_in(&mut self, duration: Duration) -> AnimationHandle<DynAnimation<Fade>>;
+	fn fade_out(&mut self, duration: Duration) -> AnimationHandle<DynAnimation<Fade>>;
+	
+	fn fade_in_secs(&mut self, secs: f32) -> AnimationHandle<DynAnimation<Fade>> {
+		self.fade_in(Duration::from_secs_f32(secs))
+	}
+	fn fade_out_secs(&mut self, secs: f32) -> AnimationHandle<DynAnimation<Fade>> {
+		self.fade_out(Duration::from_secs_f32(secs))
+	}
+}
+
+impl FadeCommands for EntityCommands<'_> {
+	fn fade_in(&mut self, duration: Duration) -> AnimationHandle<DynAnimation<Fade>> {
+		let mut elapsed = Duration::ZERO;
+		let duration = duration.as_secs_f32();
+		self.start_animation(move |id, fade, t, mut ctrl| {
+			elapsed += t.delta();
+			let t = elapsed.as_secs_f32() / duration;
+			let t = if t >= 1.0 {
+				ctrl.end();
+				1.0
+			} else {
+				t
+			};
+			ComponentDelta::diffable(id, t, Fade(t))
+		})
+	}
+	
+	fn fade_out(&mut self, duration: Duration) -> AnimationHandle<DynAnimation<Fade>> {
+		let mut elapsed = Duration::ZERO;
+		let duration = duration.as_secs_f32();
+		self.start_animation(move |id, fade, t, mut ctrl| {
+			elapsed += t.delta();
+			let t = 1.0 - (elapsed.as_secs_f32() / duration);
+			let t = if t <= 0.0 {
+				ctrl.end();
+				0.0
+			} else {
+				t
+			};
+			ComponentDelta::diffable(id, t, Fade(t))
+		})
+	}
+}
+
+#[cfg(feature = "debugging")]
 fn spawn_test_menu(
 	mut cmds: Commands,
 	mut meshes: ResMut<Assets<Mesh>>,
-	mut mats: ResMut<Assets<StandardMaterial>>,
+	mut mats: ResMut<Assets<UiMat>>,
 	ui_fonts: Res<UiFonts>,
 	mut events: EventReader<AssetEvent<Font3d>>,
 	mut spawned: Local<bool>,
@@ -624,7 +819,13 @@ fn spawn_test_menu(
 		return;
 	};
 
-	let border_mat = mats.add(StandardMaterial::default());
+	let border_mat = mats.add(UiMat {
+		base: Matter {
+			base: default(),
+			extension: DistanceDither::ui(),
+		},
+		extension: default(),
+	});
 	let size = Vec3::new(16.0, 16.0, 9.0);
 	let mut faces = [Entity::PLACEHOLDER; 6];
 	for (i, transform) in CuboidFaces::origins(size + Vec3::ONE)
@@ -649,13 +850,14 @@ fn spawn_test_menu(
 				};
 				#children:
 					( // "Testing..." text
-						Text3dBundle::<StandardMaterial> {
+						Text3dBundle::<UiMat> {
 							text_3d: Text3d {
 								text: "Testing...".into(),
 								..default()
 							},
 							font: ui_fonts.mono_3d.clone(),
 							transform: Transform::from_translation(Vec3::NEG_Y),
+							material: mats.add(new_unlit_material()),
 							..default()
 						},
 						AdjacentWidgets::vertical_siblings(),
@@ -668,7 +870,7 @@ fn spawn_test_menu(
 								0.5,
 							)),
 							mesh: meshes.add(Capsule3d::new(0.5, 5.0)),
-							material: mats.add(Color::ORANGE),
+							material: mats.add(UiMat { extension: default(), base: Matter { extension: DistanceDither::ui(), base: Color::ORANGE.into() }}),
 							transform: Transform {
 								rotation: Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
 								..default()
@@ -677,7 +879,7 @@ fn spawn_test_menu(
 						},
 						AdjacentWidgets::vertical_siblings();
 						#children: ( // Test button text
-							Text3dBundle::<StandardMaterial> {
+							Text3dBundle::<UiMat> {
 								text_3d: Text3d {
 									text: "Test button".into(),
 									..default()
@@ -688,6 +890,7 @@ fn spawn_test_menu(
 									rotation: Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
 									..default()
 								},
+								material: mats.add(new_unlit_material()),
 								..default()
 							},
 						),
@@ -698,6 +901,7 @@ fn spawn_test_menu(
 	}
 
 	let mut test_menu = cmds.spawn((
+		Name::new("TestMenu"),
 		CuboidPanelBundle {
 			panel: CuboidPanel {
 				size,
@@ -722,18 +926,24 @@ fn spawn_test_menu(
 				translation: Vec3::new(6900.0, 4200.0, 0.0),
 				..default()
 			},
-			visibility: Visibility::Hidden,
-			material: mats.add(StandardMaterial {
-				base_color: Color::rgba(0.1, 0.1, 0.1, 0.8),
-				reflectance: 0.0,
-				alpha_mode: AlphaMode::Blend,
-				double_sided: true,
-				cull_mode: None,
-				..default()
+			material: mats.add(UiMat {
+				extension: default(),
+				base: Matter {
+					extension: DistanceDither::ui(),
+					base: StandardMaterial {
+						base_color: Color::rgba(0.1, 0.1, 0.1, 0.8),
+						reflectance: 0.0,
+						alpha_mode: AlphaMode::Blend,
+						double_sided: true,
+						cull_mode: None,
+						..default()
+					},
+				},
 			}),
 			..default()
 		},
 		TestMenu { faces },
+		Fade::ZERO,
 	));
 	for face in faces {
 		test_menu.add_child(face);
@@ -749,7 +959,8 @@ struct TestMenu {
 
 #[cfg(feature = "debugging")]
 fn toggle_test_menu(
-	mut q: Query<(&mut Visibility, &TestMenu)>,
+	mut cmds: Commands,
+	mut q: Query<(Entity, &TestMenu)>,
 	mut stack: Query<&mut MenuStack, With<GlobalUi>>,
 	mut cam: Query<&mut UiCam, With<GlobalUi>>,
 	input: Res<ButtonInput<KeyCode>>,
@@ -757,7 +968,7 @@ fn toggle_test_menu(
 	mut state: ResMut<StateStack<InputState>>,
 	mut i: Local<usize>,
 ) {
-	let Ok((mut vis, info)) = q.get_single_mut() else {
+	let Ok((id, info)) = q.get_single_mut() else {
 		return;
 	};
 	if input.just_pressed(KeyCode::Period) {
@@ -765,12 +976,12 @@ fn toggle_test_menu(
 			return;
 		}
 		let child = info.faces[*i];
-		
+
 		**focus = Some(child);
 		match stack.get_single_mut() {
 			Ok(mut stack) => {
-				if *vis == Visibility::Hidden {
-					*vis = Visibility::Inherited;
+				if *i == 0 {
+					cmds.entity(id).fade_in_secs(0.5);
 					state.push(InputState::InMenu);
 				}
 				stack.push(child);
@@ -788,17 +999,15 @@ fn toggle_test_menu(
 	if input.just_pressed(KeyCode::Comma) {
 		match stack.get_single_mut() {
 			Ok(mut stack) => {
-				*i = i.saturating_sub(1);
-				if *i == 0 {
-					if *vis != Visibility::Hidden {
-						**focus = None;
-						*vis = Visibility::Hidden;
-						stack.pop();
-						state.pop();
-					}
+				if *i == 1 {
+					cmds.entity(id).fade_out_secs(0.5);
+					**focus = None;
+					stack.pop();
+					state.pop();
 				} else {
 					stack.pop();
 				}
+				*i = i.saturating_sub(1);
 				match cam.get_single_mut() {
 					Ok(mut cam) => {
 						cam.focus = stack.last().copied();

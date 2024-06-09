@@ -10,6 +10,7 @@ use bevy_rapier3d::{
 	geometry::Collider,
 	prelude::{RigidBody::KinematicPositionBased, Sensor},
 };
+use engine::mats::ExtMat;
 use enum_components::{EntityEnumCommands, EnumComponent};
 use rand::{Rng, SeedableRng};
 use rand_xorshift::XorShiftRng;
@@ -17,7 +18,7 @@ use rand_xorshift::XorShiftRng;
 use pickup::WithPickup;
 
 use crate::{
-	mats::{fog::ExtMat, BubbleMaterial},
+	mats::BubbleMaterial,
 	pickups::pickup::PickupItem,
 	planet::{chunks::ChunkFinder, frame::Frame},
 	player::abilities::Hurt,

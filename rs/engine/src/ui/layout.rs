@@ -29,21 +29,21 @@ impl LineUpChildren {
 			align: Vec3::ZERO,
 		}
 	}
-	
+
 	pub fn vertical() -> Self {
 		Self {
 			relative_positions: Vec3::NEG_Z,
 			align: Vec3::ZERO,
 		}
 	}
-	
+
 	pub fn with_additional_spacing(self, spacing: f32) -> Self {
 		Self {
 			relative_positions: self.relative_positions.normalize() * (1.0 + spacing),
 			align: self.align,
 		}
 	}
-	
+
 	pub fn with_alignment(self, align: Vec3) -> Self {
 		Self {
 			relative_positions: self.relative_positions,
