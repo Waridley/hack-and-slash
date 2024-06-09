@@ -117,6 +117,7 @@ nanorand = { workspace = true }
 rand = { workspace = true }
 rand_xorshift = { workspace = true }
 serde = { workspace = true }
+web-time = { workspace = true }
 
 # Debugging
 bevy-inspector-egui = { workspace = true, optional = true }

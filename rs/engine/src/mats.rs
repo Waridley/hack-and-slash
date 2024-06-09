@@ -6,12 +6,21 @@ use bevy::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-	mats::fog::{update_matter_extensions, ExtMat, MatterPlugin},
+	mats::{
+		fade::DitherFade,
+		fog::{update_matter_extensions, Matter, MatterPlugin},
+	},
 	util::RonReflectAssetLoader,
 };
 
+pub mod fade;
 pub mod fog;
 
+/// Extend the [Matter] material. Most materials in the game should
+/// extend this in order to have fog applied.
+pub type ExtMat<M> = ExtendedMaterial<Matter, M>;
+/// Shorthand for `ExtendedMaterial<StandardMaterial<T>`.
+/// Use this when [DistanceDither] should not be applied.
 pub type StdMatExt<T> = ExtendedMaterial<StandardMaterial, T>;
 
 pub struct MatsPlugin;
@@ -28,6 +37,7 @@ impl Plugin for MatsPlugin {
 			.add_plugins((
 				MatterPlugin,
 				MaterialPlugin::<ExtMat<BubbleMaterial>>::default(),
+				MaterialPlugin::<ExtMat<DitherFade>>::default(),
 			));
 
 		let registry = app.world.get_resource::<AppTypeRegistry>().unwrap().clone();

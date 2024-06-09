@@ -37,7 +37,7 @@ use engine::{
 	ui::{
 		focus::{highlight_focus, FocusGizmos},
 		layout::LineUpChildren,
-		UiRoot, GLOBAL_UI_LAYER,
+		Fade, GLOBAL_UI_LAYER,
 	},
 };
 use player_entity::*;
@@ -209,28 +209,8 @@ pub fn setup(
 		unreachable!()
 	};
 
-	let ui_root = cmds
-		.spawn((
-			TransformBundle::from_transform(Transform {
-				translation: Vec3::NEG_Z * 64.0,
-				..default()
-			}),
-			VisibilityBundle::default(),
-			RenderLayers::layer(player_ui_layer(id)),
-			UiRoot,
-		))
-		.id();
-
 	// TODO: Separate viewport for each player
-	spawn_cameras(
-		&mut cmds,
-		id,
-		&settings,
-		&mut images,
-		&asset_server,
-		None,
-		ui_root,
-	);
+	spawn_cameras(&mut cmds, id, &settings, &mut images, &asset_server, None);
 }
 
 pub fn update_player_spawn_data(

@@ -14,12 +14,15 @@ use bevy::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
+	mats::ExtMat,
 	planet::{chunks::CHUNK_SCALE, weather::Weather},
 	util::RonReflectAssetLoader,
 };
 
-pub type ExtMat<M> = ExtendedMaterial<Matter, M>;
 pub type Matter = ExtendedMaterial<StandardMaterial, DistanceDither>;
+pub const BAYER_HANDLE: Handle<Image> =
+	Handle::weak_from_u128(92299220200241619468604683494190943784);
+
 
 /// Function instead of a constant because it uses floating-point math.
 #[inline(always)]
@@ -115,8 +118,36 @@ impl DistanceDither {
 	}
 }
 
-pub const BAYER_HANDLE: Handle<Image> =
-	Handle::weak_from_u128(92299220200241619468604683494190943784);
+impl AsRef<DistanceDither> for DistanceDither {
+	fn as_ref(&self) -> &DistanceDither {
+		self
+	}
+}
+
+impl AsMut<DistanceDither> for DistanceDither {
+	fn as_mut(&mut self) -> &mut DistanceDither {
+		self
+	}
+}
+
+impl<B, E> AsRef<DistanceDither> for ExtendedMaterial<B, E>
+where
+	B: Material,
+	E: MaterialExtension + AsRef<DistanceDither> {
+	fn as_ref(&self) -> &DistanceDither {
+		self.extension.as_ref()
+	}
+}
+
+impl<B, E> AsMut<DistanceDither> for ExtendedMaterial<B, E>
+	where
+		B: Material,
+		E: MaterialExtension + AsMut<DistanceDither> {
+	fn as_mut(&mut self) -> &mut DistanceDither {
+		self.extension.as_mut()
+	}
+}
+
 
 impl Default for DistanceDither {
 	fn default() -> Self {
