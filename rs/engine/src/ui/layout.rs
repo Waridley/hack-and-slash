@@ -37,7 +37,7 @@ impl LineUpChildren {
 		}
 	}
 
-	pub fn with_additional_spacing(self, spacing: f32) -> Self {
+	pub fn with_spacing(self, spacing: f32) -> Self {
 		Self {
 			relative_positions: self.relative_positions.normalize() * (1.0 + spacing),
 			align: self.align,
@@ -84,7 +84,7 @@ pub fn apply_constraints(
 			1 => {
 				match transforms.get_mut(children[0]) {
 					Ok(mut child) => child.1.translation = Vec3::ZERO,
-					Err(e) => cmds.debug_components(id, e),
+					Err(e) => cmds.debug_components(children[0], e),
 				}
 				continue;
 			}
@@ -95,7 +95,8 @@ pub fn apply_constraints(
 			let [a, b] = match transforms.get_many([pair[0], pair[1]]) {
 				Ok(pair) => pair,
 				Err(e) => {
-					cmds.debug_components(id, e);
+					cmds.debug_components(pair[0], e);
+					cmds.debug_components(pair[1], e);
 					continue;
 				}
 			};
@@ -116,7 +117,7 @@ pub fn apply_constraints(
 		let mut first_child = match transforms.get_mut(children[0]) {
 			Ok(child) => child,
 			Err(e) => {
-				cmds.debug_components(id, e);
+				cmds.debug_components(children[0], e);
 				continue;
 			}
 		};
@@ -125,7 +126,8 @@ pub fn apply_constraints(
 			let [a, mut b] = match transforms.get_many_mut([pair[0], pair[1]]) {
 				Ok(pair) => pair,
 				Err(e) => {
-					cmds.debug_components(id, e);
+					cmds.debug_components(pair[0], e);
+					cmds.debug_components(pair[1], e);
 					continue;
 				}
 			};

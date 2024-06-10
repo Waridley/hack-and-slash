@@ -1,5 +1,5 @@
 use crate::{
-	anim::{AnimationPlugin, AnimationController, ComponentDelta, StartAnimation},
+	anim::{AnimationController, AnimationPlugin, ComponentDelta, StartAnimation},
 	entity_tree,
 	input::InputState,
 	mats::{
@@ -27,6 +27,7 @@ use bevy::{
 	ecs::{
 		query::{QueryEntityError, QuerySingleError},
 		schedule::SystemConfigs,
+		system::EntityCommands,
 	},
 	input::common_conditions::input_toggle_active,
 	pbr::ExtendedMaterial,
@@ -43,9 +44,11 @@ use leafwing_input_manager::{prelude::*, Actionlike};
 use meshtext::{MeshGenerator, QualitySettings};
 use rapier3d::{geometry::SharedShape, math::Point};
 use serde::{Deserialize, Serialize};
-use std::{collections::VecDeque, f64::consts::TAU};
-use std::ops::{Add, Mul};
-use bevy::ecs::system::EntityCommands;
+use std::{
+	collections::VecDeque,
+	f64::consts::TAU,
+	ops::{Add, Mul},
+};
 
 pub mod a11y;
 #[cfg(feature = "debugging")]
@@ -82,50 +85,49 @@ impl Plugin for UiPlugin {
 				},
 			);
 
-		app
-			.add_plugins((
-				InputManagerPlugin::<UiAction>::default(),
-				AnimationPlugin::<Fade>::default(),
-			))
-			.register_type::<MenuStack>()
-			.register_type::<UiCam>()
-			.register_type::<Fade>()
-			.init_resource::<ActionState<UiAction>>()
-			.insert_resource(UiAction::default_mappings())
-			.init_resource::<UiHovered>()
-			.init_resource::<TextMeshCache>()
-			.init_asset::<Font3d>()
-			.register_asset_loader(Font3dLoader)
-			.add_systems(Startup, setup)
-			.add_systems(Update, (reset_hovered, show_fps, focus::resolve_focus))
-			.add_systems(
-				PostUpdate,
-				(
-					layout::apply_constraints,
-					highlight_focus::<GLOBAL_UI_LAYER>,
-					widgets::InteractHandlers::system,
-				),
-			)
-			.add_systems(
-				Last,
-				(
-					Prev::<Button3d>::update_component,
-					hide_orphaned_popups,
-					propagate_fade::<UiMat>.before(Fade::hide_faded_out),
-					Fade::hide_faded_out,
-					anchor_follow_menu,
-					CuboidPanel::<UiMat>::sync,
-					Text3d::sync,
-				),
-			)
-			.insert_gizmo_group(
-				focus::FocusGizmos::<GLOBAL_UI_LAYER>,
-				GizmoConfig {
-					line_width: 6.0,
-					render_layers: GLOBAL_UI_RENDER_LAYERS,
-					..default()
-				},
-			);
+		app.add_plugins((
+			InputManagerPlugin::<UiAction>::default(),
+			AnimationPlugin::<Fade>::default(),
+		))
+		.register_type::<MenuStack>()
+		.register_type::<UiCam>()
+		.register_type::<Fade>()
+		.init_resource::<ActionState<UiAction>>()
+		.insert_resource(UiAction::default_mappings())
+		.init_resource::<UiHovered>()
+		.init_resource::<TextMeshCache>()
+		.init_asset::<Font3d>()
+		.register_asset_loader(Font3dLoader)
+		.add_systems(Startup, setup)
+		.add_systems(Update, (reset_hovered, show_fps, focus::resolve_focus))
+		.add_systems(
+			PostUpdate,
+			(
+				layout::apply_constraints,
+				highlight_focus::<GLOBAL_UI_LAYER>,
+				widgets::InteractHandlers::system,
+			),
+		)
+		.add_systems(
+			Last,
+			(
+				Prev::<Button3d>::update_component,
+				hide_orphaned_popups,
+				propagate_fade::<UiMat>.before(Fade::hide_faded_out),
+				Fade::hide_faded_out,
+				anchor_follow_menu,
+				CuboidPanel::<UiMat>::sync,
+				Text3d::sync,
+			),
+		)
+		.insert_gizmo_group(
+			focus::FocusGizmos::<GLOBAL_UI_LAYER>,
+			GizmoConfig {
+				line_width: 6.0,
+				render_layers: GLOBAL_UI_RENDER_LAYERS,
+				..default()
+			},
+		);
 	}
 
 	fn finish(&self, app: &mut App) {
@@ -336,6 +338,7 @@ impl UiAction {
 			// KB & Mouse
 			(Ok, Space.into()),
 			(Ok, Backspace.into()),
+			(Ok, Enter.into()),
 			(Back, Backspace.into()),
 			(MoveCursor, VirtualDPad::wasd().into()),
 			(MoveCursor, VirtualDPad::arrow_keys().into()),
@@ -611,14 +614,16 @@ pub fn anchor_follow_menu(
 	}
 }
 
+use crate::{
+	anim::{AnimationHandle, Delta, DynAnimation},
+	ui::widgets::new_unlit_material,
+};
 #[cfg(feature = "debugging")]
 use bevy_inspector_egui::{
 	inspector_options::std_options::NumberDisplay::Slider,
 	prelude::{InspectorOptions, ReflectInspectorOptions},
 };
 use web_time::Duration;
-use crate::anim::{AnimationHandle, Delta, DynAnimation};
-use crate::ui::widgets::new_unlit_material;
 
 /// Component that starts a new branch of a tree of entities that can be
 /// faded in an out together.
@@ -647,10 +652,8 @@ pub struct Fade(
 impl Fade {
 	pub const ZERO: Self = Self(0.0);
 	pub const ONE: Self = Self(1.0);
-	
-	pub fn hide_faded_out(
-		mut q: Query<(&Self, &mut Visibility), Changed<Self>>,
-	) {
+
+	pub fn hide_faded_out(mut q: Query<(&Self, &mut Visibility), Changed<Self>>) {
 		for (fade, mut vis) in &mut q {
 			let new = if fade.0 <= 0.0 {
 				Visibility::Hidden
@@ -672,7 +675,7 @@ impl Default for Fade {
 
 impl Diff for Fade {
 	type Delta = Self;
-	
+
 	fn delta_from(&self, rhs: &Self) -> Self::Delta {
 		Self(self.0 - rhs.0)
 	}
@@ -680,7 +683,7 @@ impl Diff for Fade {
 
 impl Mul<f32> for Fade {
 	type Output = Self;
-	
+
 	fn mul(self, rhs: f32) -> Self::Output {
 		Self(self.0 * rhs)
 	}
@@ -688,7 +691,7 @@ impl Mul<f32> for Fade {
 
 impl Add for Fade {
 	type Output = Self;
-	
+
 	fn add(self, rhs: Self) -> Self::Output {
 		Self(self.0 + rhs.0)
 	}
@@ -751,7 +754,7 @@ pub fn propagate_fade<M: Asset + AsMut<DitherFade>>(
 pub trait FadeCommands {
 	fn fade_in(&mut self, duration: Duration) -> AnimationHandle<DynAnimation<Fade>>;
 	fn fade_out(&mut self, duration: Duration) -> AnimationHandle<DynAnimation<Fade>>;
-	
+
 	fn fade_in_secs(&mut self, secs: f32) -> AnimationHandle<DynAnimation<Fade>> {
 		self.fade_in(Duration::from_secs_f32(secs))
 	}
@@ -776,7 +779,7 @@ impl FadeCommands for EntityCommands<'_> {
 			ComponentDelta::diffable(id, t, Fade(t))
 		})
 	}
-	
+
 	fn fade_out(&mut self, duration: Duration) -> AnimationHandle<DynAnimation<Fade>> {
 		let mut elapsed = Duration::ZERO;
 		let duration = duration.as_secs_f32();
