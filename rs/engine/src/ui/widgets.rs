@@ -1,4 +1,5 @@
 use crate::{
+	mats::{fade::DitherFade, fog::DistanceDither},
 	todo_warn,
 	ui::{a11y::AKNode, TextMeshCache, UiAction, UiCam, UiMat, GLOBAL_UI_RENDER_LAYERS},
 	util::Prev,
@@ -6,6 +7,7 @@ use crate::{
 use bevy::{
 	a11y::accesskit::{NodeBuilder, Role},
 	ecs::system::{EntityCommand, EntityCommands},
+	pbr::ExtendedMaterial,
 	prelude::*,
 	render::{
 		mesh::{Indices, PrimitiveTopology::TriangleList},
@@ -24,10 +26,7 @@ use std::{
 	ops::ControlFlow,
 	sync::Arc,
 };
-use bevy::pbr::ExtendedMaterial;
 use web_time::Duration;
-use crate::mats::fade::DitherFade;
-use crate::mats::fog::DistanceDither;
 
 #[derive(Component, Clone, Deref, DerefMut)]
 pub struct WidgetShape(pub SharedShape);
@@ -424,6 +423,7 @@ impl Text3d {
 	) {
 		let mut to_try = to_retry.drain().chain(&changed_text).collect::<Vec<_>>();
 		for id in to_try {
+			debug!(?id);
 			let Ok((this, font, mut ak_node)) = q.get_mut(id) else {
 				to_retry.insert(id);
 				continue;
@@ -446,7 +446,7 @@ impl Text3d {
 			if !fonts.contains(font) {
 				warn!("{font:?} does not (yet) exist. Retrying next frame...");
 				to_retry.insert(id);
-				return;
+				continue;
 			}
 			let Some((mesh, shape)) = cache
 				.entry((text.clone(), xform_key, font.clone()))
@@ -496,9 +496,10 @@ impl Text3d {
 				})
 				.clone()
 			else {
-				error!("Failed to generate text mesh");
+				error!(?text, "Failed to generate text mesh");
 				continue;
 			};
+			debug!(?id, ?mesh, ?shape);
 			cmds.insert((mesh, shape));
 		}
 	}

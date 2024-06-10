@@ -954,12 +954,20 @@ macro_rules! state_matches {
 /// ```
 #[macro_export]
 macro_rules! entity_tree {
-	($cmds:ident; ( $($bundles:expr),* $(,)? $(; #children: $($children:tt),* $(,)?)? )) => {
-	  $cmds.spawn((
-	    $($bundles),*
-	  ))$(.with_children(|cmds| {
-	    $(entity_tree!(cmds; $children);)*
-	  }))?
+	($cmds:ident; ( $($bundles:expr),* $(,)? $(=> |$then_cmds:ident| $then:block)? $(; #children: $($children:tt),* $(,)?)? )) => {
+		{
+			let mut cmds = $cmds.spawn((
+		    $($bundles),*
+		  ));
+			$({
+				let mut $then_cmds = &mut cmds;
+				$then;
+			};)?
+			$(cmds.with_children(|cmds| {
+		    $(entity_tree!(cmds; $children);)*
+		  });)?
+			cmds
+		}
 	}
 }
 
@@ -972,7 +980,7 @@ pub fn debug_component_names(In((id, msg)): In<(Entity, String)>, world: &mut Wo
 		.into_iter()
 		.map(ComponentInfo::name)
 		.collect::<Vec<_>>();
-	debug!(?components, "{msg}");
+	debug!(?id, ?components, "{msg}");
 }
 
 /// [error_component_names]
@@ -988,6 +996,9 @@ pub fn error_component_names(In((id, msg)): In<(Entity, String)>, world: &mut Wo
 	error!(?components, "{msg}");
 }
 
+// TODO: These could be macros for more flexibility and so the target
+//    isn't always `sond_has_engine::util`, but it seems like the arguments
+//    would be moderately complicated.
 pub trait LogComponentNames {
 	/// Run [debug_component_names]
 	fn debug_components(&mut self, id: Entity, msg: impl std::fmt::Display);

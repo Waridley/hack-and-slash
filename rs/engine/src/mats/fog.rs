@@ -23,7 +23,6 @@ pub type Matter = ExtendedMaterial<StandardMaterial, DistanceDither>;
 pub const BAYER_HANDLE: Handle<Image> =
 	Handle::weak_from_u128(92299220200241619468604683494190943784);
 
-
 /// Function instead of a constant because it uses floating-point math.
 #[inline(always)]
 pub fn max_fog_distance() -> f32 {
@@ -133,21 +132,22 @@ impl AsMut<DistanceDither> for DistanceDither {
 impl<B, E> AsRef<DistanceDither> for ExtendedMaterial<B, E>
 where
 	B: Material,
-	E: MaterialExtension + AsRef<DistanceDither> {
+	E: MaterialExtension + AsRef<DistanceDither>,
+{
 	fn as_ref(&self) -> &DistanceDither {
 		self.extension.as_ref()
 	}
 }
 
 impl<B, E> AsMut<DistanceDither> for ExtendedMaterial<B, E>
-	where
-		B: Material,
-		E: MaterialExtension + AsMut<DistanceDither> {
+where
+	B: Material,
+	E: MaterialExtension + AsMut<DistanceDither>,
+{
 	fn as_mut(&mut self) -> &mut DistanceDither {
 		self.extension.as_mut()
 	}
 }
-
 
 impl Default for DistanceDither {
 	fn default() -> Self {
