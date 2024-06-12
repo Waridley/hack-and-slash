@@ -106,13 +106,13 @@ pub struct DistanceDither {
 }
 
 impl DistanceDither {
-	pub fn new(start: f32, end: f32, matrix: Handle<Image>) -> Self {
+	pub fn new(start: f32, end: f32) -> Self {
 		Self {
 			far_start: start,
 			far_end: end,
 			near_start: 32.0,
 			near_end: 0.0,
-			matrix,
+			matrix: BAYER_HANDLE.clone(),
 		}
 	}
 }
@@ -151,11 +151,7 @@ where
 
 impl Default for DistanceDither {
 	fn default() -> Self {
-		Self::new(
-			max_fog_distance() * 0.5,
-			max_fog_distance(),
-			BAYER_HANDLE.clone(),
-		)
+		Self::new(max_fog_distance() * 0.5, max_fog_distance())
 	}
 }
 

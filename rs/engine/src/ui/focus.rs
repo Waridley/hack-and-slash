@@ -166,6 +166,14 @@ impl AdjacentWidgets {
 	pub fn vertical_siblings() -> Self {
 		Self::vertical(FocusTarget::PrevSibling, FocusTarget::NextSibling)
 	}
+
+	pub fn all(target: FocusTarget) -> Self {
+		Self {
+			prev: Some(target.clone()),
+			next: Some(target.clone()),
+			directions: vec![(Wedge2d::circle(), target)],
+		}
+	}
 }
 
 pub fn resolve_focus(

@@ -1,7 +1,9 @@
 use crate::{
 	mats::{fade::DitherFade, fog::DistanceDither},
 	todo_warn,
-	ui::{a11y::AKNode, TextMeshCache, UiAction, UiCam, UiMat, GLOBAL_UI_RENDER_LAYERS},
+	ui::{
+		a11y::AKNode, TextMeshCache, UiAction, UiCam, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
+	},
 	util::Prev,
 };
 use bevy::{
@@ -352,17 +354,15 @@ impl Default for CylinderPanelBorderEntities {
 pub const UNLIT_MATERIAL_ID: u128 = 142787604504081244242314226814361396251;
 
 pub fn new_unlit_material() -> UiMat {
-	ExtendedMaterial {
-		extension: DitherFade::default(),
-		base: ExtendedMaterial {
-			extension: DistanceDither::ui(),
-			base: StandardMaterial {
-				base_color: Color::WHITE,
-				unlit: true,
-				..default()
-			},
+	UiMatBuilder {
+		std: StandardMaterial {
+			base_color: Color::WHITE,
+			unlit: true,
+			..default()
 		},
+		..default()
 	}
+	.into()
 }
 
 #[derive(Component, Clone, Debug)]

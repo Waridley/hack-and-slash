@@ -797,6 +797,72 @@ impl FadeCommands for EntityCommands<'_> {
 	}
 }
 
+#[derive(Debug, Clone, Reflect)]
+pub struct UiMatBuilder {
+	pub fade: f32,
+	pub far_start: f32,
+	pub far_end: f32,
+	pub near_start: f32,
+	pub near_end: f32,
+	pub std: StandardMaterial,
+}
+
+impl Default for UiMatBuilder {
+	fn default() -> Self {
+		let DistanceDither {
+			far_start,
+			far_end,
+			near_start,
+			near_end,
+			..
+		} = DistanceDither::ui();
+		Self {
+			fade: DitherFade::default().fade,
+			far_start,
+			far_end,
+			near_start,
+			near_end,
+			std: default(),
+		}
+	}
+}
+
+impl UiMatBuilder {
+	#[inline]
+	pub fn build(self) -> UiMat {
+		UiMat {
+			base: Matter {
+				base: self.std,
+				extension: DistanceDither {
+					far_start: self.far_start,
+					far_end: self.far_end,
+					near_start: self.near_start,
+					near_end: self.near_end,
+					..default()
+				},
+			},
+			extension: DitherFade { fade: self.fade },
+		}
+	}
+}
+
+impl From<UiMatBuilder> for UiMat {
+	#[inline]
+	fn from(value: UiMatBuilder) -> Self {
+		value.build()
+	}
+}
+
+impl<T: Into<StandardMaterial>> From<T> for UiMatBuilder {
+	#[inline]
+	fn from(value: T) -> Self {
+		Self {
+			std: value.into(),
+			..default()
+		}
+	}
+}
+
 #[cfg(feature = "debugging")]
 fn spawn_test_menu(
 	mut cmds: Commands,
@@ -822,13 +888,7 @@ fn spawn_test_menu(
 		return;
 	};
 
-	let border_mat = mats.add(UiMat {
-		base: Matter {
-			base: default(),
-			extension: DistanceDither::ui(),
-		},
-		extension: default(),
-	});
+	let border_mat = mats.add(UiMatBuilder::default());
 	let size = Vec3::new(16.0, 16.0, 9.0);
 	let mut faces = [Entity::PLACEHOLDER; 6];
 	for (i, transform) in CuboidFaces::origins(size + Vec3::ONE)
@@ -846,11 +906,7 @@ fn spawn_test_menu(
 					relative_positions: Vec3::NEG_Z * 1.25,
 					align: Vec3::ZERO,
 				},
-				AdjacentWidgets {
-					next: Some(FocusTarget::Child(0)),
-					directions: vec![(Wedge2d::circle(), FocusTarget::Child(0))],
-					..default()
-				};
+				AdjacentWidgets::all(FocusTarget::Child(0));
 				#children:
 					( // "Testing..." text
 						Text3dBundle::<UiMat> {
@@ -873,7 +929,7 @@ fn spawn_test_menu(
 								0.5,
 							)),
 							mesh: meshes.add(Capsule3d::new(0.5, 5.0)),
-							material: mats.add(UiMat { extension: default(), base: Matter { extension: DistanceDither::ui(), base: Color::ORANGE.into() }}),
+							material: mats.add(UiMatBuilder::from(Color::ORANGE)),
 							transform: Transform {
 								rotation: Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
 								..default()
@@ -929,19 +985,16 @@ fn spawn_test_menu(
 				translation: Vec3::new(6900.0, 4200.0, 0.0),
 				..default()
 			},
-			material: mats.add(UiMat {
-				extension: default(),
-				base: Matter {
-					extension: DistanceDither::ui(),
-					base: StandardMaterial {
-						base_color: Color::rgba(0.1, 0.1, 0.1, 0.8),
-						reflectance: 0.0,
-						alpha_mode: AlphaMode::Blend,
-						double_sided: true,
-						cull_mode: None,
-						..default()
-					},
+			material: mats.add(UiMatBuilder {
+				std: StandardMaterial {
+					base_color: Color::rgba(0.1, 0.1, 0.1, 0.8),
+					reflectance: 0.0,
+					alpha_mode: AlphaMode::Blend,
+					double_sided: true,
+					cull_mode: None,
+					..default()
 				},
+				..default()
 			}),
 			..default()
 		},

@@ -24,7 +24,7 @@ use engine::{
 			CuboidPanelBundle, InteractHandlers, RectBorderDesc, RectCorners, Text3d, Text3dBundle,
 			WidgetBundle, WidgetShape,
 		},
-		Fade, FadeCommands, GlobalUi, MenuStack, UiCam, UiFonts, UiMat,
+		Fade, FadeCommands, GlobalUi, MenuStack, UiCam, UiFonts, UiMat, UiMatBuilder,
 	},
 	util::StateStack,
 };
@@ -65,16 +65,12 @@ pub fn setup(
 	mut meshes: ResMut<Assets<Mesh>>,
 	ui_fonts: Res<UiFonts>,
 ) {
-	let material = mats.add(UiMat {
-		extension: default(),
-		base: Matter {
-			extension: DistanceDither::ui(),
-			base: Color::rgba(0.5, 0.5, 0.5, 0.5).into(),
-		},
+	let material = mats.add(UiMatBuilder {
+		std: Color::rgba(0.5, 0.5, 0.5, 0.5).into(),
+		..default()
 	});
 	let pause_menu = entity_tree!(cmds; (
 		Name::new("PauseMenu"),
-		PauseMenu,
 		CuboidPanelBundle {
 			panel: CuboidPanel::<UiMat> {
 				size: Vec3::new(12.0, 12.0, 12.0),
@@ -86,13 +82,7 @@ pub fn setup(
 							bottom_left: Color::BLUE,
 							bottom_right: Color::RED,
 						}),
-						material: mats.add(ExtMat {
-							base: Matter {
-								base: default(),
-								extension: DistanceDither::ui(),
-							} ,
-							extension: DitherFade::default(),
-						}),
+						material: mats.add(UiMatBuilder::default()),
 						..default()
 					}],
 					..default()
@@ -103,13 +93,7 @@ pub fn setup(
 			..default()
 		},
 		Fade::ZERO,
-		AdjacentWidgets {
-			prev: Some(FocusTarget::Child(0)),
-			next: Some(FocusTarget::Child(0)),
-			directions: vec![
-				(Wedge2d::circle(), FocusTarget::Child(0)),
-			],
-		};
+		AdjacentWidgets::all(FocusTarget::Child(0));
 		#children:
 			(
 				Name::new("container"),
@@ -122,17 +106,11 @@ pub fn setup(
 					..default()
 				},
 				LineUpChildren::vertical().with_spacing(0.1),
-				AdjacentWidgets {
-					prev: Some(FocusTarget::Child(0)),
-					next: Some(FocusTarget::Child(0)),
-					directions: vec![
-						(Wedge2d::circle(), FocusTarget::Child(0)),
-					],
-				};
+				AdjacentWidgets::all(FocusTarget::Child(0));
 				#children:
 					(
 						Name::new("game_paused_text"),
-						Text3dBundle::<ExtMat<DitherFade>> {
+						Text3dBundle {
 							text_3d: Text3d {
 								text: "Game Paused".into(),
 								..default()
@@ -148,12 +126,13 @@ pub fn setup(
 						Button3dBundle {
 							shape: WidgetShape(SharedShape::cuboid(3.0, 0.5, 0.5)),
 							mesh: meshes.add(Cuboid::new(6.0, 1.0, 1.0)),
-							material: mats.add(UiMat {
-								extension: DitherFade::default(),
-								base: Matter {
-									extension: DistanceDither::ui(),
-									base: Color::LIME_GREEN.into(),
+							material: mats.add(UiMatBuilder {
+								std: StandardMaterial {
+									base_color: Color::BLACK,
+									emissive: Color::LIME_GREEN * 16.0,
+									..default()
 								},
+								..default()
 							}),
 							handlers: InteractHandlers(vec![
 								dbg_event(),
@@ -173,14 +152,15 @@ pub fn setup(
 						#children: (
 							Name::new("resume_button_text"),
 							Text3dBundle {
-								text_3d: Text3d { text: "Resume Game".into(), flat: false, ..default() },
+								text_3d: Text3d { text: "Resume Game".into(), ..default() },
 								font: ui_fonts.mono_3d.clone(),
-								material: mats.add(UiMat {
-									extension: DitherFade::default(),
-									base: Matter {
-										extension: DistanceDither::ui(),
-										base: Color::WHITE.into(),
+								material: mats.add(UiMatBuilder {
+									std: StandardMaterial {
+										base_color: Color::BLACK,
+										unlit: true,
+										..default()
 									},
+									..default()
 								}),
 								transform: Transform {
 									translation: Vec3::NEG_Y,
@@ -193,14 +173,15 @@ pub fn setup(
 					(
 						Name::new("quit_button"),
 						Button3dBundle {
-							shape: WidgetShape(SharedShape::cuboid(2.0, 0.5, 0.5)),
-							mesh: meshes.add(Cuboid::new(4.0, 1.0, 1.0)),
-							material: mats.add(UiMat {
-								extension: DitherFade::default(),
-								base: Matter {
-									extension: DistanceDither::ui(),
-									base: Color::ORANGE_RED.into(),
+							shape: WidgetShape(SharedShape::cuboid(2.2, 0.5, 0.5)),
+							mesh: meshes.add(Cuboid::new(4.4, 1.0, 1.0)),
+							material: mats.add(UiMatBuilder {
+								std: StandardMaterial {
+									base_color: Color::BLACK,
+									emissive: Color::ORANGE_RED * 16.0,
+									..default()
 								},
+								..default()
 							}),
 							handlers: InteractHandlers(vec![
 								dbg_event(),
@@ -221,14 +202,15 @@ pub fn setup(
 						#children: (
 							Name::new("exit_button_text"),
 							Text3dBundle {
-								text_3d: Text3d { text: "Exit Game".into(), flat: false, ..default() },
+								text_3d: Text3d { text: "Exit Game".into(), ..default() },
 								font: ui_fonts.mono_3d.clone(),
-								material: mats.add(UiMat {
-									extension: DitherFade::default(),
-									base: Matter {
-										extension: DistanceDither::ui(),
-										base: Color::WHITE.into(),
+								material: mats.add(UiMatBuilder {
+									std: StandardMaterial {
+										base_color: Color::BLACK,
+										unlit: true,
+										..default()
 									},
+									..default()
 								}),
 								transform: Transform {
 									translation: Vec3::NEG_Y,
@@ -242,7 +224,6 @@ pub fn setup(
 	))
 	.with_enum(pause_menu_widget::Panel)
 	.id();
-	cmds.insert_resource(PauseMenuId(pause_menu));
 }
 
 #[derive(EnumComponent)]
@@ -252,13 +233,6 @@ pub enum PauseMenuWidget {
 	ResumeButton,
 	QuitButton,
 }
-
-#[derive(Resource, Deref, DerefMut, Debug, Copy, Clone, PartialEq, Eq)]
-pub struct PauseMenuId(pub Entity);
-
-#[derive(Component, Debug, Reflect)]
-#[reflect(Component)]
-pub struct PauseMenu;
 
 pub fn show_pause_menu(
 	mut cmds: Commands,
