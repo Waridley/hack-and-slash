@@ -19,6 +19,7 @@ use std::f32::consts::{FRAC_PI_2, FRAC_PI_3, FRAC_PI_4, FRAC_PI_6, FRAC_PI_8, PI
 pub enum FocusTarget {
 	NextSibling,
 	PrevSibling,
+	Sibling(usize),
 	Parent,
 	Child(usize),
 	// TODO: EntityPath doesn't implmenet [De]Serialize
@@ -34,6 +35,10 @@ impl FocusTarget {
 		children_query: &Query<&Children>,
 	) -> Option<Entity> {
 		match self {
+			FocusTarget::Sibling(i) => parent
+				.map(Parent::get)
+				.and_then(|parent| children_query.get(parent).ok())
+				.and_then(|children| children.get(*i).copied()),
 			FocusTarget::NextSibling => parent
 				.map(Parent::get)
 				.and_then(|parent| children_query.get(parent).ok())
@@ -129,7 +134,7 @@ impl Wedge2d {
 	}
 }
 
-#[derive(Component, Debug, Default, Serialize, Deserialize)]
+#[derive(Component, Debug, Default, Clone, Serialize, Deserialize)]
 pub struct AdjacentWidgets {
 	pub prev: Option<FocusTarget>,
 	pub next: Option<FocusTarget>,

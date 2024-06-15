@@ -1,8 +1,9 @@
 use super::widgets::WidgetShape;
-use crate::util::{LogComponentNames, DEBUG_COMPONENTS};
+use crate::util::{Angle, LogComponentNames, DEBUG_COMPONENTS};
 use bevy::{ecs::query::QueryEntityError, prelude::*};
 use rapier3d::parry::query::Ray;
 use serde::{Deserialize, Serialize};
+use std::f32::consts::TAU;
 
 #[derive(Component, Debug, Reflect, Serialize, Deserialize)]
 #[reflect(Component, Serialize, Deserialize)]
@@ -202,4 +203,82 @@ fn compute_separation(
 	let pb = (b_len - tb) * dir;
 	let space = rel - rel.normalize_or_zero();
 	pa + space + pb
+}
+
+#[derive(Component, Clone, Debug, Reflect, Serialize, Deserialize)]
+#[reflect(Component, Serialize, Deserialize)]
+pub struct RadialChildren {
+	pub radius: f32,
+	pub orientation: Vec3,
+	pub arrangement: RadialArrangement,
+}
+
+impl Default for RadialChildren {
+	fn default() -> Self {
+		Self {
+			radius: 4.0,
+			orientation: Vec3::NEG_Y,
+			arrangement: default(),
+		}
+	}
+}
+
+impl RadialChildren {
+	pub fn apply(
+		q: Query<(Entity, &Self, &Children), Changed<Self>>,
+		mut xforms: Query<(&mut Transform, &Parent)>,
+	) {
+		for (id, this, children) in &q {
+			let first = this.arrangement.first();
+			let sep = this.arrangement.separation(children.len());
+			for i in 0..children.len() {
+				let angle = first.rad() + (sep.rad() * i as f32);
+				let dir = Vec2::from_angle(angle);
+				let dir = Vec3::new(dir.x, 0.0, dir.y);
+				let rot = Quat::from_rotation_arc(Vec3::NEG_Y, this.orientation);
+				let dir = rot * dir;
+				let (mut xform, _parent) = match xforms.get_mut(children[i]) {
+					Ok((xform, parent)) => (xform, parent),
+					Err(e) => {
+						error!(?id, ?this, i, "{e}");
+						continue;
+					}
+				};
+				debug_assert_eq!(id, _parent.get());
+				let new_pos = dir * this.radius;
+				if xform.translation != new_pos {
+					xform.translation = new_pos;
+				}
+				if xform.rotation != rot {
+					xform.rotation = rot;
+				}
+			}
+		}
+	}
+}
+
+#[derive(Copy, Clone, Debug, Default, Reflect, Serialize, Deserialize)]
+#[reflect(Serialize, Deserialize)]
+pub enum RadialArrangement {
+	/// Arranges children evenly dividing the circle.
+	#[default]
+	Auto,
+	/// Manually set the separation angle between children.
+	Manual { separation: Angle, first: Angle },
+}
+
+impl RadialArrangement {
+	pub const fn first(self) -> Angle {
+		match self {
+			RadialArrangement::Auto => Angle::ZERO,
+			RadialArrangement::Manual { first, .. } => first,
+		}
+	}
+
+	pub const fn separation(self, num_children: usize) -> Angle {
+		match self {
+			RadialArrangement::Auto => Angle::TauOver(num_children as f32),
+			RadialArrangement::Manual { separation, .. } => separation,
+		}
+	}
 }

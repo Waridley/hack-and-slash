@@ -108,6 +108,7 @@ impl Plugin for UiPlugin {
 			PostUpdate,
 			(
 				layout::apply_constraints,
+				layout::RadialChildren::apply,
 				highlight_focus::<GLOBAL_UI_LAYER>,
 				widgets::InteractHandlers::system,
 			),
@@ -344,7 +345,7 @@ impl UiAction {
 			(Ok, Space.into()),
 			(Ok, Backspace.into()),
 			(Ok, Enter.into()),
-			(Back, Backspace.into()),
+			(Back, Escape.into()),
 			(MoveCursor, VirtualDPad::wasd().into()),
 			(MoveCursor, VirtualDPad::arrow_keys().into()),
 			(FocusNext, Tab.into()),
@@ -625,7 +626,6 @@ use crate::{
 	draw::{polygon_points, square_points, PlanarPolyLine},
 	ui::widgets::{new_unlit_material, CylinderPanel},
 };
-use bevy_inspector_egui::DefaultInspectorConfigPlugin;
 #[cfg(feature = "debugging")]
 use bevy_inspector_egui::{
 	inspector_options::std_options::NumberDisplay::Slider,

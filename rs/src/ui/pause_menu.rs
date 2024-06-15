@@ -35,7 +35,7 @@ use engine::{
 		},
 		Fade, FadeCommands, GlobalUi, MenuStack, UiCam, UiFonts, UiMat, UiMatBuilder,
 	},
-	util::StateStack,
+	util::{Flat, StateStack},
 };
 use enum_components::{EntityEnumCommands, EnumComponent, WithVariant};
 use leafwing_input_manager::action_state::ActionState;
@@ -115,9 +115,7 @@ pub fn setup(
 						],
 						..PlanarPolyLine::rect(12.0, 12.0, 0.5)
 					}
-					.mesh()
-					.with_duplicated_vertices()
-					.with_computed_flat_normals()
+					.flat()
 				),
 				mats.add(UiMatBuilder::default())
 			),
@@ -212,13 +210,17 @@ pub fn setup(
 									cmds.commands().add(|world: &mut World| {
 										let mut q = world.query_filtered::<Entity, With<SettingsMenu>>();
 										let panel_id = q.single(world);
-										world.entity_mut(panel_id).fade_in_secs(1.0);
+										world.entity_mut(panel_id).fade_in_secs(2.0);
 
 										let mut q = world.query_filtered::<Entity, WithVariant<settings_sub_menu::Top>>();
 										let id = q.single(world);
 										let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
 										let mut stack = q.single_mut(world);
 										stack.push(id);
+
+										let mut q = world.query_filtered::<&mut UiCam, With<GlobalUi>>();
+										let mut cam = q.single_mut(world);
+										cam.focus = Some(id);
 									});
 									ControlFlow::Break(())
 								}),
