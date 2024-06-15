@@ -1,6 +1,6 @@
 use super::icons::Icon;
 use crate::{
-	node_3d,
+	node_3d, node_3d_defaults,
 	ui::{
 		a11y::AKNode,
 		widgets::{Font3d, Text3d, WidgetShape, UNLIT_MATERIAL_ID},
@@ -44,18 +44,10 @@ node_3d! { InputIconBundle<M: Material = StandardMaterial> {
 
 impl<M: Material> Default for InputIconBundle<M> {
 	fn default() -> Self {
-		Self {
+		node_3d_defaults! {
 			input_icon: default(),
 			font: default(),
 			material: Handle::weak_from_u128(UNLIT_MATERIAL_ID),
-			handlers: default(),
-			transform: default(),
-			global_transform: default(),
-			visibility: default(),
-			inherited_visibility: default(),
-			view_visibility: default(),
-			layers: GLOBAL_UI_RENDER_LAYERS,
-			ak_node: NodeBuilder::new(Role::Image).into(),
 		}
 	}
 }

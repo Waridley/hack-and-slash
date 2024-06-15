@@ -67,18 +67,28 @@ macro_rules! node_3d {
 
 node_3d! { Node3dBundle {} }
 
+#[macro_export]
+macro_rules! node_3d_defaults {
+    ($($fields:ident: $values:expr),* $(,)?) => {
+	    Self {
+		    $(
+		      $fields: $values,
+		    )*
+				handlers: ::std::default::Default::default(),
+				transform: ::std::default::Default::default(),
+				global_transform: ::std::default::Default::default(),
+				visibility: ::std::default::Default::default(),
+				inherited_visibility: ::std::default::Default::default(),
+				view_visibility: ::std::default::Default::default(),
+				layers: $crate::ui::GLOBAL_UI_RENDER_LAYERS,
+				ak_node: ::bevy::a11y::accesskit::NodeBuilder::new(::bevy::a11y::accesskit::Role::Unknown).into(),
+	    }
+    };
+}
+
 impl Default for Node3dBundle {
 	fn default() -> Self {
-		Self {
-			handlers: default(),
-			transform: default(),
-			global_transform: default(),
-			visibility: default(),
-			inherited_visibility: default(),
-			view_visibility: default(),
-			layers: GLOBAL_UI_RENDER_LAYERS,
-			ak_node: NodeBuilder::new(Role::Unknown).into(),
-		}
+		node_3d_defaults! {}
 	}
 }
 
@@ -88,16 +98,8 @@ node_3d! { WidgetBundle {
 
 impl Default for WidgetBundle {
 	fn default() -> Self {
-		Self {
+		node_3d_defaults! {
 			shape: default(),
-			handlers: default(),
-			transform: default(),
-			global_transform: default(),
-			visibility: default(),
-			inherited_visibility: default(),
-			view_visibility: default(),
-			layers: GLOBAL_UI_RENDER_LAYERS,
-			ak_node: NodeBuilder::new(default()).into(),
 		}
 	}
 }
@@ -125,17 +127,9 @@ node_3d! { CuboidPanelBundle<M: Material = UiMat> {
 
 impl<M: Material> Default for CuboidPanelBundle<M> {
 	fn default() -> Self {
-		Self {
+		node_3d_defaults! {
 			panel: default(),
 			material: default(),
-			handlers: default(),
-			transform: default(),
-			global_transform: default(),
-			visibility: default(),
-			inherited_visibility: default(),
-			view_visibility: default(),
-			layers: GLOBAL_UI_RENDER_LAYERS,
-			ak_node: NodeBuilder::new(Role::Pane).into(),
 		}
 	}
 }
@@ -212,7 +206,6 @@ impl CylinderPanel {
 			.resolution(*subdivisions);
 			debug!(?builder);
 			let mut mesh = Mesh::from(builder)
-				.z_up()
 				.with_duplicated_vertices()
 				.with_computed_flat_normals();
 			mesh.asset_usage = RenderAssetUsages::RENDER_WORLD;
@@ -231,17 +224,9 @@ node_3d! { CylinderPanelBundle<M: Material = UiMat> {
 
 impl<M: Material> Default for CylinderPanelBundle<M> {
 	fn default() -> Self {
-		Self {
+		node_3d_defaults! {
 			panel: default(),
 			material: default(),
-			handlers: default(),
-			transform: default(),
-			global_transform: default(),
-			visibility: default(),
-			inherited_visibility: default(),
-			view_visibility: default(),
-			layers: GLOBAL_UI_RENDER_LAYERS,
-			ak_node: NodeBuilder::new(Role::Pane).into(),
 		}
 	}
 }
@@ -302,18 +287,10 @@ node_3d! { Text3dBundle<M: Material = UiMat> {
 
 impl<M: Material> Default for Text3dBundle<M> {
 	fn default() -> Self {
-		Self {
+		node_3d_defaults! {
 			text_3d: default(),
 			font: default(),
 			material: Handle::weak_from_u128(UNLIT_MATERIAL_ID),
-			handlers: default(),
-			transform: default(),
-			global_transform: default(),
-			visibility: default(),
-			inherited_visibility: Default::default(),
-			view_visibility: Default::default(),
-			layers: GLOBAL_UI_RENDER_LAYERS,
-			ak_node: NodeBuilder::new(Role::StaticText).into(),
 		}
 	}
 }
@@ -431,20 +408,12 @@ where M: Material {
 
 impl<M: Material> Default for Button3dBundle<M> {
 	fn default() -> Self {
-		Self {
+		node_3d_defaults! {
 			state: default(),
 			prev_state: default(),
 			shape: default(),
 			mesh: default(),
 			material: default(),
-			handlers: default(),
-			transform: default(),
-			global_transform: default(),
-			visibility: default(),
-			inherited_visibility: default(),
-			view_visibility: default(),
-			layers: GLOBAL_UI_RENDER_LAYERS,
-			ak_node: NodeBuilder::new(Role::Button).into(),
 		}
 	}
 }
@@ -847,10 +816,23 @@ pub fn dbg_event() -> CowArc<'static, InteractHandler> {
 pub fn on_ok(
 	handler: impl Fn(&mut EntityCommands) -> ControlFlow<()> + Send + Sync + 'static,
 ) -> CowArc<'static, InteractHandler> {
+	on_action(UiAction::Ok, handler)
+}
+
+pub fn on_back(
+	handler: impl Fn(&mut EntityCommands) -> ControlFlow<()> + Send + Sync + 'static,
+) -> CowArc<'static, InteractHandler> {
+	on_action(UiAction::Back, handler)
+}
+
+pub fn on_action(
+	action: UiAction,
+	handler: impl Fn(&mut EntityCommands) -> ControlFlow<()> + Send + Sync + 'static,
+) -> CowArc<'static, InteractHandler> {
 	CowArc::Owned(Arc::new(move |ev, cmds| {
 		if ev
 			== (Interaction {
-				source: InteractionSource::Action(UiAction::Ok),
+				source: InteractionSource::Action(action),
 				kind: InteractionKind::Begin,
 			}) {
 			(&handler)(cmds)
@@ -864,7 +846,20 @@ impl InteractHandlers {
 	pub fn on_ok(
 		handler: impl Fn(&mut EntityCommands) -> ControlFlow<()> + Send + Sync + 'static,
 	) -> Self {
-		Self(vec![dbg_event(), on_ok(handler)])
+		Self::on_action(UiAction::Ok, handler)
+	}
+
+	pub fn on_back(
+		handler: impl Fn(&mut EntityCommands) -> ControlFlow<()> + Send + Sync + 'static,
+	) -> Self {
+		Self::on_action(UiAction::Back, handler)
+	}
+
+	pub fn on_action(
+		action: UiAction,
+		handler: impl Fn(&mut EntityCommands) -> ControlFlow<()> + Send + Sync + 'static,
+	) -> Self {
+		Self(vec![dbg_event(), on_action(action, handler)])
 	}
 
 	pub fn handle(&self, event: Interaction, cmds: &mut EntityCommands) -> ControlFlow<()> {

@@ -671,6 +671,8 @@ pub enum Angle {
 }
 
 impl Angle {
+	pub const ZERO: Self = Self::Rad(0.0);
+
 	pub fn to_rad(self) -> Self {
 		Angle::Rad(self.rad())
 	}
@@ -702,7 +704,7 @@ impl Angle {
 
 impl Default for Angle {
 	fn default() -> Self {
-		Self::Rad(0.0)
+		Self::ZERO
 	}
 }
 
@@ -1141,5 +1143,18 @@ fn test_compass_directions() {
 	for dir in CompassDirection::CLOCKWISE {
 		assert_eq!(dir, CompassDirection::nearest_to_angle(dir.radians()));
 		assert_eq!(dir, CompassDirection::nearest_to(*dir.direction()));
+	}
+}
+
+/// Convenience for computing flat normals
+pub trait Flat {
+	fn flat(self) -> Mesh;
+}
+
+impl<T: Into<Mesh>> Flat for T {
+	fn flat(self) -> Mesh {
+		self.into()
+			.with_duplicated_vertices()
+			.with_computed_flat_normals()
 	}
 }
