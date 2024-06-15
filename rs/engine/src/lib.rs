@@ -10,6 +10,7 @@ use bevy_dylib;
 use bevy_svg::SvgPlugin;
 
 pub mod anim;
+pub mod draw;
 pub mod input;
 pub mod mats;
 pub mod nav;

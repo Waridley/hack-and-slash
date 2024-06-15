@@ -13,15 +13,15 @@ use crate::{
 		layout::LineUpChildren,
 		widgets::{
 			draw_widget_shape_gizmos, Button3d, Button3dBundle, CuboidFaces, CuboidPanel,
-			CuboidPanelBundle, Font3d, Node3dBundle, RectBorderDesc, RectCorners, Text3d,
-			Text3dBundle, WidgetBundle, WidgetShape,
+			CuboidPanelBundle, Font3d, Node3dBundle, RectCorners, Text3d, Text3dBundle,
+			WidgetBundle, WidgetShape,
 		},
 	},
 	util::{CompassDirection, Diff, LerpSlerp, Prev, StateStack},
 };
 use bevy::{
 	a11y::Focus,
-	asset::{io::Reader, AssetLoader, BoxedFuture, LoadContext},
+	asset::{io::Reader, AssetLoader, BoxedFuture, LoadContext, StrongHandle},
 	core_pipeline::{experimental::taa::TemporalAntiAliasBundle, fxaa::Fxaa},
 	diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
 	ecs::{
@@ -48,6 +48,7 @@ use std::{
 	collections::VecDeque,
 	f64::consts::TAU,
 	ops::{Add, Mul},
+	sync::Arc,
 };
 
 pub mod a11y;
@@ -92,6 +93,9 @@ impl Plugin for UiPlugin {
 		.register_type::<MenuStack>()
 		.register_type::<UiCam>()
 		.register_type::<Fade>()
+		.register_type::<CuboidPanel>()
+		.register_type::<CylinderPanel>()
+		.register_type::<DitherFade>()
 		.init_resource::<ActionState<UiAction>>()
 		.insert_resource(UiAction::default_mappings())
 		.init_resource::<UiHovered>()
@@ -116,7 +120,8 @@ impl Plugin for UiPlugin {
 				propagate_fade::<UiMat>.before(Fade::hide_faded_out),
 				Fade::hide_faded_out,
 				anchor_follow_menu,
-				CuboidPanel::<UiMat>::sync,
+				CuboidPanel::sync,
+				CylinderPanel::sync,
 				Text3d::sync,
 			),
 		)
@@ -475,7 +480,8 @@ pub fn cam_idle_animation(
 					rotation: new_rot,
 					scale: xform.scale,
 				}
-				.delta_from(&xform) * coef;
+				.delta_from(&xform)
+					* coef;
 		})
 	}
 }
@@ -616,8 +622,10 @@ pub fn anchor_follow_menu(
 
 use crate::{
 	anim::{AnimationHandle, Delta, DynAnimation},
-	ui::widgets::new_unlit_material,
+	draw::{polygon_points, square_points, PlanarPolyLine},
+	ui::widgets::{new_unlit_material, CylinderPanel},
 };
+use bevy_inspector_egui::DefaultInspectorConfigPlugin;
 #[cfg(feature = "debugging")]
 use bevy_inspector_egui::{
 	inspector_options::std_options::NumberDisplay::Slider,
@@ -797,6 +805,40 @@ impl FadeCommands for EntityCommands<'_> {
 	}
 }
 
+impl FadeCommands for EntityWorldMut<'_> {
+	fn fade_in(&mut self, duration: Duration) -> AnimationHandle<DynAnimation<Fade>> {
+		let mut elapsed = Duration::ZERO;
+		let duration = duration.as_secs_f32();
+		self.start_animation(move |id, fade, t, mut ctrl| {
+			elapsed += t.delta();
+			let t = elapsed.as_secs_f32() / duration;
+			let t = if t >= 1.0 {
+				ctrl.end();
+				1.0
+			} else {
+				t
+			};
+			ComponentDelta::diffable(id, t, Fade(t))
+		})
+	}
+
+	fn fade_out(&mut self, duration: Duration) -> AnimationHandle<DynAnimation<Fade>> {
+		let mut elapsed = Duration::ZERO;
+		let duration = duration.as_secs_f32();
+		self.start_animation(move |id, fade, t, mut ctrl| {
+			elapsed += t.delta();
+			let t = 1.0 - (elapsed.as_secs_f32() / duration);
+			let t = if t <= 0.0 {
+				ctrl.end();
+				0.0
+			} else {
+				t
+			};
+			ComponentDelta::diffable(id, t, Fade(t))
+		})
+	}
+}
+
 #[derive(Debug, Clone, Reflect)]
 pub struct UiMatBuilder {
 	pub fade: f32,
@@ -902,58 +944,81 @@ fn spawn_test_menu(
 					transform,
 					..default()
 				},
-				LineUpChildren {
-					relative_positions: Vec3::NEG_Z * 1.25,
-					align: Vec3::ZERO,
-				},
 				AdjacentWidgets::all(FocusTarget::Child(0));
 				#children:
-					( // "Testing..." text
-						Text3dBundle::<UiMat> {
-							text_3d: Text3d {
-								text: "Testing...".into(),
-								..default()
-							},
-							font: ui_fonts.mono_3d.clone(),
-							transform: Transform::from_translation(Vec3::NEG_Y),
-							material: mats.add(new_unlit_material()),
+					( // Border
+						WidgetBundle {
 							..default()
 						},
-						AdjacentWidgets::vertical_siblings(),
-					),
-					( // Test button
-						Button3dBundle {
-							shape: WidgetShape(SharedShape::capsule(
-								Point::new(0.0, -2.5, 0.0),
-								Point::new(0.0, 2.5, 0.0),
-								0.5,
-							)),
-							mesh: meshes.add(Capsule3d::new(0.5, 5.0)),
-							material: mats.add(UiMatBuilder::from(Color::ORANGE)),
-							transform: Transform {
-								rotation: Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
-								..default()
-							},
+						meshes.add(PlanarPolyLine {
+							points: polygon_points(6, 6.0, i as f32),
+							cross_section: polygon_points(3, 0.25, 0.5),
+							colors: vec![
+								vec![Color::WHITE],
+								vec![Color::RED],
+								vec![Color::BLUE],
+								vec![Color::GREEN],
+								vec![Color::CYAN],
+								vec![Color::FUCHSIA],
+							],
+							closed: false,
 							..default()
+						}.mesh().with_duplicated_vertices().with_computed_flat_normals()),
+						border_mat.clone(),
+						LineUpChildren {
+							relative_positions: Vec3::NEG_Z * 1.25,
+							align: Vec3::ZERO,
 						},
-						AdjacentWidgets::vertical_siblings();
-						#children: ( // Test button text
-							Text3dBundle::<UiMat> {
-								text_3d: Text3d {
-									text: "Test button".into(),
+						AdjacentWidgets::all(FocusTarget::Child(0));
+						#children:
+							( // "Testing..." text
+								Text3dBundle::<UiMat> {
+									text_3d: Text3d {
+										text: "Testing...".into(),
+										..default()
+									},
+									font: ui_fonts.mono_3d.clone(),
+									transform: Transform::from_translation(Vec3::NEG_Y),
+									material: mats.add(new_unlit_material()),
 									..default()
 								},
-								font: ui_fonts.mono_3d.clone(),
-								transform: Transform {
-									translation: Vec3::X,
-									rotation: Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
+								AdjacentWidgets::vertical_siblings(),
+							),
+							( // Test button
+								Button3dBundle {
+									shape: WidgetShape(SharedShape::capsule(
+										Point::new(0.0, -2.5, 0.0),
+										Point::new(0.0, 2.5, 0.0),
+										0.5,
+									)),
+									mesh: meshes.add(Capsule3d::new(0.5, 5.0)),
+									material: mats.add(UiMatBuilder::from(Color::ORANGE)),
+									transform: Transform {
+										rotation: Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
+										..default()
+									},
 									..default()
 								},
-								material: mats.add(new_unlit_material()),
-								..default()
-							},
-						),
+								AdjacentWidgets::vertical_siblings();
+								#children: ( // Test button text
+									Text3dBundle::<UiMat> {
+										text_3d: Text3d {
+											text: "Test button".into(),
+											..default()
+										},
+										font: ui_fonts.mono_3d.clone(),
+										transform: Transform {
+											translation: Vec3::X,
+											rotation: Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
+											..default()
+										},
+										material: mats.add(new_unlit_material()),
+										..default()
+									},
+								),
+							),
 					),
+
 				)
 		)
 		.id();
@@ -962,25 +1027,7 @@ fn spawn_test_menu(
 	let mut test_menu = cmds.spawn((
 		Name::new("TestMenu"),
 		CuboidPanelBundle {
-			panel: CuboidPanel {
-				size,
-				borders: std::iter::repeat(vec![
-					RectBorderDesc {
-						dilation: 1.0,
-						colors: Some([Color::BLACK; 4].into()),
-						material: border_mat.clone(),
-						..default()
-					},
-					RectBorderDesc {
-						dilation: -6.0,
-						colors: Some([Color::DARK_GRAY; 4].into()),
-						material: border_mat,
-						..default()
-					},
-				])
-				.collect(),
-				..default()
-			},
+			panel: CuboidPanel { size, ..default() },
 			transform: Transform {
 				translation: Vec3::new(6900.0, 4200.0, 0.0),
 				..default()

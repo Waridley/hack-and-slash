@@ -249,15 +249,16 @@ pub fn highlight_focus<const LAYER: Layer>(
 		&ViewVisibility,
 		&RenderLayers,
 	)>,
-	cams: Query<(&UiCam, &RenderLayers)>,
+	mut cams: Query<(&mut UiCam, &RenderLayers)>,
 ) {
-	let Some(focus) = cams
-		.iter()
+	let Some(mut ui_cam) = cams
+		.iter_mut()
 		.find(|(cam, cam_layers)| **cam_layers == RenderLayers::layer(LAYER))
-		.and_then(|(cam, _)| cam.focus)
+		.map(|(cam, _)| cam.map_unchanged(|cam| &mut cam.focus))
 	else {
 		return;
 	};
+	let Some(focus) = *ui_cam else { return };
 	match q.get(focus) {
 		Ok((id, xform, shape, vis, layers)) => {
 			if !**vis {
@@ -276,9 +277,12 @@ pub fn highlight_focus<const LAYER: Layer>(
 					"widgets should have a uniform scale -- only drawing using `scale.x`"
 				)
 			}
-			shape.draw_gizmo(&mut gizmos, pos, rot, scale.x * 1.05, Color::SEA_GREEN);
+			shape.draw_gizmo(&mut gizmos, pos, rot, scale.x, Color::SEA_GREEN);
 		}
-		Err(e) => error!("{e}"),
+		Err(e) => {
+			error!("couldn't get focused entity: {e}");
+			*ui_cam = None
+		}
 	}
 }
 
