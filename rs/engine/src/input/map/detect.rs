@@ -1,4 +1,5 @@
 use crate::{
+	draw::PlanarPolyLine,
 	input::{
 		map::{
 			icons::{Icon, InputIcons},
@@ -15,8 +16,8 @@ use crate::{
 	ui::{
 		layout::LineUpChildren,
 		widgets::{
-			CuboidFaces, CuboidPanel, CuboidPanelBundle, Font3d, RectBorderDesc, RectCorners,
-			Text3d, Text3dBundle,
+			CuboidFaces, CuboidPanel, CuboidPanelBundle, Font3d, Node3dBundle, RectCorners, Text3d,
+			Text3dBundle,
 		},
 		CamAnchor, GlobalUi, Popup, PopupsRoot, TextMeshCache, UiFonts, GLOBAL_UI_RENDER_LAYERS,
 	},
@@ -40,6 +41,7 @@ impl Plugin for DetectBindingPopupPlugin {
 pub fn setup(
 	mut events: EventReader<AssetEvent<Font3d>>,
 	mut cmds: Commands,
+	mut meshes: ResMut<Assets<Mesh>>,
 	mut mats: ResMut<Assets<ExtMat<DitherFade>>>,
 	ui_fonts: Res<UiFonts>,
 ) {
@@ -51,35 +53,7 @@ pub fn setup(
 				let mut cmds = cmds.spawn((
 					Popup,
 					CuboidPanelBundle {
-						panel: CuboidPanel {
-							size,
-							borders: CuboidFaces {
-								front: vec![RectBorderDesc {
-									width: 0.125,
-									dilation: 3.0,
-									depth: 0.125,
-									colors: Some(RectCorners {
-										top_right: Color::rgba(0.0, 0.2, 0.2, 0.6),
-										top_left: Color::rgba(0.0, 0.4, 0.1, 0.6),
-										bottom_left: Color::rgba(0.0, 0.2, 0.2, 0.6),
-										bottom_right: Color::rgba(0.0, 0.1, 0.4, 0.6),
-									}),
-									material: mats.add(ExtMat {
-										extension: default(),
-										base: Matter {
-											extension: DistanceDither::ui(),
-											base: StandardMaterial {
-												alpha_mode: AlphaMode::Blend,
-												..default()
-											},
-										},
-									}),
-									..default()
-								}],
-								..default()
-							},
-							..default()
-						},
+						panel: CuboidPanel { size, ..default() },
 						material: mats.add(ExtMat {
 							extension: default(),
 							base: Matter {
@@ -100,6 +74,39 @@ pub fn setup(
 				));
 
 				cmds.with_children(|cmds| {
+					cmds.spawn((
+						Node3dBundle {
+							transform: Transform {
+								translation: Vec3::NEG_Y * 0.5,
+								..default()
+							},
+							..default()
+						},
+						meshes.add(
+							PlanarPolyLine {
+								colors: vec![
+									vec![Color::rgba(0.0, 0.2, 0.2, 0.6)],
+									vec![Color::rgba(0.0, 0.4, 0.1, 0.6)],
+									vec![Color::rgba(0.0, 0.2, 0.2, 0.6)],
+									vec![Color::rgba(0.0, 0.1, 0.4, 0.6)],
+								],
+								..PlanarPolyLine::rect(8.0, 6.0, 0.25)
+							}
+							.mesh()
+							.with_duplicated_vertices()
+							.with_computed_flat_normals(),
+						),
+						mats.add(ExtMat {
+							extension: default(),
+							base: Matter {
+								extension: DistanceDither::ui(),
+								base: StandardMaterial {
+									alpha_mode: AlphaMode::Blend,
+									..default()
+								},
+							},
+						}),
+					));
 					cmds.spawn((Text3dBundle {
 						text_3d: Text3d {
 							text: "Press input(s) to bind...".into(),

@@ -449,6 +449,24 @@ impl StartAnimation for EntityCommands<'_> {
 	}
 }
 
+impl StartAnimation for EntityWorldMut<'_> {
+	fn start_animation<T: Component>(
+		&mut self,
+		animation: impl FnMut(Entity, Ref<T>, Res<Time>, AnimationController) -> ComponentDelta<T>
+			+ Send
+			+ Sync
+			+ 'static,
+	) -> AnimationHandle<DynAnimation<T>> {
+		let id = self.id();
+		self.world_scope(|world| {
+			let mut animation = world.spawn(DynAnimation(id, Box::new(animation)));
+			let handle = AnimationHandle(id, default());
+			animation.insert(handle);
+			handle
+		})
+	}
+}
+
 pub trait StartResAnimation {
 	fn start_res_animation<T: Resource>(
 		&mut self,

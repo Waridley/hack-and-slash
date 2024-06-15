@@ -1,4 +1,10 @@
-use crate::player::input::PlayerAction;
+use crate::{
+	player::input::PlayerAction,
+	ui::{
+		settings_menu,
+		settings_menu::{settings_sub_menu, SettingsMenu},
+	},
+};
 use bevy::{
 	app::AppExit,
 	ecs::{
@@ -9,6 +15,8 @@ use bevy::{
 	prelude::*,
 };
 use engine::{
+	anim::StartAnimation,
+	draw::PlanarPolyLine,
 	entity_tree,
 	input::InputState,
 	mats::{
@@ -16,12 +24,13 @@ use engine::{
 		fog::{DistanceDither, Matter},
 		ExtMat,
 	},
+	todo_warn,
 	ui::{
 		focus::{AdjacentWidgets, FocusTarget, Wedge2d},
 		layout::LineUpChildren,
 		widgets::{
 			dbg_event, new_unlit_material, on_ok, Button3dBundle, CuboidFaces, CuboidPanel,
-			CuboidPanelBundle, InteractHandlers, RectBorderDesc, RectCorners, Text3d, Text3dBundle,
+			CuboidPanelBundle, InteractHandlers, Node3dBundle, RectCorners, Text3d, Text3dBundle,
 			WidgetBundle, WidgetShape,
 		},
 		Fade, FadeCommands, GlobalUi, MenuStack, UiCam, UiFonts, UiMat, UiMatBuilder,
@@ -65,36 +74,70 @@ pub fn setup(
 	mut meshes: ResMut<Assets<Mesh>>,
 	ui_fonts: Res<UiFonts>,
 ) {
-	let material = mats.add(UiMatBuilder {
-		std: Color::rgba(0.5, 0.5, 0.5, 0.5).into(),
+	let btn_txt_mat = mats.add(UiMatBuilder {
+		std: StandardMaterial {
+			base_color: Color::BLACK,
+			unlit: true,
+			..default()
+		},
 		..default()
 	});
-	let pause_menu = entity_tree!(cmds; (
+	entity_tree!(cmds; (
 		Name::new("PauseMenu"),
 		CuboidPanelBundle {
-			panel: CuboidPanel::<UiMat> {
+			panel: CuboidPanel {
 				size: Vec3::new(12.0, 12.0, 12.0),
-				borders: CuboidFaces {
-					front: vec![RectBorderDesc {
-						colors: Some(RectCorners {
-							top_right: Color::WHITE,
-							top_left: Color::GREEN,
-							bottom_left: Color::BLUE,
-							bottom_right: Color::RED,
-						}),
-						material: mats.add(UiMatBuilder::default()),
-						..default()
-					}],
-					..default()
-				},
 				..default()
 			},
-			material,
+			material: mats.add(UiMatBuilder {
+				std: Color::rgba(0.5, 0.5, 0.5, 0.5).into(),
+				..default()
+			}),
 			..default()
 		},
 		Fade::ZERO,
 		AdjacentWidgets::all(FocusTarget::Child(0));
 		#children:
+			(
+				Name::new("border"),
+				Node3dBundle {
+					transform: Transform {
+						translation: Vec3::NEG_Y * 6.5,
+						..default()
+					},
+					..default()
+				},
+				meshes.add(
+					PlanarPolyLine {
+						colors: vec![
+							vec![Color::rgba(0.04, 0.005, 0.05, 0.8)],
+
+						],
+						..PlanarPolyLine::rect(12.0, 12.0, 0.5)
+					}
+					.mesh()
+					.with_duplicated_vertices()
+					.with_computed_flat_normals()
+				),
+				mats.add(UiMatBuilder::default())
+			),
+			(
+				Name::new("game_paused_text"),
+				Text3dBundle {
+					text_3d: Text3d {
+						text: "Game Paused".into(),
+						flat: false,
+						..default()
+					},
+					material: mats.add(UiMatBuilder::from(Color::WHITE)),
+					font: ui_fonts.mono_3d.clone(),
+					transform: Transform {
+						translation: Vec3::new(0.0, -6.5, 5.0),
+						..default()
+					},
+					..default()
+				},
+			),
 			(
 				Name::new("container"),
 				WidgetBundle {
@@ -109,23 +152,10 @@ pub fn setup(
 				AdjacentWidgets::all(FocusTarget::Child(0));
 				#children:
 					(
-						Name::new("game_paused_text"),
-						Text3dBundle {
-							text_3d: Text3d {
-								text: "Game Paused".into(),
-								..default()
-							},
-							material: mats.add(new_unlit_material()),
-							font: ui_fonts.mono_3d.clone(),
-							..default()
-						},
-						AdjacentWidgets::vertical_siblings(),
-					),
-					(
-						Name::new("resume_button"),
+						Name::new("resume_btn"),
 						Button3dBundle {
-							shape: WidgetShape(SharedShape::cuboid(3.0, 0.5, 0.5)),
-							mesh: meshes.add(Cuboid::new(6.0, 1.0, 1.0)),
+							shape: WidgetShape(SharedShape::cuboid(3.0, 0.6, 0.6)),
+							mesh: meshes.add(Cuboid::new(6.0, 1.2, 1.2)),
 							material: mats.add(UiMatBuilder {
 								std: StandardMaterial {
 									base_color: Color::BLACK,
@@ -134,7 +164,7 @@ pub fn setup(
 								},
 								..default()
 							}),
-							handlers: InteractHandlers(vec![
+							handlers: vec![
 								dbg_event(),
 								on_ok(|cmds| {
 									cmds.commands().add(|world: &mut World| {
@@ -142,7 +172,7 @@ pub fn setup(
 									});
 									ControlFlow::Break(())
 								}),
-							]),
+							].into(),
 							..default()
 						},
 						AdjacentWidgets::vertical_siblings()
@@ -150,20 +180,13 @@ pub fn setup(
 							cmds.set_enum(pause_menu_widget::ResumeButton);
 						};
 						#children: (
-							Name::new("resume_button_text"),
+							Name::new("resume_btn_text"),
 							Text3dBundle {
 								text_3d: Text3d { text: "Resume Game".into(), ..default() },
 								font: ui_fonts.mono_3d.clone(),
-								material: mats.add(UiMatBuilder {
-									std: StandardMaterial {
-										base_color: Color::BLACK,
-										unlit: true,
-										..default()
-									},
-									..default()
-								}),
+								material: btn_txt_mat.clone(),
 								transform: Transform {
-									translation: Vec3::NEG_Y,
+									translation: Vec3::NEG_Y * 0.61,
 									..default()
 								},
 								..default()
@@ -171,10 +194,61 @@ pub fn setup(
 						),
 					),
 					(
-						Name::new("quit_button"),
+						Name::new("settings_btn"),
 						Button3dBundle {
-							shape: WidgetShape(SharedShape::cuboid(2.2, 0.5, 0.5)),
-							mesh: meshes.add(Cuboid::new(4.4, 1.0, 1.0)),
+							shape: WidgetShape(SharedShape::cuboid(3.0, 0.6, 0.6)),
+							mesh: meshes.add(Cuboid::new(6.0, 1.2, 1.2)),
+							material: mats.add(UiMatBuilder {
+								std: StandardMaterial {
+									base_color: Color::BLACK,
+									emissive: Color::GRAY * 16.0,
+									..default()
+								},
+								..default()
+							}),
+							handlers: vec![
+								dbg_event(),
+								on_ok(|cmds| {
+									cmds.commands().add(|world: &mut World| {
+										let mut q = world.query_filtered::<Entity, With<SettingsMenu>>();
+										let panel_id = q.single(world);
+										world.entity_mut(panel_id).fade_in_secs(1.0);
+
+										let mut q = world.query_filtered::<Entity, WithVariant<settings_sub_menu::Top>>();
+										let id = q.single(world);
+										let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
+										let mut stack = q.single_mut(world);
+										stack.push(id);
+									});
+									ControlFlow::Break(())
+								}),
+							].into(),
+							..default()
+						},
+						AdjacentWidgets::vertical_siblings(),
+						=> |cmds| {
+							cmds.set_enum(pause_menu_widget::SettingsButton);
+						};
+						#children:
+							(
+								Name::new("settings_btn_text"),
+								Text3dBundle {
+									text_3d: Text3d { text: "Settings...".into(), ..default() },
+									font: ui_fonts.mono_3d.clone(),
+									material: btn_txt_mat.clone(),
+									transform: Transform {
+										translation: Vec3::NEG_Y * 0.61,
+										..default()
+									},
+									..default()
+								}
+							),
+					),
+					(
+						Name::new("quit_btn"),
+						Button3dBundle {
+							shape: WidgetShape(SharedShape::cuboid(2.2, 0.6, 0.6)),
+							mesh: meshes.add(Cuboid::new(4.4, 1.2, 1.2)),
 							material: mats.add(UiMatBuilder {
 								std: StandardMaterial {
 									base_color: Color::BLACK,
@@ -183,7 +257,7 @@ pub fn setup(
 								},
 								..default()
 							}),
-							handlers: InteractHandlers(vec![
+							handlers: vec![
 								dbg_event(),
 								on_ok(|cmds| {
 									cmds.commands().add(|world: &mut World| {
@@ -192,38 +266,31 @@ pub fn setup(
 									});
 									ControlFlow::Break(())
 								}),
-							]),
+							].into(),
 							..default()
 						},
-						AdjacentWidgets::vertical_siblings()
+						AdjacentWidgets::vertical_siblings(),
 						=> |cmds| {
 							cmds.set_enum(pause_menu_widget::QuitButton);
 						};
-						#children: (
-							Name::new("exit_button_text"),
-							Text3dBundle {
-								text_3d: Text3d { text: "Exit Game".into(), ..default() },
-								font: ui_fonts.mono_3d.clone(),
-								material: mats.add(UiMatBuilder {
-									std: StandardMaterial {
-										base_color: Color::BLACK,
-										unlit: true,
+						#children:
+							(
+								Name::new("quit_btn_text"),
+								Text3dBundle {
+									text_3d: Text3d { text: "Exit Game".into(), ..default() },
+									font: ui_fonts.mono_3d.clone(),
+									material: btn_txt_mat.clone(),
+									transform: Transform {
+										translation: Vec3::NEG_Y * 0.61,
 										..default()
 									},
 									..default()
-								}),
-								transform: Transform {
-									translation: Vec3::NEG_Y,
-									..default()
-								},
-								..default()
-							}
-						),
+								}
+							),
 					),
 			),
 	))
-	.with_enum(pause_menu_widget::Panel)
-	.id();
+	.with_enum(pause_menu_widget::Panel);
 }
 
 #[derive(EnumComponent)]
@@ -231,6 +298,7 @@ pub fn setup(
 pub enum PauseMenuWidget {
 	Panel,
 	ResumeButton,
+	SettingsButton,
 	QuitButton,
 }
 

@@ -4,7 +4,7 @@ use crate::{
 	ui::{
 		a11y::AKNode, TextMeshCache, UiAction, UiCam, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
 	},
-	util::Prev,
+	util::{Prev, ZUp},
 };
 use bevy::{
 	a11y::accesskit::{NodeBuilder, Role},
@@ -102,38 +102,32 @@ impl Default for WidgetBundle {
 	}
 }
 
-#[derive(Component, Clone, Debug)]
-pub struct CuboidPanel<BM: Material = UiMat> {
+#[derive(Component, Clone, Debug, Reflect)]
+#[reflect(Component)]
+pub struct CuboidPanel {
 	pub size: Vec3,
 	pub colors: Option<CuboidFaces<RectCorners<Color>>>,
-	pub borders: CuboidFaces<Vec<RectBorderDesc<BM>>>,
 }
 
-impl<BM: Material> Default for CuboidPanel<BM> {
+impl Default for CuboidPanel {
 	fn default() -> Self {
 		Self {
 			size: Vec3::ONE,
 			colors: default(),
-			borders: default(),
 		}
 	}
 }
 
-#[derive(Component, Default, Clone, Debug, Deref, DerefMut)]
-pub struct CuboidPanelBorders(pub CuboidFaces<Vec<Entity>>);
-
-node_3d! { CuboidPanelBundle<M: Material = UiMat, BM: Material = UiMat> {
-	panel: CuboidPanel<BM>,
+node_3d! { CuboidPanelBundle<M: Material = UiMat> {
+	panel: CuboidPanel,
 	material: Handle<M>,
-	border_entities: CuboidPanelBorders,
 }}
 
-impl<M: Material, BM: Material> Default for CuboidPanelBundle<M, BM> {
+impl<M: Material> Default for CuboidPanelBundle<M> {
 	fn default() -> Self {
 		Self {
 			panel: default(),
 			material: default(),
-			border_entities: default(),
 			handlers: default(),
 			transform: default(),
 			global_transform: default(),
@@ -146,27 +140,13 @@ impl<M: Material, BM: Material> Default for CuboidPanelBundle<M, BM> {
 	}
 }
 
-impl<BM: Material> CuboidPanel<BM> {
+impl CuboidPanel {
 	pub fn sync(
 		mut cmds: Commands,
-		mut q: Query<(Entity, &Self, &RenderLayers, &mut CuboidPanelBorders), Changed<Self>>,
+		mut q: Query<(Entity, &Self), Changed<Self>>,
 		mut meshes: ResMut<Assets<Mesh>>,
 	) {
-		for (
-			id,
-			CuboidPanel {
-				size,
-				colors,
-				borders,
-			},
-			layers,
-			mut border_entities,
-		) in &mut q
-		{
-			for id in border_entities.iter().flatten() {
-				// Despawn old borders if changed rather than just added
-				cmds.get_entity(*id).map(EntityCommands::despawn_recursive);
-			}
+		for (id, CuboidPanel { size, colors }) in &mut q {
 			let mut cmds = cmds.entity(id);
 			let Vec3 {
 				x: hx,
@@ -187,160 +167,90 @@ impl<BM: Material> CuboidPanel<BM> {
 			}
 			let mesh = mesh.with_duplicated_vertices().with_computed_flat_normals();
 			cmds.insert(meshes.add(mesh));
-			cmds.with_children(|cmds| {
-				**border_entities = CuboidFaces {
-					front: Rectangle::new(size.x, size.z),
-					back: Rectangle::new(size.x, size.z),
-					left: Rectangle::new(size.y, size.z),
-					right: Rectangle::new(size.y, size.z),
-					top: Rectangle::new(size.x, size.y),
-					bottom: Rectangle::new(size.x, size.y),
-				}
-				.into_iter()
-				.zip(borders.iter())
-				.zip(CuboidFaces::NORMALS)
-				.map(|((rect, desc), norm)| {
-					desc.into_iter()
-						.map(|desc| {
-							let RectBorderDesc {
-								width,
-								depth,
-								dilation,
-								protrusion,
-								colors,
-								material,
-							} = desc.clone();
-							let mesh = rect.border(width, depth, dilation, colors);
-							cmds.spawn((
-								MaterialMeshBundle {
-									mesh: meshes.add(mesh),
-									material,
-									transform: Transform {
-										translation: (norm * *size * 0.5)
-											+ (norm * (depth * protrusion * 0.5)),
-										rotation: Quat::from_rotation_arc(Vec3::NEG_Y, norm),
-										..default()
-									},
-									..default()
-								},
-								*layers,
-							))
-							.id()
-						})
-						.collect::<Vec<_>>()
-				})
-				.collect();
-			});
 		}
 	}
 }
 
-#[derive(Debug, Clone)]
-pub struct RectBorderDesc<M: Material = UiMat> {
-	pub width: f32,
-	pub depth: f32,
-	/// Grow or shrink the border proportional to `width`.
-	/// - Default = `-1.0`
-	pub dilation: f32,
-	/// Offset the border behind (negative) or in front of (positive) the panel,
-	/// proportional to `depth`.
-	/// - Default = `1.01` (to avoid z-fighting)
-	pub protrusion: f32,
-	pub colors: Option<RectCorners<Color>>,
-	pub material: Handle<M>,
-}
-
-impl<M: Material> Default for RectBorderDesc<M> {
-	fn default() -> Self {
-		Self {
-			width: 0.25,
-			depth: 0.25,
-			dilation: -1.0,
-			protrusion: 1.01,
-			colors: default(),
-			material: default(),
-		}
-	}
-}
-
-impl<M: Material> RectBorderDesc<M> {
-	pub fn mesh_for(self, rect: Rectangle) -> Mesh {
-		rect.border(self.width, self.depth, self.dilation, self.colors)
-	}
-}
-
-#[derive(Component, Debug, Clone)]
-pub struct CylinderPanel<BM: Material> {
+#[derive(Component, Debug, Clone, Reflect)]
+#[reflect(Component)]
+pub struct CylinderPanel {
 	pub radius: f32,
 	pub length: f32,
-	pub subdivisions: usize,
-	pub borders: CylinderFaces<Option<CircleBorderDesc<BM>>, Option<RectBorderDesc<BM>>>,
+	pub subdivisions: u32,
 }
 
-impl<BM: Material> Default for CylinderPanel<BM> {
+impl Default for CylinderPanel {
 	fn default() -> Self {
 		Self {
 			radius: 1.0,
 			length: 1.0,
 			subdivisions: 6,
-			borders: default(),
 		}
 	}
 }
 
-node_3d! { CylinderPanelBundle<M: Material, BM: Material> {
-	panel: CylinderPanel<BM>,
+impl CylinderPanel {
+	pub fn sync(
+		mut cmds: Commands,
+		q: Query<(Entity, &Self), Changed<Self>>,
+		mut meshes: ResMut<Assets<Mesh>>,
+	) {
+		for (
+			id,
+			Self {
+				radius,
+				length,
+				subdivisions,
+			},
+		) in &q
+		{
+			let builder = Cylinder {
+				radius: *radius,
+				half_height: *length * 0.5,
+			}
+			.mesh()
+			.resolution(*subdivisions);
+			debug!(?builder);
+			let mut mesh = Mesh::from(builder)
+				.z_up()
+				.with_duplicated_vertices()
+				.with_computed_flat_normals();
+			mesh.asset_usage = RenderAssetUsages::RENDER_WORLD;
+			let handle = meshes.add(mesh);
+			cmds.entity(id).insert(handle.clone());
+			let mesh = meshes.get(&handle);
+			debug!(?handle, ?mesh);
+		}
+	}
+}
+
+node_3d! { CylinderPanelBundle<M: Material = UiMat> {
+	panel: CylinderPanel,
 	material: Handle<M>,
-	border_entities: CylinderPanelBorderEntities,
 }}
 
-impl<M: Material, BM: Material> Default for CylinderPanelBundle<M, BM> {
+impl<M: Material> Default for CylinderPanelBundle<M> {
 	fn default() -> Self {
 		Self {
 			panel: default(),
 			material: default(),
-			border_entities: default(),
 			handlers: default(),
 			transform: default(),
 			global_transform: default(),
 			visibility: default(),
 			inherited_visibility: default(),
 			view_visibility: default(),
-			layers: default(),
+			layers: GLOBAL_UI_RENDER_LAYERS,
 			ak_node: NodeBuilder::new(Role::Pane).into(),
 		}
 	}
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Reflect)]
 pub struct CylinderFaces<Ends, Sides> {
 	pub top: Ends,
 	pub bottom: Ends,
 	pub sides: Vec<Sides>,
-}
-
-#[derive(Debug, Clone)]
-pub struct CircleBorderDesc<M: Material> {
-	pub subdivisions: usize,
-	pub dilation: f32,
-	pub width: f32,
-	pub depth: f32,
-	pub protrusion: f32,
-	pub colors: Vec<Color>,
-	pub material: Handle<M>,
-}
-
-#[derive(Component, Deref, DerefMut, Clone)]
-pub struct CylinderPanelBorderEntities(pub CylinderFaces<Entity, Entity>);
-
-impl Default for CylinderPanelBorderEntities {
-	fn default() -> Self {
-		Self(CylinderFaces {
-			top: Entity::PLACEHOLDER,
-			bottom: Entity::PLACEHOLDER,
-			sides: default(),
-		})
-	}
 }
 
 /// The default for text and SVG should be unlit, so this ID allows setting
@@ -539,80 +449,7 @@ impl<M: Material> Default for Button3dBundle<M> {
 	}
 }
 
-pub trait BorderMesh {
-	type Colors;
-
-	/// `width`: the thickness of the border when viewed straight-on.
-	/// `depth`: How far the border sticks out from the face of the rectangle.
-	/// `dilation`: `-1.0` = an internal border. `1.0` = an external border.
-	fn border(&self, width: f32, depth: f32, dilation: f32, colors: Option<Self::Colors>) -> Mesh;
-}
-
-impl BorderMesh for Rectangle {
-	type Colors = RectCorners<Color>;
-
-	fn border(&self, width: f32, depth: f32, dilation: f32, colors: Option<Self::Colors>) -> Mesh {
-		let tr = self.half_size;
-		let tl = Vec2::new(-tr.x, tr.y);
-		let bl = -tr;
-		let br = Vec2::new(tr.x, -tr.y);
-		let positions = [tr, tl, bl, br]
-			.into_iter()
-			.flat_map(|Vec2 { x, y }| {
-				let xs = x.signum();
-				let ys = y.signum();
-				let o_offset = width * (dilation + 1.0) * 0.5;
-				let outer = Vec2::new(x + (xs * o_offset), y + (ys * o_offset));
-				let i_offset = width * (dilation - 1.0) * 0.5;
-				let inner = Vec2::new(x + (xs * i_offset), y + (ys * i_offset));
-				[
-					[inner.x, -depth * 0.5, inner.y],
-					[outer.x, -depth * 0.5, outer.y],
-					[outer.x, depth * 0.5, outer.y],
-					[inner.x, depth * 0.5, inner.y],
-				]
-			})
-			.collect::<Vec<_>>();
-
-		let indices = [0, 1, 2, 3, 0]
-			.windows(2)
-			.flat_map(|vert_pair| {
-				[0, 1, 2, 3, 0].windows(2).flat_map(|corner_pair| {
-					[
-						(corner_pair[0] * 4) + vert_pair[0],
-						(corner_pair[0] * 4) + vert_pair[1],
-						(corner_pair[1] * 4) + vert_pair[0],
-						(corner_pair[1] * 4) + vert_pair[0],
-						(corner_pair[0] * 4) + vert_pair[1],
-						(corner_pair[1] * 4) + vert_pair[1],
-					]
-				})
-			})
-			.collect::<Vec<_>>();
-
-		let mut mesh = Mesh::new(TriangleList, RenderAssetUsages::RENDER_WORLD)
-			.with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions);
-
-		if let Some(colors) = colors {
-			use std::iter::repeat;
-			let colors: [Color; 4] = colors.into();
-			let colors = repeat(colors[0].as_rgba_f32())
-				.take(4)
-				.chain(repeat(colors[1].as_rgba_f32()).take(4))
-				.chain(repeat(colors[2].as_rgba_f32()).take(4))
-				.chain(repeat(colors[3].as_rgba_f32()).take(4))
-				.collect::<Vec<_>>();
-
-			mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colors);
-		}
-
-		mesh.with_inserted_indices(Indices::U16(indices))
-			.with_duplicated_vertices()
-			.with_computed_flat_normals()
-	}
-}
-
-#[derive(Copy, Clone, Default, Debug)]
+#[derive(Copy, Clone, Default, Debug, Reflect)]
 pub struct RectCorners<T> {
 	pub top_right: T,
 	pub top_left: T,
@@ -714,7 +551,7 @@ impl<T> From<CuboidCorners<T>> for [T; 8] {
 	}
 }
 
-#[derive(Copy, Clone, Default, Debug)]
+#[derive(Copy, Clone, Default, Debug, Reflect)]
 pub struct CuboidFaces<T> {
 	pub front: T,
 	pub back: T,
@@ -939,7 +776,7 @@ impl WidgetShape {
 				cylinder_gizmo(gizmos, a, b, cylinder.radius * scale, color);
 			}
 			TypedShape::Cone(_) => todo_warn!("Gizmo for WidgetShape(Cone)"),
-			TypedShape::RoundCuboid(_) => {
+			TypedShape::RoundCuboid(round_cuboid) => {
 				todo_warn!("Gizmo for WidgetShape(RoundCuboid)")
 			}
 			TypedShape::RoundTriangle(_) => {
@@ -983,7 +820,7 @@ pub type InteractHandler =
 	dyn Fn(Interaction, &mut EntityCommands) -> ControlFlow<()> + Send + Sync + 'static;
 
 #[derive(Component, Deref, DerefMut, Clone)]
-pub struct InteractHandlers(pub Vec<(Arc<InteractHandler>)>);
+pub struct InteractHandlers(pub Vec<(CowArc<'static, InteractHandler>)>);
 
 impl Default for InteractHandlers {
 	fn default() -> Self {
@@ -991,8 +828,14 @@ impl Default for InteractHandlers {
 	}
 }
 
-pub fn dbg_event() -> Arc<InteractHandler> {
-	Arc::new(|ev, _| {
+impl From<Vec<CowArc<'static, InteractHandler>>> for InteractHandlers {
+	fn from(value: Vec<CowArc<'static, InteractHandler>>) -> Self {
+		Self(value)
+	}
+}
+
+pub fn dbg_event() -> CowArc<'static, InteractHandler> {
+	CowArc::Static(&|ev, _| {
 		match &ev.kind {
 			InteractionKind::Hold(_) => trace!(?ev),
 			_ => debug!(?ev),
@@ -1003,8 +846,8 @@ pub fn dbg_event() -> Arc<InteractHandler> {
 
 pub fn on_ok(
 	handler: impl Fn(&mut EntityCommands) -> ControlFlow<()> + Send + Sync + 'static,
-) -> Arc<InteractHandler> {
-	Arc::new(move |ev, cmds| {
+) -> CowArc<'static, InteractHandler> {
+	CowArc::Owned(Arc::new(move |ev, cmds| {
 		if ev
 			== (Interaction {
 				source: InteractionSource::Action(UiAction::Ok),
@@ -1014,7 +857,7 @@ pub fn on_ok(
 		} else {
 			ControlFlow::Continue(())
 		}
-	})
+	}))
 }
 
 impl InteractHandlers {
@@ -1106,8 +949,8 @@ fn propagate_interaction(
 	ControlFlow::Continue(())
 }
 
-impl FromIterator<Arc<InteractHandler>> for InteractHandlers {
-	fn from_iter<T: IntoIterator<Item = Arc<InteractHandler>>>(iter: T) -> Self {
+impl FromIterator<CowArc<'static, InteractHandler>> for InteractHandlers {
+	fn from_iter<T: IntoIterator<Item = CowArc<'static, InteractHandler>>>(iter: T) -> Self {
 		Self(iter.into_iter().collect())
 	}
 }
