@@ -176,7 +176,7 @@ pub fn spawn_ui_camera<ID: Bundle + Clone>(
 		TransformBundle::default(),
 		VisibilityBundle::default(),
 		MenuStack::default(),
-		FocusStack::default(),
+		PrevFocus::default(),
 		layers,
 	))
 	.with_children(|cmds| {
@@ -281,9 +281,7 @@ pub struct GlobalUi;
 /// Component for any UI camera entity, player or global.
 #[derive(Component, Default, Copy, Clone, Debug, Reflect)]
 #[reflect(Component)]
-pub struct UiCam {
-	pub focus: Option<Entity>,
-}
+pub struct UiCam;
 
 /// Add this component to the parent of each UI camera
 #[derive(Component, Reflect, Copy, Clone, Debug)]
@@ -592,11 +590,36 @@ pub fn reset_hovered(mut ui_hovered: ResMut<UiHovered>) {
 
 #[derive(Component, Default, Debug, Reflect, Deref, DerefMut)]
 #[reflect(Component)]
-pub struct MenuStack(pub Vec<Entity>);
+pub struct MenuStack(pub Vec<MenuRef>);
 
-#[derive(Component, Default, Debug, Reflect, Deref, DerefMut)]
-#[reflect(Component)]
-pub struct FocusStack(pub Vec<Entity>);
+#[derive(Debug, Copy, Clone, Reflect)]
+pub struct MenuRef {
+	/// The root entity of the menu, usually containing a [Fade] component for fading in and
+	/// out the menu as it is opened and closed.
+	pub root: Entity,
+	/// Entity whose transform `CamAnchor` should follow.
+	/// Usually the same as `root`, unless the menu is large enough to scroll, or there is some
+	/// other reason the camera should not be anchored at `root`.
+	pub cam_target: Entity,
+	/// The currently focused widget in this menu.
+	pub focus: Entity,
+}
+
+impl MenuRef {
+	pub const INVALID: Self = Self {
+		root: Entity::PLACEHOLDER,
+		cam_target: Entity::PLACEHOLDER,
+		focus: Entity::PLACEHOLDER,
+	};
+
+	pub fn new(root: Entity) -> Self {
+		Self {
+			root,
+			cam_target: root,
+			focus: root,
+		}
+	}
+}
 
 pub fn anchor_follow_menu(
 	mut q: Query<(&mut Transform, &MenuStack)>,
@@ -605,7 +628,7 @@ pub fn anchor_follow_menu(
 ) {
 	for (mut xform, stack) in &mut q {
 		if let Some(node) = stack.last() {
-			let target = match nodes.get(*node) {
+			let target = match nodes.get(node.cam_target) {
 				Ok(node) => node,
 				Err(e) => {
 					error!("{e}");
@@ -613,7 +636,7 @@ pub fn anchor_follow_menu(
 				}
 			};
 
-			let new = xform.lerp_slerp(target.compute_transform(), t.delta_seconds() * 3.0);
+			let new = xform.lerp_slerp(target.compute_transform(), t.delta_seconds() * 4.0);
 			if *xform != new {
 				*xform = new;
 			}
@@ -624,7 +647,7 @@ pub fn anchor_follow_menu(
 use crate::{
 	anim::{AnimationHandle, Delta, DynAnimation},
 	draw::{polygon_points, square_points, PlanarPolyLine},
-	ui::widgets::{new_unlit_material, CylinderPanel},
+	ui::widgets::{new_unlit_material, CylinderPanel, PrevFocus},
 };
 #[cfg(feature = "debugging")]
 use bevy_inspector_egui::{
@@ -1065,7 +1088,6 @@ fn toggle_test_menu(
 	mut cmds: Commands,
 	mut q: Query<(Entity, &TestMenu)>,
 	mut stack: Query<&mut MenuStack, With<GlobalUi>>,
-	mut cam: Query<&mut UiCam, With<GlobalUi>>,
 	input: Res<ButtonInput<KeyCode>>,
 	mut focus: ResMut<Focus>,
 	mut state: ResMut<StateStack<InputState>>,
@@ -1087,17 +1109,11 @@ fn toggle_test_menu(
 					cmds.entity(id).fade_in_secs(0.5);
 					state.push(InputState::InMenu);
 				}
-				stack.push(child);
+				stack.push(MenuRef::new(child));
 				*i = usize::min(*i + 1, info.faces.len());
 			}
 			Err(e) => error!("{e}"),
 		};
-		match cam.get_single_mut() {
-			Ok(mut cam) => {
-				cam.focus = Some(child);
-			}
-			Err(e) => error!("{e}"),
-		}
 	}
 	if input.just_pressed(KeyCode::Comma) {
 		match stack.get_single_mut() {
@@ -1111,12 +1127,6 @@ fn toggle_test_menu(
 					stack.pop();
 				}
 				*i = i.saturating_sub(1);
-				match cam.get_single_mut() {
-					Ok(mut cam) => {
-						cam.focus = stack.last().copied();
-					}
-					Err(e) => error!("{e}"),
-				}
 			}
 			Err(e) => error!("{e}"),
 		};

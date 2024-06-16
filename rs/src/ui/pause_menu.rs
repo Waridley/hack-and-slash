@@ -33,7 +33,7 @@ use engine::{
 			CuboidPanelBundle, InteractHandlers, Node3dBundle, RectCorners, Text3d, Text3dBundle,
 			WidgetBundle, WidgetShape,
 		},
-		Fade, FadeCommands, GlobalUi, MenuStack, UiCam, UiFonts, UiMat, UiMatBuilder,
+		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiCam, UiFonts, UiMat, UiMatBuilder,
 	},
 	util::{Flat, StateStack},
 };
@@ -90,7 +90,7 @@ pub fn setup(
 				..default()
 			},
 			material: mats.add(UiMatBuilder {
-				std: Color::rgba(0.5, 0.5, 0.5, 0.5).into(),
+				std: Color::rgba(0.3, 0.3, 0.3, 0.3).into(),
 				..default()
 			}),
 			..default()
@@ -108,16 +108,9 @@ pub fn setup(
 					..default()
 				},
 				meshes.add(
-					PlanarPolyLine {
-						colors: vec![
-							vec![Color::rgba(0.04, 0.005, 0.05, 0.8)],
-
-						],
-						..PlanarPolyLine::rect(12.0, 12.0, 0.5)
-					}
-					.flat()
+					PlanarPolyLine::rect(12.0, 12.0, 0.5).flat()
 				),
-				mats.add(UiMatBuilder::default())
+				mats.add(UiMatBuilder::from(Color::rgba(0.12, 0.004, 0.15, 0.92)))
 			),
 			(
 				Name::new("game_paused_text"),
@@ -210,17 +203,13 @@ pub fn setup(
 									cmds.commands().add(|world: &mut World| {
 										let mut q = world.query_filtered::<Entity, With<SettingsMenu>>();
 										let panel_id = q.single(world);
-										world.entity_mut(panel_id).fade_in_secs(2.0);
+										world.entity_mut(panel_id).fade_in_secs(1.5);
 
 										let mut q = world.query_filtered::<Entity, WithVariant<settings_sub_menu::Top>>();
 										let id = q.single(world);
 										let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
 										let mut stack = q.single_mut(world);
-										stack.push(id);
-
-										let mut q = world.query_filtered::<&mut UiCam, With<GlobalUi>>();
-										let mut cam = q.single_mut(world);
-										cam.focus = Some(id);
+										stack.push(MenuRef::new(id));
 									});
 									ControlFlow::Break(())
 								}),
@@ -316,7 +305,7 @@ pub fn show_pause_menu(
 	for actions in &actions_q {
 		if actions.just_pressed(&PlayerAction::PauseGame) {
 			let mut stack = stack.single();
-			if stack.last() == Some(&id) {
+			if stack.last().map(|menu| menu.root) == Some(id) {
 				cmds.run_system(systems.unpause);
 			} else if states.last() == Some(&InputState::InGame) {
 				cmds.run_system(systems.pause);
@@ -328,19 +317,19 @@ pub fn show_pause_menu(
 pub fn pause(
 	mut cmds: Commands,
 	mut stack: Query<&mut MenuStack, With<GlobalUi>>,
-	mut cam: Query<&mut UiCam, With<GlobalUi>>,
 	panel: Query<Entity, WithVariant<pause_menu_widget::Panel>>,
 	resume_btn: Query<Entity, WithVariant<pause_menu_widget::ResumeButton>>,
 	mut states: ResMut<StateStack<InputState>>,
 ) {
 	let id = panel.single();
 	let mut stack = stack.single_mut();
-	let mut cam = cam.single_mut();
 	if states.last() == Some(&InputState::InGame) {
 		cmds.entity(id).fade_in_secs(0.5);
 		states.push(InputState::InMenu);
-		stack.push(id);
-		cam.focus = Some(resume_btn.single());
+		stack.push(MenuRef {
+			focus: resume_btn.single(),
+			..MenuRef::new(id)
+		});
 	} else {
 		error!("Can't pause game while it's not running");
 	}
@@ -349,19 +338,16 @@ pub fn pause(
 pub fn unpause(
 	mut cmds: Commands,
 	mut stack: Query<&mut MenuStack, With<GlobalUi>>,
-	mut cam: Query<&mut UiCam, With<GlobalUi>>,
 	panel: Query<Entity, WithVariant<pause_menu_widget::Panel>>,
 	mut states: ResMut<StateStack<InputState>>,
 ) {
 	let id = panel.single();
 	let mut stack = stack.single_mut();
-	let mut cam = cam.single_mut();
-	if stack.last() == Some(&id) {
+	if stack.last().map(|menu| menu.root) == Some(id) {
 		debug_assert_eq!(states.last(), Some(&InputState::InMenu));
 		cmds.entity(id).fade_out_secs(0.5);
 		states.pop();
 		stack.pop();
-		cam.focus = stack.last().copied();
 	} else {
 		error!("Pause menu isn't the top of the MenuStack");
 	}

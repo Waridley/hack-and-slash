@@ -2,7 +2,8 @@ use crate::{
 	mats::{fade::DitherFade, fog::DistanceDither},
 	todo_warn,
 	ui::{
-		a11y::AKNode, TextMeshCache, UiAction, UiCam, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
+		a11y::AKNode, MenuStack, TextMeshCache, UiAction, UiCam, UiMat, UiMatBuilder,
+		GLOBAL_UI_RENDER_LAYERS,
 	},
 	util::{Prev, ZUp},
 };
@@ -804,10 +805,11 @@ impl From<Vec<CowArc<'static, InteractHandler>>> for InteractHandlers {
 }
 
 pub fn dbg_event() -> CowArc<'static, InteractHandler> {
-	CowArc::Static(&|ev, _| {
+	CowArc::Static(&|ev, cmds| {
+		let id = cmds.id();
 		match &ev.kind {
-			InteractionKind::Hold(_) => trace!(?ev),
-			_ => debug!(?ev),
+			InteractionKind::Hold(_) => trace!(?id, ?ev),
+			_ => debug!(?id, ?ev),
 		};
 		ControlFlow::Continue(())
 	})
@@ -872,19 +874,21 @@ impl InteractHandlers {
 		parents: Query<&Parent>,
 		global_state: Res<ActionState<UiAction>>,
 		states: Query<(&ActionState<UiAction>, &RenderLayers)>,
-		cams: Query<(Ref<UiCam>, &RenderLayers)>,
+		mut stacks: Query<(Ref<MenuStack>, &mut PrevFocus, &RenderLayers)>,
 	) {
 		for (state, layers) in
 			std::iter::once((&*global_state, &GLOBAL_UI_RENDER_LAYERS)).chain(&states)
 		{
-			let Some((cam, _)) = cams
-				.iter()
-				.find(|(cam, cam_layers)| **cam_layers == *layers)
+			let Some((stack, mut prev_focus, _)) = stacks
+				.iter_mut()
+				.find(|(_, _, cam_layers)| **cam_layers == *layers)
 			else {
 				error!("no camera for {layers:?}");
 				continue;
 			};
-			let Some(focus) = cam.focus else { continue };
+			let Some(focus) = stack.last().map(|menu| menu.focus) else {
+				continue;
+			};
 			for action in state.get_just_pressed() {
 				let ev = Interaction {
 					source: InteractionSource::Action(action),
@@ -909,20 +913,38 @@ impl InteractHandlers {
 				};
 				propagate_interaction(&mut cmds, focus, ev, &q, &parents);
 			}
-			if cam.is_changed() {
-				// FIXME: If other fields are added to `UiCam`, this might create false positives
-				let ev = Interaction {
+			if focus != **prev_focus {
+				let begin = Interaction {
 					source: InteractionSource::Focus,
 					kind: InteractionKind::Begin,
 				};
 				// Focus events don't propagate
 				q.get(focus)
-					.map(|handlers| handlers.handle(ev, &mut cmds.entity(focus)))
+					.map(|handlers| handlers.handle(begin, &mut cmds.entity(focus)))
 					.inspect_err(|e| error!("{e}"))
 					.ok();
+
+				let release = Interaction {
+					source: InteractionSource::Focus,
+					kind: InteractionKind::Release,
+				};
+				q.get(**prev_focus)
+					.map(|handlers| handlers.handle(release, &mut cmds.entity(**prev_focus)))
+					.inspect_err(|e| error!("{e}"))
+					.ok();
+				**prev_focus = focus;
 			}
-			// FIXME: Hold/release focus events
 		}
+	}
+}
+
+#[derive(Component, Debug, Copy, Clone, Reflect, Deref, DerefMut)]
+#[reflect(Component)]
+pub struct PrevFocus(pub Entity);
+
+impl Default for PrevFocus {
+	fn default() -> Self {
+		Self(Entity::PLACEHOLDER)
 	}
 }
 

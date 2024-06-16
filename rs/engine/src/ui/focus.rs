@@ -184,7 +184,7 @@ impl AdjacentWidgets {
 pub fn resolve_focus(
 	q: Query<(&AdjacentWidgets, Option<&Parent>, &RenderLayers)>,
 	parents: Query<&Children>,
-	mut cams: Query<(&mut UiCam, &RenderLayers)>,
+	mut stacks: Query<(&mut MenuStack, &RenderLayers)>,
 	actions: Query<(&ActionState<UiAction>, &RenderLayers)>,
 	glob_actions: Res<ActionState<UiAction>>,
 	mut focus: ResMut<Focus>,
@@ -193,30 +193,34 @@ pub fn resolve_focus(
 	for (state, layers) in
 		std::iter::once((&*glob_actions, &GLOBAL_UI_RENDER_LAYERS)).chain(actions.iter())
 	{
-		let Some((mut cam, _)) = cams
+		let Some((mut cam, _)) = stacks
 			.iter_mut()
 			.find(|(_, cam_layers)| **cam_layers == *layers)
 		else {
-			error!("`UiCam` should exist for all `RenderLayers` for which `ActionState<UiAction>` exists");
+			error!("`MenuStack` should exist for all `RenderLayers` for which `ActionState<UiAction>` exists");
 			continue;
 		};
-		let Some((curr_id, mut curr)) = cam
-			.focus
-			.and_then(|curr_id| q.get(curr_id).ok().map(|curr| (curr_id, curr)))
+		let Some((mut menu, mut curr)) = cam
+			.last_mut()
+			.and_then(|menu| q.get(menu.focus).ok().map(|curr| (menu, curr)))
 		else {
 			continue;
 		};
 
 		if state.just_pressed(&UiAction::FocusNext) {
 			if let Some(next) = &curr.0.next {
-				cam.focus = next.resolve(curr_id, curr.1, &parents);
-				focus.0 = cam.focus;
+				menu.focus = next
+					.resolve(menu.focus, curr.1, &parents)
+					.unwrap_or(menu.focus);
+				focus.0 = Some(menu.focus);
 			}
 		}
 		if state.just_pressed(&UiAction::FocusPrev) {
 			if let Some(prev) = &curr.0.prev {
-				cam.focus = prev.resolve(curr_id, curr.1, &parents);
-				focus.0 = cam.focus;
+				menu.focus = prev
+					.resolve(menu.focus, curr.1, &parents)
+					.unwrap_or(menu.focus);
+				focus.0 = Some(menu.focus);
 			}
 		}
 		if let Some(dir) = state.clamped_axis_pair(&UiAction::MoveCursor) {
@@ -231,8 +235,10 @@ pub fn resolve_focus(
 					.unzip();
 				if *prev_cursor != dir {
 					if let Some(target) = target {
-						cam.focus = target.resolve(curr_id, curr.1, &parents);
-						focus.0 = cam.focus;
+						menu.focus = target
+							.resolve(menu.focus, curr.1, &parents)
+							.unwrap_or(menu.focus);
+						focus.0 = Some(menu.focus);
 					}
 					*prev_cursor = dir;
 				}
@@ -254,16 +260,22 @@ pub fn highlight_focus<const LAYER: Layer>(
 		&ViewVisibility,
 		&RenderLayers,
 	)>,
-	mut cams: Query<(&mut UiCam, &RenderLayers)>,
+	mut stack: Query<(&mut MenuStack, &RenderLayers)>,
 ) {
-	let Some(mut ui_cam) = cams
+	let Some(mut focus) = stack
 		.iter_mut()
-		.find(|(cam, cam_layers)| **cam_layers == RenderLayers::layer(LAYER))
-		.map(|(cam, _)| cam.map_unchanged(|cam| &mut cam.focus))
+		.find(|(stack, layers)| **layers == RenderLayers::layer(LAYER))
+		.and_then(|(stack, _)| {
+			if stack.last().is_some() {
+				Some(stack.map_unchanged(|stack| &mut stack.last_mut().unwrap().focus))
+			} else {
+				None
+			}
+		})
 	else {
 		return;
 	};
-	let Some(focus) = *ui_cam else { return };
+	let focus = *focus;
 	match q.get(focus) {
 		Ok((id, xform, shape, vis, layers)) => {
 			if !**vis {
@@ -286,7 +298,6 @@ pub fn highlight_focus<const LAYER: Layer>(
 		}
 		Err(e) => {
 			error!("couldn't get focused entity: {e}");
-			*ui_cam = None
 		}
 	}
 }

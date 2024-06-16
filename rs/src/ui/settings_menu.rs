@@ -43,10 +43,10 @@ pub fn setup(
 	let adjacent = AdjacentWidgets {
 		prev: Some(PrevSibling),
 		next: Some(NextSibling),
-		directions: (0..5)
+		directions: (0..6)
 			.map(|i| {
 				(
-					Wedge2d::sixth(Vec2::from_angle((FRAC_PI_3 * i as f32) + (FRAC_PI_6 * 5.0))),
+					Wedge2d::sixth(Vec2::from_angle((FRAC_PI_3 * i as f32) + FRAC_PI_6)),
 					Sibling(i),
 				)
 			})
@@ -87,7 +87,7 @@ pub fn setup(
 					material: mats.add(UiMatBuilder::from(Color::rgb(0.5, 0.8, 0.7))),
 					font: ui_fonts.mono_3d.clone(),
 					transform: Transform {
-						translation: Vec3::new(0.0, -3.5, 7.5),
+						translation: Vec3::new(0.0, -3.5, 0.0),
 						..default()
 					},
 					..default()
@@ -106,13 +106,6 @@ pub fn setup(
 							let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
 							let mut stack = q.single_mut(world);
 							stack.pop();
-
-							let mut q = world.query_filtered::<Entity, WithVariant<pause_menu_widget::SettingsButton>>();
-							let id = q.single(world);
-
-							let mut q = world.query_filtered::<&mut UiCam, With<GlobalUi>>();
-							let mut cam = q.single_mut(world);
-							cam.focus = Some(id);
 						});
 						Break(())
 					}),
@@ -128,7 +121,7 @@ pub fn setup(
 					radius: 7.0,
 					arrangement: RadialArrangement::Manual {
 						separation: Angle::Rad(FRAC_PI_3),
-						first: Angle::Rad((FRAC_PI_3 * 2.0) + FRAC_PI_6),
+						first: Angle::Rad(FRAC_PI_6),
 					},
 					..default()
 				},
@@ -232,6 +225,25 @@ pub fn setup(
 							(
 								Text3dBundle {
 									text_3d: Text3d { text: "Controls".into(), ..default() },
+									material: text_material.clone(),
+									font: ui_fonts.mono_3d.clone(),
+									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
+									..default()
+								},
+							)
+					),
+					(
+						Button3dBundle {
+							shape: WidgetShape(SharedShape::cuboid(2.5, 0.5, 0.75)),
+							mesh: meshes.add(Cuboid::new(5.0, 1.0, 1.5)),
+							material: mats.add(UiMatBuilder::from(Color::BLUE.with_a(0.4))),
+							..default()
+						},
+						adjacent.clone();
+						#children:
+							(
+								Text3dBundle {
+									text_3d: Text3d { text: "Kumquats".into(), ..default() },
 									material: text_material.clone(),
 									font: ui_fonts.mono_3d.clone(),
 									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
