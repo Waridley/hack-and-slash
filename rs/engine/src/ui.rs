@@ -936,7 +936,7 @@ impl UiMatBuilder {
 					..default()
 				},
 			},
-			extension: DitherFade { fade: self.fade },
+			extension: DitherFade::new(self.fade),
 		}
 	}
 }

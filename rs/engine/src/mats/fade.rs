@@ -10,17 +10,42 @@ use serde::{Deserialize, Serialize};
 pub struct DitherFade {
 	#[uniform(200)]
 	pub fade: f32,
+	#[cfg(target_arch = "wasm32")]
+	#[uniform(200)]
+	pub _wasm_padding_8b: u32,
+	#[cfg(target_arch = "wasm32")]
+	#[uniform(200)]
+	pub _wasm_padding_12b: u32,
+	#[cfg(target_arch = "wasm32")]
+	#[uniform(200)]
+	pub _wasm_padding_16b: u32,
 }
 
 impl Default for DitherFade {
 	fn default() -> Self {
-		Self { fade: 1.0 }
+		Self {
+			fade: 1.0,
+			#[cfg(target_arch = "wasm32")]
+			_wasm_padding_8b: 0,
+			#[cfg(target_arch = "wasm32")]
+			_wasm_padding_12b: 0,
+			#[cfg(target_arch = "wasm32")]
+			_wasm_padding_16b: 0,
+		}
 	}
 }
 
 impl DitherFade {
 	pub fn new(fade: f32) -> Self {
-		Self { fade }
+		Self {
+			fade,
+			#[cfg(target_arch = "wasm32")]
+			_wasm_padding_8b: 0,
+			#[cfg(target_arch = "wasm32")]
+			_wasm_padding_12b: 0,
+			#[cfg(target_arch = "wasm32")]
+			_wasm_padding_16b: 0,
+		}
 	}
 }
 
