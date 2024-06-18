@@ -15,7 +15,8 @@ use engine::{
 			CuboidPanelBundle, CylinderFaces, CylinderPanel, CylinderPanelBundle, InteractHandlers,
 			Node3dBundle, Text3d, Text3dBundle, WidgetBundle, WidgetShape,
 		},
-		Fade, FadeCommands, GlobalUi, MenuStack, UiAction, UiCam, UiFonts, UiMat, UiMatBuilder,
+		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiAction, UiCam, UiFonts, UiMat,
+		UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
 	},
 	util::{Angle, Flat},
 };
@@ -26,11 +27,15 @@ use std::{
 	ops::{ControlFlow, ControlFlow::Break},
 };
 
+pub mod ctrls_menu;
+
 pub struct SettingsMenuPlugin;
 
 impl Plugin for SettingsMenuPlugin {
 	fn build(&self, app: &mut App) {
-		app.add_systems(Startup, setup);
+		app.init_resource::<SettingsSubMenus>()
+			.add_systems(Startup, (setup, ctrls_menu::setup))
+			.add_systems(PostUpdate, ctrls_menu::anchor_follow_focus);
 	}
 }
 
@@ -39,6 +44,7 @@ pub fn setup(
 	mut meshes: ResMut<Assets<Mesh>>,
 	mut mats: ResMut<Assets<UiMat>>,
 	ui_fonts: Res<UiFonts>,
+	mut sub_menus: ResMut<SettingsSubMenus>,
 ) {
 	let adjacent = AdjacentWidgets {
 		prev: Some(PrevSibling),
@@ -95,20 +101,12 @@ pub fn setup(
 			),
 			(
 				WidgetBundle {
-					shape: WidgetShape(SharedShape::cylinder(3.0, 10.0)),
+					shape: WidgetShape { shape: SharedShape::cylinder(3.0, 10.0), ..default() },
 					transform: Transform {
 						translation: Vec3::NEG_Y * 3.5,
 						..default()
 					},
-					handlers: InteractHandlers::on_back(|cmds| {
-						cmds.fade_out_secs(0.7);
-						cmds.commands().add(|world: &mut World| {
-							let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
-							let mut stack = q.single_mut(world);
-							stack.pop();
-						});
-						Break(())
-					}),
+					handlers: MenuStack::pop_on_back(GLOBAL_UI_RENDER_LAYERS, 0.7),
 					..default()
 				},
 				meshes.add(PlanarPolyLine {
@@ -134,12 +132,13 @@ pub fn setup(
 					)).collect(),
 				},
 				=> |cmds| {
+					sub_menus.top = MenuRef::new(cmds.id());
 					cmds.set_enum(settings_sub_menu::Top);
 				};
 				#children:
 					(
 						Button3dBundle {
-							shape: WidgetShape(SharedShape::cuboid(2.5, 0.5, 0.75)),
+							shape: WidgetShape { shape: SharedShape::cuboid(2.5, 0.5, 0.75), ..default() },
 							mesh: meshes.add(Cuboid::new(5.0, 1.0, 1.5)),
 							material: mats.add(UiMatBuilder::from(Color::CYAN.with_a(0.4))),
 							..default()
@@ -158,7 +157,7 @@ pub fn setup(
 					),
 					(
 						Button3dBundle {
-							shape: WidgetShape(SharedShape::cuboid(2.5, 0.5, 0.75)),
+							shape: WidgetShape { shape: SharedShape::cuboid(2.5, 0.5, 0.75), ..default() },
 							mesh: meshes.add(Cuboid::new(5.0, 1.0, 1.5)),
 							material: mats.add(UiMatBuilder::from(Color::YELLOW.with_a(0.4))),
 							..default()
@@ -177,7 +176,7 @@ pub fn setup(
 					),
 					(
 						Button3dBundle {
-							shape: WidgetShape(SharedShape::cuboid(3.0, 0.5, 0.75)),
+							shape: WidgetShape { shape: SharedShape::cuboid(3.0, 0.5, 0.75), ..default() },
 							mesh: meshes.add(Cuboid::new(6.0, 1.0, 1.5)),
 							material: mats.add(UiMatBuilder::from(Color::FUCHSIA.with_a(0.4))),
 							..default()
@@ -196,7 +195,7 @@ pub fn setup(
 					),
 					(
 						Button3dBundle {
-							shape: WidgetShape(SharedShape::cuboid(2.5, 0.5, 0.75)),
+							shape: WidgetShape { shape: SharedShape::cuboid(2.5, 0.5, 0.75), ..default() },
 							mesh: meshes.add(Cuboid::new(5.0, 1.0, 1.5)),
 							material: mats.add(UiMatBuilder::from(Color::RED.with_a(0.4))),
 							..default()
@@ -215,9 +214,18 @@ pub fn setup(
 					),
 					(
 						Button3dBundle {
-							shape: WidgetShape(SharedShape::cuboid(2.5, 0.5, 0.75)),
+							shape: WidgetShape { shape: SharedShape::cuboid(2.5, 0.5, 0.75), ..default() },
 							mesh: meshes.add(Cuboid::new(5.0, 1.0, 1.5)),
 							material: mats.add(UiMatBuilder::from(Color::GREEN.with_a(0.4))),
+							handlers: InteractHandlers::on_ok(|cmds| {
+								cmds.commands().add(|world: &mut World| {
+									let menu = world.resource::<SettingsSubMenus>().controls;
+									let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
+									q.single_mut(world).push(menu);
+									world.entity_mut(menu.root).fade_in_secs(1.5);
+								});
+								Break(())
+							}),
 							..default()
 						},
 						adjacent.clone();
@@ -234,7 +242,7 @@ pub fn setup(
 					),
 					(
 						Button3dBundle {
-							shape: WidgetShape(SharedShape::cuboid(2.5, 0.5, 0.75)),
+							shape: WidgetShape { shape: SharedShape::cuboid(2.5, 0.5, 0.75), ..default() },
 							mesh: meshes.add(Cuboid::new(5.0, 1.0, 1.5)),
 							material: mats.add(UiMatBuilder::from(Color::BLUE.with_a(0.4))),
 							..default()
@@ -262,5 +270,33 @@ pub struct SettingsMenu;
 #[derive(EnumComponent, Debug)]
 pub enum SettingsSubMenu {
 	Top,
-	InputMap,
+	Accessibility,
+	Gameplay,
+	Controls,
+	Graphics,
+	Sound,
+}
+
+#[derive(Resource, Debug, Reflect)]
+#[reflect(Resource)]
+pub struct SettingsSubMenus {
+	pub top: MenuRef,
+	pub accessibility: MenuRef,
+	pub gameplay: MenuRef,
+	pub controls: MenuRef,
+	pub graphics: MenuRef,
+	pub sound: MenuRef,
+}
+
+impl Default for SettingsSubMenus {
+	fn default() -> Self {
+		Self {
+			top: MenuRef::INVALID,
+			accessibility: MenuRef::INVALID,
+			gameplay: MenuRef::INVALID,
+			controls: MenuRef::INVALID,
+			graphics: MenuRef::INVALID,
+			sound: MenuRef::INVALID,
+		}
+	}
 }

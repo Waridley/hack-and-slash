@@ -1,9 +1,16 @@
-use super::widgets::WidgetShape;
+use super::widgets::{CuboidContainer, CuboidPanel, CylinderPanel, WidgetShape};
 use crate::util::{Angle, LogComponentNames, DEBUG_COMPONENTS};
 use bevy::{ecs::query::QueryEntityError, prelude::*};
-use rapier3d::parry::query::Ray;
+use bevy_rapier3d::parry::{
+	bounding_volume::{Aabb, BoundingVolume},
+	math::{Isometry, Point, Translation, Vector},
+};
+use rapier3d::{
+	na::Vector3,
+	parry::query::{time_of_impact, Ray},
+};
 use serde::{Deserialize, Serialize};
-use std::f32::consts::TAU;
+use std::f32::consts::{PI, TAU};
 
 #[derive(Component, Debug, Reflect, Serialize, Deserialize)]
 #[reflect(Component, Serialize, Deserialize)]
@@ -77,13 +84,13 @@ pub fn apply_constraints(
 	mut cmds: Commands,
 	child_constraints: Query<(Entity, &LineUpChildren, &Children)>,
 	sibling_constraints: Query<&SiblingConstraint>,
-	mut transforms: Query<(Entity, &mut Transform, Option<&Parent>, &WidgetShape)>,
+	mut shapes: Query<(Entity, &mut Transform, Option<&Parent>, &WidgetShape)>,
 ) {
 	for (id, constraint, children) in &child_constraints {
 		match children.len() {
 			0 => continue,
 			1 => {
-				match transforms.get_mut(children[0]) {
+				match shapes.get_mut(children[0]) {
 					Ok(mut child) => child.1.translation = Vec3::ZERO,
 					Err(e) => cmds.debug_components(children[0], e),
 				}
@@ -93,7 +100,7 @@ pub fn apply_constraints(
 		}
 		let mut separations = Vec::with_capacity(children.len());
 		for pair in children.windows(2) {
-			let [a, b] = match transforms.get_many([pair[0], pair[1]]) {
+			let [a, b] = match shapes.get_many([pair[0], pair[1]]) {
 				Ok(pair) => pair,
 				Err(e) => {
 					cmds.debug_components(pair[0], e);
@@ -104,18 +111,12 @@ pub fn apply_constraints(
 			debug_assert_eq!(Some(id), a.2.map(Parent::get));
 			debug_assert_eq!(Some(id), b.2.map(Parent::get));
 
-			let sep = compute_separation(
-				constraint.relative_positions,
-				a.1.rotation,
-				a.3,
-				b.1.rotation,
-				b.3,
-			);
+			let sep = compute_separation(constraint.relative_positions, a.3, b.3);
 			separations.push(sep);
 		}
 		let sep_sum = separations.iter().sum::<Vec3>();
 		let offset = sep_sum * ((-constraint.align + Vec3::ONE) * 0.5);
-		let mut first_child = match transforms.get_mut(children[0]) {
+		let mut first_child = match shapes.get_mut(children[0]) {
 			Ok(child) => child,
 			Err(e) => {
 				cmds.debug_components(children[0], e);
@@ -124,7 +125,7 @@ pub fn apply_constraints(
 		};
 		first_child.1.translation = -offset;
 		for (i, pair) in children.windows(2).enumerate() {
-			let [a, mut b] = match transforms.get_many_mut([pair[0], pair[1]]) {
+			let [a, mut b] = match shapes.get_many_mut([pair[0], pair[1]]) {
 				Ok(pair) => pair,
 				Err(e) => {
 					cmds.debug_components(pair[0], e);
@@ -138,7 +139,7 @@ pub fn apply_constraints(
 
 	// Let siblings move after they are arranged relative to their parent
 	for constraint in &sibling_constraints {
-		let [a, mut b] = match transforms.get_many_mut([constraint.a, constraint.b]) {
+		let [a, mut b] = match shapes.get_many_mut([constraint.a, constraint.b]) {
 			Ok(pair) => pair,
 			Err(e) => {
 				debug!("{e}");
@@ -151,58 +152,52 @@ pub fn apply_constraints(
 			continue;
 		}
 
-		let sep = compute_separation(
-			constraint.relative_pos,
-			a.1.rotation,
-			a.3,
-			b.1.rotation,
-			b.3,
-		);
+		let sep = compute_separation(constraint.relative_pos, a.3, b.3);
 		if b.1.translation != a.1.translation + sep {
 			b.1.translation = a.1.translation + sep;
 		}
 	}
 }
 
-fn compute_separation(
-	desired_relative: Vec3,
-	a_rot: Quat,
-	a_shape: &WidgetShape,
-	b_rot: Quat,
-	b_shape: &WidgetShape,
-) -> Vec3 {
-	let a_bs = a_shape.compute_local_bounding_sphere();
-	let b_bs = b_shape.compute_local_bounding_sphere();
-	let dir = desired_relative.normalize_or_zero();
+fn compute_separation(desired_relative: Vec3, a: &WidgetShape, b: &WidgetShape) -> Vec3 {
+	let a_pos = a.isometry;
+	let b_pos = b.isometry;
+	// Get the bounding spheres to know how far to cast the rays
+	let a_bs = a.compute_bounding_sphere(&a_pos);
+	let b_bs = b.compute_bounding_sphere(&b_pos);
+	let dir = Vector::from(desired_relative.normalize_or_zero());
 	let a_len = a_bs.radius;
 	let b_len = b_bs.radius;
-	let a_to_b = a_rot * (dir * a_len);
-	let b_to_a = b_rot * (-dir * b_len);
-	let a_ray = Ray::new(a_to_b.into(), b_to_a.normalize_or_zero().into());
-	let b_ray = Ray::new(b_to_a.into(), a_to_b.normalize_or_zero().into());
-	let ta = a_shape.cast_local_ray(&a_ray, a_len, true);
-	let tb = b_shape.cast_local_ray(&b_ray, b_len, true);
-	let (Some(ta), Some(tb)) = (ta, tb) else {
-		let msg = "Unexpectedly unable to find contact between shapes";
+	let iso_rel = b.isometry.translation.vector - a.isometry.translation.vector;
+	let start_dist = a_len + b_len + Vec3::from(iso_rel).length();
+	let b_start = dir * start_dist;
+	let Ok(toi) = time_of_impact(
+		&a.isometry,
+		&Vector::zeros(),
+		&*a.shape.0,
+		&Isometry {
+			translation: b.isometry.translation * Translation::from(b_start),
+			rotation: b.isometry.rotation,
+		},
+		&-dir,
+		&*b.shape.0,
+		start_dist,
+		true,
+	) else {
 		if cfg!(debug_assertions) {
-			// Catch bad values in development
-			panic!(
-				"{msg}:\n
-			\ta_bs={a_bs:?}, a_to_b={a_to_b:?}, ta={ta:?}\n
-			\tb_bs={b_bs:?}, b_to_a={b_to_a:?}, tb={tb:?}"
-			);
+			panic!("ToI between {a:?} and {b:?} unsupported");
 		} else {
-			// Don't crash in production
-			error!(?a_bs, ?a_to_b, ?ta, ?b_bs, ?b_to_a, ?tb, "{msg}");
+			error!("ToI between {a:?} and {b:?} unsupported");
 			return Vec3::ZERO;
 		}
 	};
 
-	let rel = desired_relative;
-	let pa = (a_len - ta) * dir;
-	let pb = (b_len - tb) * dir;
-	let space = rel - rel.normalize_or_zero();
-	pa + space + pb
+	let Some(toi) = toi else {
+		warn!(?a, ?b, "Unable to find contact between shapes");
+		return Vec3::ZERO;
+	};
+	let dir = Vec3::from(dir);
+	((start_dist - toi.toi) * dir) + (desired_relative - dir)
 }
 
 #[derive(Component, Clone, Debug, Reflect, Serialize, Deserialize)]
@@ -279,6 +274,96 @@ impl RadialArrangement {
 		match self {
 			RadialArrangement::Auto => Angle::TauOver(num_children as f32),
 			RadialArrangement::Manual { separation, .. } => separation,
+		}
+	}
+}
+
+#[derive(Component, Default, Clone, Debug, Reflect, Serialize, Deserialize)]
+#[reflect(Component, Serialize, Deserialize)]
+pub struct ExpandToFitChildren {
+	pub margin: Vec3,
+	pub offset: Vec3,
+}
+
+impl ExpandToFitChildren {
+	pub fn apply<Descriptor: Component + SetSize>(
+		mut q: Query<(&Self, &mut Descriptor, &Children)>,
+		children: Query<(Ref<WidgetShape>, Ref<Transform>)>,
+	) {
+		for (this, desc, kids) in &mut q {
+			let mut aabb = Aabb::new_invalid();
+			if !kids.iter().copied().any(|child| {
+				children.get(child).map_or(false, |(shape, xform)| {
+					shape.is_changed() || xform.is_changed()
+				})
+			}) {
+				continue;
+			}
+			for child in kids.iter().copied() {
+				let (shape, xform) = match children.get(child) {
+					Ok(child) => child,
+					Err(e) => {
+						error!("{e}");
+						continue;
+					}
+				};
+				aabb.merge(&shape.compute_aabb(
+					&(Isometry::new(
+						xform.translation.into(),
+						xform.rotation.to_scaled_axis().into(),
+					) * shape.isometry),
+				));
+			}
+			aabb.mins -= Vector3::from(this.margin);
+			aabb.maxs += Vector3::from(this.margin);
+			aabb.mins += Vector3::from(this.offset);
+			aabb.maxs += Vector3::from(this.offset);
+			SetSize::set_size(desc, aabb);
+		}
+	}
+}
+
+pub trait SetSize {
+	fn set_size(this: Mut<Self>, aabb: Aabb);
+}
+
+impl SetSize for CuboidPanel {
+	fn set_size(mut this: Mut<Self>, aabb: Aabb) {
+		let size = aabb.extents().into();
+		let center = aabb.center().into();
+		if this.size != size {
+			this.size = size;
+		}
+		if this.translation != center {
+			this.translation = center;
+		}
+	}
+}
+
+impl SetSize for CylinderPanel {
+	fn set_size(mut this: Mut<Self>, aabb: Aabb) {
+		let extents = aabb.extents();
+		let inradius = Vec2::from(extents.xz()).length();
+		let length = extents.z;
+		let radius = inradius / (PI / this.subdivisions as f32).cos();
+		if this.radius != radius {
+			this.radius = radius;
+		}
+		if this.length != length {
+			this.length = length;
+		}
+	}
+}
+
+impl SetSize for CuboidContainer {
+	fn set_size(mut this: Mut<Self>, aabb: Aabb) {
+		let size = aabb.extents().into();
+		let center = aabb.center().into();
+		if this.size != size {
+			this.size = size;
+		}
+		if this.translation != center {
+			this.translation = center;
 		}
 	}
 }

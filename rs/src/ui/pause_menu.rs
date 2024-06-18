@@ -132,7 +132,7 @@ pub fn setup(
 			(
 				Name::new("container"),
 				WidgetBundle {
-					shape: WidgetShape(SharedShape::cuboid(5.5, 1.0, 5.5)),
+					shape: WidgetShape { shape: SharedShape::cuboid(5.5, 1.0, 5.5), ..default() },
 					transform: Transform {
 						translation: Vec3::NEG_Y * 6.5,
 						..default()
@@ -145,7 +145,7 @@ pub fn setup(
 					(
 						Name::new("resume_btn"),
 						Button3dBundle {
-							shape: WidgetShape(SharedShape::cuboid(3.0, 0.6, 0.6)),
+							shape: WidgetShape { shape: SharedShape::cuboid(3.0, 0.6, 0.6), ..default() },
 							mesh: meshes.add(Cuboid::new(6.0, 1.2, 1.2)),
 							material: mats.add(UiMatBuilder {
 								std: StandardMaterial {
@@ -187,7 +187,7 @@ pub fn setup(
 					(
 						Name::new("settings_btn"),
 						Button3dBundle {
-							shape: WidgetShape(SharedShape::cuboid(3.0, 0.6, 0.6)),
+							shape: WidgetShape { shape: SharedShape::cuboid(3.0, 0.6, 0.6), ..default() },
 							mesh: meshes.add(Cuboid::new(6.0, 1.2, 1.2)),
 							material: mats.add(UiMatBuilder {
 								std: StandardMaterial {
@@ -238,7 +238,7 @@ pub fn setup(
 					(
 						Name::new("quit_btn"),
 						Button3dBundle {
-							shape: WidgetShape(SharedShape::cuboid(2.2, 0.6, 0.6)),
+							shape: WidgetShape { shape: SharedShape::cuboid(2.2, 0.6, 0.6), ..default() },
 							mesh: meshes.add(Cuboid::new(4.4, 1.2, 1.2)),
 							material: mats.add(UiMatBuilder {
 								std: StandardMaterial {
