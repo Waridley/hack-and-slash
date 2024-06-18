@@ -17,6 +17,11 @@
 
 struct DitherFade {
 	fade: f32,
+#ifdef SIXTEEN_BYTE_ALIGNMENT
+	_wasm_padding_8b: u32,
+	_wasm_padding_12b: u32,
+	_wasm_padding_16b: u32,
+#endif
 }
 
 @group(2) @binding(200)
