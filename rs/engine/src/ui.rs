@@ -47,7 +47,7 @@ use serde::{Deserialize, Serialize};
 use std::{
 	collections::VecDeque,
 	f64::consts::TAU,
-	ops::{Add, Mul},
+	ops::{Add, ControlFlow::Break, Mul},
 	sync::Arc,
 };
 
@@ -109,8 +109,12 @@ impl Plugin for UiPlugin {
 			(
 				layout::apply_constraints,
 				layout::RadialChildren::apply,
+				CuboidContainer::sync,
+				ExpandToFitChildren::apply::<CuboidPanel>,
+				ExpandToFitChildren::apply::<CylinderPanel>,
+				ExpandToFitChildren::apply::<CuboidContainer>,
 				highlight_focus::<GLOBAL_UI_LAYER>,
-				widgets::InteractHandlers::system,
+				InteractHandlers::system,
 			),
 		)
 		.add_systems(
@@ -140,7 +144,10 @@ impl Plugin for UiPlugin {
 		let srv = app.world.resource::<AssetServer>();
 		let mono = srv.load("ui/fonts/KodeMono/static/KodeMono-Bold.ttf");
 		let mono_3d = srv.load("ui/fonts/Noto_Sans_Mono/static/NotoSansMono-Bold.ttf");
-		app.insert_resource(UiFonts { mono, mono_3d });
+		app.insert_resource(UiFonts {
+			mono,
+			mono_3d: mono_3d.clone(),
+		});
 		app.world.resource_mut::<Assets<_>>().insert(
 			Handle::weak_from_u128(widgets::UNLIT_MATERIAL_ID),
 			new_unlit_material(),
@@ -296,7 +303,7 @@ pub struct UiFonts {
 #[derive(Resource, Default, Clone, Debug, Deref, DerefMut)]
 pub struct TextMeshCache(
 	pub  HashMap<
-		(CowArc<'static, str>, [u32; 16], Handle<Font3d>),
+		(CowArc<'static, str>, [u32; 16], Handle<Font3d>, bool),
 		Option<(Handle<Mesh>, WidgetShape)>,
 	>,
 );
@@ -592,6 +599,26 @@ pub fn reset_hovered(mut ui_hovered: ResMut<UiHovered>) {
 #[reflect(Component)]
 pub struct MenuStack(pub Vec<MenuRef>);
 
+impl MenuStack {
+	pub fn pop_on_back(layers: RenderLayers, fade_secs: f32) -> InteractHandlers {
+		InteractHandlers::on_back(move |cmds| {
+			cmds.fade_out_secs(fade_secs);
+			cmds.commands().add(move |world: &mut World| {
+				let mut q = world.query::<(&mut MenuStack, &RenderLayers)>();
+				let Some((mut stack, _)) = q
+					.iter_mut(world)
+					.find(|(_, q_layers)| q_layers.intersects(&layers))
+				else {
+					error!("couldn't find `MenuStack` for {layers:?}");
+					return;
+				};
+				stack.pop();
+			});
+			Break(())
+		})
+	}
+}
+
 #[derive(Debug, Copy, Clone, Reflect)]
 pub struct MenuRef {
 	/// The root entity of the menu, usually containing a [Fade] component for fading in and
@@ -647,13 +674,16 @@ pub fn anchor_follow_menu(
 use crate::{
 	anim::{AnimationHandle, Delta, DynAnimation},
 	draw::{polygon_points, square_points, PlanarPolyLine},
-	ui::widgets::{new_unlit_material, CylinderPanel, PrevFocus},
+	ui::widgets::{
+		new_unlit_material, CuboidContainer, CylinderPanel, InteractHandlers, PrevFocus,
+	},
 };
 #[cfg(feature = "debugging")]
 use bevy_inspector_egui::{
 	inspector_options::std_options::NumberDisplay::Slider,
 	prelude::{InspectorOptions, ReflectInspectorOptions},
 };
+use layout::ExpandToFitChildren;
 use web_time::Duration;
 
 /// Component that starts a new branch of a tree of entities that can be
@@ -963,7 +993,10 @@ fn spawn_test_menu(
 		faces[i] = entity_tree!(cmds;
 			( // Face container
 				WidgetBundle {
-					shape: WidgetShape(SharedShape::cuboid(6.3, 0.5, 3.0)),
+					shape: WidgetShape {
+						shape: SharedShape::cuboid(6.3, 0.5, 3.0),
+						..default()
+					},
 					transform,
 					..default()
 				},
@@ -1009,11 +1042,11 @@ fn spawn_test_menu(
 							),
 							( // Test button
 								Button3dBundle {
-									shape: WidgetShape(SharedShape::capsule(
+									shape: WidgetShape { shape: SharedShape::capsule(
 										Point::new(0.0, -2.5, 0.0),
 										Point::new(0.0, 2.5, 0.0),
 										0.5,
-									)),
+									), ..default() },
 									mesh: meshes.add(Capsule3d::new(0.5, 5.0)),
 									material: mats.add(UiMatBuilder::from(Color::ORANGE)),
 									transform: Transform {

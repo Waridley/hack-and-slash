@@ -13,7 +13,7 @@ use bevy::{
 	prelude::*,
 	render::view::RenderLayers,
 };
-use bevy_rapier3d::parry::shape::SharedShape;
+use bevy_rapier3d::parry::{math::Isometry, shape::SharedShape};
 use bevy_svg::{
 	prelude::{Origin, Svg, Svg3dBundle},
 	SvgSettings,
@@ -24,6 +24,7 @@ pub struct InputIcon {
 	pub icon: Icon,
 	pub size: Vec3,
 	pub text_entity: Entity,
+	pub isometry: Isometry<f32>,
 }
 
 impl Default for InputIcon {
@@ -32,6 +33,7 @@ impl Default for InputIcon {
 			icon: default(),
 			size: Vec3::ONE,
 			text_entity: Entity::PLACEHOLDER,
+			isometry: default(),
 		}
 	}
 }
@@ -67,6 +69,7 @@ impl InputIcon {
 				},
 				size,
 				text_entity,
+				isometry,
 			} = *this;
 			cmds.get_entity(text_entity)
 				.map(EntityCommands::despawn_recursive);
@@ -80,11 +83,10 @@ impl InputIcon {
 			// `bevy_svg` doesn't insert a mesh if a handle isn't already present. PR?
 			cmds.insert((svg, Handle::<Mesh>::default()));
 			let half_size = size * 0.5;
-			cmds.insert(WidgetShape(SharedShape::cuboid(
-				half_size.x,
-				half_size.y,
-				half_size.z,
-			)));
+			cmds.insert(WidgetShape {
+				shape: SharedShape::cuboid(half_size.x, half_size.y, half_size.z),
+				isometry,
+			});
 			text.clone().map(|text| {
 				// FIXME: Add descriptions for icons without text
 				ak_node.set_description(&*text);

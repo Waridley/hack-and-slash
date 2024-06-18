@@ -13,16 +13,23 @@ use bevy::{
 	pbr::ExtendedMaterial,
 	prelude::*,
 	render::{
-		mesh::{Indices, PrimitiveTopology::TriangleList},
+		mesh::{Indices, PrimitiveTopology::TriangleList, VertexAttributeValues},
 		render_asset::RenderAssetUsages,
 		view::{Layer, RenderLayers},
 	},
 	utils::{CowArc, HashMap, HashSet},
 };
-use bevy_rapier3d::parry::shape::TypedShape;
+use bevy_rapier3d::{
+	na::Quaternion,
+	parry::{
+		math::{Isometry, Translation, Vector},
+		shape::TypedShape,
+	},
+};
 use leafwing_input_manager::prelude::ActionState;
 use meshtext::{MeshGenerator, MeshText, OwnedFace, TextSection};
-use rapier3d::parry::shape::SharedShape;
+use rapier3d::{na::UnitQuaternion, parry::shape::SharedShape};
+use serde::{Deserialize, Serialize};
 use std::{
 	f32::consts::PI,
 	fmt::{Debug, Formatter},
@@ -32,17 +39,36 @@ use std::{
 use web_time::Duration;
 
 #[derive(Component, Clone, Deref, DerefMut)]
-pub struct WidgetShape(pub SharedShape);
+pub struct WidgetShape {
+	#[deref]
+	pub shape: SharedShape,
+	pub isometry: Isometry<f32>,
+}
 
 impl Default for WidgetShape {
 	fn default() -> Self {
-		Self(SharedShape::cuboid(0.5, 0.5, 0.5))
+		Self {
+			shape: SharedShape::cuboid(0.5, 0.5, 0.5),
+			isometry: default(),
+		}
 	}
 }
 
 impl Debug for WidgetShape {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		ron::to_string(&self.0).fmt(f)
+		ron::to_string(&self.shape).fmt(f)
+	}
+}
+
+pub fn offset_mesh_positions(mesh: &mut Mesh, translation: Vec3, rotation: Quat) {
+	let VertexAttributeValues::Float32x3(positions) = mesh
+		.attribute_mut(Mesh::ATTRIBUTE_POSITION)
+		.expect("Cuboid mesh has positions")
+	else {
+		unreachable!()
+	};
+	for pos in positions {
+		*pos = ((rotation * Vec3::from_array(*pos)) + translation).to_array();
 	}
 }
 
@@ -110,6 +136,8 @@ impl Default for WidgetBundle {
 pub struct CuboidPanel {
 	pub size: Vec3,
 	pub colors: Option<CuboidFaces<RectCorners<Color>>>,
+	pub translation: Vec3,
+	pub rotation: Quat,
 }
 
 impl Default for CuboidPanel {
@@ -117,6 +145,8 @@ impl Default for CuboidPanel {
 		Self {
 			size: Vec3::ONE,
 			colors: default(),
+			translation: default(),
+			rotation: default(),
 		}
 	}
 }
@@ -141,15 +171,29 @@ impl CuboidPanel {
 		mut q: Query<(Entity, &Self), Changed<Self>>,
 		mut meshes: ResMut<Assets<Mesh>>,
 	) {
-		for (id, CuboidPanel { size, colors }) in &mut q {
+		for (
+			id,
+			CuboidPanel {
+				size,
+				colors,
+				translation,
+				rotation,
+			},
+		) in &mut q
+		{
 			let mut cmds = cmds.entity(id);
 			let Vec3 {
 				x: hx,
 				y: hy,
 				z: hz,
 			} = *size * 0.5;
-			cmds.insert(WidgetShape(SharedShape::cuboid(hx, hy, hz)));
+			let pos = Vector::from(*translation);
+			cmds.insert(WidgetShape {
+				shape: SharedShape::cuboid(hx, hy, hz),
+				isometry: Isometry::new(pos, rotation.to_scaled_axis().into()),
+			});
 			let mut mesh = Cuboid::new(size.x, size.y, size.z).mesh();
+			offset_mesh_positions(&mut mesh, *translation, *rotation);
 			if let Some(colors) = colors {
 				mesh.insert_attribute(
 					Mesh::ATTRIBUTE_COLOR,
@@ -169,9 +213,13 @@ impl CuboidPanel {
 #[derive(Component, Debug, Clone, Reflect)]
 #[reflect(Component)]
 pub struct CylinderPanel {
+	/// Circumradius of the regular polygon defining the cross-section
+	/// of the cylinder's mesh.
 	pub radius: f32,
 	pub length: f32,
 	pub subdivisions: u32,
+	pub translation: Vec3,
+	pub rotation: Quat,
 }
 
 impl Default for CylinderPanel {
@@ -180,6 +228,8 @@ impl Default for CylinderPanel {
 			radius: 1.0,
 			length: 1.0,
 			subdivisions: 6,
+			translation: default(),
+			rotation: default(),
 		}
 	}
 }
@@ -196,6 +246,8 @@ impl CylinderPanel {
 				radius,
 				length,
 				subdivisions,
+				translation,
+				rotation,
 			},
 		) in &q
 		{
@@ -209,6 +261,7 @@ impl CylinderPanel {
 			let mut mesh = Mesh::from(builder)
 				.with_duplicated_vertices()
 				.with_computed_flat_normals();
+			offset_mesh_positions(&mut mesh, *translation, *rotation);
 			mesh.asset_usage = RenderAssetUsages::RENDER_WORLD;
 			let handle = meshes.add(mesh);
 			cmds.entity(id).insert(handle.clone());
@@ -265,8 +318,10 @@ pub fn new_unlit_material() -> UiMat {
 pub struct Text3d {
 	pub text: CowArc<'static, str>,
 	pub flat: bool,
+	pub vertex_translation: Vec3,
 	pub vertex_rotation: Quat,
 	pub vertex_scale: Vec3,
+	pub align_origin: Vec3,
 }
 
 impl Default for Text3d {
@@ -274,8 +329,10 @@ impl Default for Text3d {
 		Self {
 			text: default(),
 			flat: true,
+			vertex_translation: Vec3::ZERO,
 			vertex_rotation: Quat::from_rotation_arc(Vec3::Z, Vec3::NEG_Y),
 			vertex_scale: Vec3::new(1.0, 1.0, 0.4),
+			align_origin: Vec3::splat(0.5),
 		}
 	}
 }
@@ -318,16 +375,21 @@ impl Text3d {
 			};
 			let mut cmds = cmds.entity(id);
 			let Self {
-				text,
+				ref text,
 				flat,
+				vertex_translation,
 				vertex_rotation,
 				vertex_scale,
-			} = &*this;
+				align_origin,
+			} = *this;
 
 			ak_node.set_value(&**text);
-			let xform =
-				Mat4::from_scale_rotation_translation(*vertex_scale, *vertex_rotation, Vec3::ZERO)
-					.to_cols_array();
+			let xform = Mat4::from_scale_rotation_translation(
+				vertex_scale,
+				vertex_rotation,
+				vertex_translation,
+			)
+			.to_cols_array();
 
 			let xform_key = array_init::array_init(|i| xform[i].to_bits());
 
@@ -337,7 +399,7 @@ impl Text3d {
 				continue;
 			}
 			let Some((mesh, shape)) = cache
-				.entry((text.clone(), xform_key, font.clone()))
+				.entry((text.clone(), xform_key, font.clone(), flat))
 				.or_insert_with(|| {
 					let mut font = fonts.reborrow().map_unchanged(|fonts| {
 						fonts
@@ -347,12 +409,12 @@ impl Text3d {
 					let MeshText { bbox, vertices } = font
 						.generate_section(
 							&text,
-							*flat,
+							flat,
 							Some(
 								&Mat4::from_scale_rotation_translation(
-									*vertex_scale,
-									*vertex_rotation,
-									Vec3::ZERO,
+									vertex_scale,
+									vertex_rotation,
+									vertex_translation,
 								)
 								.to_cols_array(),
 							),
@@ -368,12 +430,27 @@ impl Text3d {
 						vertex_scale.z * 0.5,
 						bbox.size().z * 0.5,
 					);
-					let shape =
-						WidgetShape(SharedShape::cuboid(half_size.x, half_size.y, half_size.z));
+					let center = bbox.center();
+					let origin = Vec3::new(
+						bbox.size().x * align_origin.x,
+						vertex_scale.z * align_origin.y,
+						bbox.size().z * align_origin.z,
+					);
+					let shape = WidgetShape {
+						shape: SharedShape::cuboid(half_size.x, half_size.y, half_size.z),
+						isometry: Isometry::new(
+							Vector::new(
+								center.x - origin.x,
+								center.y - origin.y,
+								center.z - origin.z,
+							),
+							default(),
+						),
+					};
 
 					let verts = vertices
 						.chunks(3)
-						.map(|c| [c[0] - half_size.x, c[1], c[2] - half_size.z])
+						.map(|c| [c[0] - origin.x, c[1] - origin.y, c[2] - origin.z])
 						.collect::<Vec<_>>();
 					let len = verts.len();
 					let mut mesh = Mesh::new(TriangleList, RenderAssetUsages::RENDER_WORLD);
@@ -686,14 +763,16 @@ impl WidgetShape {
 		scale: f32,
 		color: Color,
 	) {
+		let translation = global_position + Vec3::from(self.isometry.translation);
+		let rotation = rotation * Quat::from(self.isometry.rotation);
 		let xform = Transform {
-			translation: global_position,
+			translation,
 			rotation,
 			scale: Vec3::splat(scale),
 		};
 		match self.as_typed_shape() {
 			TypedShape::Ball(ball) => {
-				gizmos.sphere(global_position, rotation, ball.radius * scale, color);
+				gizmos.sphere(translation, rotation, ball.radius * scale, color);
 			}
 			TypedShape::Cuboid(cuboid) => {
 				let xform = Transform {
@@ -993,4 +1072,47 @@ pub enum InteractionKind {
 pub struct Interaction {
 	pub source: InteractionSource,
 	pub kind: InteractionKind,
+}
+
+#[derive(Component, Copy, Clone, Debug, Reflect, Serialize, Deserialize)]
+#[reflect(Component, Serialize, Deserialize)]
+pub struct CuboidContainer {
+	pub size: Vec3,
+	pub translation: Vec3,
+	pub rotation: Quat,
+}
+
+impl CuboidContainer {
+	pub fn sync(mut cmds: Commands, q: Query<(Entity, &Self), Changed<Self>>) {
+		for (id, this) in &q {
+			let h_size = this.size * 0.5;
+			let pos = Vector::from(this.translation);
+			cmds.entity(id).insert(WidgetShape {
+				shape: SharedShape::cuboid(h_size.x, h_size.y, h_size.z),
+				isometry: Isometry::new(pos, this.rotation.to_scaled_axis().into()),
+			});
+		}
+	}
+}
+
+node_3d! { CuboidContainerBundle {
+	params: CuboidContainer,
+}}
+
+impl Default for CuboidContainer {
+	fn default() -> Self {
+		Self {
+			size: Vec3::ONE,
+			translation: default(),
+			rotation: default(),
+		}
+	}
+}
+
+impl Default for CuboidContainerBundle {
+	fn default() -> Self {
+		node_3d_defaults! {
+			params: default(),
+		}
+	}
 }

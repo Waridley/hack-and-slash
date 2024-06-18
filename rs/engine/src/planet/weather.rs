@@ -1,6 +1,6 @@
 use crate::{
 	planet::chunks::{CHUNK_SCALE, TERRAIN_CELL_SIZE},
-	ui::widgets::WidgetShape,
+	ui::{a11y::AKNode, widgets::WidgetShape},
 };
 use bevy::{
 	prelude::{Reflect, Resource, *},
@@ -41,7 +41,7 @@ impl Default for Weather {
 
 pub fn cull_fully_fogged(
 	cams: Query<&GlobalTransform, With<Camera>>,
-	mut visibilities: Query<(&mut Visibility, &GlobalTransform, &Aabb), Without<WidgetShape>>,
+	mut visibilities: Query<(&mut Visibility, &GlobalTransform, &Aabb), Without<AKNode>>,
 	weather: Res<Weather>,
 ) {
 	// Can't use `ViewVisibility` because it only allows setting visibility to `true`, not culling.
