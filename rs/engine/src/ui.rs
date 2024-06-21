@@ -13,8 +13,8 @@ use crate::{
 		layout::LineUpChildren,
 		widgets::{
 			draw_widget_shape_gizmos, Button3d, Button3dBundle, CuboidFaces, CuboidPanel,
-			CuboidPanelBundle, Font3d, Node3dBundle, RectCorners, Text3d, Text3dBundle,
-			WidgetBundle, WidgetShape,
+			CuboidPanelBundle, Node3dBundle, RectCorners, Text3d, Text3dBundle, WidgetBundle,
+			WidgetShape,
 		},
 	},
 	util::{CompassDirection, Diff, LerpSlerp, Prev, StateStack},
@@ -41,7 +41,6 @@ use bevy::{
 };
 use futures_lite::AsyncReadExt;
 use leafwing_input_manager::{prelude::*, Actionlike};
-use meshtext::{MeshGenerator, QualitySettings};
 use rapier3d::{geometry::SharedShape, math::Point};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -56,6 +55,7 @@ pub mod a11y;
 pub mod dbg;
 pub mod focus;
 pub mod layout;
+pub mod text;
 pub mod widgets;
 
 pub const GLOBAL_UI_LAYER: Layer = (RenderLayers::TOTAL_LAYERS - 1) as Layer;
@@ -100,8 +100,7 @@ impl Plugin for UiPlugin {
 		.insert_resource(UiAction::default_mappings())
 		.init_resource::<UiHovered>()
 		.init_resource::<TextMeshCache>()
-		.init_asset::<Font3d>()
-		.register_asset_loader(Font3dLoader)
+		.init_resource::<Tessellator>()
 		.add_systems(Startup, setup)
 		.add_systems(Update, (reset_hovered, show_fps, focus::resolve_focus))
 		.add_systems(
@@ -142,12 +141,8 @@ impl Plugin for UiPlugin {
 
 	fn finish(&self, app: &mut App) {
 		let srv = app.world.resource::<AssetServer>();
-		let mono = srv.load("ui/fonts/KodeMono/static/KodeMono-Bold.ttf");
-		let mono_3d = srv.load("ui/fonts/Noto_Sans_Mono/static/NotoSansMono-Bold.ttf");
-		app.insert_resource(UiFonts {
-			mono,
-			mono_3d: mono_3d.clone(),
-		});
+		let mono = srv.load("ui/fonts/Noto_Sans_Mono/static/NotoSansMono-Bold.ttf");
+		app.insert_resource(UiFonts { mono });
 		app.world.resource_mut::<Assets<_>>().insert(
 			Handle::weak_from_u128(widgets::UNLIT_MATERIAL_ID),
 			new_unlit_material(),
@@ -294,20 +289,6 @@ pub struct UiCam;
 #[derive(Component, Reflect, Copy, Clone, Debug)]
 pub struct CamAnchor;
 
-#[derive(Resource, Clone, Debug)]
-pub struct UiFonts {
-	pub mono: Handle<Font>,
-	pub mono_3d: Handle<Font3d>,
-}
-
-#[derive(Resource, Default, Clone, Debug, Deref, DerefMut)]
-pub struct TextMeshCache(
-	pub  HashMap<
-		(CowArc<'static, str>, [u32; 16], Handle<Font3d>, bool),
-		Option<(Handle<Mesh>, WidgetShape)>,
-	>,
-);
-
 /// Keeps track of whether a UI element is hovered over so that clicking
 /// does not grab the mouse if so.
 #[derive(Resource, Debug, Default, Copy, Clone, Deref, DerefMut, Reflect)]
@@ -381,57 +362,6 @@ impl UiAction {
 			),
 			(Pan, DualAxis::right_stick().into()),
 		])
-	}
-}
-
-pub struct Font3dLoader;
-#[derive(Copy, Clone, Debug, Reflect, Serialize, Deserialize)]
-#[reflect(Serialize, Deserialize)]
-#[serde(default)]
-pub struct Font3dLoaderSettings {
-	pub quad_interpolation_steps: u32,
-	pub cubic_interpolation_steps: u32,
-}
-
-impl Default for Font3dLoaderSettings {
-	fn default() -> Self {
-		Self {
-			quad_interpolation_steps: 5,
-			cubic_interpolation_steps: 3,
-		}
-	}
-}
-
-impl AssetLoader for Font3dLoader {
-	type Asset = Font3d;
-	type Settings = Font3dLoaderSettings;
-	type Error = std::io::Error;
-
-	fn load<'a>(
-		&'a self,
-		reader: &'a mut Reader,
-		settings: &'a Self::Settings,
-		_: &'a mut LoadContext,
-	) -> BoxedFuture<'a, Result<Self::Asset, Self::Error>> {
-		let Font3dLoaderSettings {
-			quad_interpolation_steps,
-			cubic_interpolation_steps,
-		} = *settings;
-		Box::pin(async move {
-			let mut buf = vec![];
-			reader.read_to_end(&mut buf).await?;
-			Ok(Font3d(MeshGenerator::new_without_cache(
-				buf,
-				QualitySettings {
-					quad_interpolation_steps,
-					cubic_interpolation_steps,
-				},
-			)))
-		})
-	}
-
-	fn extensions(&self) -> &[&str] {
-		&["ttf"]
 	}
 }
 
@@ -674,8 +604,11 @@ pub fn anchor_follow_menu(
 use crate::{
 	anim::{AnimationHandle, Delta, DynAnimation},
 	draw::{polygon_points, square_points, PlanarPolyLine},
-	ui::widgets::{
-		new_unlit_material, CuboidContainer, CylinderPanel, InteractHandlers, PrevFocus,
+	ui::{
+		text::Tessellator,
+		widgets::{
+			new_unlit_material, CuboidContainer, CylinderPanel, InteractHandlers, PrevFocus,
+		},
 	},
 };
 #[cfg(feature = "debugging")]
@@ -684,6 +617,7 @@ use bevy_inspector_egui::{
 	prelude::{InspectorOptions, ReflectInspectorOptions},
 };
 use layout::ExpandToFitChildren;
+use text::{TextMeshCache, UiFonts};
 use web_time::Duration;
 
 /// Component that starts a new branch of a tree of entities that can be
@@ -964,7 +898,7 @@ fn spawn_test_menu(
 	mut meshes: ResMut<Assets<Mesh>>,
 	mut mats: ResMut<Assets<UiMat>>,
 	ui_fonts: Res<UiFonts>,
-	mut events: EventReader<AssetEvent<Font3d>>,
+	mut events: EventReader<AssetEvent<Font>>,
 	mut spawned: Local<bool>,
 ) {
 	// TODO: Use bevy_asset_loader
@@ -974,7 +908,7 @@ fn spawn_test_menu(
 	let mut loaded = false;
 	for e in events.read() {
 		if let AssetEvent::Added { id } = e {
-			if *id == ui_fonts.mono_3d.id() {
+			if *id == ui_fonts.mono.id() {
 				loaded = true;
 			}
 		}
@@ -1033,7 +967,7 @@ fn spawn_test_menu(
 										text: "Testing...".into(),
 										..default()
 									},
-									font: ui_fonts.mono_3d.clone(),
+									font: ui_fonts.mono.clone(),
 									transform: Transform::from_translation(Vec3::NEG_Y),
 									material: mats.add(new_unlit_material()),
 									..default()
@@ -1062,7 +996,7 @@ fn spawn_test_menu(
 											text: "Test button".into(),
 											..default()
 										},
-										font: ui_fonts.mono_3d.clone(),
+										font: ui_fonts.mono.clone(),
 										transform: Transform {
 											translation: Vec3::X,
 											rotation: Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),

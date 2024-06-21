@@ -2,8 +2,9 @@ use crate::{
 	mats::{fade::DitherFade, fog::DistanceDither},
 	todo_warn,
 	ui::{
-		a11y::AKNode, MenuStack, TextMeshCache, UiAction, UiCam, UiMat, UiMatBuilder,
-		GLOBAL_UI_RENDER_LAYERS,
+		a11y::AKNode,
+		text::{Tessellator, TextMeshCache},
+		MenuStack, UiAction, UiCam, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
 	},
 	util::{Prev, ZUp},
 };
@@ -27,12 +28,13 @@ use bevy_rapier3d::{
 	},
 };
 use leafwing_input_manager::prelude::ActionState;
-use meshtext::{MeshGenerator, MeshText, OwnedFace, TextSection};
+use lyon_tessellation::{FillOptions, VertexBuffers};
 use rapier3d::{na::UnitQuaternion, parry::shape::SharedShape};
 use serde::{Deserialize, Serialize};
 use std::{
 	f32::consts::PI,
 	fmt::{Debug, Formatter},
+	num::TryFromIntError,
 	ops::ControlFlow,
 	sync::Arc,
 };
@@ -322,6 +324,7 @@ pub struct Text3d {
 	pub vertex_rotation: Quat,
 	pub vertex_scale: Vec3,
 	pub align_origin: Vec3,
+	pub tolerance: f32,
 }
 
 impl Default for Text3d {
@@ -333,13 +336,14 @@ impl Default for Text3d {
 			vertex_rotation: Quat::from_rotation_arc(Vec3::Z, Vec3::NEG_Y),
 			vertex_scale: Vec3::new(1.0, 1.0, 0.4),
 			align_origin: Vec3::splat(0.5),
+			tolerance: FillOptions::DEFAULT_TOLERANCE * 0.02,
 		}
 	}
 }
 
 node_3d! { Text3dBundle<M: Material = UiMat> {
 	text_3d: Text3d,
-	font: Handle<Font3d>,
+	font: Handle<Font>,
 	material: Handle<M>,
 }}
 
@@ -353,18 +357,16 @@ impl<M: Material> Default for Text3dBundle<M> {
 	}
 }
 
-#[derive(Asset, Deref, DerefMut, TypePath)]
-pub struct Font3d(pub MeshGenerator<OwnedFace>);
-
 impl Text3d {
 	pub fn sync(
 		mut cmds: Commands,
-		mut q: Query<(&Text3d, &Handle<Font3d>, &mut AKNode)>,
+		mut q: Query<(&Text3d, &Handle<Font>, &mut AKNode)>,
 		changed_text: Query<Entity, Changed<Text3d>>,
 		mut meshes: ResMut<Assets<Mesh>>,
 		mut cache: ResMut<TextMeshCache>,
-		mut fonts: ResMut<Assets<Font3d>>,
+		mut fonts: ResMut<Assets<Font>>,
 		mut to_retry: Local<HashSet<Entity>>,
+		mut tessellator: ResMut<Tessellator>,
 	) {
 		let mut to_try = to_retry.drain().chain(&changed_text).collect::<Vec<_>>();
 		for id in to_try {
@@ -381,6 +383,7 @@ impl Text3d {
 				vertex_rotation,
 				vertex_scale,
 				align_origin,
+				tolerance,
 			} = *this;
 
 			ak_node.set_value(&**text);
@@ -406,56 +409,88 @@ impl Text3d {
 							.get_mut(font)
 							.expect("Font was already confirmed to exist")
 					});
-					let MeshText { bbox, vertices } = font
-						.generate_section(
-							&text,
-							flat,
-							Some(
-								&Mat4::from_scale_rotation_translation(
-									vertex_scale,
-									vertex_rotation,
-									vertex_translation,
-								)
-								.to_cols_array(),
-							),
-						)
-						.map_err(|e|
-							// `:?` because `GlyphTriangulationError` has a useless `Display` impl
-							error!("{e:?}"))
-						.ok()?;
+
+					let (
+						VertexBuffers {
+							vertices,
+							mut indices,
+						},
+						bbox,
+					) = tessellator.tessellate(&text, &*font, tolerance, vertex_scale.xy());
 
 					let half_size = Vec3::new(
 						bbox.size().x * 0.5,
-						// For some reason, bbox is not accounting for depth
 						vertex_scale.z * 0.5,
-						bbox.size().z * 0.5,
+						bbox.size().y * 0.5,
 					);
 					let center = bbox.center();
 					let origin = Vec3::new(
 						bbox.size().x * align_origin.x,
 						vertex_scale.z * align_origin.y,
-						bbox.size().z * align_origin.z,
+						bbox.size().y * align_origin.z,
 					);
 					let shape = WidgetShape {
 						shape: SharedShape::cuboid(half_size.x, half_size.y, half_size.z),
 						isometry: Isometry::new(
-							Vector::new(
-								center.x - origin.x,
-								center.y - origin.y,
-								center.z - origin.z,
-							),
+							Vector::new(center.x - origin.x, 0.0 - origin.y, center.y - origin.z),
 							default(),
 						),
 					};
 
-					let verts = vertices
-						.chunks(3)
-						.map(|c| [c[0] - origin.x, c[1] - origin.y, c[2] - origin.z])
+					let mut verts = vertices
+						.iter()
+						.map(|c| [c.x - origin.x, 0.0 - origin.y, c.y - origin.z])
 						.collect::<Vec<_>>();
+
+					if !flat {
+						let len = vertices.len();
+						verts.extend(
+							vertices.into_iter().map(|c| {
+								[c.x - origin.x, vertex_scale.z - origin.y, c.y - origin.z]
+							}),
+						);
+						let edges = || {
+							indices
+								.chunks(3)
+								.flat_map(|tri| {
+									[[tri[0], tri[1]], [tri[1], tri[2]], [tri[2], tri[0]]]
+								})
+								.enumerate()
+						};
+						match u16::try_from(len) {
+							Ok(len) => {
+								let mut new_indices =
+									indices.iter().copied().map(|i| i + len).collect::<Vec<_>>();
+								for (i, edge) in edges() {
+									let mut shared = false;
+									for (j, [a, b]) in edges() {
+										if i == j {
+											continue;
+										} else if edge == [a, b] || edge == [b, a] {
+											shared = true;
+											break;
+										}
+									}
+									if !shared {
+										let [a, b] = edge;
+										let [c, d] = [a + len, b + len];
+										new_indices.extend([b, a, c, b, c, d]);
+									}
+								}
+								indices.append(&mut new_indices);
+							}
+							Err(e) => {
+								error!("Too many vertices for u16 indices: {e}");
+							}
+						};
+					}
+
 					let len = verts.len();
 					let mut mesh = Mesh::new(TriangleList, RenderAssetUsages::RENDER_WORLD);
 					mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, verts);
+					mesh.insert_indices(Indices::U16(indices));
 					mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0.0, 0.0]; len]);
+					mesh.duplicate_vertices();
 					mesh.compute_flat_normals();
 					Some((meshes.add(mesh), shape))
 				})

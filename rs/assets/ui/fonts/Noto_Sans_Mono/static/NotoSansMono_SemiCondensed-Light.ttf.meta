@@ -1,7 +1,7 @@
 (
     meta_format_version: "1.0",
     asset: Load(
-        loader: "sond_has_engine::ui::Font3dLoader",
+        loader: "bevy_text::font_loader::FontLoader",
         settings: (),
     ),
 )
