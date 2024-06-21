@@ -3,8 +3,9 @@ use crate::{
 	node_3d,
 	ui::{
 		a11y::AKNode,
-		widgets::{Font3d, Text3d, Text3dBundle, UNLIT_MATERIAL_ID},
-		TextMeshCache, UiFonts, GLOBAL_UI_RENDER_LAYERS,
+		text::{TextMeshCache, UiFonts},
+		widgets::{Text3d, Text3dBundle, UNLIT_MATERIAL_ID},
+		GLOBAL_UI_RENDER_LAYERS,
 	},
 };
 use bevy::{asset::AssetPath, input::keyboard::Key, prelude::*, render::view::RenderLayers};

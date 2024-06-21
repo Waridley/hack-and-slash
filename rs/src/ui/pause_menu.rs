@@ -28,12 +28,13 @@ use engine::{
 	ui::{
 		focus::{AdjacentWidgets, FocusTarget, Wedge2d},
 		layout::LineUpChildren,
+		text::UiFonts,
 		widgets::{
 			dbg_event, new_unlit_material, on_ok, Button3dBundle, CuboidFaces, CuboidPanel,
 			CuboidPanelBundle, InteractHandlers, Node3dBundle, RectCorners, Text3d, Text3dBundle,
 			WidgetBundle, WidgetShape,
 		},
-		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiCam, UiFonts, UiMat, UiMatBuilder,
+		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiCam, UiMat, UiMatBuilder,
 	},
 	util::{Flat, StateStack},
 };
@@ -121,7 +122,7 @@ pub fn setup(
 						..default()
 					},
 					material: mats.add(UiMatBuilder::from(Color::WHITE)),
-					font: ui_fonts.mono_3d.clone(),
+					font: ui_fonts.mono.clone(),
 					transform: Transform {
 						translation: Vec3::new(0.0, -6.5, 5.0),
 						..default()
@@ -145,8 +146,8 @@ pub fn setup(
 					(
 						Name::new("resume_btn"),
 						Button3dBundle {
-							shape: WidgetShape { shape: SharedShape::cuboid(3.0, 0.6, 0.6), ..default() },
-							mesh: meshes.add(Cuboid::new(6.0, 1.2, 1.2)),
+							shape: WidgetShape { shape: SharedShape::cuboid(3.5, 0.6, 0.6), ..default() },
+							mesh: meshes.add(Cuboid::new(7.0, 1.2, 1.2)),
 							material: mats.add(UiMatBuilder {
 								std: StandardMaterial {
 									base_color: Color::BLACK,
@@ -174,7 +175,7 @@ pub fn setup(
 							Name::new("resume_btn_text"),
 							Text3dBundle {
 								text_3d: Text3d { text: "Resume Game".into(), ..default() },
-								font: ui_fonts.mono_3d.clone(),
+								font: ui_fonts.mono.clone(),
 								material: btn_txt_mat.clone(),
 								transform: Transform {
 									translation: Vec3::NEG_Y * 0.61,
@@ -187,8 +188,8 @@ pub fn setup(
 					(
 						Name::new("settings_btn"),
 						Button3dBundle {
-							shape: WidgetShape { shape: SharedShape::cuboid(3.0, 0.6, 0.6), ..default() },
-							mesh: meshes.add(Cuboid::new(6.0, 1.2, 1.2)),
+							shape: WidgetShape { shape: SharedShape::cuboid(3.5, 0.6, 0.6), ..default() },
+							mesh: meshes.add(Cuboid::new(7.0, 1.2, 1.2)),
 							material: mats.add(UiMatBuilder {
 								std: StandardMaterial {
 									base_color: Color::BLACK,
@@ -225,7 +226,7 @@ pub fn setup(
 								Name::new("settings_btn_text"),
 								Text3dBundle {
 									text_3d: Text3d { text: "Settings...".into(), ..default() },
-									font: ui_fonts.mono_3d.clone(),
+									font: ui_fonts.mono.clone(),
 									material: btn_txt_mat.clone(),
 									transform: Transform {
 										translation: Vec3::NEG_Y * 0.61,
@@ -238,8 +239,8 @@ pub fn setup(
 					(
 						Name::new("quit_btn"),
 						Button3dBundle {
-							shape: WidgetShape { shape: SharedShape::cuboid(2.2, 0.6, 0.6), ..default() },
-							mesh: meshes.add(Cuboid::new(4.4, 1.2, 1.2)),
+							shape: WidgetShape { shape: SharedShape::cuboid(3.0, 0.6, 0.6), ..default() },
+							mesh: meshes.add(Cuboid::new(6.0, 1.2, 1.2)),
 							material: mats.add(UiMatBuilder {
 								std: StandardMaterial {
 									base_color: Color::BLACK,
@@ -268,8 +269,8 @@ pub fn setup(
 							(
 								Name::new("quit_btn_text"),
 								Text3dBundle {
-									text_3d: Text3d { text: "Exit Game".into(), ..default() },
-									font: ui_fonts.mono_3d.clone(),
+									text_3d: Text3d { text: "Quit Game".into(), ..default() },
+									font: ui_fonts.mono.clone(),
 									material: btn_txt_mat.clone(),
 									transform: Transform {
 										translation: Vec3::NEG_Y * 0.61,

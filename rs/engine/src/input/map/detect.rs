@@ -15,11 +15,12 @@ use crate::{
 	},
 	ui::{
 		layout::LineUpChildren,
+		text::{TextMeshCache, UiFonts},
 		widgets::{
-			CuboidFaces, CuboidPanel, CuboidPanelBundle, Font3d, Node3dBundle, RectCorners, Text3d,
+			CuboidFaces, CuboidPanel, CuboidPanelBundle, Node3dBundle, RectCorners, Text3d,
 			Text3dBundle,
 		},
-		CamAnchor, GlobalUi, Popup, PopupsRoot, TextMeshCache, UiFonts, GLOBAL_UI_RENDER_LAYERS,
+		CamAnchor, GlobalUi, Popup, PopupsRoot, GLOBAL_UI_RENDER_LAYERS,
 	},
 };
 use bevy::{
@@ -39,7 +40,7 @@ impl Plugin for DetectBindingPopupPlugin {
 }
 
 pub fn setup(
-	mut events: EventReader<AssetEvent<Font3d>>,
+	mut events: EventReader<AssetEvent<Font>>,
 	mut cmds: Commands,
 	mut meshes: ResMut<Assets<Mesh>>,
 	mut mats: ResMut<Assets<ExtMat<DitherFade>>>,
@@ -48,7 +49,7 @@ pub fn setup(
 	// TODO: Use bevy_asset_loader
 	for event in events.read() {
 		if let AssetEvent::Added { id } = event {
-			if ui_fonts.mono_3d.id() == *id {
+			if ui_fonts.mono.id() == *id {
 				let size = Vec3::new(8.0, 1.0, 6.0);
 				let mut cmds = cmds.spawn((
 					Popup,
@@ -111,10 +112,10 @@ pub fn setup(
 						text_3d: Text3d {
 							text: "Press input(s) to bind...".into(),
 							flat: false,
-							vertex_scale: Vec3::new(0.5, 0.5, 0.5),
+							vertex_scale: Vec3::splat(0.45),
 							..default()
 						},
-						font: ui_fonts.mono_3d.clone(),
+						font: ui_fonts.mono.clone(),
 						material: mats.add(ExtMat {
 							extension: default(),
 							base: Matter {
@@ -235,7 +236,7 @@ pub fn display_curr_chord(
 							size: Vec3::splat(1.0),
 							..default()
 						},
-						font: ui_fonts.mono_3d.clone(),
+						font: ui_fonts.mono.clone(),
 						transform: Transform {
 							// scale: Vec3::splat(0.02),
 							..default()

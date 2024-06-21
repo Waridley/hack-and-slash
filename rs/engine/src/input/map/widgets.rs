@@ -3,19 +3,14 @@ use crate::{
 	node_3d, node_3d_defaults,
 	ui::{
 		a11y::AKNode,
-		widgets::{Font3d, Text3d, WidgetShape, UNLIT_MATERIAL_ID},
-		TextMeshCache, UiFonts, GLOBAL_UI_RENDER_LAYERS,
+		text::UiFonts,
+		widgets::{Text3d, WidgetShape, UNLIT_MATERIAL_ID},
 	},
 };
-use bevy::{
-	a11y::accesskit::{NodeBuilder, Role},
-	ecs::system::EntityCommands,
-	prelude::*,
-	render::view::RenderLayers,
-};
+use bevy::{ecs::system::EntityCommands, prelude::*, render::view::RenderLayers};
 use bevy_rapier3d::parry::{math::Isometry, shape::SharedShape};
 use bevy_svg::{
-	prelude::{Origin, Svg, Svg3dBundle},
+	prelude::{Origin, Svg},
 	SvgSettings,
 };
 
@@ -40,7 +35,7 @@ impl Default for InputIcon {
 
 node_3d! { InputIconBundle<M: Material = StandardMaterial> {
 	input_icon: InputIcon,
-	font: Handle<Font3d>,
+	font: Handle<Font>,
 	material: Handle<M>,
 }}
 
@@ -101,7 +96,7 @@ impl InputIcon {
 								vertex_scale: Vec3::new(size.x * 0.5, size.y * 0.5, size.z),
 								..default()
 							},
-							font: fonts.mono_3d.clone(),
+							font: fonts.mono.clone(),
 							material: mat.clone(),
 							..default()
 						})

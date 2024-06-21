@@ -10,13 +10,14 @@ use engine::{
 			Wedge2d,
 		},
 		layout::{RadialArrangement, RadialChildren},
+		text::UiFonts,
 		widgets::{
 			dbg_event, new_unlit_material, on_back, on_ok, Button3dBundle, CuboidPanel,
 			CuboidPanelBundle, CylinderFaces, CylinderPanel, CylinderPanelBundle, InteractHandlers,
 			Node3dBundle, Text3d, Text3dBundle, WidgetBundle, WidgetShape,
 		},
-		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiAction, UiCam, UiFonts, UiMat,
-		UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
+		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiAction, UiCam, UiMat, UiMatBuilder,
+		GLOBAL_UI_RENDER_LAYERS,
 	},
 	util::{Angle, Flat},
 };
@@ -91,7 +92,7 @@ pub fn setup(
 						..default()
 					},
 					material: mats.add(UiMatBuilder::from(Color::rgb(0.5, 0.8, 0.7))),
-					font: ui_fonts.mono_3d.clone(),
+					font: ui_fonts.mono.clone(),
 					transform: Transform {
 						translation: Vec3::new(0.0, -3.5, 0.0),
 						..default()
@@ -149,7 +150,7 @@ pub fn setup(
 								Text3dBundle {
 									text_3d: Text3d { text: "Gameplay".into(), ..default() },
 									material: text_material.clone(),
-									font: ui_fonts.mono_3d.clone(),
+									font: ui_fonts.mono.clone(),
 									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
 									..default()
 								},
@@ -168,7 +169,7 @@ pub fn setup(
 								Text3dBundle {
 									text_3d: Text3d { text: "Graphics".into(), ..default() },
 									material: text_material.clone(),
-									font: ui_fonts.mono_3d.clone(),
+									font: ui_fonts.mono.clone(),
 									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
 									..default()
 								},
@@ -185,9 +186,9 @@ pub fn setup(
 						#children:
 							(
 								Text3dBundle {
-									text_3d: Text3d { text: "accessibility".into(), ..default() },
+									text_3d: Text3d { text: "Accessibility".into(), ..default() },
 									material: text_material.clone(),
-									font: ui_fonts.mono_3d.clone(),
+									font: ui_fonts.mono.clone(),
 									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
 									..default()
 								},
@@ -206,7 +207,7 @@ pub fn setup(
 								Text3dBundle {
 									text_3d: Text3d { text: "Sound".into(), ..default() },
 									material: text_material.clone(),
-									font: ui_fonts.mono_3d.clone(),
+									font: ui_fonts.mono.clone(),
 									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
 									..default()
 								},
@@ -234,7 +235,7 @@ pub fn setup(
 								Text3dBundle {
 									text_3d: Text3d { text: "Controls".into(), ..default() },
 									material: text_material.clone(),
-									font: ui_fonts.mono_3d.clone(),
+									font: ui_fonts.mono.clone(),
 									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
 									..default()
 								},
@@ -253,7 +254,7 @@ pub fn setup(
 								Text3dBundle {
 									text_3d: Text3d { text: "Kumquats".into(), ..default() },
 									material: text_material.clone(),
-									font: ui_fonts.mono_3d.clone(),
+									font: ui_fonts.mono.clone(),
 									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
 									..default()
 								},

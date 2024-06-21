@@ -9,11 +9,12 @@ use engine::{
 	ui::{
 		focus::AdjacentWidgets,
 		layout::{ExpandToFitChildren, LineUpChildren},
+		text::UiFonts,
 		widgets::{
 			new_unlit_material, CuboidContainer, CuboidContainerBundle, CuboidPanel,
 			CuboidPanelBundle, InteractHandlers, Text3d, Text3dBundle,
 		},
-		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiAction, UiFonts, UiMat, UiMatBuilder,
+		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiAction, UiMat, UiMatBuilder,
 		GLOBAL_UI_RENDER_LAYERS,
 	},
 	util::LerpSlerp,
@@ -53,7 +54,7 @@ pub fn setup(
 								align_origin: Vec3::new(0.0, 0.5, 0.5),
 								..default()
 							},
-							font: ui_fonts.mono_3d.clone(),
+							font: ui_fonts.mono.clone(),
 							material: text_mat.clone(),
 							..default()
 						},
@@ -69,7 +70,6 @@ pub fn setup(
 			.id()
 		})
 		.collect::<Vec<_>>();
-	let TEMP = cmds.entity(entries.remove(1)).despawn_recursive(); // FIXME: Fix text mesh generation.
 	sub_menus.controls.focus = *entries.first().unwrap();
 
 	let transform = Transform {
@@ -106,7 +106,7 @@ pub fn setup(
 							flat: false,
 							..default()
 						},
-						font: ui_fonts.mono_3d.clone(),
+						font: ui_fonts.mono.clone(),
 						material: mats.add(UiMatBuilder::from(Color::GREEN)),
 						..default()
 					}

@@ -69,6 +69,7 @@ bevy_quickmenu = "0.2.0"
 bevy_common_assets = { version = "0.10.0", features = ["ron"] }
 
 # Util
+ab_glyph = "0.2.26"
 array-init = "2.1.0"
 base64 = "0.21.7"
 bevy_pkv = "0.10.0" # settings
@@ -78,6 +79,7 @@ crossbeam = "0.8.2"
 fixedbitset = "0.4.2" # navigation graph edge storage
 futures-lite = "2.1.0" # especially for `yield_now()`
 bimap = "0.6.3"
+lyon_tessellation = "1.0.15"
 meshtext = { version = "0.3.0", features = ["owned"] }
 nanorand = { version = "0.7.0", default-features = false, features = ["std", "wyrand", "getrandom"] } # wasm is broken without std and getrandom
 noise = "0.8.2"
