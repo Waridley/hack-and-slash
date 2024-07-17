@@ -4,7 +4,7 @@ use crate::{
 	ui::{
 		a11y::AKNode,
 		text::{Tessellator, TextMeshCache},
-		MenuStack, UiAction, UiCam, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
+		AdjacentWidgets, MenuStack, UiAction, UiCam, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
 	},
 	util::{Prev, ZUp},
 };
@@ -36,7 +36,7 @@ use std::{
 	fmt::{Debug, Formatter},
 	num::TryFromIntError,
 	ops::ControlFlow,
-	sync::Arc,
+	sync::{Arc, Mutex},
 };
 use web_time::Duration;
 
@@ -82,13 +82,14 @@ macro_rules! node_3d {
 	    #[derive(Bundle, Clone)]
 	    pub struct $T$(<$($G $(: $Constraints)? $(= $Def)?),*>)? $(where $($W: $WConstraints)*)? {
 		    $(pub $fields: $tys,)*
-		    pub handlers: crate::ui::widgets::InteractHandlers,
+		    pub handlers: $crate::ui::widgets::InteractHandlers,
 				pub transform: Transform,
 				pub global_transform: GlobalTransform,
 				pub visibility: Visibility,
 				pub inherited_visibility: InheritedVisibility,
 				pub view_visibility: ViewVisibility,
 				pub layers: RenderLayers,
+		    pub adjacent: $crate::ui::focus::AdjacentWidgets,
 				pub ak_node: AKNode,
 	    }
     }
@@ -110,6 +111,7 @@ macro_rules! node_3d_defaults {
 				inherited_visibility: ::std::default::Default::default(),
 				view_visibility: ::std::default::Default::default(),
 				layers: $crate::ui::GLOBAL_UI_RENDER_LAYERS,
+		    adjacent: ::std::default::Default::default(),
 				ak_node: ::bevy::a11y::accesskit::NodeBuilder::new(::bevy::a11y::accesskit::Role::Unknown).into(),
 	    }
     };
@@ -133,6 +135,22 @@ impl Default for WidgetBundle {
 	}
 }
 
+node_3d! { PanelBundle<M: Material = UiMat> {
+	shape: WidgetShape,
+	mesh: Handle<Mesh>,
+	material: Handle<M>,
+}}
+
+impl Default for PanelBundle {
+	fn default() -> Self {
+		node_3d_defaults! {
+			shape: default(),
+			mesh: default(),
+			material: default(),
+		}
+	}
+}
+
 #[derive(Component, Clone, Debug, Reflect)]
 #[reflect(Component)]
 pub struct CuboidPanel {
@@ -140,6 +158,7 @@ pub struct CuboidPanel {
 	pub colors: Option<CuboidFaces<RectCorners<Color>>>,
 	pub translation: Vec3,
 	pub rotation: Quat,
+	pub mesh_margin: Vec3,
 }
 
 impl Default for CuboidPanel {
@@ -149,6 +168,7 @@ impl Default for CuboidPanel {
 			colors: default(),
 			translation: default(),
 			rotation: default(),
+			mesh_margin: default(),
 		}
 	}
 }
@@ -180,6 +200,7 @@ impl CuboidPanel {
 				colors,
 				translation,
 				rotation,
+				mesh_margin,
 			},
 		) in &mut q
 		{
@@ -194,7 +215,13 @@ impl CuboidPanel {
 				shape: SharedShape::cuboid(hx, hy, hz),
 				isometry: Isometry::new(pos, rotation.to_scaled_axis().into()),
 			});
-			let mut mesh = Cuboid::new(size.x, size.y, size.z).mesh();
+
+			let mut mesh = Cuboid::new(
+				size.x - mesh_margin.x,
+				size.y - mesh_margin.y,
+				size.z - mesh_margin.z,
+			)
+			.mesh();
 			offset_mesh_positions(&mut mesh, *translation, *rotation);
 			if let Some(colors) = colors {
 				mesh.insert_attribute(
@@ -501,32 +528,6 @@ impl Text3d {
 			};
 			debug!(?id, ?mesh, ?shape);
 			cmds.insert((mesh, shape));
-		}
-	}
-}
-
-#[derive(Component, Default, Debug, Copy, Clone)]
-pub struct Button3d {
-	pub pressed: bool,
-}
-
-node_3d! { Button3dBundle<M = UiMat>
-where M: Material {
-	state: Button3d,
-	prev_state: Prev<Button3d>,
-	shape: WidgetShape,
-	mesh: Handle<Mesh>,
-	material: Handle<M>,
-}}
-
-impl<M: Material> Default for Button3dBundle<M> {
-	fn default() -> Self {
-		node_3d_defaults! {
-			state: default(),
-			prev_state: default(),
-			shape: default(),
-			mesh: default(),
-			material: default(),
 		}
 	}
 }
@@ -958,6 +959,75 @@ pub fn on_action(
 	}))
 }
 
+pub fn on_focus(
+	acquire: impl Fn(&mut EntityCommands) -> ControlFlow<()> + Send + Sync + 'static,
+	release: impl Fn(&mut EntityCommands) -> ControlFlow<()> + Send + Sync + 'static,
+) -> CowArc<'static, InteractHandler> {
+	CowArc::Owned(Arc::new(move |ev, cmds| {
+		if ev.source == InteractionSource::Focus {
+			match ev.kind {
+				InteractionKind::Begin => (&acquire)(cmds),
+				InteractionKind::Release => (&release)(cmds),
+				InteractionKind::Hold(_) => ControlFlow::Continue(()),
+			}
+		} else {
+			ControlFlow::Continue(())
+		}
+	}))
+}
+
+pub fn focus_state_colors(unfocused: Color, focused: Color) -> CowArc<'static, InteractHandler> {
+	focus_with_asset::<UiMat>(
+		move |mat| mat.base.base.base_color = focused,
+		move |mat| mat.base.base.base_color = unfocused,
+	)
+}
+
+pub fn focus_state_emissive(unfocused: Color, focused: Color) -> CowArc<'static, InteractHandler> {
+	focus_with_asset::<UiMat>(
+		move |mat| mat.base.base.emissive = focused,
+		move |mat| mat.base.base.emissive = unfocused,
+	)
+}
+
+pub fn focus_with_asset<A: Asset>(
+	acquire: impl Fn(&mut A) + Send + Sync + 'static,
+	release: impl Fn(&mut A) + Send + Sync + 'static,
+) -> CowArc<'static, InteractHandler> {
+	let acquire: Arc<dyn Fn(&mut A) + Send + Sync + 'static> = Arc::new(acquire);
+	let release: Arc<dyn Fn(&mut A) + Send + Sync + 'static> = Arc::new(release);
+	CowArc::Owned(Arc::new(move |ev, cmds| {
+		if ev.source == InteractionSource::Focus {
+			let handler = match ev.kind {
+				InteractionKind::Begin => acquire.clone(),
+				InteractionKind::Release => release.clone(),
+				InteractionKind::Hold(_) => return ControlFlow::Continue(()),
+			};
+			cmds.add(move |mut entity: EntityWorldMut| {
+				let Some(handle) = entity.get::<Handle<A>>().cloned() else {
+					let id = entity.id();
+					error!(
+						?id,
+						"can't handle focus -- entity is missing handle for asset type"
+					);
+					return;
+				};
+				entity.world_scope(move |world| {
+					let mut mats = world.resource_mut::<Assets<A>>();
+					let Some(mat) = mats.get_mut(handle.clone()) else {
+						error!(?handle, "can't handle focus -- missing asset for handle");
+						return;
+					};
+					handler(mat);
+				});
+			});
+			ControlFlow::Continue(())
+		} else {
+			ControlFlow::Continue(())
+		}
+	}))
+}
+
 impl InteractHandlers {
 	pub fn on_ok(
 		handler: impl Fn(&mut EntityCommands) -> ControlFlow<()> + Send + Sync + 'static,
@@ -980,6 +1050,18 @@ impl InteractHandlers {
 
 	pub fn handle(&self, event: Interaction, cmds: &mut EntityCommands) -> ControlFlow<()> {
 		self.iter().try_for_each(|handler| handler(event, cmds))
+	}
+
+	pub fn extend(&mut self, handlers: impl IntoIterator<Item = CowArc<'static, InteractHandler>>) {
+		self.0.extend(handlers)
+	}
+
+	pub fn and(
+		mut self,
+		handlers: impl IntoIterator<Item = CowArc<'static, InteractHandler>>,
+	) -> Self {
+		self.extend(handlers);
+		self
 	}
 
 	pub fn system(
@@ -1028,24 +1110,17 @@ impl InteractHandlers {
 				propagate_interaction(&mut cmds, focus, ev, &q, &parents);
 			}
 			if focus != **prev_focus {
-				let begin = Interaction {
-					source: InteractionSource::Focus,
-					kind: InteractionKind::Begin,
-				};
-				// Focus events don't propagate
-				q.get(focus)
-					.map(|handlers| handlers.handle(begin, &mut cmds.entity(focus)))
-					.inspect_err(|e| error!("{e}"))
-					.ok();
-
 				let release = Interaction {
 					source: InteractionSource::Focus,
 					kind: InteractionKind::Release,
 				};
-				q.get(**prev_focus)
-					.map(|handlers| handlers.handle(release, &mut cmds.entity(**prev_focus)))
-					.inspect_err(|e| error!("{e}"))
-					.ok();
+				propagate_interaction(&mut cmds, **prev_focus, release, &q, &parents);
+
+				let begin = Interaction {
+					source: InteractionSource::Focus,
+					kind: InteractionKind::Begin,
+				};
+				propagate_interaction(&mut cmds, focus, begin, &q, &parents);
 				**prev_focus = focus;
 			}
 		}

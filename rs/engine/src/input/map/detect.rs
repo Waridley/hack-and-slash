@@ -20,7 +20,7 @@ use crate::{
 			CuboidFaces, CuboidPanel, CuboidPanelBundle, Node3dBundle, RectCorners, Text3d,
 			Text3dBundle,
 		},
-		CamAnchor, GlobalUi, Popup, PopupsRoot, GLOBAL_UI_RENDER_LAYERS,
+		CamAnchor, GlobalUi, Popup, PopupsRoot, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
 	},
 };
 use bevy::{
@@ -35,7 +35,7 @@ impl Plugin for DetectBindingPopupPlugin {
 	fn build(&self, app: &mut App) {
 		app.add_systems(PreUpdate, setup)
 			.add_systems(Update, (manage_detect_popup, display_curr_chord))
-			.add_systems(Last, InputIcon::sync::<StandardMaterial>);
+			.add_systems(Last, InputIcon::sync::<UiMat>);
 	}
 }
 
@@ -140,6 +140,7 @@ pub fn setup(
 						LineUpChildren {
 							relative_positions: Vec3::new(1.5, -1.5, -0.32).normalize(),
 							align: Vec3::new(-0.5, -1.0, 0.0),
+							..default()
 						},
 						GLOBAL_UI_RENDER_LAYERS,
 					));
@@ -183,13 +184,13 @@ pub struct CurrChordIcons(HashMap<ChordEntry, SmallVec<[Entity; 4]>>);
 pub fn display_curr_chord(
 	mut cmds: Commands,
 	mut q: Query<(Entity, &mut CurrChordIcons)>,
-	mut mats: ResMut<Assets<StandardMaterial>>,
+	mut mats: ResMut<Assets<UiMat>>,
 	ui_fonts: Res<UiFonts>,
 	curr_chord: Res<CurrentChord>,
 	gamepads: Res<Gamepads>,
-	mut icon_mat: Local<Option<Handle<StandardMaterial>>>,
+	mut icon_mat: Local<Option<Handle<UiMat>>>,
 ) {
-	let icon_mat = icon_mat.get_or_insert_with(|| mats.add(StandardMaterial::default()));
+	let icon_mat = icon_mat.get_or_insert_with(|| mats.add(UiMatBuilder::default()));
 	let Ok((id, mut icons)) = q.get_single_mut() else {
 		return;
 	};
@@ -230,10 +231,11 @@ pub fn display_curr_chord(
 			let mut ids = SmallVec::new();
 			for icon in entry_icons {
 				let icon_id = cmds
-					.spawn(InputIconBundle::<StandardMaterial> {
+					.spawn(InputIconBundle::<UiMat> {
 						input_icon: InputIcon {
 							icon,
 							size: Vec3::splat(1.0),
+							flat: false,
 							..default()
 						},
 						font: ui_fonts.mono.clone(),

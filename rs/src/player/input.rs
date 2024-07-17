@@ -33,15 +33,12 @@ pub fn plugin(app: &mut App) -> &mut App {
 		.add_systems(First, setup)
 		.add_systems(
 			Update,
-			(
-				grab_mouse,
-				(
-					look_input.ambiguous_with(movement_input),
-					movement_input.run_if(resource_exists::<PlayerParams>),
-				)
-					.before(terminal_velocity)
-					.in_set(InputSystems),
-			),
+			((
+				look_input.ambiguous_with(movement_input),
+				movement_input.run_if(resource_exists::<PlayerParams>),
+			)
+				.before(terminal_velocity)
+				.in_set(InputSystems),),
 		)
 }
 
@@ -258,26 +255,5 @@ pub fn movement_input(
 		if ctrl_vel.linvel.y != y {
 			ctrl_vel.linvel.y = y
 		}
-	}
-}
-pub fn grab_mouse(
-	mut windows: Query<&mut Window>,
-	mouse: Res<ButtonInput<MouseButton>>,
-	key: Res<ButtonInput<KeyCode>>,
-	ui_hovered: Res<UiHovered>,
-) {
-	let Ok(mut window) = windows.get_single_mut() else {
-		// probably exiting if window is missing
-		return;
-	};
-
-	if mouse.just_pressed(MouseButton::Left) && !**ui_hovered {
-		window.cursor.visible = false;
-		window.cursor.grab_mode = CursorGrabMode::Locked;
-	}
-
-	if key.just_pressed(KeyCode::Escape) {
-		window.cursor.visible = true;
-		window.cursor.grab_mode = CursorGrabMode::None;
 	}
 }

@@ -1,73 +1,222 @@
 use crate::{
 	todo_warn,
 	ui::{
-		widgets::{WidgetGizmos, WidgetShape},
-		GlobalUi, MenuStack, UiAction, UiCam, GLOBAL_UI_RENDER_LAYERS,
+		widgets::{InteractHandler, InteractionKind, InteractionSource, WidgetGizmos, WidgetShape},
+		GlobalUi, MenuRef, MenuStack, UiAction, UiCam, GLOBAL_UI_RENDER_LAYERS,
 	},
 };
 use bevy::{
 	a11y::Focus,
+	ecs::{identifier::error::IdentifierError, query::QueryEntityError},
 	prelude::*,
 	render::view::{Layer, RenderLayers},
+	utils::CowArc,
 };
 use leafwing_input_manager::prelude::ActionState;
 use serde::{Deserialize, Serialize};
-use std::f32::consts::{FRAC_PI_2, FRAC_PI_3, FRAC_PI_4, FRAC_PI_6, FRAC_PI_8, PI};
+use std::{
+	f32::consts::{FRAC_PI_2, FRAC_PI_3, FRAC_PI_4, FRAC_PI_6, FRAC_PI_8, PI},
+	fmt::Formatter,
+	num::ParseIntError,
+	ops::ControlFlow,
+	str::{FromStr, Split},
+	sync::Arc,
+};
 
-#[derive(Debug, Clone, Reflect, Serialize, Deserialize)]
-#[reflect(Serialize, Deserialize)]
+/// Tells [handle_focus_actions] how to find the next entity to focus.
+///
+/// Can be parsed from a string by means of the [FromStr] implementation.
+/// See [FocusTarget::Path] for a complete example.
+// TODO: Impl [De]Serialize in terms of `FromStr`
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Reflect, Serialize, Deserialize)]
+#[reflect(no_field_bounds, Serialize, Deserialize)]
 pub enum FocusTarget {
-	NextSibling,
-	PrevSibling,
-	Sibling(usize),
-	Parent,
-	Child(usize),
-	// TODO: EntityPath doesn't implmenet [De]Serialize
-	// Path(EntityPath),
+	/// Finds the sibling relative to this entity in the parent's `Children` list.
+	/// Wraps around the ends of the list.
+	///
+	/// Represented in a string prefixed by `+` or `-`.
+	Sibling(isize),
+	/// Focuses the immediate parent of this entity.
+	///
+	/// Represented by the string `".."`.
+	ToParent,
+	/// Focuses the root of the current menu.
+	///
+	/// Represented by an empty string (so a path like `"/..." starts at the root of the menu).
+	MenuRoot,
+	/// Focuses the nth child of this entity.
+	///
+	/// Represented in a string prefixed by `#`.
+	ChildN(usize),
+	/// Finds the first immediate child of this entity with the given name.
+	///
+	/// Represented in a string surrounded by quotes, like `"\"SomeName\""`.
+	FindChild(Name),
+	/// Finds the first descendant of this entity with the given name.
+	///
+	/// Represented in a string surrounded by square brackets, like `"[SomeName]"`.
+	FindDescendant(Name),
+	/// Jumps directly to the entity with the given ID.
+	///
+	/// Not often used in a string, but it can be represented by the bits as a `u64` prefixed by `$`,
+	/// e.g. `"$42"`.
 	Entity(Entity),
+	/// A path consisting of multiple `FocusTarget` segments.
+	///
+	/// Represented in a string by each segment separated by `/`.
+	/// Example:
+	/// ```
+	/// # use bevy::prelude::Name;
+	/// use sond_has_engine::ui::focus::FocusTarget::{self, *};
+	/// assert_eq!(
+	///     r#"/#3/"#AChildsName"/+1/[ADescendantsName]/.."#
+	///         .parse::<FocusTarget>()
+	///         .unwrap(),
+	///     Path(vec![
+	///         MenuRoot,
+	///         ChildN(3),
+	///         FindChild(Name::new("AChildsName")),
+	///         Sibling(1),
+	///         FindDescendant(Name::new("ADescendantsName")),
+	///         ToParent,
+	///     ]),
+	/// )
+	/// ```
+	Path(Vec<Self>),
+}
+
+impl FromStr for FocusTarget {
+	type Err = TargetParseError;
+
+	fn from_str(s: &str) -> Result<Self, Self::Err> {
+		let entries = s
+			.split('/')
+			.map(|seg| {
+				Ok(if seg == "" {
+					Self::MenuRoot
+				} else if seg == ".." {
+					Self::ToParent
+				} else {
+					let Some((prefix, rest)) = seg.split_at_checked(1) else {
+						return Err(TargetParseError::InvalidSegment(seg.to_owned()));
+					};
+					let prefix = prefix.chars().next().expect(
+						"`split_at_checked(1)` should return a single character on the left",
+					);
+					match prefix {
+						'#' => Self::ChildN(rest.parse()?),
+						'+' => Self::Sibling(rest.parse()?),
+						'-' => Self::Sibling(-rest.parse()?),
+						'$' => Self::Entity(Entity::try_from_bits(rest.parse()?)?),
+						'"' => {
+							let Some(name) = rest.strip_suffix('"') else {
+								return Err(TargetParseError::InvalidSegment(seg.to_owned()));
+							};
+							Self::FindChild(Name::new(name.to_owned()))
+						}
+						'[' => {
+							let Some(name) = rest.strip_suffix(']') else {
+								return Err(TargetParseError::InvalidSegment(seg.to_owned()));
+							};
+							Self::FindDescendant(Name::new(name.to_owned()))
+						}
+						other => return Err(TargetParseError::UnknownPrefix(other)),
+					}
+				})
+			})
+			.collect::<Result<Vec<_>, Self::Err>>()?;
+		Ok(match <[Self; 1]>::try_from(entries) {
+			Ok([single]) => single,
+			Err(path) => Self::Path(path),
+		})
+	}
+}
+
+#[derive(Debug, Clone)]
+pub enum TargetParseError {
+	ParseInt(ParseIntError),
+	ParseEntity(IdentifierError),
+	InvalidSegment(String),
+	UnknownPrefix(char),
+}
+
+impl From<ParseIntError> for TargetParseError {
+	fn from(value: ParseIntError) -> Self {
+		Self::ParseInt(value)
+	}
+}
+
+impl From<IdentifierError> for TargetParseError {
+	fn from(value: IdentifierError) -> Self {
+		Self::ParseEntity(value)
+	}
+}
+
+impl std::fmt::Display for TargetParseError {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		match self {
+			TargetParseError::ParseInt(e) => e.fmt(f),
+			TargetParseError::ParseEntity(e) => e.fmt(f),
+			TargetParseError::InvalidSegment(s) => write!(f, "invalid segment: {s}"),
+			TargetParseError::UnknownPrefix(c) => write!(f, "unknown prefix: {c}"),
+		}
+	}
 }
 
 impl FocusTarget {
 	pub fn resolve(
 		&self,
 		from: Entity,
-		parent: Option<&Parent>,
+		parent_query: &Query<&Parent>,
 		children_query: &Query<&Children>,
+		names: &Query<&Name>,
+		menu: &MenuRef,
 	) -> Option<Entity> {
 		match self {
-			FocusTarget::Sibling(i) => parent
-				.map(Parent::get)
-				.and_then(|parent| children_query.get(parent).ok())
-				.and_then(|children| children.get(*i).copied()),
-			FocusTarget::NextSibling => parent
-				.map(Parent::get)
-				.and_then(|parent| children_query.get(parent).ok())
-				.and_then(|children| {
-					children
-						.get(
-							(children.iter().position(|child| *child == from).unwrap() + 1)
-								% children.len(),
-						)
-						.copied()
-				}),
-			FocusTarget::PrevSibling => parent
+			Self::Sibling(relative) => parent_query
+				.get(from)
+				.ok()
 				.map(Parent::get)
 				.and_then(|parent| children_query.get(parent).ok())
 				.and_then(|children| {
-					children
-						.get(
-							(children.iter().position(|child| *child == from).unwrap()
-								+ children.len() - 1) % children.len(),
-						)
-						.copied()
+					let len = children.len();
+					let i = (children
+						.iter()
+						.position(|child| *child == from)
+						.unwrap()
+						.checked_add_signed(*relative)
+						.unwrap_or(len - 1))
+						% len;
+					children.get(i).copied()
 				}),
-			FocusTarget::Parent => parent.map(Parent::get),
-			FocusTarget::Child(i) => children_query
+			Self::ToParent => parent_query.get(from).ok().map(Parent::get),
+			Self::MenuRoot => Some(menu.root),
+			Self::ChildN(i) => children_query
 				.get(from)
 				.ok()
 				.and_then(|children| children.get(*i).copied()),
-			// FocusTarget::Path(_) => todo_warn!(),
-			FocusTarget::Entity(id) => Some(*id),
+			Self::FindChild(name) => children_query.get(from).ok().and_then(|children| {
+				children.iter().copied().find(|child| {
+					let Some(child_name) = names.get(*child).ok() else {
+						return false;
+					};
+					*child_name == *name
+				})
+			}),
+			Self::FindDescendant(name) => children_query.iter_descendants(from).find(|child| {
+				let Some(child_name) = names.get(*child).ok() else {
+					return false;
+				};
+				*child_name == *name
+			}),
+			Self::Entity(id) => Some(*id),
+			Self::Path(path) => {
+				let mut from = from;
+				for item in path {
+					from = item.resolve(from, parent_query, children_query, names, menu)?;
+				}
+				Some(from)
+			}
 		}
 	}
 }
@@ -134,11 +283,20 @@ impl Wedge2d {
 	}
 }
 
-#[derive(Component, Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Component, Debug, Clone, Serialize, Deserialize)]
 pub struct AdjacentWidgets {
 	pub prev: Option<FocusTarget>,
 	pub next: Option<FocusTarget>,
 	pub directions: Vec<(Wedge2d, FocusTarget)>,
+}
+
+impl Default for AdjacentWidgets {
+	fn default() -> Self {
+		// Bubbling up to the parent seems the safest if a child is not given explicit focus targets.
+		// The topmost entity in a menu tree is the easiest to remember to check that the focus
+		// navigation behavior is robust and intuitive.
+		Self::all(FocusTarget::ToParent)
+	}
 }
 
 impl AdjacentWidgets {
@@ -154,7 +312,7 @@ impl AdjacentWidgets {
 	}
 
 	pub fn horizontal_siblings() -> Self {
-		Self::horizontal(FocusTarget::PrevSibling, FocusTarget::NextSibling)
+		Self::horizontal(FocusTarget::Sibling(-1), FocusTarget::Sibling(1))
 	}
 
 	pub fn vertical(up: FocusTarget, down: FocusTarget) -> Self {
@@ -169,7 +327,7 @@ impl AdjacentWidgets {
 	}
 
 	pub fn vertical_siblings() -> Self {
-		Self::vertical(FocusTarget::PrevSibling, FocusTarget::NextSibling)
+		Self::vertical(FocusTarget::Sibling(-1), FocusTarget::Sibling(1))
 	}
 
 	pub fn all(target: FocusTarget) -> Self {
@@ -181,9 +339,11 @@ impl AdjacentWidgets {
 	}
 }
 
-pub fn resolve_focus(
+pub fn handle_focus_actions(
 	q: Query<(&AdjacentWidgets, Option<&Parent>, &RenderLayers)>,
-	parents: Query<&Children>,
+	parents_q: Query<&Parent>,
+	children_q: Query<&Children>,
+	names: Query<&Name>,
 	mut stacks: Query<(&mut MenuStack, &RenderLayers)>,
 	actions: Query<(&ActionState<UiAction>, &RenderLayers)>,
 	glob_actions: Res<ActionState<UiAction>>,
@@ -210,7 +370,7 @@ pub fn resolve_focus(
 		if state.just_pressed(&UiAction::FocusNext) {
 			if let Some(next) = &curr.0.next {
 				menu.focus = next
-					.resolve(menu.focus, curr.1, &parents)
+					.resolve(menu.focus, &parents_q, &children_q, &names, &*menu)
 					.unwrap_or(menu.focus);
 				focus.0 = Some(menu.focus);
 			}
@@ -218,7 +378,7 @@ pub fn resolve_focus(
 		if state.just_pressed(&UiAction::FocusPrev) {
 			if let Some(prev) = &curr.0.prev {
 				menu.focus = prev
-					.resolve(menu.focus, curr.1, &parents)
+					.resolve(menu.focus, &parents_q, &children_q, &names, &*menu)
 					.unwrap_or(menu.focus);
 				focus.0 = Some(menu.focus);
 			}
@@ -236,7 +396,7 @@ pub fn resolve_focus(
 				if *prev_cursor != dir {
 					if let Some(target) = target {
 						menu.focus = target
-							.resolve(menu.focus, curr.1, &parents)
+							.resolve(menu.focus, &parents_q, &children_q, &names, &*menu)
 							.unwrap_or(menu.focus);
 						focus.0 = Some(menu.focus);
 					}
@@ -251,6 +411,7 @@ pub fn resolve_focus(
 	}
 }
 
+#[cfg(feature = "debugging")]
 pub fn highlight_focus<const LAYER: Layer>(
 	mut gizmos: Gizmos<FocusGizmos<LAYER>>,
 	q: Query<(
@@ -302,5 +463,6 @@ pub fn highlight_focus<const LAYER: Layer>(
 	}
 }
 
+#[cfg(feature = "debugging")]
 #[derive(Default, Debug, GizmoConfigGroup, Reflect)]
 pub struct FocusGizmos<const LAYER: Layer>;

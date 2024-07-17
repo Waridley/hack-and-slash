@@ -982,7 +982,7 @@ pub fn debug_component_names(In((id, msg)): In<(Entity, String)>, world: &mut Wo
 		.into_iter()
 		.map(ComponentInfo::name)
 		.collect::<Vec<_>>();
-	debug!(?id, ?components, "{msg}");
+	debug!(target: "dbg_components", ?id, ?components, "{msg}");
 }
 
 /// [error_component_names]
@@ -999,7 +999,7 @@ pub fn error_component_names(In((id, msg)): In<(Entity, String)>, world: &mut Wo
 }
 
 // TODO: These could be macros for more flexibility and so the target
-//    isn't always `sond_has_engine::util`, but it seems like the arguments
+//    isn't always `dbg_components`, but it seems like the arguments
 //    would be moderately complicated.
 pub trait LogComponentNames {
 	/// Run [debug_component_names]
@@ -1033,11 +1033,20 @@ impl LogComponentNames for Commands<'_, '_> {
 #[macro_export]
 macro_rules! todo_warn {
 	() => {
-
 		::bevy::log::warn!("not yet implemented")
 	};
 	($($arg:tt)+) => {
 		::bevy::log::warn!("not yet implemented: {}", format_args!($($arg)+))
+	};
+}
+
+#[macro_export]
+macro_rules! todo_err {
+	() => {
+		::bevy::log::error!("not yet implemented")
+	};
+	($($arg:tt)+) => {
+		::bevy::log::error!("not yet implemented: {}", format_args!($($arg)+))
 	};
 }
 

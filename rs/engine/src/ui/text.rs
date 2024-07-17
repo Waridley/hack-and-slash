@@ -70,7 +70,7 @@ impl Tessellator {
 					builder.begin(from);
 				};
 			}
-			for curve in dbg!(outline.curves) {
+			for curve in outline.curves {
 				match curve {
 					Line(from, to) => {
 						let from = Point::new(from.x * scale.x, from.y * scale.y) + pos;

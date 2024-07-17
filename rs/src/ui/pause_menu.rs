@@ -2,7 +2,7 @@ use crate::{
 	player::input::PlayerAction,
 	ui::{
 		settings_menu,
-		settings_menu::{settings_sub_menu, SettingsMenu},
+		settings_menu::{settings_sub_menu, SettingsMenu, SettingsSubMenus},
 	},
 };
 use bevy::{
@@ -13,6 +13,7 @@ use bevy::{
 	},
 	pbr::ExtendedMaterial,
 	prelude::*,
+	window::CursorGrabMode,
 };
 use engine::{
 	anim::StartAnimation,
@@ -30,9 +31,9 @@ use engine::{
 		layout::LineUpChildren,
 		text::UiFonts,
 		widgets::{
-			dbg_event, new_unlit_material, on_ok, Button3dBundle, CuboidFaces, CuboidPanel,
-			CuboidPanelBundle, InteractHandlers, Node3dBundle, RectCorners, Text3d, Text3dBundle,
-			WidgetBundle, WidgetShape,
+			dbg_event, focus_state_colors, new_unlit_material, on_action, on_ok, CuboidFaces,
+			CuboidPanel, CuboidPanelBundle, InteractHandlers, Node3dBundle, PanelBundle,
+			RectCorners, Text3d, Text3dBundle, WidgetBundle, WidgetShape,
 		},
 		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiCam, UiMat, UiMatBuilder,
 	},
@@ -94,10 +95,10 @@ pub fn setup(
 				std: Color::rgba(0.3, 0.3, 0.3, 0.3).into(),
 				..default()
 			}),
+			adjacent: AdjacentWidgets::all(FocusTarget::ChildN(0)),
 			..default()
 		},
-		Fade::ZERO,
-		AdjacentWidgets::all(FocusTarget::Child(0));
+		Fade::ZERO;
 		#children:
 			(
 				Name::new("border"),
@@ -138,14 +139,14 @@ pub fn setup(
 						translation: Vec3::NEG_Y * 6.5,
 						..default()
 					},
+					adjacent: AdjacentWidgets::all(FocusTarget::ChildN(0)),
 					..default()
 				},
-				LineUpChildren::vertical().with_spacing(0.1),
-				AdjacentWidgets::all(FocusTarget::Child(0));
+				LineUpChildren::vertical().with_spacing(0.1);
 				#children:
 					(
 						Name::new("resume_btn"),
-						Button3dBundle {
+						PanelBundle {
 							shape: WidgetShape { shape: SharedShape::cuboid(3.5, 0.6, 0.6), ..default() },
 							mesh: meshes.add(Cuboid::new(7.0, 1.2, 1.2)),
 							material: mats.add(UiMatBuilder {
@@ -164,10 +165,11 @@ pub fn setup(
 									});
 									ControlFlow::Break(())
 								}),
+								focus_state_colors(Color::BLACK, Color::LIME_GREEN),
 							].into(),
+							adjacent: AdjacentWidgets::vertical_siblings(),
 							..default()
 						},
-						AdjacentWidgets::vertical_siblings()
 						=> |cmds| {
 							cmds.set_enum(pause_menu_widget::ResumeButton);
 						};
@@ -187,7 +189,7 @@ pub fn setup(
 					),
 					(
 						Name::new("settings_btn"),
-						Button3dBundle {
+						PanelBundle {
 							shape: WidgetShape { shape: SharedShape::cuboid(3.5, 0.6, 0.6), ..default() },
 							mesh: meshes.add(Cuboid::new(7.0, 1.2, 1.2)),
 							material: mats.add(UiMatBuilder {
@@ -206,18 +208,18 @@ pub fn setup(
 										let panel_id = q.single(world);
 										world.entity_mut(panel_id).fade_in_secs(1.5);
 
-										let mut q = world.query_filtered::<Entity, WithVariant<settings_sub_menu::Top>>();
-										let id = q.single(world);
+										let top_menu = world.resource::<SettingsSubMenus>().top;
 										let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
 										let mut stack = q.single_mut(world);
-										stack.push(MenuRef::new(id));
+										stack.push(top_menu);
 									});
 									ControlFlow::Break(())
 								}),
+								focus_state_colors(Color::BLACK, Color::GRAY),
 							].into(),
+							adjacent: AdjacentWidgets::vertical_siblings(),
 							..default()
 						},
-						AdjacentWidgets::vertical_siblings(),
 						=> |cmds| {
 							cmds.set_enum(pause_menu_widget::SettingsButton);
 						};
@@ -238,7 +240,7 @@ pub fn setup(
 					),
 					(
 						Name::new("quit_btn"),
-						Button3dBundle {
+						PanelBundle {
 							shape: WidgetShape { shape: SharedShape::cuboid(3.0, 0.6, 0.6), ..default() },
 							mesh: meshes.add(Cuboid::new(6.0, 1.2, 1.2)),
 							material: mats.add(UiMatBuilder {
@@ -258,10 +260,11 @@ pub fn setup(
 									});
 									ControlFlow::Break(())
 								}),
+								focus_state_colors(Color::BLACK, Color::ORANGE_RED),
 							].into(),
+							adjacent: AdjacentWidgets::vertical_siblings(),
 							..default()
 						},
-						AdjacentWidgets::vertical_siblings(),
 						=> |cmds| {
 							cmds.set_enum(pause_menu_widget::QuitButton);
 						};
@@ -321,7 +324,13 @@ pub fn pause(
 	panel: Query<Entity, WithVariant<pause_menu_widget::Panel>>,
 	resume_btn: Query<Entity, WithVariant<pause_menu_widget::ResumeButton>>,
 	mut states: ResMut<StateStack<InputState>>,
+	mut windows: Query<&mut Window>,
 ) {
+	let Ok(mut window) = windows.get_single_mut() else {
+		// probably exiting if window is missing
+		return;
+	};
+
 	let id = panel.single();
 	let mut stack = stack.single_mut();
 	if states.last() == Some(&InputState::InGame) {
@@ -331,6 +340,8 @@ pub fn pause(
 			focus: resume_btn.single(),
 			..MenuRef::new(id)
 		});
+		window.cursor.visible = true;
+		window.cursor.grab_mode = CursorGrabMode::None;
 	} else {
 		error!("Can't pause game while it's not running");
 	}
@@ -341,7 +352,12 @@ pub fn unpause(
 	mut stack: Query<&mut MenuStack, With<GlobalUi>>,
 	panel: Query<Entity, WithVariant<pause_menu_widget::Panel>>,
 	mut states: ResMut<StateStack<InputState>>,
+	mut windows: Query<&mut Window>,
 ) {
+	let Ok(mut window) = windows.get_single_mut() else {
+		// probably exiting if window is missing
+		return;
+	};
 	let id = panel.single();
 	let mut stack = stack.single_mut();
 	if stack.last().map(|menu| menu.root) == Some(id) {
@@ -349,6 +365,8 @@ pub fn unpause(
 		cmds.entity(id).fade_out_secs(0.5);
 		states.pop();
 		stack.pop();
+		window.cursor.visible = false;
+		window.cursor.grab_mode = CursorGrabMode::Locked;
 	} else {
 		error!("Pause menu isn't the top of the MenuStack");
 	}

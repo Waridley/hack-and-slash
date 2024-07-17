@@ -1,18 +1,14 @@
-use crate::ui::pause_menu::pause_menu_widget;
+use crate::{player::input::PlayerAction, ui::pause_menu::pause_menu_widget};
 use bevy::prelude::*;
 use engine::{
 	draw::{polygon_points, PlanarPolyLine},
 	entity_tree,
 	ui::{
-		focus::{
-			AdjacentWidgets, FocusTarget,
-			FocusTarget::{NextSibling, PrevSibling, Sibling},
-			Wedge2d,
-		},
-		layout::{RadialArrangement, RadialChildren},
+		focus::{AdjacentWidgets, FocusTarget, FocusTarget::Sibling, Wedge2d},
+		layout::{ExpandToFitChildren, RadialArrangement, RadialChildren},
 		text::UiFonts,
 		widgets::{
-			dbg_event, new_unlit_material, on_back, on_ok, Button3dBundle, CuboidPanel,
+			dbg_event, focus_state_colors, new_unlit_material, on_back, on_ok, CuboidPanel,
 			CuboidPanelBundle, CylinderFaces, CylinderPanel, CylinderPanelBundle, InteractHandlers,
 			Node3dBundle, Text3d, Text3dBundle, WidgetBundle, WidgetShape,
 		},
@@ -36,7 +32,14 @@ impl Plugin for SettingsMenuPlugin {
 	fn build(&self, app: &mut App) {
 		app.init_resource::<SettingsSubMenus>()
 			.add_systems(Startup, (setup, ctrls_menu::setup))
-			.add_systems(PostUpdate, ctrls_menu::anchor_follow_focus);
+			.add_systems(
+				PostUpdate,
+				(
+					ctrls_menu::anchor_follow_focus,
+					ctrls_menu::update_binding_list_widgets::<UiAction>,
+					ctrls_menu::update_binding_list_widgets::<PlayerAction>,
+				),
+			);
 	}
 }
 
@@ -47,14 +50,16 @@ pub fn setup(
 	ui_fonts: Res<UiFonts>,
 	mut sub_menus: ResMut<SettingsSubMenus>,
 ) {
+	use FocusTarget::*;
 	let adjacent = AdjacentWidgets {
-		prev: Some(PrevSibling),
-		next: Some(NextSibling),
+		// Counter-clockwise order is intuitive in math but not for players
+		prev: Some(Sibling(1)),
+		next: Some(Sibling(-1)),
 		directions: (0..6)
 			.map(|i| {
 				(
 					Wedge2d::sixth(Vec2::from_angle((FRAC_PI_3 * i as f32) + FRAC_PI_6)),
-					Sibling(i),
+					Path(vec![ToParent, ChildN(i)]),
 				)
 			})
 			.collect(),
@@ -80,6 +85,7 @@ pub fn setup(
 				translation: Vec3::new(0.0, -32.0, -24.0),
 				..default()
 			},
+			handlers: MenuStack::pop_on_back(GLOBAL_UI_RENDER_LAYERS, 0.7),
 			..default()
 		},
 		Fade::ZERO;
@@ -107,7 +113,14 @@ pub fn setup(
 						translation: Vec3::NEG_Y * 3.5,
 						..default()
 					},
-					handlers: MenuStack::pop_on_back(GLOBAL_UI_RENDER_LAYERS, 0.7),
+					adjacent: AdjacentWidgets {
+						prev: Some(ChildN(5)),
+						next: Some(ChildN(0)),
+						directions: (0..5).map(|i| (
+							Wedge2d::sixth(Vec2::from_angle((FRAC_PI_3 * i as f32) + FRAC_PI_6)),
+							ChildN(i),
+						)).collect(),
+					},
 					..default()
 				},
 				meshes.add(PlanarPolyLine {
@@ -124,27 +137,26 @@ pub fn setup(
 					},
 					..default()
 				},
-				AdjacentWidgets {
-					prev: Some(FocusTarget::Child(4)),
-					next: Some(FocusTarget::Child(0)),
-					directions: (0..5).map(|i| (
-						Wedge2d::sixth(Vec2::from_angle((FRAC_PI_3 * i as f32) + (FRAC_PI_6 * 5.0))),
-						FocusTarget::Child(i),
-					)).collect(),
-				},
 				=> |cmds| {
 					sub_menus.top = MenuRef::new(cmds.id());
 					cmds.set_enum(settings_sub_menu::Top);
 				};
 				#children:
 					(
-						Button3dBundle {
-							shape: WidgetShape { shape: SharedShape::cuboid(2.5, 0.5, 0.75), ..default() },
-							mesh: meshes.add(Cuboid::new(5.0, 1.0, 1.5)),
+						CuboidPanelBundle {
+							panel: CuboidPanel {
+								size: Vec3::new(5.0, 1.0, 1.5),
+								..default()
+							},
 							material: mats.add(UiMatBuilder::from(Color::CYAN.with_a(0.4))),
+							adjacent: adjacent.clone(),
 							..default()
 						},
-						adjacent.clone();
+						ExpandToFitChildren {
+							margin: Vec3::splat(0.25),
+							offset: Vec3::Y * 0.5,
+							..default()
+						};
 						#children:
 							(
 								Text3dBundle {
@@ -157,13 +169,20 @@ pub fn setup(
 							)
 					),
 					(
-						Button3dBundle {
-							shape: WidgetShape { shape: SharedShape::cuboid(2.5, 0.5, 0.75), ..default() },
-							mesh: meshes.add(Cuboid::new(5.0, 1.0, 1.5)),
+						CuboidPanelBundle {
+							panel: CuboidPanel {
+								size: Vec3::new(5.0, 1.0, 1.5),
+								..default()
+							},
 							material: mats.add(UiMatBuilder::from(Color::YELLOW.with_a(0.4))),
+							adjacent: adjacent.clone(),
 							..default()
 						},
-						adjacent.clone();
+						ExpandToFitChildren {
+							margin: Vec3::splat(0.25),
+							offset: Vec3::Y * 0.5,
+							..default()
+						};
 						#children:
 							(
 								Text3dBundle {
@@ -176,13 +195,20 @@ pub fn setup(
 							)
 					),
 					(
-						Button3dBundle {
-							shape: WidgetShape { shape: SharedShape::cuboid(3.0, 0.5, 0.75), ..default() },
-							mesh: meshes.add(Cuboid::new(6.0, 1.0, 1.5)),
+						CuboidPanelBundle {
+							panel: CuboidPanel {
+								size: Vec3::new(5.0, 1.0, 1.5),
+								..default()
+							},
 							material: mats.add(UiMatBuilder::from(Color::FUCHSIA.with_a(0.4))),
+							adjacent: adjacent.clone(),
 							..default()
 						},
-						adjacent.clone();
+						ExpandToFitChildren {
+							margin: Vec3::splat(0.25),
+							offset: Vec3::Y * 0.5,
+							..default()
+						};
 						#children:
 							(
 								Text3dBundle {
@@ -195,13 +221,20 @@ pub fn setup(
 							)
 					),
 					(
-						Button3dBundle {
-							shape: WidgetShape { shape: SharedShape::cuboid(2.5, 0.5, 0.75), ..default() },
-							mesh: meshes.add(Cuboid::new(5.0, 1.0, 1.5)),
+						CuboidPanelBundle {
+							panel: CuboidPanel {
+								size: Vec3::new(5.0, 1.0, 1.5),
+								..default()
+							},
 							material: mats.add(UiMatBuilder::from(Color::RED.with_a(0.4))),
+							adjacent: adjacent.clone(),
 							..default()
 						},
-						adjacent.clone();
+						ExpandToFitChildren {
+							margin: Vec3::splat(0.25),
+							offset: Vec3::Y * 0.5,
+							..default()
+						};
 						#children:
 							(
 								Text3dBundle {
@@ -214,22 +247,33 @@ pub fn setup(
 							)
 					),
 					(
-						Button3dBundle {
-							shape: WidgetShape { shape: SharedShape::cuboid(2.5, 0.5, 0.75), ..default() },
-							mesh: meshes.add(Cuboid::new(5.0, 1.0, 1.5)),
+						CuboidPanelBundle {
+							panel: CuboidPanel {
+								size: Vec3::new(5.0, 1.0, 1.5),
+								..default()
+							},
 							material: mats.add(UiMatBuilder::from(Color::GREEN.with_a(0.4))),
-							handlers: InteractHandlers::on_ok(|cmds| {
-								cmds.commands().add(|world: &mut World| {
-									let menu = world.resource::<SettingsSubMenus>().controls;
-									let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
-									q.single_mut(world).push(menu);
-									world.entity_mut(menu.root).fade_in_secs(1.5);
-								});
-								Break(())
-							}),
+							handlers: vec![
+								dbg_event(),
+								on_ok(|cmds| {
+									cmds.commands().add(|world: &mut World| {
+										let menu = world.resource::<SettingsSubMenus>().controls;
+										let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
+										q.single_mut(world).push(menu);
+										world.entity_mut(menu.root).fade_in_secs(1.5);
+									});
+									Break(())
+								}),
+								focus_state_colors(Color::GREEN.with_a(0.4), Color::LIME_GREEN),
+							].into(),
+							adjacent: adjacent.clone(),
 							..default()
 						},
-						adjacent.clone();
+						ExpandToFitChildren {
+							margin: Vec3::splat(0.25),
+							offset: Vec3::Y * 0.5,
+							..default()
+						};
 						#children:
 							(
 								Text3dBundle {
@@ -242,13 +286,20 @@ pub fn setup(
 							)
 					),
 					(
-						Button3dBundle {
-							shape: WidgetShape { shape: SharedShape::cuboid(2.5, 0.5, 0.75), ..default() },
-							mesh: meshes.add(Cuboid::new(5.0, 1.0, 1.5)),
+						CuboidPanelBundle {
+							panel: CuboidPanel {
+								size: Vec3::new(5.0, 1.0, 1.5),
+								..default()
+							},
 							material: mats.add(UiMatBuilder::from(Color::BLUE.with_a(0.4))),
+							adjacent: adjacent.clone(),
 							..default()
 						},
-						adjacent.clone();
+						ExpandToFitChildren {
+							margin: Vec3::splat(0.25),
+							offset: Vec3::Y * 0.5,
+							..default()
+						};
 						#children:
 							(
 								Text3dBundle {
