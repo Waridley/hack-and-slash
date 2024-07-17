@@ -5,6 +5,7 @@ use crate::{
 		a11y::AKNode,
 		text::UiFonts,
 		widgets::{Text3d, WidgetShape, UNLIT_MATERIAL_ID},
+		UiMat,
 	},
 };
 use bevy::{ecs::system::EntityCommands, prelude::*, render::view::RenderLayers};
@@ -18,6 +19,7 @@ use bevy_svg::{
 pub struct InputIcon {
 	pub icon: Icon,
 	pub size: Vec3,
+	pub flat: bool,
 	pub text_entity: Entity,
 	pub isometry: Isometry<f32>,
 }
@@ -27,13 +29,14 @@ impl Default for InputIcon {
 		Self {
 			icon: default(),
 			size: Vec3::ONE,
+			flat: true,
 			text_entity: Entity::PLACEHOLDER,
 			isometry: default(),
 		}
 	}
 }
 
-node_3d! { InputIconBundle<M: Material = StandardMaterial> {
+node_3d! { InputIconBundle<M: Material = UiMat> {
 	input_icon: InputIcon,
 	font: Handle<Font>,
 	material: Handle<M>,
@@ -63,6 +66,7 @@ impl InputIcon {
 					ref text,
 				},
 				size,
+				flat,
 				text_entity,
 				isometry,
 			} = *this;
@@ -72,8 +76,8 @@ impl InputIcon {
 			let svg = asset_server.load_with_settings::<Svg, SvgSettings>(image, move |settings| {
 				settings.transform.rotation *= Quat::from_rotation_arc(Vec3::Y, Vec3::Z);
 				settings.origin = Origin::Center;
-				settings.size = Some(size.xy());
-				settings.depth = Some(size.z);
+				settings.size = Some(size.xz());
+				settings.depth = (!flat).then_some(size.y);
 			});
 			// `bevy_svg` doesn't insert a mesh if a handle isn't already present. PR?
 			cmds.insert((svg, Handle::<Mesh>::default()));
@@ -92,7 +96,7 @@ impl InputIcon {
 						.spawn(crate::ui::widgets::Text3dBundle {
 							text_3d: Text3d {
 								text: text.to_string().into(),
-								flat: false,
+								flat,
 								vertex_scale: Vec3::new(size.x * 0.5, size.y * 0.5, size.z),
 								..default()
 							},

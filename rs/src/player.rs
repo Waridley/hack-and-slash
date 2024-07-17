@@ -34,11 +34,7 @@ use camera::spawn_cameras;
 use ctrl::{CtrlState, CtrlVel};
 use engine::{
 	planet::terrain::NeedsTerrain,
-	ui::{
-		focus::{highlight_focus, FocusGizmos},
-		layout::LineUpChildren,
-		Fade, GLOBAL_UI_LAYER,
-	},
+	ui::{focus, layout::LineUpChildren, Fade, GLOBAL_UI_LAYER},
 };
 use player_entity::*;
 use prefs::PlayerPrefs;
@@ -80,13 +76,25 @@ pub fn plugin(app: &mut App) -> &mut App {
 				let layers = RenderLayers::layer(player_ui_layer(PlayerId::new($i).unwrap()));
 				app.add_systems(
 					PostUpdate,
-					engine::ui::widgets::draw_widget_shape_gizmos::<$i>
+					(
+						engine::ui::widgets::draw_widget_shape_gizmos::<$i>,
+						focus::highlight_focus::<$i>,
+					)
+						.chain()
 						.run_if(input_toggle_active(false, KeyCode::KeyG))
 						.after(bevy::render::view::VisibilitySystems::CheckVisibility),
 				)
 				.insert_gizmo_group(
 					engine::ui::widgets::WidgetGizmos::<$i>,
 					GizmoConfig {
+						render_layers: layers,
+						..default()
+					},
+				)
+				.insert_gizmo_group(
+					focus::FocusGizmos::<$i>,
+					GizmoConfig {
+						line_width: 6.0,
 						render_layers: layers,
 						..default()
 					},
@@ -98,25 +106,6 @@ pub fn plugin(app: &mut App) -> &mut App {
 		init_dbg_gizmos!(3);
 		init_dbg_gizmos!(4);
 	}
-
-	macro_rules! init_hightlight_gizmos {
-		($i:literal) => {
-			let layers = RenderLayers::layer(player_ui_layer(PlayerId::new($i).unwrap()));
-			app.add_systems(PostUpdate, highlight_focus::<$i>)
-				.insert_gizmo_group(
-					FocusGizmos::<$i>,
-					GizmoConfig {
-						line_width: 6.0,
-						render_layers: layers,
-						..default()
-					},
-				);
-		};
-	}
-	init_hightlight_gizmos!(1);
-	init_hightlight_gizmos!(2);
-	init_hightlight_gizmos!(3);
-	init_hightlight_gizmos!(4);
 
 	app.add_plugins((
 		prefs::PrefsPlugin,

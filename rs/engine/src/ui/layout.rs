@@ -18,10 +18,14 @@ pub struct LineUpChildren {
 	/// A unit vector indicates shapes will be touching. Any length over `1.0`
 	/// results in separating the shapes by that distance.
 	pub relative_positions: Vec3,
-	/// Alignment of children. For each axis:
+	/// Alignment of children proportional to `relative_positions`. For each axis:
 	/// - `0.0` centers children at this entity's origin.
 	/// - `-1.0` is analogous to `flex_start`, and `1.0` is analogous to `flex_end`.
+	///
+	/// NOTE: This has no effect for axes with `0.0` relative position.
 	pub align: Vec3,
+	/// Translates the origin point of alignment.
+	pub offset: Vec3,
 }
 
 impl Default for LineUpChildren {
@@ -35,6 +39,7 @@ impl LineUpChildren {
 		Self {
 			relative_positions: Vec3::X,
 			align: Vec3::ZERO,
+			offset: Vec3::ZERO,
 		}
 	}
 
@@ -42,6 +47,7 @@ impl LineUpChildren {
 		Self {
 			relative_positions: Vec3::NEG_Z,
 			align: Vec3::ZERO,
+			offset: Vec3::ZERO,
 		}
 	}
 
@@ -49,6 +55,7 @@ impl LineUpChildren {
 		Self {
 			relative_positions: self.relative_positions.normalize() * (1.0 + spacing),
 			align: self.align,
+			offset: self.offset,
 		}
 	}
 
@@ -56,6 +63,15 @@ impl LineUpChildren {
 		Self {
 			relative_positions: self.relative_positions,
 			align,
+			offset: self.offset,
+		}
+	}
+
+	pub fn with_offset(self, offset: Vec3) -> Self {
+		Self {
+			relative_positions: self.relative_positions,
+			align: self.align,
+			offset,
 		}
 	}
 }
@@ -91,7 +107,11 @@ pub fn apply_constraints(
 			0 => continue,
 			1 => {
 				match shapes.get_mut(children[0]) {
-					Ok(mut child) => child.1.translation = Vec3::ZERO,
+					Ok(mut child) => {
+						if child.1.translation != constraint.offset {
+							child.1.translation = constraint.offset
+						}
+					}
 					Err(e) => cmds.debug_components(children[0], e),
 				}
 				continue;
@@ -123,7 +143,7 @@ pub fn apply_constraints(
 				continue;
 			}
 		};
-		first_child.1.translation = -offset;
+		first_child.1.translation = -offset + constraint.offset;
 		for (i, pair) in children.windows(2).enumerate() {
 			let [a, mut b] = match shapes.get_many_mut([pair[0], pair[1]]) {
 				Ok(pair) => pair,
@@ -283,6 +303,7 @@ impl RadialArrangement {
 pub struct ExpandToFitChildren {
 	pub margin: Vec3,
 	pub offset: Vec3,
+	pub min_size: Vec3,
 }
 
 impl ExpandToFitChildren {
@@ -314,6 +335,11 @@ impl ExpandToFitChildren {
 					) * shape.isometry),
 				));
 			}
+			let size = aabb.extents();
+			let undersize = (this.min_size - Vec3::from(size)).max(Vec3::ZERO);
+			let extra = Vector3::from(undersize * 0.5);
+			aabb.mins -= extra;
+			aabb.maxs += extra;
 			aabb.mins -= Vector3::from(this.margin);
 			aabb.maxs += Vector3::from(this.margin);
 			aabb.mins += Vector3::from(this.offset);

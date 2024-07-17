@@ -3,7 +3,10 @@
 use std::{f32::consts::*, fmt::Debug, time::Duration};
 
 use bevy::{
-	diagnostic::FrameTimeDiagnosticsPlugin, prelude::*, render::RenderPlugin, window::PrimaryWindow,
+	diagnostic::FrameTimeDiagnosticsPlugin,
+	prelude::*,
+	render::RenderPlugin,
+	window::{CursorGrabMode, PrimaryWindow},
 };
 #[allow(unused_imports, clippy::single_component_path_imports)]
 #[cfg(all(feature = "dylib", not(target_arch = "wasm32")))]
@@ -230,6 +233,7 @@ fn startup(
 	#[cfg(all(feature = "debugging", feature = "render"))] mut dbg_render_ctx: ResMut<
 		DebugRenderContext,
 	>,
+	mut windows: Query<&mut Window>,
 ) {
 	let globals_scene = assets.load("globals.scn.ron");
 	cmds.insert_resource(GlobalsScene(globals_scene.clone()));
@@ -250,6 +254,10 @@ fn startup(
 		brightness: 50.0,
 		..default()
 	});
+
+	let mut window = windows.single_mut();
+	window.cursor.visible = false;
+	window.cursor.grab_mode = CursorGrabMode::Locked;
 }
 
 fn terminal_velocity(mut q: Query<(&mut CtrlVel, &TerminalVelocity)>, t: Res<Time>) {

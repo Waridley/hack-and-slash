@@ -50,14 +50,15 @@ pub struct VirtualAxisIcons {
 }
 
 impl UserInputIcons {
-	pub fn from_user_input(input: UserInput, gp: Option<GamepadSeries>) -> UserInputIcons {
+	pub fn from_user_input(input: &UserInput, gp: Option<GamepadSeries>) -> UserInputIcons {
 		match input {
 			UserInput::Single(kind) => {
-				UserInputIcons::Single(InputIcons::from_input_kind(kind, gp).unwrap_or_default())
+				UserInputIcons::Single(InputIcons::from_input_kind(*kind, gp).unwrap_or_default())
 			}
 			UserInput::Chord(kinds) => UserInputIcons::Chord(
 				kinds
-					.into_iter()
+					.iter()
+					.copied()
 					.map(|kind| InputIcons::from_input_kind(kind, gp).unwrap_or_default())
 					.collect(),
 			),
@@ -324,7 +325,7 @@ impl GamepadSeries {
 	pub fn left_stick(self) -> AssetPath<'static> {
 		match self {
 			Self::Generic | Self::Nintendo => {
-				Self::Nintendo.dir().join("nintendo_stick_l.svg").into()
+				Self::Nintendo.dir().join("switch_stick_l.svg").into()
 			}
 			Self::PlayStation => Self::PlayStation
 				.dir()
@@ -339,7 +340,7 @@ impl GamepadSeries {
 	pub fn right_stick(self) -> AssetPath<'static> {
 		match self {
 			Self::Generic | Self::Nintendo => {
-				Self::Nintendo.dir().join("nintendo_stick_r.svg").into()
+				Self::Nintendo.dir().join("switch_stick_r.svg").into()
 			}
 			Self::PlayStation => Self::PlayStation
 				.dir()

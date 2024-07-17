@@ -9,12 +9,11 @@ use crate::{
 	},
 	ui::{
 		a11y::AKNode,
-		focus::{highlight_focus, AdjacentWidgets, FocusTarget, Wedge2d},
+		focus::{AdjacentWidgets, FocusTarget, Wedge2d},
 		layout::LineUpChildren,
 		widgets::{
-			draw_widget_shape_gizmos, Button3d, Button3dBundle, CuboidFaces, CuboidPanel,
-			CuboidPanelBundle, Node3dBundle, RectCorners, Text3d, Text3dBundle, WidgetBundle,
-			WidgetShape,
+			draw_widget_shape_gizmos, CuboidFaces, CuboidPanel, CuboidPanelBundle, Node3dBundle,
+			RectCorners, Text3d, Text3dBundle, WidgetBundle, WidgetShape,
 		},
 	},
 	util::{CompassDirection, Diff, LerpSlerp, Prev, StateStack},
@@ -46,6 +45,7 @@ use serde::{Deserialize, Serialize};
 use std::{
 	collections::VecDeque,
 	f64::consts::TAU,
+	fmt::Formatter,
 	ops::{Add, ControlFlow::Break, Mul},
 	sync::Arc,
 };
@@ -55,6 +55,7 @@ pub mod a11y;
 pub mod dbg;
 pub mod focus;
 pub mod layout;
+pub mod mouse;
 pub mod text;
 pub mod widgets;
 
@@ -74,13 +75,25 @@ impl Plugin for UiPlugin {
 			.add_systems(Update, toggle_test_menu)
 			.add_systems(
 				PostUpdate,
-				draw_widget_shape_gizmos::<GLOBAL_UI_LAYER>
+				(
+					draw_widget_shape_gizmos::<GLOBAL_UI_LAYER>,
+					focus::highlight_focus::<GLOBAL_UI_LAYER>,
+				)
+					.chain()
 					.run_if(input_toggle_active(false, KeyCode::KeyG))
 					.after(CheckVisibility),
 			)
 			.insert_gizmo_group(
 				widgets::WidgetGizmos::<GLOBAL_UI_LAYER>,
 				GizmoConfig {
+					render_layers: GLOBAL_UI_RENDER_LAYERS,
+					..default()
+				},
+			)
+			.insert_gizmo_group(
+				focus::FocusGizmos::<GLOBAL_UI_LAYER>,
+				GizmoConfig {
+					line_width: 6.0,
 					render_layers: GLOBAL_UI_RENDER_LAYERS,
 					..default()
 				},
@@ -101,8 +114,16 @@ impl Plugin for UiPlugin {
 		.init_resource::<UiHovered>()
 		.init_resource::<TextMeshCache>()
 		.init_resource::<Tessellator>()
+		.init_resource::<mouse::MouseLayers>()
 		.add_systems(Startup, setup)
-		.add_systems(Update, (reset_hovered, show_fps, focus::resolve_focus))
+		.add_systems(
+			Update,
+			(
+				show_fps,
+				mouse::mouse_picks_focus,
+				focus::handle_focus_actions,
+			),
+		)
 		.add_systems(
 			PostUpdate,
 			(
@@ -112,14 +133,12 @@ impl Plugin for UiPlugin {
 				ExpandToFitChildren::apply::<CuboidPanel>,
 				ExpandToFitChildren::apply::<CylinderPanel>,
 				ExpandToFitChildren::apply::<CuboidContainer>,
-				highlight_focus::<GLOBAL_UI_LAYER>,
 				InteractHandlers::system,
 			),
 		)
 		.add_systems(
 			Last,
 			(
-				Prev::<Button3d>::update_component,
 				hide_orphaned_popups,
 				propagate_fade::<UiMat>.before(Fade::hide_faded_out),
 				Fade::hide_faded_out,
@@ -128,14 +147,6 @@ impl Plugin for UiPlugin {
 				CylinderPanel::sync,
 				Text3d::sync,
 			),
-		)
-		.insert_gizmo_group(
-			focus::FocusGizmos::<GLOBAL_UI_LAYER>,
-			GizmoConfig {
-				line_width: 6.0,
-				render_layers: GLOBAL_UI_RENDER_LAYERS,
-				..default()
-			},
 		);
 	}
 
@@ -319,26 +330,52 @@ pub enum UiAction {
 	NextTab, // TODO: Should these be an Axis or even DualAxis instead?
 	PrevTab,
 	Zoom,
+	ResetZoom,
 	Pan,
+	ResetPan,
 }
 
 impl UiAction {
+	pub const ALL: [Self; 13] = [
+		Self::Ok,
+		Self::Opt1,
+		Self::Opt2,
+		Self::Back,
+		Self::MoveCursor,
+		Self::FocusNext,
+		Self::FocusPrev,
+		Self::NextTab,
+		Self::PrevTab,
+		Self::Zoom,
+		Self::ResetZoom,
+		Self::Pan,
+		Self::ResetPan,
+	];
+
 	pub fn default_mappings() -> InputMap<Self> {
 		use KeyCode::*;
 		use UiAction::*;
 		InputMap::new([
 			// KB & Mouse
 			(Ok, Space.into()),
-			(Ok, Backspace.into()),
 			(Ok, Enter.into()),
+			(Ok, MouseButton::Left.into()),
+			(Opt1, MouseButton::Right.into()),
+			(Opt1, KeyE.into()),
+			(Opt2, KeyQ.into()),
 			(Back, Escape.into()),
+			(Back, Backspace.into()),
 			(MoveCursor, VirtualDPad::wasd().into()),
 			(MoveCursor, VirtualDPad::arrow_keys().into()),
 			(FocusNext, Tab.into()),
+			(FocusNext, MouseWheelDirection::Down.into()),
+			(FocusNext, MouseWheelDirection::Right.into()),
 			(
 				FocusPrev,
 				UserInput::Chord(vec![Modifier::Shift.into(), Tab.into()]),
 			),
+			(FocusPrev, MouseWheelDirection::Up.into()),
+			(FocusPrev, MouseWheelDirection::Left.into()),
 			(
 				Zoom,
 				UserInput::Chord(vec![
@@ -346,8 +383,29 @@ impl UiAction {
 					SingleAxis::mouse_wheel_y().into(),
 				]),
 			),
+			(
+				Zoom,
+				VirtualAxis {
+					negative: Minus.into(),
+					positive: Equal.into(),
+				}
+				.into(),
+			),
+			(ResetZoom, MouseButton::Middle.into()),
+			(ResetZoom, Digit0.into()),
+			(
+				Pan,
+				UserInput::Chord(vec![
+					MouseButton::Middle.into(),
+					DualAxis::mouse_motion().into(),
+				]),
+			),
+			(ResetPan, MouseButton::Middle.into()),
+			(ResetPan, Digit0.into()),
 			// Controller
 			(Ok, GamepadButtonType::South.into()),
+			(Opt1, GamepadButtonType::West.into()),
+			(Opt2, GamepadButtonType::North.into()),
 			(Back, GamepadButtonType::East.into()),
 			(MoveCursor, VirtualDPad::dpad().into()),
 			(MoveCursor, DualAxis::left_stick().into()),
@@ -360,8 +418,40 @@ impl UiAction {
 					SingleAxis::symmetric(GamepadAxisType::RightStickY, 0.1).into(),
 				]),
 			),
+			(
+				ResetZoom,
+				UserInput::Chord(vec![
+					GamepadButtonType::LeftTrigger2.into(),
+					GamepadButtonType::RightThumb.into(),
+				]),
+			),
 			(Pan, DualAxis::right_stick().into()),
+			(ResetPan, GamepadButtonType::RightThumb.into()),
 		])
+	}
+
+	pub fn display_name(self) -> &'static str {
+		match self {
+			UiAction::Ok => "Ok",
+			UiAction::Opt1 => "Option 1",
+			UiAction::Opt2 => "Option 2",
+			UiAction::Back => "Back",
+			UiAction::MoveCursor => "Move Cursor",
+			UiAction::FocusNext => "Next Item",
+			UiAction::FocusPrev => "Previous Item",
+			UiAction::NextTab => "Next Tab",
+			UiAction::PrevTab => "Previous Tab",
+			UiAction::Zoom => "Zoom",
+			UiAction::ResetZoom => "Reset Zoom",
+			UiAction::Pan => "Pan",
+			UiAction::ResetPan => "Reset Pan",
+		}
+	}
+}
+
+impl std::fmt::Display for UiAction {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		f.write_str(self.display_name())
 	}
 }
 
@@ -607,7 +697,8 @@ use crate::{
 	ui::{
 		text::Tessellator,
 		widgets::{
-			new_unlit_material, CuboidContainer, CylinderPanel, InteractHandlers, PrevFocus,
+			new_unlit_material, CuboidContainer, CylinderPanel, InteractHandlers, PanelBundle,
+			PrevFocus,
 		},
 	},
 };
@@ -617,6 +708,7 @@ use bevy_inspector_egui::{
 	prelude::{InspectorOptions, ReflectInspectorOptions},
 };
 use layout::ExpandToFitChildren;
+use leafwing_input_manager::buttonlike::MouseMotionDirection;
 use text::{TextMeshCache, UiFonts};
 use web_time::Duration;
 
@@ -932,12 +1024,13 @@ fn spawn_test_menu(
 						..default()
 					},
 					transform,
+					adjacent: AdjacentWidgets::all(FocusTarget::ChildN(0)),
 					..default()
-				},
-				AdjacentWidgets::all(FocusTarget::Child(0));
+				};
 				#children:
 					( // Border
 						WidgetBundle {
+							adjacent: AdjacentWidgets::all(FocusTarget::ChildN(0)),
 							..default()
 						},
 						meshes.add(PlanarPolyLine {
@@ -958,8 +1051,8 @@ fn spawn_test_menu(
 						LineUpChildren {
 							relative_positions: Vec3::NEG_Z * 1.25,
 							align: Vec3::ZERO,
-						},
-						AdjacentWidgets::all(FocusTarget::Child(0));
+							..default()
+						};
 						#children:
 							( // "Testing..." text
 								Text3dBundle::<UiMat> {
@@ -970,12 +1063,12 @@ fn spawn_test_menu(
 									font: ui_fonts.mono.clone(),
 									transform: Transform::from_translation(Vec3::NEG_Y),
 									material: mats.add(new_unlit_material()),
+									adjacent: AdjacentWidgets::vertical_siblings(),
 									..default()
 								},
-								AdjacentWidgets::vertical_siblings(),
 							),
 							( // Test button
-								Button3dBundle {
+								PanelBundle {
 									shape: WidgetShape { shape: SharedShape::capsule(
 										Point::new(0.0, -2.5, 0.0),
 										Point::new(0.0, 2.5, 0.0),
@@ -987,9 +1080,9 @@ fn spawn_test_menu(
 										rotation: Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
 										..default()
 									},
+									adjacent: AdjacentWidgets::vertical_siblings(),
 									..default()
-								},
-								AdjacentWidgets::vertical_siblings();
+								};
 								#children: ( // Test button text
 									Text3dBundle::<UiMat> {
 										text_3d: Text3d {
