@@ -1,7 +1,5 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Web (release-debug)" type="JavascriptDebugType" uri="http://localhost:63342/has/rs/dist/index.html" useBuiltInWebServerPort="true">
-    <method v="2">
-      <option name="RunConfigurationTask" enabled="true" run_configuration_name="trunk build (release-debug)" run_configuration_type="ShConfigurationType" />
-    </method>
+    <method v="2" />
   </configuration>
 </component>

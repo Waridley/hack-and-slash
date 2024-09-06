@@ -1,10 +1,11 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Run (debug)" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="run --profile=&quot;desktop&quot; --package sond-has --bin sond-has --features=&quot;bevy/file_watcher,bevy/asset_processor,bevy/bevy_dynamic_plugin,debugging,dylib&quot;" />
+    <option name="buildProfileId" value="dev" />
+    <option name="command" value="run --package sond-has --bin sond-has --features=&quot;bevy/file_watcher,bevy/asset_processor,bevy/bevy_dynamic_plugin,debugging,dylib&quot;" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$/rs" />
     <envs>
       <env name="RUSTFLAGS" value="-Zthreads=16 -Clink-arg=-fuse-ld=mold -Zshare-generics=y" />
-      <env name="RUST_LOG" value="sond_has=debug,sond_has_engine=debug" />
+      <env name="RUST_LOG" value="info,sond_has=debug,sond_has_engine=debug" />
     </envs>
     <option name="emulateTerminal" value="false" />
     <option name="channel" value="DEFAULT" />

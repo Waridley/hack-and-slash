@@ -1,6 +1,7 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Tracy capture" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="run --profile=&quot;profiling&quot; --package sond-has --bin sond-has --features=&quot;bevy/trace_tracy&quot;" />
+    <option name="buildProfileId" value="Custom:profiling" />
+    <option name="command" value="run --profile profiling --package sond-has --bin sond-has --features=&quot;bevy/trace_tracy&quot;" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$/rs" />
     <envs />
     <option name="emulateTerminal" value="false" />
