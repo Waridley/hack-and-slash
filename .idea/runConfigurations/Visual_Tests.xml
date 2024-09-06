@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Visual Tests" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="test --workspace --profile=&quot;desktop&quot; --features=&quot;vis_test&quot;" />
+    <option name="command" value="test --workspace --profile desktop --features=&quot;vis_test&quot;" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$/rs" />
     <envs />
     <option name="emulateTerminal" value="true" />
