@@ -1,15 +1,5 @@
-use crate::{
-	input::map::{icons::kenney::generic_base_dir, GamepadSeries},
-	node_3d,
-	ui::{
-		a11y::AKNode,
-		text::{TextMeshCache, UiFonts},
-		widgets::{Text3d, Text3dBundle, UNLIT_MATERIAL_ID},
-		GLOBAL_UI_RENDER_LAYERS,
-	},
-};
+use crate::input::map::{icons::kenney::generic_base_dir, GamepadSeries};
 use bevy::{asset::AssetPath, input::keyboard::Key, prelude::*, render::view::RenderLayers};
-use bevy_svg::{prelude::*, SvgSettings};
 use kenney::{base_dir, kb_mouse_base_dir};
 use leafwing_input_manager::{
 	axislike::{AxisType, AxisType::Gamepad, MouseMotionAxisType},
