@@ -10,10 +10,7 @@ use crate::{
 };
 use bevy::{ecs::system::EntityCommands, prelude::*, render::view::RenderLayers};
 use bevy_rapier3d::parry::{math::Isometry, shape::SharedShape};
-use bevy_svg::{
-	prelude::{Origin, Svg},
-	SvgSettings,
-};
+use bevy_svg::prelude::{Origin, Svg, SvgMesh3dBundle, SvgMesh3d};
 
 #[derive(Component, Debug, Clone)]
 pub struct InputIcon {
@@ -21,7 +18,9 @@ pub struct InputIcon {
 	pub size: Vec3,
 	pub flat: bool,
 	pub text_entity: Entity,
+	// TODO: This should be rotation + `bevy_svg::origin::Origin`
 	pub isometry: Isometry<f32>,
+	pub tolerance: f32,
 }
 
 impl Default for InputIcon {
@@ -32,6 +31,7 @@ impl Default for InputIcon {
 			flat: true,
 			text_entity: Entity::PLACEHOLDER,
 			isometry: default(),
+			tolerance: 0.001,
 		}
 	}
 }
@@ -69,24 +69,32 @@ impl InputIcon {
 				flat,
 				text_entity,
 				isometry,
+				tolerance,
 			} = *this;
 			cmds.get_entity(text_entity)
 				.map(EntityCommands::despawn_recursive);
 			let mut cmds = cmds.entity(id);
-			let svg = asset_server.load_with_settings::<Svg, SvgSettings>(image, move |settings| {
-				settings.transform.rotation *= Quat::from_rotation_arc(Vec3::Y, Vec3::Z);
-				settings.origin = Origin::Center;
-				settings.size = Some(size.xz());
-				settings.depth = (!flat).then_some(size.y);
-			});
+			let svg = asset_server.load::<Svg>(image);
 			// `bevy_svg` doesn't insert a mesh if a handle isn't already present. PR?
-			cmds.insert((svg, Handle::<Mesh>::default()));
+			cmds.insert(SvgMesh3dBundle {
+				svg,
+				mesh_settings: SvgMesh3d {
+					size: Some(size.xz()),
+					depth: (!flat).then_some(size.y),
+					rotation: Quat::from(isometry.rotation) * Quat::from_rotation_arc(Vec3::Y, Vec3::Z),
+					origin: Origin::Center,
+					tolerance,
+					..default()
+				},
+				material: mat.clone(),
+				..default()
+			});
 			let half_size = size * 0.5;
 			cmds.insert(WidgetShape {
 				shape: SharedShape::cuboid(half_size.x, half_size.y, half_size.z),
 				isometry,
 			});
-			text.clone().map(|text| {
+			if let Some(text) = text.clone() {
 				// FIXME: Add descriptions for icons without text
 				ak_node.set_description(&*text);
 				cmds.with_children(|cmds| {
@@ -106,7 +114,7 @@ impl InputIcon {
 						})
 						.id();
 				});
-			});
+			};
 		}
 	}
 }

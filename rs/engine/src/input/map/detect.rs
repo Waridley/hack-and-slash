@@ -236,6 +236,7 @@ pub fn display_curr_chord(
 							icon,
 							size: Vec3::splat(1.0),
 							flat: false,
+							tolerance: 0.1,
 							..default()
 						},
 						font: ui_fonts.mono.clone(),

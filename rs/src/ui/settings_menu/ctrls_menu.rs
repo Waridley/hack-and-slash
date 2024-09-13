@@ -289,6 +289,7 @@ pub fn update_binding_list_widgets<A: Actionlike>(
 							input_icon: InputIcon {
 								icon,
 								size: Vec3::new(scale, 0.5, scale),
+								tolerance: 0.2,
 								..default()
 							},
 							font: fonts.mono.clone(),
