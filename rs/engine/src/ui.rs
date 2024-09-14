@@ -240,45 +240,71 @@ pub fn spawn_ui_camera<ID: Bundle + Clone>(
 		cam.start_animation::<Transform>(cam_idle_animation(animation_time_offset));
 
 		// Lights add together to white in front, but tint the sides of UI elements
+		let green_light_pos = cam_pos + Vec3::new(2.0, 0.0, 4.0);
 		cmds.spawn((
-			DirectionalLightBundle {
-				directional_light: DirectionalLight {
+			SpotLightBundle {
+				spot_light: SpotLight {
+					range: 256.0,
+					radius: 128.0,
 					color: Color::rgb(0.5, 0.75, 0.125),
-					illuminance: 5000.0,
+					intensity: 160_000_000.0,
+					inner_angle: std::f32::consts::FRAC_PI_8 * 7.0,
+					outer_angle: std::f32::consts::FRAC_PI_8 * 7.5,
 					..default()
 				},
-				transform: Transform::from_rotation(Quat::from_rotation_arc(
-					Vec3::NEG_Z,
-					Vec3::new(-0.05, 1.0, -0.05).normalize(),
-				)),
+				transform: Transform {
+					translation: green_light_pos * 2.0,
+					rotation: Quat::from_rotation_arc(
+						Vec3::NEG_Z,
+						(-green_light_pos).normalize(),
+					),
+					..default()
+				},
 				..default()
 			},
 			layers,
 		));
+		let blue_light_pos = cam_pos + Vec3::new(-2.0, 0.0, 4.0);
 		cmds.spawn((
-			DirectionalLightBundle {
-				directional_light: DirectionalLight {
+			SpotLightBundle {
+				spot_light: SpotLight {
+					range: 256.0,
+					radius: 128.0,
 					color: Color::rgb(0.5, 0.25, 0.875),
-					illuminance: 5000.0,
+					intensity: 160_000_000.0,
+					inner_angle: std::f32::consts::FRAC_PI_8 * 7.0,
+					outer_angle: std::f32::consts::FRAC_PI_8 * 7.5,
 					..default()
 				},
-				transform: Transform::from_rotation(Quat::from_rotation_arc(
-					Vec3::NEG_Z,
-					Vec3::new(0.05, 1.0, -0.05).normalize(),
-				)),
+				transform: Transform {
+					translation: blue_light_pos * 2.0,
+					rotation: Quat::from_rotation_arc(
+						Vec3::NEG_Z,
+						(-blue_light_pos).normalize(),
+					),
+					..default()
+				},
 				..default()
 			},
 			layers,
 		));
 
 		cmds.spawn((
-			DirectionalLightBundle {
-				directional_light: DirectionalLight {
-					illuminance: 400.0,
+			SpotLightBundle {
+				spot_light: SpotLight {
+					range: 256.0,
+					radius: 128.0,
+					intensity: 2_000_000.0,
+					inner_angle: std::f32::consts::FRAC_PI_8 * 7.0,
+					outer_angle: std::f32::consts::FRAC_PI_8 * 7.5,
 					color: Color::rgb(1.0, 0.125, 1.0),
 					..default()
 				},
-				transform: Transform::from_rotation(Quat::from_rotation_arc(Vec3::NEG_Z, Vec3::Z)),
+				transform: Transform {
+					translation: Vec3::NEG_Z * 64.0,
+					rotation: Quat::from_rotation_arc(Vec3::NEG_Z, Vec3::Z),
+					..default()
+				},
 				..default()
 			},
 			layers,
