@@ -69,6 +69,7 @@ pub fn setup(
 			.collect(),
 	};
 	let text_material = mats.add(new_unlit_material());
+	let blue_green_mat = mats.add(UiMatBuilder::from(Color::rgb(0.5, 0.8, 0.7)));
 	let button_focus_border_bundle = (
 		Node3dBundle {
 			transform: Transform {
@@ -83,7 +84,7 @@ pub fn setup(
 			cross_section: rect_points(0.1, 0.1),
 			..default()
 		},
-		text_material.clone()
+		blue_green_mat.clone()
 	);
 	let dbg_event = dbg_event();
 	let focus_toggle_border = focus_toggle_border();
@@ -119,7 +120,7 @@ pub fn setup(
 						flat: false,
 						..default()
 					},
-					material: mats.add(UiMatBuilder::from(Color::rgb(0.5, 0.8, 0.7))),
+					material: blue_green_mat.clone(),
 					font: ui_fonts.mono.clone(),
 					transform: Transform {
 						translation: Vec3::new(0.0, -3.5, 0.0),

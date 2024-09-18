@@ -126,6 +126,7 @@ pub fn setup(
 		translation: Vec3::new(0.0, -48.0, -48.0),
 		..default()
 	};
+	let all_first_control = AdjacentWidgets::all("[UiControlsContainer]/#0/#1".parse().unwrap());
 	let id = entity_tree! { cmds;
 		(
 			Name::new("ControlsMenu"),
@@ -142,7 +143,7 @@ pub fn setup(
 					..default()
 				}),
 				handlers: MenuStack::pop_on_back(GLOBAL_UI_RENDER_LAYERS, 0.7),
-				adjacent: AdjacentWidgets::all("#0/#0/#1/#0/#1".parse().unwrap()),
+				adjacent: all_first_control.clone(),
 				..default()
 			},
 			ExpandToFitChildren {
@@ -150,7 +151,8 @@ pub fn setup(
 				offset: Vec3::Y,
 				..default()
 			},
-			Fade::ZERO;
+			Fade::ZERO,
+			;
 			#children:
 				(
 					CuboidContainerBundle {
@@ -158,18 +160,20 @@ pub fn setup(
 							translation: Vec3::NEG_Y,
 							..default()
 						},
-						adjacent: AdjacentWidgets::all("#0/#1/#0/#1".parse().unwrap()),
+						adjacent: all_first_control.clone(),
 						..default()
 					},
-					ExpandToFitChildren::default(),;
+					ExpandToFitChildren::default(),
+					;
 					#children:
 						(
 							CuboidContainerBundle {
-								adjacent: AdjacentWidgets::all("#1/#0/#1".parse().unwrap()),
+								adjacent: all_first_control.clone(),
 								..default()
 							},
 							ExpandToFitChildren::default(),
-							LineUpChildren::vertical().with_alignment(Vec3::new(0.0, -20.0, -1.0)).with_spacing(1.0),;
+							LineUpChildren::vertical().with_spacing(1.0),
+							;
 							#children:
 								(
 									Text3dBundle {
@@ -184,27 +188,74 @@ pub fn setup(
 									}
 								),
 								(
+									Name::new("UiControlsSection"),
 									CuboidContainerBundle {
-										adjacent: AdjacentWidgets::all("#0/#1".parse().unwrap()),
+										adjacent: all_first_control.clone(),
 										..default()
 									},
-									LineUpChildren::vertical(),
-									ExpandToFitChildren::default(),
-									=> |cmds| {
-										for id in entries {
-											cmds.add_child(id);
-										}
-									}
+									ExpandToFitChildren {
+										margin: Vec3::new(1.0, 0.0, 1.0),
+										..default()
+									},
+									LineUpChildren::vertical().with_alignment(Vec3::new(0.0, -20.0, -1.0)).with_spacing(1.0),
+									;
+									#children:
+										(
+											Border {
+												margin: Vec2::splat(0.5),
+												..default()
+											},
+											Node3dBundle::default(),
+											mats.add(UiMatBuilder::from(Color::DARK_GRAY)),
+										),
+										(
+											CuboidContainerBundle {
+												adjacent: all_first_control.clone(),
+												..default()
+											},
+											ExpandToFitChildren::default(),
+											LineUpChildren::vertical().with_spacing(0.5),
+											;
+											#children:
+												(
+													Text3dBundle {
+														text_3d: Text3d {
+															vertex_scale: Vec3::splat(0.7),
+															text: "Menu Controls".into(),
+															..default()
+														},
+														font: ui_fonts.mono.clone(),
+														material: text_mat.clone(),
+														..default()
+													},
+												),
+												(
+													Name::new("divider"),
+													CuboidPanelBundle {
+														panel: CuboidPanel {
+															size: Vec3::new(10.0, 0.25, 0.25),
+															..default()
+														},
+														material: mats.add(UiMatBuilder::from(Color::DARK_GRAY)),
+														..default()
+													}
+												),
+												(
+													Name::new("UiControlsContainer"),
+													CuboidContainerBundle {
+														adjacent: AdjacentWidgets::all("#0/#1".parse().unwrap()),
+														..default()
+													},
+													LineUpChildren::vertical(),
+													ExpandToFitChildren::default(),
+													=> |cmds| {
+														for id in entries {
+															cmds.add_child(id);
+														}
+													}
+												),
+										),
 								),
-						),
-						(
-							Node3dBundle::default(),
-							Border {
-								margin: Vec2::ONE,
-								colors: smallvec![smallvec![Color::rgb(0.05, 0.01, 0.1)]],
-								..default()
-							},
-							mats.add(UiMatBuilder::default())
 						),
 				),
 		)
