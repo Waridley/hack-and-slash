@@ -1244,7 +1244,7 @@ impl CuboidContainer {
 }
 
 node_3d! { CuboidContainerBundle {
-	params: CuboidContainer,
+	container: CuboidContainer,
 }}
 
 impl Default for CuboidContainer {
@@ -1260,7 +1260,7 @@ impl Default for CuboidContainer {
 impl Default for CuboidContainerBundle {
 	fn default() -> Self {
 		node_3d_defaults! {
-			params: default(),
+			container: default(),
 		}
 	}
 }
