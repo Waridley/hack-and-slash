@@ -23,6 +23,10 @@ use std::{
 	f32::consts::{FRAC_PI_2, FRAC_PI_3, FRAC_PI_6},
 	ops::{ControlFlow, ControlFlow::Break},
 };
+use bevy::utils::smallvec::smallvec;
+use engine::draw::rect_points;
+use engine::ui::widgets::borders::Border;
+use engine::ui::widgets::focus_toggle_border;
 
 pub mod ctrls_menu;
 
@@ -65,6 +69,24 @@ pub fn setup(
 			.collect(),
 	};
 	let text_material = mats.add(new_unlit_material());
+	let button_focus_border_bundle = (
+		Node3dBundle {
+			transform: Transform {
+				translation: Vec3::NEG_Y * 0.5,
+				..default()
+			},
+			visibility: Visibility::Hidden,
+			..default()
+		},
+		Border {
+			margin: Vec2::splat(0.25),
+			cross_section: rect_points(0.1, 0.1),
+			..default()
+		},
+		text_material.clone()
+	);
+	let dbg_event = dbg_event();
+	let focus_toggle_border = focus_toggle_border();
 	entity_tree!(cmds; (
 		Name::new("SettingsMenu"),
 		SettingsMenu,
@@ -125,7 +147,7 @@ pub fn setup(
 				},
 				meshes.add(PlanarPolyLine {
 					points: polygon_points(6, 10.5, 0.0),
-					colors: vec![vec![Color::GRAY]],
+					colors: smallvec![smallvec![Color::GRAY]],
 					..default()
 				}.flat()),
 				mats.add(UiMatBuilder::from(Color::DARK_GRAY)),
@@ -150,6 +172,10 @@ pub fn setup(
 							},
 							material: mats.add(UiMatBuilder::from(Color::CYAN.with_a(0.4))),
 							adjacent: adjacent.clone(),
+							handlers: vec![
+								dbg_event.clone(),
+								focus_toggle_border.clone(),
+							].into(),
 							..default()
 						},
 						ExpandToFitChildren {
@@ -166,7 +192,8 @@ pub fn setup(
 									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
 									..default()
 								},
-							)
+							),
+							(button_focus_border_bundle.clone()),
 					),
 					(
 						CuboidPanelBundle {
@@ -176,6 +203,10 @@ pub fn setup(
 							},
 							material: mats.add(UiMatBuilder::from(Color::YELLOW.with_a(0.4))),
 							adjacent: adjacent.clone(),
+							handlers: vec![
+								dbg_event.clone(),
+								focus_toggle_border.clone(),
+							].into(),
 							..default()
 						},
 						ExpandToFitChildren {
@@ -192,7 +223,8 @@ pub fn setup(
 									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
 									..default()
 								},
-							)
+							),
+							(button_focus_border_bundle.clone()),
 					),
 					(
 						CuboidPanelBundle {
@@ -202,6 +234,10 @@ pub fn setup(
 							},
 							material: mats.add(UiMatBuilder::from(Color::FUCHSIA.with_a(0.4))),
 							adjacent: adjacent.clone(),
+							handlers: vec![
+								dbg_event.clone(),
+								focus_toggle_border.clone(),
+							].into(),
 							..default()
 						},
 						ExpandToFitChildren {
@@ -218,7 +254,8 @@ pub fn setup(
 									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
 									..default()
 								},
-							)
+							),
+							(button_focus_border_bundle.clone()),
 					),
 					(
 						CuboidPanelBundle {
@@ -228,6 +265,10 @@ pub fn setup(
 							},
 							material: mats.add(UiMatBuilder::from(Color::RED.with_a(0.4))),
 							adjacent: adjacent.clone(),
+							handlers: vec![
+								dbg_event.clone(),
+								focus_toggle_border.clone(),
+							].into(),
 							..default()
 						},
 						ExpandToFitChildren {
@@ -244,7 +285,8 @@ pub fn setup(
 									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
 									..default()
 								},
-							)
+							),
+							(button_focus_border_bundle.clone()),
 					),
 					(
 						CuboidPanelBundle {
@@ -254,7 +296,8 @@ pub fn setup(
 							},
 							material: mats.add(UiMatBuilder::from(Color::GREEN.with_a(0.4))),
 							handlers: vec![
-								dbg_event(),
+								dbg_event.clone(),
+								focus_toggle_border.clone(),
 								on_ok(|cmds| {
 									cmds.commands().add(|world: &mut World| {
 										let menu = world.resource::<SettingsSubMenus>().controls;
@@ -264,7 +307,6 @@ pub fn setup(
 									});
 									Break(())
 								}),
-								focus_state_colors(Color::GREEN.with_a(0.4), Color::LIME_GREEN),
 							].into(),
 							adjacent: adjacent.clone(),
 							..default()
@@ -283,7 +325,8 @@ pub fn setup(
 									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
 									..default()
 								},
-							)
+							),
+							(button_focus_border_bundle.clone()),
 					),
 					(
 						CuboidPanelBundle {
@@ -293,6 +336,10 @@ pub fn setup(
 							},
 							material: mats.add(UiMatBuilder::from(Color::BLUE.with_a(0.4))),
 							adjacent: adjacent.clone(),
+							handlers: vec![
+								dbg_event.clone(),
+								focus_toggle_border.clone(),
+							].into(),
 							..default()
 						},
 						ExpandToFitChildren {
@@ -309,7 +356,8 @@ pub fn setup(
 									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
 									..default()
 								},
-							)
+							),
+							(button_focus_border_bundle.clone()),
 					),
 			),
 	));

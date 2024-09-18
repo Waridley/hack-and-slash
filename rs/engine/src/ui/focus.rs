@@ -69,7 +69,7 @@ pub enum FocusTarget {
 	/// # use bevy::prelude::Name;
 	/// use sond_has_engine::ui::focus::FocusTarget::{self, *};
 	/// assert_eq!(
-	///     r#"/#3/"#AChildsName"/+1/[ADescendantsName]/.."#
+	///     r#"/#3/"AChildsName"/+1/[ADescendantsName]/.."#
 	///         .parse::<FocusTarget>()
 	///         .unwrap(),
 	///     Path(vec![

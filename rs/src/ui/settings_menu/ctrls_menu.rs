@@ -36,9 +36,15 @@ use std::{
 	ops::{ControlFlow, ControlFlow::Break},
 	sync::Arc,
 };
+use bevy::utils::smallvec::smallvec;
+use engine::draw::PlanarPolyLine;
+use engine::ui::widgets::borders::Border;
+use engine::ui::widgets::Node3dBundle;
+use engine::util::Flat;
 
 pub fn setup(
 	mut cmds: Commands,
+	mut meshes: ResMut<Assets<Mesh>>,
 	mut mats: ResMut<Assets<UiMat>>,
 	ui_fonts: Res<UiFonts>,
 	mut sub_menus: ResMut<SettingsSubMenus>,
@@ -130,12 +136,13 @@ pub fn setup(
 						base_color: Color::rgba(0.1, 0.3, 0.1, 0.5),
 						alpha_mode: AlphaMode::Blend,
 						cull_mode: None,
+						double_sided: true,
 						..default()
 					},
 					..default()
 				}),
 				handlers: MenuStack::pop_on_back(GLOBAL_UI_RENDER_LAYERS, 0.7),
-				adjacent: AdjacentWidgets::all("#0/#1/#0/#1".parse().unwrap()),
+				adjacent: AdjacentWidgets::all("#0/#0/#1/#0/#1".parse().unwrap()),
 				..default()
 			},
 			ExpandToFitChildren {
@@ -151,38 +158,55 @@ pub fn setup(
 							translation: Vec3::NEG_Y,
 							..default()
 						},
-						adjacent: AdjacentWidgets::all("#1/#0/#1".parse().unwrap()),
+						adjacent: AdjacentWidgets::all("#0/#1/#0/#1".parse().unwrap()),
 						..default()
 					},
-					ExpandToFitChildren::default(),
-					LineUpChildren::vertical().with_alignment(Vec3::new(0.0, -20.0, -1.0)).with_spacing(1.0),;
+					ExpandToFitChildren::default(),;
 					#children:
 						(
-							Text3dBundle {
-								text_3d: Text3d {
-									text: "Controls".into(),
-									flat: false,
-									..default()
-								},
-								font: ui_fonts.mono.clone(),
-								material: mats.add(UiMatBuilder::from(Color::GREEN)),
-								..default()
-							}
-						),
-						(
 							CuboidContainerBundle {
-								adjacent: AdjacentWidgets::all("#0/#1".parse().unwrap()),
+								adjacent: AdjacentWidgets::all("#1/#0/#1".parse().unwrap()),
 								..default()
 							},
-							LineUpChildren::vertical(),
 							ExpandToFitChildren::default(),
-							=> |cmds| {
-								for id in entries {
-									cmds.add_child(id);
-								}
-							}
+							LineUpChildren::vertical().with_alignment(Vec3::new(0.0, -20.0, -1.0)).with_spacing(1.0),;
+							#children:
+								(
+									Text3dBundle {
+										text_3d: Text3d {
+											text: "Controls".into(),
+											flat: false,
+											..default()
+										},
+										font: ui_fonts.mono.clone(),
+										material: mats.add(UiMatBuilder::from(Color::GREEN)),
+										..default()
+									}
+								),
+								(
+									CuboidContainerBundle {
+										adjacent: AdjacentWidgets::all("#0/#1".parse().unwrap()),
+										..default()
+									},
+									LineUpChildren::vertical(),
+									ExpandToFitChildren::default(),
+									=> |cmds| {
+										for id in entries {
+											cmds.add_child(id);
+										}
+									}
+								),
 						),
-				)
+						(
+							Node3dBundle::default(),
+							Border {
+								margin: Vec2::ONE,
+								colors: smallvec![smallvec![Color::rgb(0.05, 0.01, 0.1)]],
+								..default()
+							},
+							mats.add(UiMatBuilder::default())
+						),
+				),
 		)
 	}
 	.id();
@@ -351,7 +375,7 @@ pub fn update_binding_list_widgets<A: Actionlike>(
 						LineUpChildren::horizontal().with_offset(Vec3::NEG_Y),
 					))
 					.with_children(|cmds| {
-						const FULL_SIZE: f32 = 1.5;
+						const FULL_SIZE: f32 = 1.2;
 						match icons {
 							UserInputIcons::Single(icons) => multi_icon!(cmds, icons, FULL_SIZE),
 							UserInputIcons::Chord(entries) => {
@@ -385,10 +409,11 @@ pub fn update_binding_list_widgets<A: Actionlike>(
 									},
 								))
 								.with_children(|cmds| {
-									multi_icon!(cmds, dpad.right, FULL_SIZE / 3.0);
-									multi_icon!(cmds, dpad.up, FULL_SIZE / 3.0);
-									multi_icon!(cmds, dpad.left, FULL_SIZE / 3.0);
-									multi_icon!(cmds, dpad.down, FULL_SIZE / 3.0);
+									// Slightly oversized for readability.
+									multi_icon!(cmds, dpad.right, FULL_SIZE / 2.4);
+									multi_icon!(cmds, dpad.up, FULL_SIZE / 2.4);
+									multi_icon!(cmds, dpad.left, FULL_SIZE / 2.4);
+									multi_icon!(cmds, dpad.down, FULL_SIZE / 2.4);
 								});
 							}
 							UserInputIcons::VirtualAxis(axis) => {
