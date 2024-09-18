@@ -8,29 +8,38 @@ use bevy::{
 	},
 };
 use std::f32::consts::{FRAC_PI_2, PI, TAU};
+use bevy::utils::smallvec::{smallvec, SmallVec};
 
 /// The corners of a square with dimensions [1.0, 1.0], centered around the origin.
 #[inline]
-pub fn unit_square_points() -> Vec<Vec2> {
+pub fn unit_square_points() -> SmallVec<[Vec2; 4]> {
 	square_points(1.0)
 }
 
 /// The corners of a square with full width and height `width`, centered around the origin.
 #[inline]
-pub fn square_points(width: f32) -> Vec<Vec2> {
+pub fn square_points(width: f32) -> SmallVec<[Vec2; 4]> {
 	rect_points(width, width)
 }
 
 /// The corners of a rectangle centered around the origin.
 #[inline]
-pub fn rect_points(width: f32, height: f32) -> Vec<Vec2> {
+pub fn rect_points(width: f32, height: f32) -> SmallVec<[Vec2; 4]> {
+	rect_points_offset(width, height, Vec2::ZERO)
+}
+
+/// The corners of a rectangle centered around `offset`.
+#[inline]
+pub fn rect_points_offset(width: f32, height: f32, offset: Vec2) -> SmallVec<[Vec2; 4]> {
 	let w = width * 0.5;
 	let h = height * 0.5;
-	vec![
-		Vec2::new(w, h),
-		Vec2::new(-w, h),
-		Vec2::new(-w, -h),
-		Vec2::new(w, -h),
+	let x = offset.x;
+	let y = offset.y;
+	smallvec![
+		Vec2::new(w + x, h + y),
+		Vec2::new(-w + x, h + y),
+		Vec2::new(-w + x, -h + y),
+		Vec2::new(w + x, -h + y),
 	]
 }
 
@@ -42,7 +51,7 @@ pub fn rect_points(width: f32, height: f32) -> Vec<Vec2> {
 ///     of the angle between two vertices, i.e., `0.0` will align
 ///     a vertex with `Vec2::X`, while `0.5` will align an edge
 ///     with `Vec2::X` instead.
-pub fn polygon_points(sides: u32, radius: f32, clocking: f32) -> Vec<Vec2> {
+pub fn polygon_points(sides: u32, radius: f32, clocking: f32) -> SmallVec<[Vec2; 4]> {
 	let wedge = TAU / sides as f32;
 	(0..sides)
 		.map(|angle| {
@@ -54,16 +63,17 @@ pub fn polygon_points(sides: u32, radius: f32, clocking: f32) -> Vec<Vec2> {
 
 /// A "two-dimensional" sequence of lines, drawn using a 3D Mesh by extruding the
 /// cross-section.
+#[derive(Debug, Clone)]
 pub struct PlanarPolyLine {
 	/// The points defining the shape, at the origin of [cross_section].
 	///
 	/// Defaults to [unit_square_points].
-	pub points: Vec<Vec2>,
+	pub points: SmallVec<[Vec2; 4]>,
 	/// The vertices defining the cross-section shape, with the origin at each
 	/// point in [points]. The last vertex will be connected to the first.
 	///
 	/// Defaults to a square of size [0.25, 0.25], centered around [points].
-	pub cross_section: Vec<Vec2>,
+	pub cross_section: SmallVec<[Vec2; 4]>,
 	/// The colors of each vertex in the mesh.
 	///
 	/// The inner `Vec`s correspond to the points of [cross_section] for each point
@@ -74,7 +84,7 @@ pub struct PlanarPolyLine {
 	/// Also, if any inner `Vec` is empty, the last color from the previous one will be used.
 	/// If the outer `Vec` is shorter than `points`, the last color will also be repeated for
 	/// all remaining vertices.
-	pub colors: Vec<Vec<Color>>,
+	pub colors: SmallVec<[SmallVec<[Color; 1]>; 2]>,
 	/// If `true`, the last point will be connected to the first, closing the shape.
 	///
 	/// Defaults to `true`.
@@ -86,7 +96,7 @@ impl Default for PlanarPolyLine {
 		Self {
 			points: unit_square_points(),
 			cross_section: square_points(0.25),
-			colors: Vec::new(),
+			colors: SmallVec::new(),
 			closed: true,
 		}
 	}
@@ -108,7 +118,7 @@ impl FromIterator<(Vec2, Color)> for PlanarPolyLine {
 	fn from_iter<T: IntoIterator<Item = (Vec2, Color)>>(iter: T) -> Self {
 		let (points, colors) = iter
 			.into_iter()
-			.map(|(point, color)| (point, vec![color]))
+			.map(|(point, color)| (point, smallvec![color]))
 			.unzip();
 		Self {
 			points,
@@ -218,6 +228,7 @@ impl From<PlanarPolyLine> for Mesh {
 }
 
 impl PlanarPolyLine {
+	#[inline]
 	pub fn rect(width: f32, height: f32, thickness: f32) -> Self {
 		Self {
 			points: rect_points(width, height),
@@ -226,6 +237,7 @@ impl PlanarPolyLine {
 		}
 	}
 
+	#[inline]
 	pub fn regular(sides: u32, radius: f32, thickness: f32, clocking: f32) -> Self {
 		Self {
 			points: polygon_points(sides, radius, clocking),

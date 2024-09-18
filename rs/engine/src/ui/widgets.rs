@@ -38,7 +38,11 @@ use std::{
 	ops::ControlFlow,
 	sync::{Arc, Mutex},
 };
+use bevy::utils::smallvec::SmallVec;
 use web_time::Duration;
+use crate::ui::widgets::borders::Border;
+
+pub mod borders;
 
 #[derive(Component, Clone, Deref, DerefMut)]
 pub struct WidgetShape {
@@ -1026,6 +1030,40 @@ pub fn focus_with_asset<A: Asset>(
 			ControlFlow::Continue(())
 		}
 	}))
+}
+
+pub fn focus_toggle_border() -> CowArc<'static, InteractHandler> {
+	CowArc::Static(&|ev, cmds| {
+		if ev.source == InteractionSource::Focus {
+			let new_vis = match ev.kind {
+				InteractionKind::Begin => Visibility::Inherited,
+				InteractionKind::Release => Visibility::Hidden,
+				InteractionKind::Hold(_) => return ControlFlow::Continue(()),
+			};
+			
+			cmds.add(move |mut world: EntityWorldMut| {
+				let Some(children) = world.get::<Children>() else {
+					warn!("no border to show focus: no children");
+					return
+				};
+				let children = children.into_iter().copied().collect::<SmallVec<[Entity; 8]>>();
+				world.world_scope(|world| {
+					let mut q = world.query_filtered::<&mut Visibility, With<Border>>();
+					let mut found = false;
+					for child in children {
+						if let Ok(mut vis) = q.get_mut(world, child) {
+							found = true;
+							*vis = new_vis;
+						}
+					}
+					if !found {
+						warn!("no border to show focus: no child matches `Query<&mut Visibility, With<Border>>`");
+					}
+				});
+			});
+		}
+		ControlFlow::Continue(())
+	})
 }
 
 impl InteractHandlers {

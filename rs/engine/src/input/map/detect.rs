@@ -27,6 +27,7 @@ use bevy::{
 	prelude::*,
 	utils::{smallvec::SmallVec, HashMap},
 };
+use bevy::utils::smallvec::smallvec;
 use bevy_svg::prelude::Origin;
 
 pub struct DetectBindingPopupPlugin;
@@ -85,11 +86,11 @@ pub fn setup(
 						},
 						meshes.add(
 							PlanarPolyLine {
-								colors: vec![
-									vec![Color::rgba(0.0, 0.2, 0.2, 0.6)],
-									vec![Color::rgba(0.0, 0.4, 0.1, 0.6)],
-									vec![Color::rgba(0.0, 0.2, 0.2, 0.6)],
-									vec![Color::rgba(0.0, 0.1, 0.4, 0.6)],
+								colors: smallvec![
+									smallvec![Color::rgba(0.0, 0.2, 0.2, 0.6)],
+									smallvec![Color::rgba(0.0, 0.4, 0.1, 0.6)],
+									smallvec![Color::rgba(0.0, 0.2, 0.2, 0.6)],
+									smallvec![Color::rgba(0.0, 0.1, 0.4, 0.6)],
 								],
 								..PlanarPolyLine::rect(8.0, 6.0, 0.25)
 							}

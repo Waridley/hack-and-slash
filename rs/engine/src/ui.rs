@@ -49,6 +49,7 @@ use std::{
 	ops::{Add, ControlFlow::Break, Mul},
 	sync::Arc,
 };
+use bevy::utils::smallvec::smallvec;
 
 pub mod a11y;
 #[cfg(feature = "debugging")]
@@ -102,6 +103,7 @@ impl Plugin for UiPlugin {
 		app.add_plugins((
 			InputManagerPlugin::<UiAction>::default(),
 			AnimationPlugin::<Fade>::default(),
+			widgets::borders::WidgetBordersPlugin,
 		))
 		.register_type::<MenuStack>()
 		.register_type::<UiCam>()
@@ -1062,13 +1064,13 @@ fn spawn_test_menu(
 						meshes.add(PlanarPolyLine {
 							points: polygon_points(6, 6.0, i as f32),
 							cross_section: polygon_points(3, 0.25, 0.5),
-							colors: vec![
-								vec![Color::WHITE],
-								vec![Color::RED],
-								vec![Color::BLUE],
-								vec![Color::GREEN],
-								vec![Color::CYAN],
-								vec![Color::FUCHSIA],
+							colors: smallvec![
+								smallvec![Color::WHITE],
+								smallvec![Color::RED],
+								smallvec![Color::BLUE],
+								smallvec![Color::GREEN],
+								smallvec![Color::CYAN],
+								smallvec![Color::FUCHSIA],
 							],
 							closed: false,
 							..default()

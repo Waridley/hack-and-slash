@@ -44,6 +44,7 @@ use leafwing_input_manager::action_state::ActionState;
 use rapier3d::geometry::SharedShape;
 use std::ops::ControlFlow;
 use web_time::Duration;
+use engine::ui::widgets::borders::Border;
 
 pub struct PauseMenuPlugin;
 
@@ -109,9 +110,7 @@ pub fn setup(
 					},
 					..default()
 				},
-				meshes.add(
-					PlanarPolyLine::rect(12.0, 12.0, 0.5).flat()
-				),
+				Border::default(),
 				mats.add(UiMatBuilder::from(Color::rgba(0.12, 0.004, 0.15, 0.92)))
 			),
 			(
