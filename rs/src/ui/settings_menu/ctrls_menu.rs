@@ -88,7 +88,7 @@ pub fn setup(
 								reflectance: 0.2,
 								..StandardMaterial::from(Color::DARK_GRAY.with_a(0.5))
 							})),
-							handlers: vec![
+							handlers: smallvec![
 								dbg_event(),
 								focus_state_colors(Color::DARK_GRAY.with_a(0.5), Color::GRAY.with_a(0.5)),
 							].into(),

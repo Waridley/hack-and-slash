@@ -43,6 +43,7 @@ use enum_components::{EntityEnumCommands, EnumComponent, WithVariant};
 use leafwing_input_manager::action_state::ActionState;
 use rapier3d::geometry::SharedShape;
 use std::ops::ControlFlow;
+use bevy::utils::smallvec::smallvec;
 use web_time::Duration;
 use engine::ui::widgets::borders::Border;
 
@@ -156,7 +157,7 @@ pub fn setup(
 								},
 								..default()
 							}),
-							handlers: vec![
+							handlers: smallvec![
 								dbg_event(),
 								on_ok(|cmds| {
 									cmds.commands().add(|world: &mut World| {
@@ -199,7 +200,7 @@ pub fn setup(
 								},
 								..default()
 							}),
-							handlers: vec![
+							handlers: smallvec![
 								dbg_event(),
 								on_ok(|cmds| {
 									cmds.commands().add(|world: &mut World| {
@@ -250,7 +251,7 @@ pub fn setup(
 								},
 								..default()
 							}),
-							handlers: vec![
+							handlers: smallvec![
 								dbg_event(),
 								on_ok(|cmds| {
 									cmds.commands().add(|world: &mut World| {

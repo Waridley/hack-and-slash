@@ -86,8 +86,10 @@ pub fn setup(
 		},
 		blue_green_mat.clone()
 	);
-	let dbg_event = dbg_event();
-	let focus_toggle_border = focus_toggle_border();
+	let focus_toggle_border = InteractHandlers(smallvec![
+		dbg_event(),
+		focus_toggle_border(),
+	]);
 	entity_tree!(cmds; (
 		Name::new("SettingsMenu"),
 		SettingsMenu,
@@ -173,10 +175,7 @@ pub fn setup(
 							},
 							material: mats.add(UiMatBuilder::from(Color::CYAN.with_a(0.4))),
 							adjacent: adjacent.clone(),
-							handlers: vec![
-								dbg_event.clone(),
-								focus_toggle_border.clone(),
-							].into(),
+							handlers: focus_toggle_border.clone(),
 							..default()
 						},
 						ExpandToFitChildren {
@@ -204,10 +203,7 @@ pub fn setup(
 							},
 							material: mats.add(UiMatBuilder::from(Color::YELLOW.with_a(0.4))),
 							adjacent: adjacent.clone(),
-							handlers: vec![
-								dbg_event.clone(),
-								focus_toggle_border.clone(),
-							].into(),
+							handlers: focus_toggle_border.clone(),
 							..default()
 						},
 						ExpandToFitChildren {
@@ -235,10 +231,7 @@ pub fn setup(
 							},
 							material: mats.add(UiMatBuilder::from(Color::FUCHSIA.with_a(0.4))),
 							adjacent: adjacent.clone(),
-							handlers: vec![
-								dbg_event.clone(),
-								focus_toggle_border.clone(),
-							].into(),
+							handlers: focus_toggle_border.clone(),
 							..default()
 						},
 						ExpandToFitChildren {
@@ -266,10 +259,7 @@ pub fn setup(
 							},
 							material: mats.add(UiMatBuilder::from(Color::RED.with_a(0.4))),
 							adjacent: adjacent.clone(),
-							handlers: vec![
-								dbg_event.clone(),
-								focus_toggle_border.clone(),
-							].into(),
+							handlers: focus_toggle_border.clone(),
 							..default()
 						},
 						ExpandToFitChildren {
@@ -296,10 +286,8 @@ pub fn setup(
 								..default()
 							},
 							material: mats.add(UiMatBuilder::from(Color::GREEN.with_a(0.4))),
-							handlers: vec![
-								dbg_event.clone(),
-								focus_toggle_border.clone(),
-								on_ok(|cmds| {
+							handlers: focus_toggle_border.clone()
+							.and([on_ok(|cmds| {
 									cmds.commands().add(|world: &mut World| {
 										let menu = world.resource::<SettingsSubMenus>().controls;
 										let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
@@ -307,8 +295,7 @@ pub fn setup(
 										world.entity_mut(menu.root).fade_in_secs(1.5);
 									});
 									Break(())
-								}),
-							].into(),
+								})]),
 							adjacent: adjacent.clone(),
 							..default()
 						},
@@ -337,10 +324,7 @@ pub fn setup(
 							},
 							material: mats.add(UiMatBuilder::from(Color::BLUE.with_a(0.4))),
 							adjacent: adjacent.clone(),
-							handlers: vec![
-								dbg_event.clone(),
-								focus_toggle_border.clone(),
-							].into(),
+							handlers: focus_toggle_border.clone(),
 							..default()
 						},
 						ExpandToFitChildren {
