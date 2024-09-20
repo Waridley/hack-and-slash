@@ -38,7 +38,7 @@ use std::{
 	ops::ControlFlow,
 	sync::{Arc, Mutex},
 };
-use bevy::utils::smallvec::SmallVec;
+use bevy::utils::smallvec::{smallvec, SmallVec};
 use web_time::Duration;
 use crate::ui::widgets::borders::Border;
 
@@ -909,16 +909,16 @@ pub type InteractHandler =
 	dyn Fn(Interaction, &mut EntityCommands) -> ControlFlow<()> + Send + Sync + 'static;
 
 #[derive(Component, Deref, DerefMut, Clone)]
-pub struct InteractHandlers(pub Vec<(CowArc<'static, InteractHandler>)>);
+pub struct InteractHandlers(pub SmallVec<[CowArc<'static, InteractHandler>; 2]>);
 
 impl Default for InteractHandlers {
 	fn default() -> Self {
-		Self(vec![dbg_event()])
+		Self(smallvec![dbg_event()])
 	}
 }
 
-impl From<Vec<CowArc<'static, InteractHandler>>> for InteractHandlers {
-	fn from(value: Vec<CowArc<'static, InteractHandler>>) -> Self {
+impl From<SmallVec<[CowArc<'static, InteractHandler>; 2]>> for InteractHandlers {
+	fn from(value: SmallVec<[CowArc<'static, InteractHandler>; 2]>) -> Self {
 		Self(value)
 	}
 }
@@ -1083,7 +1083,7 @@ impl InteractHandlers {
 		action: UiAction,
 		handler: impl Fn(&mut EntityCommands) -> ControlFlow<()> + Send + Sync + 'static,
 	) -> Self {
-		Self(vec![dbg_event(), on_action(action, handler)])
+		Self(smallvec![dbg_event(), on_action(action, handler)])
 	}
 
 	pub fn handle(&self, event: Interaction, cmds: &mut EntityCommands) -> ControlFlow<()> {
