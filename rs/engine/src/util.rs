@@ -935,22 +935,44 @@ macro_rules! state_matches {
 /// # use sond_has_engine::entity_tree;
 /// # fn test_entity_tree_macro(mut commands: Commands) {
 /// let root = entity_tree!(commands; (
+///     // The bundles to spawn on the root entity
 ///     TransformBundle::default(),
 ///     VisibilityBundle::default();
-///     #children: (
-///         TransformBundle {
-///             local: Transform::from_translation(Vec3::splat(3.0)),
-///             ..default()
-///         },
-///         VisibilityBundle::default();
-///         #children: (// grandchildren
-///             TransformBundle::default(),
-///             VisibilityBundle::default(),
+///     #children: [
+///         ( // First child
+///             => |cmds| {
+///                 // Do stuff with ChildBuilder before spawning this child
+///                 dbg!(cmds.parent_entity());
+///             };
+///             // The bundles to spawn on the first child
+///             TransformBundle {
+///                 local: Transform::from_translation(Vec3::splat(3.0)),
+///                 ..default()
+///             },
+///             VisibilityBundle::default();
+///             => |cmds| {
+///                 // Do stuff after spawning entity but before adding children
+///                 dbg!(cmds.id());
+///             }
+///             #children: [(// grandchildren
+///                 TransformBundle::default(),
+///                 VisibilityBundle::default(),
+///             )];
+///             // You can repeat pairs of `=> |_| {}` and `#children: []`...
+///             => |cmds| {
+///                 // Do more stuff after spawning children
+///             }
+///             #children: [
+///                 // Add even more children
+///             ]
+///             // ...indefinitely.
+///             // After each semicolon, both the closure and `#children` sections are optional.
 ///         ),
-///     ),
-///     (
-///         PbrBundle::default(),
-///     ),
+///         ( // Second child
+///             PbrBundle::default(),
+///         ),
+///         // ...etc.
+///     ]
 /// )).id();
 /// # }
 /// ```
@@ -963,13 +985,13 @@ macro_rules! entity_tree {
 			$($bundles:expr),* $(,)?
 			$(;
 				$(=> |$then_cmds:ident| $then:block)?
-				$(#children: $($children:tt),* $(,)?)?
+				$(#children: [ $($children:tt),* $(,)? ])?
 			)*
 		)
 	) => {
 		{
 			$({
-				let mut $first_cmds = &mut $cmds;
+				let $first_cmds = &mut $cmds;
 				$first;
 			};)?
 			
@@ -978,10 +1000,10 @@ macro_rules! entity_tree {
 		  ));
 			$(
 				$({
-					let mut $then_cmds = &mut $cmds;
+					let $then_cmds = &mut $cmds;
 					$then;
 				};)?
-				$($cmds.with_children(|$cmds| {
+				$($cmds.with_children(|mut $cmds| {
 			    $(entity_tree!($cmds; $children);)*
 			  });)?
 			)*

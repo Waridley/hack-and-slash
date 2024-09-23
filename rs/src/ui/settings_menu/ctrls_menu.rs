@@ -63,7 +63,7 @@ pub fn setup(
 				},
 				LineUpChildren::horizontal().with_spacing(0.3).with_alignment(Vec3::NEG_X),
 				ExpandToFitChildren::default();
-				#children:
+				#children: [
 					(
 						Text3dBundle {
 							text_3d: Text3d {
@@ -104,7 +104,7 @@ pub fn setup(
 							offset: Vec3::Y * 0.5,
 							..default()
 						};
-						#children: (
+						#children: [(
 							CuboidContainerBundle {
 								transform: Transform {
 									translation: Vec3::NEG_Y * 0.5,
@@ -115,8 +115,9 @@ pub fn setup(
 							BindingListContainer(action),
 							LineUpChildren::horizontal().with_spacing(0.25),
 							ExpandToFitChildren::default(),
-						)
+						)]
 					),
+				]
 			))
 			.id()
 		})
@@ -153,7 +154,7 @@ pub fn setup(
 			},
 			Fade::ZERO,
 			;
-			#children:
+			#children: [
 				(
 					CuboidContainerBundle {
 						transform: Transform {
@@ -165,7 +166,7 @@ pub fn setup(
 					},
 					ExpandToFitChildren::default(),
 					;
-					#children:
+					#children: [
 						(
 							CuboidContainerBundle {
 								adjacent: all_first_control.clone(),
@@ -174,7 +175,7 @@ pub fn setup(
 							ExpandToFitChildren::default(),
 							LineUpChildren::vertical().with_spacing(1.0),
 							;
-							#children:
+							#children: [
 								(
 									Text3dBundle {
 										text_3d: Text3d {
@@ -199,7 +200,7 @@ pub fn setup(
 									},
 									LineUpChildren::vertical().with_alignment(Vec3::new(0.0, -20.0, -1.0)).with_spacing(1.0),
 									;
-									#children:
+									#children: [
 										(
 											Border {
 												margin: Vec2::splat(0.5),
@@ -216,7 +217,7 @@ pub fn setup(
 											ExpandToFitChildren::default(),
 											LineUpChildren::vertical().with_spacing(0.5),
 											;
-											#children:
+											#children: [
 												(
 													Text3dBundle {
 														text_3d: Text3d {
@@ -255,10 +256,15 @@ pub fn setup(
 														}
 													}
 												),
+											]
 										),
+									]
 								),
+							]
 						),
+					]
 				),
+			]
 		)
 	}
 	.id();

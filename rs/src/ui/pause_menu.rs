@@ -101,7 +101,7 @@ pub fn setup(
 			..default()
 		},
 		Fade::ZERO;
-		#children:
+		#children: [
 			(
 				Name::new("border"),
 				Node3dBundle {
@@ -143,7 +143,7 @@ pub fn setup(
 					..default()
 				},
 				LineUpChildren::vertical().with_spacing(0.1);
-				#children:
+				#children: [
 					(
 						Name::new("resume_btn"),
 						PanelBundle {
@@ -174,7 +174,7 @@ pub fn setup(
 						=> |cmds| {
 							cmds.set_enum(pause_menu_widget::ResumeButton);
 						}
-						#children: (
+						#children: [(
 							Name::new("resume_btn_text"),
 							Text3dBundle {
 								text_3d: Text3d { text: "Resume Game".into(), ..default() },
@@ -186,7 +186,7 @@ pub fn setup(
 								},
 								..default()
 							}
-						),
+						)]
 					),
 					(
 						Name::new("settings_btn"),
@@ -225,7 +225,7 @@ pub fn setup(
 						=> |cmds| {
 							cmds.set_enum(pause_menu_widget::SettingsButton);
 						}
-						#children:
+						#children: [
 							(
 								Name::new("settings_btn_text"),
 								Text3dBundle {
@@ -239,6 +239,7 @@ pub fn setup(
 									..default()
 								}
 							),
+						]
 					),
 					(
 						Name::new("quit_btn"),
@@ -271,7 +272,7 @@ pub fn setup(
 						=> |cmds| {
 							cmds.set_enum(pause_menu_widget::QuitButton);
 						}
-						#children:
+						#children: [
 							(
 								Name::new("quit_btn_text"),
 								Text3dBundle {
@@ -285,8 +286,11 @@ pub fn setup(
 									..default()
 								}
 							),
+						]
 					),
+				]
 			),
+		]
 	))
 	.with_enum(pause_menu_widget::Panel);
 }

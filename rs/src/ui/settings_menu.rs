@@ -114,7 +114,7 @@ pub fn setup(
 			..default()
 		},
 		Fade::ZERO;
-		#children:
+		#children: [
 			(
 				Text3dBundle {
 					text_3d: Text3d {
@@ -167,7 +167,7 @@ pub fn setup(
 					sub_menus.top = MenuRef::new(cmds.id());
 					cmds.set_enum(settings_sub_menu::Top);
 				}
-				#children:
+				#children: [
 					(
 						CuboidPanelBundle {
 							panel: CuboidPanel {
@@ -184,7 +184,7 @@ pub fn setup(
 							offset: Vec3::Y * 0.5,
 							..default()
 						};
-						#children:
+						#children: [
 							(
 								Text3dBundle {
 									text_3d: Text3d { text: "Gameplay".into(), ..default() },
@@ -195,6 +195,7 @@ pub fn setup(
 								},
 							),
 							(button_focus_border_bundle.clone()),
+						]
 					),
 					(
 						CuboidPanelBundle {
@@ -212,7 +213,7 @@ pub fn setup(
 							offset: Vec3::Y * 0.5,
 							..default()
 						};
-						#children:
+						#children: [
 							(
 								Text3dBundle {
 									text_3d: Text3d { text: "Graphics".into(), ..default() },
@@ -223,6 +224,7 @@ pub fn setup(
 								},
 							),
 							(button_focus_border_bundle.clone()),
+						]
 					),
 					(
 						CuboidPanelBundle {
@@ -240,7 +242,7 @@ pub fn setup(
 							offset: Vec3::Y * 0.5,
 							..default()
 						};
-						#children:
+						#children: [
 							(
 								Text3dBundle {
 									text_3d: Text3d { text: "Accessibility".into(), ..default() },
@@ -251,6 +253,7 @@ pub fn setup(
 								},
 							),
 							(button_focus_border_bundle.clone()),
+						]
 					),
 					(
 						CuboidPanelBundle {
@@ -268,7 +271,7 @@ pub fn setup(
 							offset: Vec3::Y * 0.5,
 							..default()
 						};
-						#children:
+						#children: [
 							(
 								Text3dBundle {
 									text_3d: Text3d { text: "Sound".into(), ..default() },
@@ -279,6 +282,7 @@ pub fn setup(
 								},
 							),
 							(button_focus_border_bundle.clone()),
+						]
 					),
 					(
 						CuboidPanelBundle {
@@ -305,7 +309,7 @@ pub fn setup(
 							offset: Vec3::Y * 0.5,
 							..default()
 						};
-						#children:
+						#children: [
 							(
 								Text3dBundle {
 									text_3d: Text3d { text: "Controls".into(), ..default() },
@@ -316,6 +320,7 @@ pub fn setup(
 								},
 							),
 							(button_focus_border_bundle.clone()),
+						]
 					),
 					(
 						CuboidPanelBundle {
@@ -333,7 +338,7 @@ pub fn setup(
 							offset: Vec3::Y * 0.5,
 							..default()
 						};
-						#children:
+						#children: [
 							(
 								Text3dBundle {
 									text_3d: Text3d { text: "Kumquats".into(), ..default() },
@@ -344,8 +349,11 @@ pub fn setup(
 								},
 							),
 							(button_focus_border_bundle.clone()),
+						]
 					),
+				]
 			),
+		]
 	));
 }
 
