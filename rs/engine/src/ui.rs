@@ -1055,7 +1055,7 @@ fn spawn_test_menu(
 					adjacent: AdjacentWidgets::all(FocusTarget::ChildN(0)),
 					..default()
 				};
-				#children:
+				#children: [
 					( // Border
 						WidgetBundle {
 							adjacent: AdjacentWidgets::all(FocusTarget::ChildN(0)),
@@ -1081,7 +1081,7 @@ fn spawn_test_menu(
 							align: Vec3::ZERO,
 							..default()
 						};
-						#children:
+						#children:[
 							( // "Testing..." text
 								Text3dBundle::<UiMat> {
 									text_3d: Text3d {
@@ -1111,7 +1111,7 @@ fn spawn_test_menu(
 									adjacent: AdjacentWidgets::vertical_siblings(),
 									..default()
 								};
-								#children: ( // Test button text
+								#children: [( // Test button text
 									Text3dBundle::<UiMat> {
 										text_3d: Text3d {
 											text: "Test button".into(),
@@ -1126,11 +1126,12 @@ fn spawn_test_menu(
 										material: mats.add(new_unlit_material()),
 										..default()
 									},
-								),
+								)]
 							),
+						]
 					),
-
-				)
+				]
+			)
 		)
 		.id();
 	}
