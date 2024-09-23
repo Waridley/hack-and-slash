@@ -956,19 +956,36 @@ macro_rules! state_matches {
 /// ```
 #[macro_export]
 macro_rules! entity_tree {
-	($cmds:ident; ( $($bundles:expr),* $(,)? $(=> |$then_cmds:ident| $then:block)? $(; #children: $($children:tt),* $(,)?)? )) => {
+	(
+		$cmds:ident;
+		(
+			$(=> |$first_cmds:ident| $first:block ;)?
+			$($bundles:expr),* $(,)?
+			$(;
+				$(=> |$then_cmds:ident| $then:block)?
+				$(#children: $($children:tt),* $(,)?)?
+			)*
+		)
+	) => {
 		{
-			let mut cmds = $cmds.spawn((
+			$({
+				let mut $first_cmds = &mut $cmds;
+				$first;
+			};)?
+			
+			let mut $cmds = $cmds.spawn((
 		    $($bundles),*
 		  ));
-			$({
-				let mut $then_cmds = &mut cmds;
-				$then;
-			};)?
-			$(cmds.with_children(|cmds| {
-		    $(entity_tree!(cmds; $children);)*
-		  });)?
-			cmds
+			$(
+				$({
+					let mut $then_cmds = &mut $cmds;
+					$then;
+				};)?
+				$($cmds.with_children(|$cmds| {
+			    $(entity_tree!($cmds; $children);)*
+			  });)?
+			)*
+			$cmds
 		}
 	}
 }

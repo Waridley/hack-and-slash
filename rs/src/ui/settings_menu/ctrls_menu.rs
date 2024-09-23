@@ -248,6 +248,7 @@ pub fn setup(
 													},
 													LineUpChildren::vertical(),
 													ExpandToFitChildren::default(),
+													;
 													=> |cmds| {
 														for id in entries {
 															cmds.add_child(id);

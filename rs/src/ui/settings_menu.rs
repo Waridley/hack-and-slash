@@ -162,10 +162,11 @@ pub fn setup(
 					},
 					..default()
 				},
+				;
 				=> |cmds| {
 					sub_menus.top = MenuRef::new(cmds.id());
 					cmds.set_enum(settings_sub_menu::Top);
-				};
+				}
 				#children:
 					(
 						CuboidPanelBundle {
