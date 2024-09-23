@@ -170,9 +170,10 @@ pub fn setup(
 							adjacent: AdjacentWidgets::vertical_siblings(),
 							..default()
 						},
+						;
 						=> |cmds| {
 							cmds.set_enum(pause_menu_widget::ResumeButton);
-						};
+						}
 						#children: (
 							Name::new("resume_btn_text"),
 							Text3dBundle {
@@ -220,9 +221,10 @@ pub fn setup(
 							adjacent: AdjacentWidgets::vertical_siblings(),
 							..default()
 						},
+						;
 						=> |cmds| {
 							cmds.set_enum(pause_menu_widget::SettingsButton);
-						};
+						}
 						#children:
 							(
 								Name::new("settings_btn_text"),
@@ -265,9 +267,10 @@ pub fn setup(
 							adjacent: AdjacentWidgets::vertical_siblings(),
 							..default()
 						},
+						;
 						=> |cmds| {
 							cmds.set_enum(pause_menu_widget::QuitButton);
-						};
+						}
 						#children:
 							(
 								Name::new("quit_btn_text"),
