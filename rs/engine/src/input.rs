@@ -261,3 +261,27 @@ pub fn dbg_detect_bindings(mut rx: EventReader<ToBind>, gamepads: Res<Gamepads>)
 		}
 	}
 }
+
+pub trait ActionExt: Actionlike {
+	fn display_name(&self) -> &'static str;
+	fn default_mappings() -> InputMap<Self>;
+	fn reset_to_default(&self, input_map: &mut InputMap<Self>) {
+		let default = Self::default_mappings();
+		let default = default.get(self);
+		if let Some(default) = default {
+			debug!(action=self.display_name(), ?default);
+			match input_map.get_mut(self) {
+				Some(bindings) => {
+					bindings.clear();
+					bindings.clone_from(default);
+				}
+				None => {
+					input_map.insert_one_to_many(self.clone(), default.iter().cloned());
+				}
+			}
+		} else {
+			input_map.clear_action(self);
+		}
+	}
+	fn all() -> impl Iterator<Item = Self>;
+}

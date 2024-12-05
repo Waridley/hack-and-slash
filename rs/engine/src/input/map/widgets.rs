@@ -105,7 +105,7 @@ impl InputIcon {
 							text_3d: Text3d {
 								text: text.to_string().into(),
 								flat,
-								vertex_scale: Vec3::new(size.x * 0.5, size.y * 0.5, size.z),
+								vertex_scale: Vec3::new(half_size.x, half_size.y, size.z),
 								..default()
 							},
 							font: fonts.mono.clone(),

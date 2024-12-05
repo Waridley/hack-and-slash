@@ -365,7 +365,7 @@ impl Default for Text3d {
 			flat: true,
 			vertex_translation: Vec3::ZERO,
 			vertex_rotation: Quat::from_rotation_arc(Vec3::Z, Vec3::NEG_Y),
-			vertex_scale: Vec3::new(1.0, 1.0, 0.4),
+			vertex_scale: Vec3::ONE,
 			align_origin: Vec3::splat(0.5),
 			tolerance: FillOptions::DEFAULT_TOLERANCE * 0.02,
 		}
@@ -457,7 +457,7 @@ impl Text3d {
 					let center = bbox.center();
 					let origin = Vec3::new(
 						bbox.size().x * align_origin.x,
-						vertex_scale.z * align_origin.y,
+						vertex_scale.z * (align_origin.y - 0.5),
 						bbox.size().y * align_origin.z,
 					);
 					let shape = WidgetShape {
