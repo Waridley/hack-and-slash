@@ -379,8 +379,28 @@ impl UiAction {
 		Self::Pan,
 		Self::ResetPan,
 	];
+}
 
-	pub fn default_mappings() -> InputMap<Self> {
+impl ActionExt for UiAction {
+	fn display_name(&self) -> &'static str {
+		match self {
+			Self::Ok => "Ok",
+			Self::Opt1 => "Option 1",
+			Self::Opt2 => "Option 2",
+			Self::Back => "Back",
+			Self::MoveCursor => "Move Cursor",
+			Self::FocusNext => "Next Item",
+			Self::FocusPrev => "Previous Item",
+			Self::NextTab => "Next Tab",
+			Self::PrevTab => "Previous Tab",
+			Self::Zoom => "Zoom",
+			Self::ResetZoom => "Reset Zoom",
+			Self::Pan => "Pan",
+			Self::ResetPan => "Reset Pan",
+		}
+	}
+
+	fn default_mappings() -> InputMap<Self> {
 		use KeyCode::*;
 		use UiAction::*;
 		InputMap::new([
@@ -404,6 +424,8 @@ impl UiAction {
 			),
 			(FocusPrev, MouseWheelDirection::Up.into()),
 			(FocusPrev, MouseWheelDirection::Left.into()),
+			(NextTab, KeyX.into()),
+			(PrevTab, KeyZ.into()),
 			(
 				Zoom,
 				UserInput::Chord(vec![
@@ -458,22 +480,8 @@ impl UiAction {
 		])
 	}
 
-	pub fn display_name(self) -> &'static str {
-		match self {
-			UiAction::Ok => "Ok",
-			UiAction::Opt1 => "Option 1",
-			UiAction::Opt2 => "Option 2",
-			UiAction::Back => "Back",
-			UiAction::MoveCursor => "Move Cursor",
-			UiAction::FocusNext => "Next Item",
-			UiAction::FocusPrev => "Previous Item",
-			UiAction::NextTab => "Next Tab",
-			UiAction::PrevTab => "Previous Tab",
-			UiAction::Zoom => "Zoom",
-			UiAction::ResetZoom => "Reset Zoom",
-			UiAction::Pan => "Pan",
-			UiAction::ResetPan => "Reset Pan",
-		}
+	fn all() -> impl Iterator<Item = Self> {
+		Self::ALL.into_iter()
 	}
 }
 
@@ -739,6 +747,7 @@ use layout::ExpandToFitChildren;
 use leafwing_input_manager::buttonlike::MouseMotionDirection;
 use text::{TextMeshCache, UiFonts};
 use web_time::Duration;
+use crate::input::ActionExt;
 
 /// Component that starts a new branch of a tree of entities that can be
 /// faded in an out together.

@@ -12,7 +12,7 @@ use rapier3d::{
 use serde::{Deserialize, Serialize};
 use std::f32::consts::{PI, TAU};
 
-#[derive(Component, Debug, Reflect, Serialize, Deserialize)]
+#[derive(Component, Clone, Copy, Debug, Reflect, Serialize, Deserialize)]
 #[reflect(Component, Serialize, Deserialize)]
 pub struct LineUpChildren {
 	/// A unit vector indicates shapes will be touching. Any length over `1.0`

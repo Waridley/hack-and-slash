@@ -36,11 +36,18 @@ use std::{
 	ops::{ControlFlow, ControlFlow::Break},
 	sync::Arc,
 };
+use bevy::utils::CowArc;
 use bevy::utils::smallvec::smallvec;
-use engine::draw::PlanarPolyLine;
+use engine::draw::{square_points, PlanarPolyLine};
+use engine::input::ActionExt;
 use engine::ui::widgets::borders::Border;
-use engine::ui::widgets::Node3dBundle;
+use engine::ui::widgets::{focus_toggle_border, InteractionKind, InteractionSource, Node3dBundle};
 use engine::util::Flat;
+use crate::player::BelongsToPlayer;
+use crate::player::input::PlayerAction;
+
+const GAME_BINDINGS_CONTAINER_NAME: &'static str = "GameBindingsContainer";
+const UI_BINDINGS_CONTAINER_NAME: &'static str = "UiBindingsContainer";
 
 pub fn setup(
 	mut cmds: Commands,
@@ -51,84 +58,277 @@ pub fn setup(
 ) {
 	let text_mat = mats.add(new_unlit_material());
 
-	let mut entries = UiAction::ALL
-		.into_iter()
-		.map(|action| {
-			let name = action.display_name();
-
-			entity_tree!(cmds; (
-				CuboidContainerBundle {
-					adjacent: AdjacentWidgets::all(FocusTarget::ChildN(1)),
-					..default()
-				},
-				LineUpChildren::horizontal().with_spacing(0.3).with_alignment(Vec3::NEG_X),
-				ExpandToFitChildren::default();
-				#children: [
-					(
-						Text3dBundle {
-							text_3d: Text3d {
-								text: name.into(),
-								align_origin: Vec3::new(0.0, 0.5, 0.5),
-								vertex_scale: Vec3::splat(0.5),
-								..default()
-							},
-							font: ui_fonts.mono.clone(),
-							material: text_mat.clone(),
-							..default()
-						},
-					),
-					(
-						CuboidPanelBundle {
-							panel: CuboidPanel {
-								size: Vec3::new(4.0, 1.0, 1.5),
-								mesh_margin: Vec3::new(0.0, 0.0, 0.5),
-								..default()
-							},
-							material: mats.add(UiMatBuilder::from(StandardMaterial {
-								reflectance: 0.2,
-								..StandardMaterial::from(Color::DARK_GRAY.with_a(0.5))
-							})),
-							handlers: smallvec![
-								dbg_event(),
-								focus_state_colors(Color::DARK_GRAY.with_a(0.5), Color::GRAY.with_a(0.5)),
-							].into(),
-							adjacent: AdjacentWidgets::vertical(
-								"../-1/#1".parse().unwrap(),
-								"../+1/#1".parse().unwrap(),
-							),
-							..default()
-						},
-						ExpandToFitChildren {
-							margin: Vec3::new(0.25, 0.0, 0.25),
-							min_size: Vec3::ONE,
-							offset: Vec3::Y * 0.5,
-							..default()
-						};
-						#children: [(
-							CuboidContainerBundle {
-								transform: Transform {
-									translation: Vec3::NEG_Y * 0.5,
+	let entry_btn_mat = mats.add(UiMatBuilder::from(StandardMaterial {
+		reflectance: 0.2,
+		..StandardMaterial::from(Color::DARK_GRAY.with_a(0.5))
+	}));
+	
+	fn bindings_entries<A: ActionExt>(
+		cmds: &mut Commands,
+		actions: impl Iterator<Item = A>,
+		text_mat: Handle<UiMat>,
+		entry_btn_mat: Handle<UiMat>,
+		entry_focus_border_mat: Handle<UiMat>,
+		font: Handle<Font>,
+		owner: BelongsToPlayer,
+	) -> Vec<Entity> {
+		actions
+			.map(move |action| {
+				let name = action.display_name();
+				
+				let action_key = action.clone();
+				entity_tree!(cmds; (
+					CuboidContainerBundle {
+						adjacent: AdjacentWidgets::all(FocusTarget::ChildN(1)),
+						handlers: InteractHandlers::on_action(UiAction::Opt1, move |cmds| {
+							let action_key = action_key.clone();
+							cmds.commands().add(move |world: &mut World| {
+								let mut q = world.query::<(&mut InputMap<A>, &BelongsToPlayer)>();
+								let Some(mut imap) = q.iter_mut(world)
+									.find(|(imap, &imap_owner)| imap_owner == owner)
+									.map(|(imap, _)| imap)
+								else {
+									error!("failed to find imap for player {owner:?}");
+									return
+								};
+								action_key.reset_to_default(&mut *imap);
+							});
+							Break(())
+						}),
+						..default()
+					},
+					LineUpChildren::horizontal().with_spacing(0.3).with_alignment(Vec3::NEG_X),
+					ExpandToFitChildren::default();
+					#children: [
+						(
+							Text3dBundle {
+								text_3d: Text3d {
+									text: name.into(),
+									align_origin: Vec3::new(0.0, 0.5, 0.5),
+									vertex_scale: Vec3::splat(0.5),
 									..default()
 								},
+								font: font.clone(),
+								material: text_mat.clone(),
 								..default()
 							},
-							BindingListContainer(action),
-							LineUpChildren::horizontal().with_spacing(0.25),
-							ExpandToFitChildren::default(),
-						)]
-					),
-				]
-			))
-			.id()
-		})
-		.collect::<Vec<_>>();
+						),
+						(
+							CuboidPanelBundle {
+								panel: CuboidPanel {
+									size: Vec3::new(4.0, 1.0, 1.5),
+									mesh_margin: Vec3::new(0.0, 0.0, 0.5),
+									..default()
+								},
+								material: entry_btn_mat.clone(),
+								handlers: smallvec![
+									dbg_event(),
+									focus_toggle_border(),
+								].into(),
+								adjacent: AdjacentWidgets::vertical(
+									"../-1/#1".parse().unwrap(),
+									"../+1/#1".parse().unwrap(),
+								),
+								..default()
+							},
+							ExpandToFitChildren {
+								margin: Vec3::new(0.25, 0.0, 0.25),
+								min_size: Vec3::ONE,
+								offset: Vec3::Y * 0.5,
+								..default()
+							},
+							;
+							#children: [
+								(
+									Border {
+										cross_section: square_points(0.1),
+										margin: Vec2::new(0.0, -1.0),
+										..default()
+									},
+									Node3dBundle {
+										visibility: Visibility::Hidden,
+										transform: Transform {
+											translation: Vec3::NEG_Y,
+											..default()
+										},
+										..default()
+									},
+									entry_focus_border_mat.clone(),
+								),
+								(
+									CuboidContainerBundle {
+										transform: Transform {
+											translation: Vec3::NEG_Y * 0.5,
+											..default()
+										},
+										..default()
+									},
+									BindingListContainer(action),
+									LineUpChildren::horizontal().with_spacing(0.25),
+									ExpandToFitChildren::default(),
+									owner,
+								),
+							]
+						),
+					]
+				)).id()
+			})
+			.collect::<Vec<_>>()
+	}
+	
+	let entry_focus_border_mat = mats.add(UiMatBuilder::from(Color::GRAY));
+	
+	//FIXME: Temporary till per-player Options menu is implemented
+	let owner = BelongsToPlayer::new(1);
+	
+	let game_bindings_entries = bindings_entries(
+		&mut cmds,
+		PlayerAction::ALL.into_iter(),
+		text_mat.clone(),
+		entry_btn_mat.clone(),
+		entry_focus_border_mat.clone(),
+		ui_fonts.mono.clone(),
+		owner,
+	);
+	
+	let ui_bindings_entries = bindings_entries(
+		&mut cmds,
+		UiAction::ALL.into_iter(),
+		text_mat.clone(),
+		entry_btn_mat,
+		entry_focus_border_mat,
+		ui_fonts.mono.clone(),
+		owner,
+	);
 
 	let transform = Transform {
 		translation: Vec3::new(0.0, -48.0, -48.0),
 		..default()
 	};
-	let all_first_control = AdjacentWidgets::all("[UiControlsContainer]/#0/#1".parse().unwrap());
-	let id = entity_tree! { cmds;
+	
+	let all_first_control = AdjacentWidgets::all(format!("[{GAME_BINDINGS_CONTAINER_NAME}]/#0/#1").parse().unwrap());
+	
+	let bindings_section_components = (
+		CuboidContainerBundle {
+			adjacent: all_first_control.clone(),
+			..default()
+		},
+		ExpandToFitChildren {
+			margin: Vec3::new(1.0, 0.0, 1.0),
+			..default()
+		},
+		LineUpChildren::vertical().with_alignment(Vec3::new(0.0, -20.0, -1.0)).with_spacing(1.0),
+	);
+	
+	let bindings_section_border = (
+		Border {
+			margin: Vec2::splat(0.5),
+			..default()
+		},
+		Node3dBundle::default(),
+		mats.add(UiMatBuilder::from(Color::DARK_GRAY)),
+	);
+	
+	let bindings_section_inner_components = (
+		CuboidContainerBundle {
+			adjacent: all_first_control.clone(),
+			..default()
+		},
+		ExpandToFitChildren::default(),
+		LineUpChildren::vertical().with_spacing(0.5),
+	);
+	
+	let bindings_header_text = Text3dBundle {
+		text_3d: Text3d {
+			vertex_scale: Vec3::splat(0.7),
+			text: "Menu Controls".into(),
+			..default()
+		},
+		font: ui_fonts.mono.clone(),
+		material: text_mat.clone(),
+		..default()
+	};
+	
+	let divider = (
+		Name::new("divider"),
+		CuboidPanelBundle {
+			panel: CuboidPanel {
+				size: Vec3::new(10.0, 0.25, 0.25),
+				..default()
+			},
+			material: mats.add(UiMatBuilder::from(Color::DARK_GRAY)),
+			..default()
+		}
+	);
+	
+	let bindings_container_components = (
+		CuboidContainerBundle {
+			adjacent: AdjacentWidgets::all("#0/#1".parse().unwrap()),
+			..default()
+		},
+		LineUpChildren::vertical(),
+		ExpandToFitChildren::default(),
+	);
+	
+	let game_ctrls_section = entity_tree!(cmds; (
+		Name::new("GameBindingsSection"),
+		bindings_section_components.clone(),
+		;
+		#children: [
+			(bindings_section_border.clone()),
+			(
+				bindings_section_inner_components.clone(),
+				;
+				#children: [
+					(
+						Text3dBundle {
+							text_3d: Text3d {
+								text: "Game Controls".into(),
+								..bindings_header_text.text_3d.clone()
+							},
+							..bindings_header_text.clone()
+						}
+					),
+					(divider.clone()),
+					(
+						Name::new(GAME_BINDINGS_CONTAINER_NAME),
+						bindings_container_components.clone(),
+						;
+						=> |cmds| {
+							cmds.push_children(&game_bindings_entries);
+						}
+					)
+				]
+			)
+		]
+	)).id();
+	
+	let ui_ctrls_section = entity_tree!(cmds; (
+		Name::new("UiBindingsSection"),
+		bindings_section_components,
+		;
+		#children: [
+			(bindings_section_border),
+			(
+				bindings_section_inner_components,
+				;
+				#children: [
+					(bindings_header_text),
+					(divider),
+					(
+						Name::new(UI_BINDINGS_CONTAINER_NAME),
+						bindings_container_components,
+						;
+						=> |cmds| {
+							cmds.push_children(&ui_bindings_entries);
+						}
+					),
+				]
+			),
+		]
+	)).id();
+	
+	let root = entity_tree! { cmds;
 		(
 			Name::new("ControlsMenu"),
 			CuboidPanelBundle {
@@ -189,77 +389,20 @@ pub fn setup(
 									}
 								),
 								(
-									Name::new("UiControlsSection"),
 									CuboidContainerBundle {
 										adjacent: all_first_control.clone(),
 										..default()
 									},
-									ExpandToFitChildren {
-										margin: Vec3::new(1.0, 0.0, 1.0),
-										..default()
-									},
-									LineUpChildren::vertical().with_alignment(Vec3::new(0.0, -20.0, -1.0)).with_spacing(1.0),
+									ExpandToFitChildren::default(),
+									LineUpChildren::vertical().with_spacing(1.0),
 									;
-									#children: [
-										(
-											Border {
-												margin: Vec2::splat(0.5),
-												..default()
-											},
-											Node3dBundle::default(),
-											mats.add(UiMatBuilder::from(Color::DARK_GRAY)),
-										),
-										(
-											CuboidContainerBundle {
-												adjacent: all_first_control.clone(),
-												..default()
-											},
-											ExpandToFitChildren::default(),
-											LineUpChildren::vertical().with_spacing(0.5),
-											;
-											#children: [
-												(
-													Text3dBundle {
-														text_3d: Text3d {
-															vertex_scale: Vec3::splat(0.7),
-															text: "Menu Controls".into(),
-															..default()
-														},
-														font: ui_fonts.mono.clone(),
-														material: text_mat.clone(),
-														..default()
-													},
-												),
-												(
-													Name::new("divider"),
-													CuboidPanelBundle {
-														panel: CuboidPanel {
-															size: Vec3::new(10.0, 0.25, 0.25),
-															..default()
-														},
-														material: mats.add(UiMatBuilder::from(Color::DARK_GRAY)),
-														..default()
-													}
-												),
-												(
-													Name::new("UiControlsContainer"),
-													CuboidContainerBundle {
-														adjacent: AdjacentWidgets::all("#0/#1".parse().unwrap()),
-														..default()
-													},
-													LineUpChildren::vertical(),
-													ExpandToFitChildren::default(),
-													;
-													=> |cmds| {
-														for id in entries {
-															cmds.add_child(id);
-														}
-													}
-												),
-											]
-										),
-									]
-								),
+									=> |cmds| {
+										cmds.push_children(&[
+											game_ctrls_section,
+											ui_ctrls_section,
+										]);
+									}
+								)
 							]
 						),
 					]
@@ -268,10 +411,10 @@ pub fn setup(
 		)
 	}
 	.id();
-	sub_menus.controls.root = id;
-	sub_menus.controls.focus = id;
+	sub_menus.controls.root = root;
+	sub_menus.controls.focus = root;
 	sub_menus.controls.cam_target = cmds
-		.spawn((TransformBundle::from_transform(transform), CtrlsCamTarget))
+		.spawn((TransformBundle::from_transform(transform), GLOBAL_UI_RENDER_LAYERS, CtrlsCamTarget))
 		.id();
 }
 
@@ -287,10 +430,11 @@ pub fn anchor_follow_focus(
 	mut q: Query<&mut Transform, With<CtrlsCamTarget>>,
 	xforms: Query<&GlobalTransform>,
 	sub_menus: Res<SettingsSubMenus>,
-	stack: Query<&MenuStack, With<GlobalUi>>,
+	mut stack: Query<&mut MenuStack, With<GlobalUi>>,
 	t: Res<Time>,
 ) {
-	let Some(menu) = stack.single().last() else {
+	let mut stack = stack.single_mut();
+	let Some(mut menu) = stack.last_mut() else {
 		return;
 	};
 	if menu.root != sub_menus.controls.root {
@@ -300,6 +444,7 @@ pub fn anchor_follow_focus(
 		Ok(xform) => xform.compute_transform(),
 		Err(e) => {
 			error!("{e}");
+			menu.focus = menu.root;
 			return;
 		}
 	};
@@ -324,35 +469,32 @@ pub fn anchor_follow_focus(
 	}
 }
 
-pub fn update_binding_list_widgets<A: Actionlike>(
+pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 	mut cmds: Commands,
-	q: Query<(Entity, &BindingListContainer<A>, &RenderLayers)>,
-	imaps: Query<(Ref<InputMap<A>>, &RenderLayers)>,
+	q: Query<(Entity, &BindingListContainer<A>, Option<&BelongsToPlayer>)>,
+	imaps: Query<(Ref<InputMap<A>>, &BelongsToPlayer)>,
 	gamepads: Res<Gamepads>,
 	mut global_imap: Option<ResMut<InputMap<A>>>,
 	fonts: Res<UiFonts>,
 	mut mats: ResMut<Assets<UiMat>>,
 ) {
-	for (imap, layers) in global_imap
+	for (imap, owner) in global_imap
 		.as_mut()
-		.map(|mut it| (Ref::from(it.reborrow()), &GLOBAL_UI_RENDER_LAYERS))
+		.map(|mut it| (Ref::from(it.reborrow()), None))
 		.into_iter()
-		.chain(&imaps)
+		.chain(imaps.iter().map(|(imap, owner)| (imap, Some(*owner))))
 		.filter(|(imap, _)| imap.is_changed())
 	{
-		for (id, container, _) in q.iter().filter(|it| it.2.intersects(layers)) {
+		debug!(action_type=std::any::type_name::<A>(), ?owner, imap=bevy::asset::ron::to_string(&*imap).unwrap());
+		for (id, container, _) in q.iter().filter(|it| it.2.copied() == owner) {
 			let gp = imap
 				.gamepad()
 				.and_then(|gp| gamepads.name(gp))
 				.map(GamepadSeries::guess);
 			let action = &container.0;
 			let mut cmds = cmds.entity(id);
-			debug!(
-				?id,
-				"clearing icons for BindingListContainer<{}>",
-				std::any::type_name::<A>()
-			);
-			cmds.clear_children();
+			debug!(?id,"clearing icons for {action:?}");
+			cmds.despawn_descendants();
 			cmds.with_children(|cmds| {
 				let darker_gray = mats.add(UiMatBuilder::from(StandardMaterial {
 					reflectance: 0.01,
@@ -370,7 +512,7 @@ pub fn update_binding_list_widgets<A: Actionlike>(
 						InputIconBundle::<UiMat> {
 							input_icon: InputIcon {
 								icon,
-								size: Vec3::new(scale, 0.5, scale),
+								size: Vec3::new(scale, 1.0, scale),
 								tolerance: 0.2,
 								..default()
 							},
@@ -419,7 +561,7 @@ pub fn update_binding_list_widgets<A: Actionlike>(
 					}
 
 					let icons = UserInputIcons::from_user_input(binding, gp);
-					debug!(?icons);
+					debug!(?action, ?binding, ?icons);
 
 					cmds.spawn((
 						CuboidPanelBundle {
@@ -427,7 +569,7 @@ pub fn update_binding_list_widgets<A: Actionlike>(
 							..default()
 						},
 						ExpandToFitChildren {
-							offset: Vec3::Y * 0.5,
+							offset: Vec3::Y * 0.51,
 							..default()
 						},
 						LineUpChildren::horizontal().with_offset(Vec3::NEG_Y),

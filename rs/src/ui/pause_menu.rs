@@ -45,7 +45,10 @@ use rapier3d::geometry::SharedShape;
 use std::ops::ControlFlow;
 use bevy::utils::smallvec::smallvec;
 use web_time::Duration;
+use engine::ui::layout::ExpandToFitChildren;
 use engine::ui::widgets::borders::Border;
+use engine::ui::widgets::focus_state_emissive;
+use crate::ui::prefs_menu::PrefsMenu;
 
 pub struct PauseMenuPlugin;
 
@@ -86,6 +89,13 @@ pub fn setup(
 		},
 		..default()
 	});
+	
+	let expand = ExpandToFitChildren {
+		margin: Vec3::new(0.2, 0.0, 0.3),
+		offset: Vec3::new(0.0, 0.51, 0.0),
+		..default()
+	};
+	
 	entity_tree!(cmds; (
 		Name::new("PauseMenu"),
 		CuboidPanelBundle {
@@ -115,7 +125,7 @@ pub fn setup(
 				mats.add(UiMatBuilder::from(Color::rgba(0.12, 0.004, 0.15, 0.92)))
 			),
 			(
-				Name::new("game_paused_text"),
+				Name::new("game_paused_txt"),
 				Text3dBundle {
 					text_3d: Text3d {
 						text: "Game Paused".into(),
@@ -132,7 +142,7 @@ pub fn setup(
 				},
 			),
 			(
-				Name::new("container"),
+				Name::new("pause_menu_btns_container"),
 				WidgetBundle {
 					shape: WidgetShape { shape: SharedShape::cuboid(5.5, 1.0, 5.5), ..default() },
 					transform: Transform {
@@ -142,13 +152,11 @@ pub fn setup(
 					adjacent: AdjacentWidgets::all(FocusTarget::ChildN(0)),
 					..default()
 				},
-				LineUpChildren::vertical().with_spacing(0.1);
+				LineUpChildren::vertical().with_spacing(0.2);
 				#children: [
 					(
 						Name::new("resume_btn"),
-						PanelBundle {
-							shape: WidgetShape { shape: SharedShape::cuboid(3.5, 0.6, 0.6), ..default() },
-							mesh: meshes.add(Cuboid::new(7.0, 1.2, 1.2)),
+						CuboidPanelBundle {
 							material: mats.add(UiMatBuilder {
 								std: StandardMaterial {
 									base_color: Color::BLACK,
@@ -170,12 +178,13 @@ pub fn setup(
 							adjacent: AdjacentWidgets::vertical_siblings(),
 							..default()
 						},
+						expand.clone(),
 						;
 						=> |cmds| {
 							cmds.set_enum(pause_menu_widget::ResumeButton);
 						}
 						#children: [(
-							Name::new("resume_btn_text"),
+							Name::new("resume_btn_txt"),
 							Text3dBundle {
 								text_3d: Text3d { text: "Resume Game".into(), ..default() },
 								font: ui_fonts.mono.clone(),
@@ -189,10 +198,60 @@ pub fn setup(
 						)]
 					),
 					(
+						Name::new("prefs_btn"),
+						CuboidPanelBundle {
+							material: mats.add(UiMatBuilder {
+								std: StandardMaterial {
+									base_color: Color::BLACK,
+									emissive: Color::TEAL * 20.0,
+									..default()
+								},
+								..default()
+							}),
+							adjacent: AdjacentWidgets::vertical_siblings(),
+							handlers: smallvec![
+								dbg_event(),
+								on_ok(|cmds| {
+									cmds.commands().add(|world: &mut World| {
+										let mut q = world.query_filtered::<Entity, With<PrefsMenu>>();
+										let panel_id = q.single(world);
+										world.entity_mut(panel_id).fade_in_secs(1.5);
+
+										let top_menu = MenuRef::new(panel_id);
+										let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
+										let mut stack = q.single_mut(world);
+										stack.push(top_menu);
+									});
+									ControlFlow::Break(())
+								}),
+								focus_state_emissive(Color::TEAL * 20.0, Color::TEAL * 30.0),
+							].into(),
+							..default()
+						},
+						expand.clone(),
+						;
+						=> |cmds| {
+							cmds.set_enum(pause_menu_widget::PrefsButton);
+						}
+						#children: [
+							(
+								Name::new("prefs_btn_txt"),
+								Text3dBundle {
+									text_3d: Text3d { text: "Preferences...".into(), ..default() },
+									font: ui_fonts.mono.clone(),
+									material: btn_txt_mat.clone(),
+									transform: Transform {
+										translation: Vec3::NEG_Y * 0.61,
+										..default()
+									},
+									..default()
+								}
+							),
+						]
+					),
+					(
 						Name::new("settings_btn"),
-						PanelBundle {
-							shape: WidgetShape { shape: SharedShape::cuboid(3.5, 0.6, 0.6), ..default() },
-							mesh: meshes.add(Cuboid::new(7.0, 1.2, 1.2)),
+						CuboidPanelBundle {
 							material: mats.add(UiMatBuilder {
 								std: StandardMaterial {
 									base_color: Color::BLACK,
@@ -221,13 +280,14 @@ pub fn setup(
 							adjacent: AdjacentWidgets::vertical_siblings(),
 							..default()
 						},
+						expand.clone(),
 						;
 						=> |cmds| {
 							cmds.set_enum(pause_menu_widget::SettingsButton);
 						}
 						#children: [
 							(
-								Name::new("settings_btn_text"),
+								Name::new("settings_btn_txt"),
 								Text3dBundle {
 									text_3d: Text3d { text: "Settings...".into(), ..default() },
 									font: ui_fonts.mono.clone(),
@@ -243,9 +303,7 @@ pub fn setup(
 					),
 					(
 						Name::new("quit_btn"),
-						PanelBundle {
-							shape: WidgetShape { shape: SharedShape::cuboid(3.0, 0.6, 0.6), ..default() },
-							mesh: meshes.add(Cuboid::new(6.0, 1.2, 1.2)),
+						CuboidPanelBundle {
 							material: mats.add(UiMatBuilder {
 								std: StandardMaterial {
 									base_color: Color::BLACK,
@@ -268,13 +326,14 @@ pub fn setup(
 							adjacent: AdjacentWidgets::vertical_siblings(),
 							..default()
 						},
+						expand.clone(),
 						;
 						=> |cmds| {
 							cmds.set_enum(pause_menu_widget::QuitButton);
 						}
 						#children: [
 							(
-								Name::new("quit_btn_text"),
+								Name::new("quit_btn_txt"),
 								Text3dBundle {
 									text_3d: Text3d { text: "Quit Game".into(), ..default() },
 									font: ui_fonts.mono.clone(),
@@ -301,6 +360,7 @@ pub enum PauseMenuWidget {
 	Panel,
 	ResumeButton,
 	SettingsButton,
+	PrefsButton,
 	QuitButton,
 }
 

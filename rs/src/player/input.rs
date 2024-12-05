@@ -2,7 +2,7 @@ use std::{
 	f32::consts::{FRAC_PI_2, TAU},
 	time::Duration,
 };
-
+use std::fmt::Formatter;
 use bevy::{
 	input::mouse::MouseMotion,
 	prelude::{
@@ -14,7 +14,7 @@ use bevy::{
 use enum_components::WithVariant;
 use leafwing_input_manager::prelude::*;
 use serde::{Deserialize, Serialize};
-
+use engine::input::ActionExt;
 use engine::ui::UiHovered;
 
 use crate::{
@@ -81,7 +81,35 @@ pub enum PlayerAction {
 }
 
 impl PlayerAction {
-	pub fn default_mappings() -> InputMap<Self> {
+	pub const ALL: [Self; 9] = [
+		Self::Move,
+		Self::Look,
+		Self::Jump,
+		Self::FireA,
+		Self::FireB,
+		Self::FireC,
+		Self::AoE,
+		Self::Dash,
+		Self::PauseGame,
+	];
+}
+
+impl ActionExt for PlayerAction {
+	fn display_name(&self) -> &'static str {
+		match self {
+			Self::Move => "Move",
+			Self::Look => "Look",
+			Self::Jump => "Jump",
+			Self::FireA => "Fire A",
+			Self::FireB => "Fire B",
+			Self::FireC => "Fire C",
+			Self::AoE => "AoE",
+			Self::Dash => "Dash",
+			Self::PauseGame => "Pause",
+		}
+	}
+
+	fn default_mappings() -> InputMap<Self> {
 		use KeyCode::*;
 		use PlayerAction::*;
 		InputMap::new([
@@ -113,6 +141,16 @@ impl PlayerAction {
 			(Dash, GamepadButtonType::West.into()),
 			(PauseGame, GamepadButtonType::Start.into()),
 		])
+	}
+	
+	fn all() -> impl Iterator<Item=Self> {
+		Self::ALL.into_iter()
+	}
+}
+
+impl std::fmt::Display for PlayerAction {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		f.write_str(self.display_name())
 	}
 }
 
