@@ -9,7 +9,7 @@ use sond_has::util::IntoFnPlugin;
 pub(crate) use sond_has::*;
 
 #[bevy_main]
-pub fn main() {
+pub fn main() -> AppExit {
 	let mut app = App::new();
 	let default_plugins = DefaultPlugins
 		.set(WindowPlugin {

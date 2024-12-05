@@ -92,8 +92,10 @@ pub fn player_repel_ground(
 		global.rotation,
 		-UP,
 		col,
-		max_toi,
-		true,
+		ShapeCastOptions {
+			max_time_of_impact: max_toi,
+			..default()
+		},
 		QueryFilter::new()
 			.exclude_sensors()
 			.exclude_rigid_body(**body_id)
@@ -102,8 +104,8 @@ pub fn player_repel_ground(
 
 	if let Some((
 		id,
-		Toi {
-			toi,
+		ShapeCastHit {
+			time_of_impact: toi,
 			details: Some(details),
 			..
 		},
@@ -278,14 +280,16 @@ pub fn move_player(
 					body_global.rotation,
 					dir,
 					col,
-					rem * (1.0 + BUFFER),
-					true,
+					ShapeCastOptions {
+						max_time_of_impact: rem * (1.0 + BUFFER),
+						..default()
+					},
 					filter,
 				) {
 					Some((
 						_,
-						Toi {
-							toi,
+						ShapeCastHit {
+							time_of_impact: toi,
 							details: Some(hit),
 							status: _status,
 						},
@@ -335,8 +339,8 @@ pub fn move_player(
 					}
 					Some((
 						_,
-						Toi {
-							status: TOIStatus::Penetrating,
+						ShapeCastHit {
+							status: ShapeCastStatus::PenetratingOrWithinTargetDist,
 							..
 						},
 					)) => {

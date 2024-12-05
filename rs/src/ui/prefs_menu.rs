@@ -1,3 +1,4 @@
+use bevy::color::palettes::basic::PURPLE;
 use bevy::prelude::*;
 use engine::entity_tree;
 use engine::ui::{Fade, MenuStack, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS};
@@ -27,7 +28,7 @@ pub fn setup(
 				translation: Vec3::new(0.0, -32.0, 24.0),
 				..default()
 			},
-			material: mats.add(UiMatBuilder::from(Color::PURPLE)),
+			material: mats.add(UiMatBuilder::from(Color::from(PURPLE))),
 			handlers: MenuStack::pop_on_back(GLOBAL_UI_RENDER_LAYERS, 0.7),
 			..default()
 		},

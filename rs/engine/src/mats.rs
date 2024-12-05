@@ -3,6 +3,7 @@ use bevy::{
 	prelude::*,
 	render::render_resource::{AsBindGroup, ShaderRef},
 };
+use bevy::color::palettes::basic::GRAY;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -28,7 +29,7 @@ pub struct MatsPlugin;
 impl Plugin for MatsPlugin {
 	fn build(&self, app: &mut App) {
 		Box::leak(Box::new(
-			app.world
+			app.world()
 				.resource::<AssetServer>()
 				.load::<Shader>("shaders/util.wgsl"),
 		));
@@ -40,7 +41,7 @@ impl Plugin for MatsPlugin {
 				MaterialPlugin::<ExtMat<DitherFade>>::default(),
 			));
 
-		let registry = app.world.get_resource::<AppTypeRegistry>().unwrap().clone();
+		let registry = app.world().get_resource::<AppTypeRegistry>().unwrap().clone();
 		{
 			let mut reg = registry.write();
 			reg.register::<BubbleMaterial>();
@@ -57,13 +58,13 @@ impl Plugin for MatsPlugin {
 #[reflect(Default)]
 pub struct BubbleMaterial {
 	#[uniform(200)]
-	pub glow_color: Color,
+	pub glow_color: LinearRgba,
 }
 
 impl Default for BubbleMaterial {
 	fn default() -> Self {
 		Self {
-			glow_color: Color::GRAY,
+			glow_color: GRAY.into(),
 		}
 	}
 }

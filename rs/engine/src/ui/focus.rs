@@ -22,6 +22,7 @@ use std::{
 	str::{FromStr, Split},
 	sync::Arc,
 };
+use bevy::color::palettes::css::SEA_GREEN;
 
 /// Tells [handle_focus_actions] how to find the next entity to focus.
 ///
@@ -455,7 +456,7 @@ pub fn highlight_focus<const LAYER: Layer>(
 					"widgets should have a uniform scale -- only drawing using `scale.x`"
 				)
 			}
-			shape.draw_gizmo(&mut gizmos, pos, rot, scale.x, Color::SEA_GREEN);
+			shape.draw_gizmo(&mut gizmos, pos, rot, scale.x, SEA_GREEN);
 		}
 		Err(e) => {
 			error!("couldn't get focused entity: {e}");

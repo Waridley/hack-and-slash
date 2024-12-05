@@ -20,7 +20,7 @@ default = [
 ]
 
 [workspace.dependencies.bevy]
-version = "0.13.1"
+version = "0.14.2"
 default-features = false
 features = [
 #    "asset_processor", # only on desktop
@@ -37,7 +37,7 @@ features = [
     "bevy_sprite",
     "bevy_text",
 #    "bevy_ui", # Will be making my own game UI
-    "multi-threaded",
+    "multi_threaded",
     "png",
     "hdr",
     "ktx2",
@@ -50,7 +50,11 @@ features = [
     "tonemapping_luts",
 #    "default_font", # For editor, but probably not in-game
     "webgl2", # Needed so it doesn't default to WebGPU
+    "bevy_state",
 ]
+
+[workspace.dependencies.bevy_asset]
+features = ["multi_threaded"]
 
 [workspace.dependencies]
 # Mine
@@ -61,10 +65,10 @@ macros = { package = "sond-has-macros", path = "engine/macros" }
 
 # Engine
 bevy_dylib = "0.13.0"
-bevy_rapier3d = { version = "0.25.0", default-features = false, features = ["dim3"] }
-rapier3d = { version = "*", features = ["wasm-bindgen", "serde-serialize"] }
-bevy_kira_audio = "0.19.0"
-leafwing-input-manager = "0.13.0"
+bevy_rapier3d = { version = "0.27.0", default-features = false, features = ["dim3"] }
+rapier3d = { version = "0.21.0", features = ["wasm-bindgen", "serde-serialize"] }
+bevy_kira_audio = "0.20.0"
+leafwing-input-manager = "0.14.0"
 bevy_quickmenu = "0.2.0"
 bevy_common_assets = { version = "0.10.0", features = ["ron"] }
 
@@ -72,7 +76,7 @@ bevy_common_assets = { version = "0.10.0", features = ["ron"] }
 ab_glyph = "0.2.26"
 array-init = "2.1.0"
 base64 = "0.21.7"
-bevy_pkv = "0.10.0" # settings
+bevy_pkv = "0.11.0" # settings
 bevy_svg = { version = "0.13.0", path = "../vend/bevy_svg" }
 bytemuck = "1.14.1" # mostly for seeds
 crossbeam = "0.8.2"
@@ -90,12 +94,13 @@ rand_xorshift = "0.3.0"
 ron = "0.8.1"
 static_assertions = "1.1.0"
 serde = "1"
+smallvec = "*" # same as bevy
 smol_str = "0.2.1"
 web-time = "1.0.0"
 
 # Debugging/Editor
-bevy-inspector-egui = "0.23"
-egui_plot = "0.26.2"
+bevy-inspector-egui = "0.27.0"
+egui_plot = "0.29.0"
 
 # Testing
 linkme = "0.3.22"
@@ -119,6 +124,7 @@ nanorand = { workspace = true }
 rand = { workspace = true }
 rand_xorshift = { workspace = true }
 serde = { workspace = true }
+smallvec = { workspace = true }
 web-time = { workspace = true }
 
 # Debugging

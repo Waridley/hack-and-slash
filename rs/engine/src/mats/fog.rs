@@ -40,7 +40,7 @@ impl Plugin for MatterPlugin {
 			))
 			.add_systems(Update, (update_matter_globals,));
 
-		let registry = app.world.get_resource::<AppTypeRegistry>().unwrap().clone();
+		let registry = app.world().get_resource::<AppTypeRegistry>().unwrap().clone();
 		{
 			let mut reg = registry.write();
 			reg.register::<DistanceDither>();
@@ -53,7 +53,7 @@ impl Plugin for MatterPlugin {
 	}
 
 	fn finish(&self, app: &mut App) {
-		let mut assets = app.world.resource_mut::<Assets<Image>>();
+		let mut assets = app.world_mut().resource_mut::<Assets<Image>>();
 
 		let image = Image::from_buffer(
 			include_bytes!("bayer16.png").as_ref(),
@@ -78,7 +78,7 @@ impl Plugin for MatterPlugin {
 		)
 		.unwrap();
 
-		assets.insert(BAYER_HANDLE, image);
+		assets.insert(BAYER_HANDLE.id(), image);
 	}
 }
 

@@ -37,6 +37,7 @@ ordered-float = { workspace = true }
 rand = { workspace = true }
 ron = { workspace = true }
 serde = { workspace = true }
+smallvec = { workspace = true }
 smol_str = { workspace = true }
 web-time = { workspace = true }
 

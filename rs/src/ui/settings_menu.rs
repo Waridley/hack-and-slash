@@ -23,7 +23,9 @@ use std::{
 	f32::consts::{FRAC_PI_2, FRAC_PI_3, FRAC_PI_6},
 	ops::{ControlFlow, ControlFlow::Break},
 };
-use bevy::utils::smallvec::smallvec;
+use bevy::color::palettes::basic::{AQUA, BLUE, FUCHSIA, GRAY, GREEN, RED, YELLOW};
+use bevy::color::palettes::css::DARK_GRAY;
+use smallvec::smallvec;
 use engine::draw::rect_points;
 use engine::ui::widgets::borders::Border;
 use engine::ui::widgets::focus_toggle_border;
@@ -150,10 +152,10 @@ pub fn setup(
 				},
 				meshes.add(PlanarPolyLine {
 					points: polygon_points(6, 10.5, 0.0),
-					colors: smallvec![smallvec![Color::GRAY]],
+					colors: smallvec![smallvec![LinearRgba::from(GRAY)]],
 					..default()
 				}.flat()),
-				mats.add(UiMatBuilder::from(Color::DARK_GRAY)),
+				mats.add(UiMatBuilder::from(Color::from(DARK_GRAY))),
 				RadialChildren {
 					radius: 7.0,
 					arrangement: RadialArrangement::Manual {
@@ -174,7 +176,7 @@ pub fn setup(
 								size: Vec3::new(5.0, 1.0, 1.5),
 								..default()
 							},
-							material: mats.add(UiMatBuilder::from(Color::CYAN.with_a(0.4))),
+							material: mats.add(UiMatBuilder::from(Color::from(AQUA.with_alpha(0.4)))),
 							adjacent: adjacent.clone(),
 							handlers: focus_toggle_border.clone(),
 							..default()
@@ -203,7 +205,7 @@ pub fn setup(
 								size: Vec3::new(5.0, 1.0, 1.5),
 								..default()
 							},
-							material: mats.add(UiMatBuilder::from(Color::YELLOW.with_a(0.4))),
+							material: mats.add(UiMatBuilder::from(Color::from(YELLOW.with_alpha(0.4)))),
 							adjacent: adjacent.clone(),
 							handlers: focus_toggle_border.clone(),
 							..default()
@@ -232,7 +234,7 @@ pub fn setup(
 								size: Vec3::new(5.0, 1.0, 1.5),
 								..default()
 							},
-							material: mats.add(UiMatBuilder::from(Color::FUCHSIA.with_a(0.4))),
+							material: mats.add(UiMatBuilder::from(Color::from(FUCHSIA.with_alpha(0.40)))),
 							adjacent: adjacent.clone(),
 							handlers: focus_toggle_border.clone(),
 							..default()
@@ -261,7 +263,7 @@ pub fn setup(
 								size: Vec3::new(5.0, 1.0, 1.5),
 								..default()
 							},
-							material: mats.add(UiMatBuilder::from(Color::RED.with_a(0.4))),
+							material: mats.add(UiMatBuilder::from(Color::from(RED.with_alpha(0.4)))),
 							adjacent: adjacent.clone(),
 							handlers: focus_toggle_border.clone(),
 							..default()
@@ -290,7 +292,7 @@ pub fn setup(
 								size: Vec3::new(5.0, 1.0, 1.5),
 								..default()
 							},
-							material: mats.add(UiMatBuilder::from(Color::GREEN.with_a(0.4))),
+							material: mats.add(UiMatBuilder::from(Color::from(GREEN.with_alpha(0.4)))),
 							handlers: focus_toggle_border.clone()
 							.and([on_ok(|cmds| {
 									cmds.commands().add(|world: &mut World| {
@@ -328,7 +330,7 @@ pub fn setup(
 								size: Vec3::new(5.0, 1.0, 1.5),
 								..default()
 							},
-							material: mats.add(UiMatBuilder::from(Color::BLUE.with_a(0.4))),
+							material: mats.add(UiMatBuilder::from(Color::from(BLUE.with_alpha(0.4)))),
 							adjacent: adjacent.clone(),
 							handlers: focus_toggle_border.clone(),
 							..default()

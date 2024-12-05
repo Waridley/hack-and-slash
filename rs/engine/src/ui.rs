@@ -20,7 +20,7 @@ use crate::{
 };
 use bevy::{
 	a11y::Focus,
-	asset::{io::Reader, AssetLoader, BoxedFuture, LoadContext, StrongHandle},
+	asset::{io::Reader, AssetLoader, LoadContext, StrongHandle},
 	core_pipeline::{experimental::taa::TemporalAntiAliasBundle, fxaa::Fxaa},
 	diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
 	ecs::{
@@ -49,7 +49,9 @@ use std::{
 	ops::{Add, ControlFlow::Break, Mul},
 	sync::Arc,
 };
-use bevy::utils::smallvec::smallvec;
+use bevy::color::palettes::basic::{AQUA, BLUE, FUCHSIA, GREEN, RED, WHITE, YELLOW};
+use bevy::color::palettes::css::ORANGE;
+use smallvec::smallvec;
 
 pub mod a11y;
 #[cfg(feature = "debugging")]
@@ -60,9 +62,8 @@ pub mod mouse;
 pub mod text;
 pub mod widgets;
 
-pub const GLOBAL_UI_LAYER: Layer = (RenderLayers::TOTAL_LAYERS - 1) as Layer;
+pub const GLOBAL_UI_LAYER: Layer = 31 as Layer;
 pub const GLOBAL_UI_RENDER_LAYERS: RenderLayers = RenderLayers::layer(GLOBAL_UI_LAYER);
-pub const ALL_UI_RENDER_LAYERS: RenderLayers = RenderLayers::all().without(0);
 
 pub type UiMat = ExtMat<DitherFade>;
 
@@ -84,14 +85,14 @@ impl Plugin for UiPlugin {
 					.run_if(input_toggle_active(false, KeyCode::KeyG))
 					.after(CheckVisibility),
 			)
-			.insert_gizmo_group(
+			.insert_gizmo_config(
 				widgets::WidgetGizmos::<GLOBAL_UI_LAYER>,
 				GizmoConfig {
 					render_layers: GLOBAL_UI_RENDER_LAYERS,
 					..default()
 				},
 			)
-			.insert_gizmo_group(
+			.insert_gizmo_config(
 				focus::FocusGizmos::<GLOBAL_UI_LAYER>,
 				GizmoConfig {
 					line_width: 6.0,
@@ -153,11 +154,11 @@ impl Plugin for UiPlugin {
 	}
 
 	fn finish(&self, app: &mut App) {
-		let srv = app.world.resource::<AssetServer>();
+		let srv = app.world().resource::<AssetServer>();
 		let mono = srv.load("ui/fonts/Noto_Sans_Mono/static/NotoSansMono-Bold.ttf");
 		app.insert_resource(UiFonts { mono });
-		app.world.resource_mut::<Assets<_>>().insert(
-			Handle::weak_from_u128(widgets::UNLIT_MATERIAL_ID),
+		app.world_mut().resource_mut::<Assets<_>>().insert(
+			Handle::weak_from_u128(widgets::UNLIT_MATERIAL_ID).id(),
 			new_unlit_material(),
 		);
 	}
@@ -192,7 +193,7 @@ pub fn spawn_ui_camera<ID: Bundle + Clone>(
 		VisibilityBundle::default(),
 		MenuStack::default(),
 		PrevFocus::default(),
-		layers,
+		layers.clone(),
 	))
 	.with_children(|cmds| {
 		cmds.spawn((
@@ -203,7 +204,7 @@ pub fn spawn_ui_camera<ID: Bundle + Clone>(
 				..default()
 			}),
 			VisibilityBundle::default(),
-			layers,
+			layers.clone(),
 		));
 
 		let mut cam = cmds.spawn((
@@ -236,7 +237,7 @@ pub fn spawn_ui_camera<ID: Bundle + Clone>(
 			},
 			TemporalAntiAliasBundle::default(),
 			Fxaa::default(),
-			layers,
+			layers.clone(),
 		));
 
 		cam.start_animation::<Transform>(cam_idle_animation(animation_time_offset));
@@ -264,7 +265,7 @@ pub fn spawn_ui_camera<ID: Bundle + Clone>(
 				},
 				..default()
 			},
-			layers,
+			layers.clone(),
 		));
 		let blue_light_pos = cam_pos + Vec3::new(-2.0, 0.0, 4.0);
 		cmds.spawn((
@@ -288,7 +289,7 @@ pub fn spawn_ui_camera<ID: Bundle + Clone>(
 				},
 				..default()
 			},
-			layers,
+			layers.clone(),
 		));
 
 		cmds.spawn((
@@ -309,7 +310,7 @@ pub fn spawn_ui_camera<ID: Bundle + Clone>(
 				},
 				..default()
 			},
-			layers,
+			layers.clone(),
 		));
 	});
 }
@@ -572,7 +573,7 @@ pub fn show_fps(
 							TextStyle {
 								font: ui_fonts.mono.clone(),
 								font_size: 24.0,
-								color: Color::YELLOW,
+								color: YELLOW.into(),
 							},
 						),
 						style: Style {
@@ -659,6 +660,7 @@ impl MenuStack {
 	pub fn pop_on_back(layers: RenderLayers, fade_secs: f32) -> InteractHandlers {
 		InteractHandlers::on_back(move |cmds| {
 			cmds.fade_out_secs(fade_secs);
+			let layers = layers.clone();
 			cmds.commands().add(move |world: &mut World| {
 				let mut q = world.query::<(&mut MenuStack, &RenderLayers)>();
 				let Some((mut stack, _)) = q
@@ -833,7 +835,7 @@ pub fn propagate_fade<M: Asset + AsMut<DitherFade>>(
 		}
 
 		let mut set_fade = |handle: &Handle<M>| {
-			let Some(mut mat) = mats.get_mut(handle.clone()) else {
+			let Some(mut mat) = mats.get_mut(handle) else {
 				warn!("missing {handle:?}");
 				return;
 			};
@@ -1074,16 +1076,16 @@ fn spawn_test_menu(
 							points: polygon_points(6, 6.0, i as f32),
 							cross_section: polygon_points(3, 0.25, 0.5),
 							colors: smallvec![
-								smallvec![Color::WHITE],
-								smallvec![Color::RED],
-								smallvec![Color::BLUE],
-								smallvec![Color::GREEN],
-								smallvec![Color::CYAN],
-								smallvec![Color::FUCHSIA],
+								smallvec![WHITE.into()],
+								smallvec![RED.into()],
+								smallvec![BLUE.into()],
+								smallvec![GREEN.into()],
+								smallvec![AQUA.into()],
+								smallvec![FUCHSIA.into()],
 							],
 							closed: false,
 							..default()
-						}.mesh().with_duplicated_vertices().with_computed_flat_normals()),
+						}.mesh().build().with_duplicated_vertices().with_computed_flat_normals()),
 						border_mat.clone(),
 						LineUpChildren {
 							relative_positions: Vec3::NEG_Z * 1.25,
@@ -1112,7 +1114,7 @@ fn spawn_test_menu(
 										0.5,
 									), ..default() },
 									mesh: meshes.add(Capsule3d::new(0.5, 5.0)),
-									material: mats.add(UiMatBuilder::from(Color::ORANGE)),
+									material: mats.add(UiMatBuilder::from(Color::from(ORANGE))),
 									transform: Transform {
 										rotation: Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
 										..default()

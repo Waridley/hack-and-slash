@@ -32,10 +32,7 @@ use rapier3d::{math::Point, prelude::Aabb};
 
 use camera::spawn_cameras;
 use ctrl::{CtrlState, CtrlVel};
-use engine::{
-	planet::terrain::NeedsTerrain,
-	ui::{focus, layout::LineUpChildren, Fade, GLOBAL_UI_LAYER},
-};
+use engine::{planet::terrain::NeedsTerrain, todo_warn, ui::{focus, layout::LineUpChildren, Fade, GLOBAL_UI_LAYER}};
 use player_entity::*;
 use prefs::PlayerPrefs;
 
@@ -62,10 +59,10 @@ pub mod tune;
 
 const G1: Group = Group::GROUP_1;
 pub const fn player_ui_layer(player: PlayerId) -> Layer {
-	GLOBAL_UI_LAYER - (player.get() * 2) + 1
+	GLOBAL_UI_LAYER - (player.get() as Layer * 2) + 1
 }
 pub const fn player_hud_layer(player: PlayerId) -> Layer {
-	GLOBAL_UI_LAYER - (player.get() * 2)
+	GLOBAL_UI_LAYER - (player.get() as Layer * 2)
 }
 
 pub fn plugin(app: &mut App) -> &mut App {
@@ -84,14 +81,14 @@ pub fn plugin(app: &mut App) -> &mut App {
 						.run_if(input_toggle_active(false, KeyCode::KeyG))
 						.after(bevy::render::view::VisibilitySystems::CheckVisibility),
 				)
-				.insert_gizmo_group(
+				.insert_gizmo_config(
 					engine::ui::widgets::WidgetGizmos::<$i>,
 					GizmoConfig {
-						render_layers: layers,
+						render_layers: layers.clone(),
 						..default()
 					},
 				)
-				.insert_gizmo_group(
+				.insert_gizmo_config(
 					focus::FocusGizmos::<$i>,
 					GizmoConfig {
 						line_width: 6.0,
@@ -241,30 +238,30 @@ pub fn update_player_spawn_data(
 	if let Some(mut data) = data {
 		data.ship_scene = asset_server.load(ship_scene);
 		*meshes
-			.get_mut(data.antigrav_pulse_mesh.clone_weak())
+			.get_mut(data.antigrav_pulse_mesh.id())
 			.unwrap() = TorusMeshBuilder::from(antigrav_pulse_mesh).into();
 		*std_mats
-			.get_mut(data.antigrav_pulse_mat.clone_weak())
+			.get_mut(data.antigrav_pulse_mat.id())
 			.unwrap() = antigrav_pulse_mat;
-		*meshes.get_mut(data.arm_mesh.clone_weak()).unwrap() =
+		*meshes.get_mut(data.arm_mesh.id()).unwrap() =
 			SphereMeshBuilder::from(arm_mesh).into();
-		*meshes.get_mut(data.arm_particle_mesh.clone_weak()).unwrap() =
+		*meshes.get_mut(data.arm_particle_mesh.id()).unwrap() =
 			RegularPolygon::new(arm_particle_radius, 3).into();
-		*std_mats.get_mut(data.arm_mats[0].clone_weak()).unwrap() = StandardMaterial {
+		*std_mats.get_mut(data.arm_mats[0].id()).unwrap() = StandardMaterial {
 			emissive: arm_mats.0,
 			..arm_mat_template.clone()
 		};
-		*std_mats.get_mut(data.arm_mats[1].clone_weak()).unwrap() = StandardMaterial {
+		*std_mats.get_mut(data.arm_mats[1].id()).unwrap() = StandardMaterial {
 			emissive: arm_mats.1,
 			..arm_mat_template.clone()
 		};
-		*std_mats.get_mut(data.arm_mats[2].clone_weak()).unwrap() = StandardMaterial {
+		*std_mats.get_mut(data.arm_mats[2].id()).unwrap() = StandardMaterial {
 			emissive: arm_mats.2,
 			..arm_mat_template.clone()
 		};
-		*meshes.get_mut(data.crosshair_mesh.clone_weak()).unwrap() =
+		*meshes.get_mut(data.crosshair_mesh.id()).unwrap() =
 			TorusMeshBuilder::from(crosshair_mesh).into();
-		*std_mats.get_mut(data.crosshair_mat.clone_weak()).unwrap() = crosshair_mat;
+		*std_mats.get_mut(data.crosshair_mat.id()).unwrap() = crosshair_mat;
 		return;
 	}
 	// else insert spawn data
@@ -330,7 +327,9 @@ impl Default for ReflectTorus {
 			},
 			minor_resolution,
 			major_resolution,
+			angle_range,
 		} = Torus::default().mesh();
+		todo_warn!("use angle_range");
 		Self {
 			minor_radius,
 			major_radius,
@@ -342,6 +341,7 @@ impl Default for ReflectTorus {
 
 impl From<ReflectTorus> for TorusMeshBuilder {
 	fn from(value: ReflectTorus) -> Self {
+		todo_warn!("add angle_range to ReflectTorus\n\t-- or even better, use remote reflection in 0.15");
 		Self {
 			torus: Torus {
 				major_radius: value.major_radius,
@@ -349,6 +349,7 @@ impl From<ReflectTorus> for TorusMeshBuilder {
 			},
 			major_resolution: value.major_resolution,
 			minor_resolution: value.minor_resolution,
+			angle_range: Self::default().angle_range
 		}
 	}
 }
@@ -380,14 +381,14 @@ impl From<ReflectIcosphere> for SphereMeshBuilder {
 }
 
 #[derive(Clone, Default, Resource, Reflect)]
-#[reflect(Resource, from_reflect = false)]
+#[reflect(Resource, Default)]
 pub struct PlayerAssets {
 	pub ship_scene: AssetPath<'static>,
 	pub antigrav_pulse_mesh: ReflectTorus,
 	pub antigrav_pulse_mat: StandardMaterial,
 	pub arm_mesh: ReflectIcosphere,
 	pub arm_particle_radius: f32,
-	pub arm_mats: (Color, Color, Color),
+	pub arm_mats: (LinearRgba, LinearRgba, LinearRgba),
 	pub crosshair_mesh: ReflectTorus,
 	pub crosshair_mat: StandardMaterial,
 }

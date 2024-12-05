@@ -3,7 +3,7 @@
 
 struct SkyCube {
 	face_index: u32,
-	face_width: f32,
+	face_width: u32,
 	face_rotation: mat3x3<f32>,
 	rotation: mat3x3<f32>,
 	time_of_day: f32,
@@ -15,7 +15,7 @@ struct SkyCube {
 @group(0) @binding(2) var<uniform> globals: Globals;
 
 fn ray_dir(position: vec2<f32>) -> vec3<f32> {
-	return cube.face_rotation * normalize(vec3((position / (cube.face_width * 0.5)) - vec2(1.0), 1.0));
+	return cube.face_rotation * normalize(vec3((position / (f32(cube.face_width) * 0.5)) - vec2(1.0), 1.0));
 }
 
 struct VertexOutput {

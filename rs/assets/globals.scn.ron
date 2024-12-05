@@ -31,8 +31,8 @@
 				minor_resolution: 3,
 			),
 			antigrav_pulse_mat: (
-				base_color: Rgba( red: 0.0, green: 0.0, blue: 0.0, alpha: 0.0 ),
-				emissive: Rgba( red: 0.0, green: 120.0, blue: 72.0, alpha: 1.0 ),
+				base_color: LinearRgba(( red: 0.0, green: 0.0, blue: 0.0, alpha: 0.0 )),
+				emissive: ( red: 0.0, green: 120.0, blue: 72.0, alpha: 1.0 ),
 				reflectance: 0.0,
 			),
 			arm_particle_radius: 0.1,
@@ -41,16 +41,16 @@
 				subdivisions: 2,
 			),
 			arm_mats: (
-				Rgba( red: 0.0, green: 60.0, blue: 0.0, alpha: 1.0 ),
-				Rgba( red: 30.0, green: 30.0, blue: 30.0, alpha: 1.0 ),
-				Rgba( red: 0.0, green: 60.0, blue: 60.0, alpha: 1.0 ),
+				( red: 0.0, green: 60.0, blue: 0.0, alpha: 1.0 ),
+				( red: 30.0, green: 30.0, blue: 30.0, alpha: 1.0 ),
+				( red: 0.0, green: 60.0, blue: 60.0, alpha: 1.0 ),
 			),
 			crosshair_mesh: (
 				major_radius: 0.5,
 				minor_radius: 0.1,
 			),
 			crosshair_mat: (
-				base_color: Rgba( red: 1.0, green: 1.0, blue: 0.0, alpha: 1.0 ),
+				base_color: LinearRgba(( red: 1.0, green: 1.0, blue: 0.0, alpha: 1.0 )),
 				depth_bias: inf,
 				unlit: true,
 			),

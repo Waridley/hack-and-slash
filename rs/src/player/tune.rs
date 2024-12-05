@@ -11,7 +11,7 @@ use crate::{
 /// Global game tuning parameters that will be effectively constant in releases.
 /// Implemented as an Asset for easy reloading during development.
 #[derive(Default, Resource, Serialize, Deserialize, Clone, Debug, Reflect)]
-#[reflect(Resource)]
+#[reflect(Resource, Default)]
 pub struct PlayerParams {
 	pub abil: AbilityParams,
 	pub phys: PlayerPhysicsParams,

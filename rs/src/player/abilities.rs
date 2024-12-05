@@ -6,8 +6,9 @@ use bevy_rapier3d::{
 	geometry::CollisionGroups,
 	pipeline::QueryFilter,
 	plugin::RapierContext,
-	prelude::{Collider, Toi},
+	prelude::{Collider, ShapeCastHit},
 };
+use bevy_rapier3d::prelude::ShapeCastOptions;
 use enum_components::{ERef, WithVariant};
 use leafwing_input_manager::{
 	action_state::ActionState, axislike::DualAxisData, systems::update_action_state,
@@ -518,7 +519,7 @@ impl<'a> From<&'a HurtboxFilter> for QueryFilter<'a> {
 #[derive(Event, Copy, Clone, Debug)]
 pub struct Hurt {
 	pub hurtbox: Entity,
-	pub toi: Toi,
+	pub hit: ShapeCastHit,
 	pub victim: Entity,
 }
 
@@ -548,15 +549,18 @@ pub fn hit_stuff(
 			prev.rotation.slerp(xform.rotation, 0.5), // Average I guess? *shrugs*
 			vel,
 			col,
-			vel.length() * 1.05,
-			false,
+			ShapeCastOptions {
+				max_time_of_impact: vel.length() * 1.05,
+				stop_at_penetration: false,
+				..default()
+			},
 			filter.map_or_else(QueryFilter::default, |filter| filter.into()),
 		) else {
 			continue;
 		};
 		events.send(Hurt {
 			hurtbox: id,
-			toi,
+			hit: toi,
 			victim: other,
 		});
 	}
