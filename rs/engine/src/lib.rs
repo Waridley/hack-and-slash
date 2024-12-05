@@ -29,10 +29,10 @@ impl Plugin for EnginePlugin {
 	fn build(&self, app: &mut App) {
 		app.add_plugins((ui::UiPlugin, input::InputPlugin, SvgPlugin));
 		DEBUG_COMPONENTS
-			.set(app.world.register_system(debug_component_names))
+			.set(app.world_mut().register_system(debug_component_names))
 			.expect("`DEBUG_COMPONENTS` shouldn't already be set");
 		ERROR_COMPONENTS
-			.set(app.world.register_system(error_component_names))
+			.set(app.world_mut().register_system(error_component_names))
 			.expect("`ERROR_COMPONENTS` shouldn't already be set");
 	}
 }

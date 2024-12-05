@@ -11,13 +11,13 @@ use std::{
 };
 
 use bevy::{
-	asset::{io::Reader, AssetLoader, AsyncReadExt, BoxedFuture, LoadContext},
+	asset::{io::Reader, AssetLoader, AsyncReadExt, LoadContext},
 	ecs::{
 		component::ComponentInfo,
 		query::{QueryEntityError, QueryFilter},
-		schedule::run_enter_schedule,
 		system::{EntityCommands, StaticSystemParam, SystemId, SystemParam, SystemParamItem},
 	},
+	math::Dir2,
 	prelude::*,
 	reflect::{serde::TypedReflectDeserializer, TypeRegistration, Typed},
 	render::{
@@ -27,6 +27,7 @@ use bevy::{
 	scene::{SceneLoaderError, SceneLoaderError::RonSpannedError},
 	utils::tracing::event,
 };
+use bevy::state::state::FreelyMutableState;
 use num_traits::NumCast;
 use ron::Error::InvalidValueForType;
 use serde::{de::DeserializeSeed, Deserialize, Serialize};
@@ -344,15 +345,14 @@ impl<T: Reflect + FromReflect + Asset> AssetLoader for RonReflectAssetLoader<T> 
 	type Settings = ();
 	type Error = SceneLoaderError;
 
-	fn load<'a>(
+	async fn load<'a>(
 		&'a self,
-		reader: &'a mut Reader,
+		reader: &'a mut Reader<'_>,
 		_settings: &'a Self::Settings,
-		_load_context: &'a mut LoadContext,
-	) -> BoxedFuture<'a, Result<Self::Asset, Self::Error>> {
+		_load_context: &'a mut LoadContext<'_>,
+	) -> Result<Self::Asset, Self::Error> {
 		let registration = self.registration.clone();
 		let registry = self.registry.clone();
-		Box::pin(async move {
 			let mut buf = Vec::new();
 			reader.read_to_end(&mut buf).await?;
 			let registry = registry.read();
@@ -367,7 +367,6 @@ impl<T: Reflect + FromReflect + Asset> AssetLoader for RonReflectAssetLoader<T> 
 					found: format!("{e:?}"),
 				}))
 			})
-		})
 	}
 
 	fn extensions(&self) -> &[&str] {
@@ -787,7 +786,7 @@ impl<S: FromWorld> FromWorld for StateStack<S> {
 	}
 }
 
-pub fn set_state_to_top_of_stack<S: States>(
+pub fn set_state_to_top_of_stack<S: FreelyMutableState>(
 	mut stack: ResMut<StateStack<S>>,
 	curr: Res<State<S>>,
 	mut next: ResMut<NextState<S>>,
@@ -798,31 +797,31 @@ pub fn set_state_to_top_of_stack<S: States>(
 	}
 	let top = stack.last().unwrap();
 	if **curr != *top {
-		next.0 = Some(top.clone());
+		*next = NextState::Pending(top.clone());
 	}
 }
 
 pub trait AppExt {
-	fn insert_state_stack<S: States + Clone>(&mut self, init: S) -> &mut Self;
-	fn init_state_stack<S: States + FromWorld>(&mut self) -> &mut Self;
+	fn insert_state_stack<S: FreelyMutableState + Clone>(&mut self, init: S) -> &mut Self;
+	fn init_state_stack<S: FreelyMutableState + FromWorld>(&mut self) -> &mut Self;
 }
 
 impl AppExt for App {
-	fn insert_state_stack<S: States + Clone>(&mut self, init: S) -> &mut Self {
+	fn insert_state_stack<S: FreelyMutableState + Clone>(&mut self, init: S) -> &mut Self {
 		self.insert_state::<S>(init.clone())
 			.insert_resource(StateStack(vec![init]))
 			.add_systems(
 				StateTransition,
-				set_state_to_top_of_stack::<S>.before(run_enter_schedule::<S>),
+				set_state_to_top_of_stack::<S>.before(EnterSchedules::<S>::default()),
 			)
 	}
 
-	fn init_state_stack<S: States + FromWorld>(&mut self) -> &mut Self {
+	fn init_state_stack<S: FreelyMutableState + FromWorld>(&mut self) -> &mut Self {
 		self.init_state::<S>()
 			.init_resource::<StateStack<S>>()
 			.add_systems(
 				StateTransition,
-				set_state_to_top_of_stack::<S>.before(run_enter_schedule::<S>),
+				set_state_to_top_of_stack::<S>.before(EnterSchedules::<S>::default()),
 			)
 	}
 }
@@ -1138,19 +1137,19 @@ impl CompassDirection {
 	];
 
 	#[inline]
-	pub fn direction(self) -> Direction2d {
+	pub fn direction(self) -> Dir2 {
 		use std::f32::consts::FRAC_1_SQRT_2;
 		match self {
-			Self::North => Direction2d::Y,
-			Self::NorthEast => Direction2d::new_unchecked(Vec2::new(FRAC_1_SQRT_2, FRAC_1_SQRT_2)),
-			Self::East => Direction2d::X,
-			Self::SouthEast => Direction2d::new_unchecked(Vec2::new(FRAC_1_SQRT_2, -FRAC_1_SQRT_2)),
-			Self::South => Direction2d::NEG_Y,
+			Self::North => Dir2::Y,
+			Self::NorthEast => Dir2::new_unchecked(Vec2::new(FRAC_1_SQRT_2, FRAC_1_SQRT_2)),
+			Self::East => Dir2::X,
+			Self::SouthEast => Dir2::new_unchecked(Vec2::new(FRAC_1_SQRT_2, -FRAC_1_SQRT_2)),
+			Self::South => Dir2::NEG_Y,
 			Self::SouthWest => {
-				Direction2d::new_unchecked(Vec2::new(-FRAC_1_SQRT_2, -FRAC_1_SQRT_2))
+				Dir2::new_unchecked(Vec2::new(-FRAC_1_SQRT_2, -FRAC_1_SQRT_2))
 			}
-			Self::West => Direction2d::NEG_X,
-			Self::NorthWest => Direction2d::new_unchecked(Vec2::new(-FRAC_1_SQRT_2, FRAC_1_SQRT_2)),
+			Self::West => Dir2::NEG_X,
+			Self::NorthWest => Dir2::new_unchecked(Vec2::new(-FRAC_1_SQRT_2, FRAC_1_SQRT_2)),
 		}
 	}
 

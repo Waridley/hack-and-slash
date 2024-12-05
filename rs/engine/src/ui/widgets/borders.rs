@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy::utils::smallvec::{smallvec, SmallVec};
+use smallvec::{smallvec, SmallVec};
 use crate::draw::{rect_points, rect_points_offset, PlanarPolyLine};
 use crate::ui::widgets::{CuboidContainer, CuboidPanel};
 use crate::util::Flat;
@@ -15,7 +15,7 @@ impl Plugin for WidgetBordersPlugin {
 #[derive(Component, Debug, Clone)]
 pub struct Border {
 	pub cross_section: SmallVec<[Vec2; 4]>,
-	pub colors: SmallVec<[SmallVec<[Color; 1]>; 2]>,
+	pub colors: SmallVec<[SmallVec<[LinearRgba; 1]>; 2]>,
 	pub margin: Vec2,
 }
 

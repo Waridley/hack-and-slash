@@ -1,6 +1,6 @@
 ExtendedMaterial(
 	extension: BubbleMaterial(
-		glow_color: Rgba ( red: 4.0, green: 1.0, blue: 0.0, alpha: 0.12 ),
+		glow_color: ( red: 4.0, green: 1.0, blue: 0.0, alpha: 0.12 ),
 	),
 	base: ExtendedMaterial( extension: (), base: StandardMaterial(
 		specular_transmission: 1.0,

@@ -28,7 +28,7 @@ use bevy::{
 		Render, RenderApp, RenderSet,
 	},
 };
-
+use bevy::render::texture::GpuImage;
 use crate::planet::day_night::DayNightCycle;
 
 pub struct SkyPlugin;
@@ -279,7 +279,7 @@ fn prepare_sky_bind_groups(
 	pipeline: Res<SkyPipeline>,
 	view_uniforms: Res<ViewUniforms>,
 	globals: Res<GlobalsBuffer>,
-	images: Res<RenderAssets<Image>>,
+	images: Res<RenderAssets<GpuImage>>,
 	fallback_image: Res<FallbackImage>,
 	render_device: Res<RenderDevice>,
 	views: Query<(Entity, &Skybox)>,
@@ -355,7 +355,7 @@ pub struct SkyCubeUniforms {
 	#[uniform(0)]
 	face_index: u32,
 	#[uniform(0)]
-	face_width: f32,
+	face_width: u32,
 	#[uniform(0)]
 	face_rotation: Mat3,
 	#[uniform(0)]

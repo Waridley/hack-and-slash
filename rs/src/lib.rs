@@ -106,7 +106,7 @@ pub fn game_plugin(app: &mut App) -> &mut App {
 				time_scale: 1.0,
 				substeps: 1,
 			},
-			..default()
+			..RapierConfiguration::new(1.0)
 		})
 		.add_plugins((
 			RapierPhysicsPlugin::<()>::default().in_schedule(Update),

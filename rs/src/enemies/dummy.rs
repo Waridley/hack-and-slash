@@ -4,6 +4,7 @@ use bevy::{
 	ecs::system::{EntityCommands, SystemParamItem},
 	prelude::*,
 };
+use bevy::color::palettes::basic::YELLOW;
 use bevy_kira_audio::{Audio, AudioControl};
 use bevy_rapier3d::{
 	dynamics::LockedAxes,
@@ -52,7 +53,7 @@ fn setup(
 		half_length: 4.0,
 		..default()
 	});
-	let material = materials.add(Color::YELLOW);
+	let material = materials.add(Color::from(YELLOW));
 	let collider = Collider::capsule(Vect::NEG_Y * 2.0, Vect::Y * 2.0, 2.0);
 	let locked_axes = LockedAxes::ROTATION_LOCKED
 		| LockedAxes::TRANSLATION_LOCKED_X
@@ -163,7 +164,7 @@ pub fn handle_hits(
 ) {
 	for event in events.read() {
 		if let Ok((id, global)) = dummies.get(event.victim) {
-			let Some(toi) = event.toi.details else {
+			let Some(toi) = event.hit.details else {
 				continue;
 			};
 			if let Some(body) = ctx

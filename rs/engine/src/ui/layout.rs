@@ -7,10 +7,12 @@ use bevy_rapier3d::parry::{
 };
 use rapier3d::{
 	na::Vector3,
-	parry::query::{time_of_impact, Ray},
+	parry::query::Ray,
 };
 use serde::{Deserialize, Serialize};
 use std::f32::consts::{PI, TAU};
+use bevy_rapier3d::parry::query::cast_shapes;
+use bevy_rapier3d::prelude::ShapeCastOptions;
 
 #[derive(Component, Clone, Copy, Debug, Reflect, Serialize, Deserialize)]
 #[reflect(Component, Serialize, Deserialize)]
@@ -191,7 +193,7 @@ fn compute_separation(desired_relative: Vec3, a: &WidgetShape, b: &WidgetShape) 
 	let iso_rel = b.isometry.translation.vector - a.isometry.translation.vector;
 	let start_dist = a_len + b_len + Vec3::from(iso_rel).length();
 	let b_start = dir * start_dist;
-	let Ok(toi) = time_of_impact(
+	let Ok(toi) = cast_shapes(
 		&a.isometry,
 		&Vector::zeros(),
 		&*a.shape.0,
@@ -201,8 +203,10 @@ fn compute_separation(desired_relative: Vec3, a: &WidgetShape, b: &WidgetShape) 
 		},
 		&-dir,
 		&*b.shape.0,
-		start_dist,
-		true,
+		ShapeCastOptions {
+			max_time_of_impact: start_dist,
+			..default()
+		}
 	) else {
 		if cfg!(debug_assertions) {
 			panic!("ToI between {a:?} and {b:?} unsupported");
@@ -212,12 +216,12 @@ fn compute_separation(desired_relative: Vec3, a: &WidgetShape, b: &WidgetShape) 
 		}
 	};
 
-	let Some(toi) = toi else {
+	let Some(hit) = toi else {
 		warn!(?a, ?b, "Unable to find contact between shapes");
 		return Vec3::ZERO;
 	};
 	let dir = Vec3::from(dir);
-	((start_dist - toi.toi) * dir) + (desired_relative - dir)
+	((start_dist - hit.time_of_impact) * dir) + (desired_relative - dir)
 }
 
 #[derive(Component, Clone, Debug, Reflect, Serialize, Deserialize)]

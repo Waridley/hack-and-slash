@@ -8,7 +8,7 @@ use bevy::{
 	},
 };
 use std::f32::consts::{FRAC_PI_2, PI, TAU};
-use bevy::utils::smallvec::{smallvec, SmallVec};
+use smallvec::{smallvec, SmallVec};
 
 /// The corners of a square with dimensions [1.0, 1.0], centered around the origin.
 #[inline]
@@ -84,7 +84,7 @@ pub struct PlanarPolyLine {
 	/// Also, if any inner `Vec` is empty, the last color from the previous one will be used.
 	/// If the outer `Vec` is shorter than `points`, the last color will also be repeated for
 	/// all remaining vertices.
-	pub colors: SmallVec<[SmallVec<[Color; 1]>; 2]>,
+	pub colors: SmallVec<[SmallVec<[LinearRgba; 1]>; 2]>,
 	/// If `true`, the last point will be connected to the first, closing the shape.
 	///
 	/// Defaults to `true`.
@@ -114,8 +114,8 @@ impl FromIterator<Vec2> for PlanarPolyLine {
 
 /// Construct a `PlanarPolyLine` with a square cross-section and a single
 /// color at each corner.
-impl FromIterator<(Vec2, Color)> for PlanarPolyLine {
-	fn from_iter<T: IntoIterator<Item = (Vec2, Color)>>(iter: T) -> Self {
+impl FromIterator<(Vec2, LinearRgba)> for PlanarPolyLine {
+	fn from_iter<T: IntoIterator<Item = (Vec2, LinearRgba)>>(iter: T) -> Self {
 		let (points, colors) = iter
 			.into_iter()
 			.map(|(point, color)| (point, smallvec![color]))
@@ -129,9 +129,10 @@ impl FromIterator<(Vec2, Color)> for PlanarPolyLine {
 }
 
 impl Meshable for PlanarPolyLine {
-	type Output = Mesh;
+	type Output = PlanarPolylineMeshBuilder;
 
 	fn mesh(&self) -> Self::Output {
+		// FIXME: Move this impl to `PlanarPolylineMeshBuilder::build
 		fn point_to_3d(p: Vec2) -> Vec3 {
 			Vec3::new(p.x, 0.0, p.y)
 		}
@@ -143,7 +144,7 @@ impl Meshable for PlanarPolyLine {
 			Vec::new()
 		};
 		let mut normals = Vec::with_capacity(verts.len());
-		let mut color = Color::BLACK.as_rgba_f32();
+		let mut color = Color::BLACK.to_linear().to_f32_array();
 		let mut colors = self.colors.iter();
 		if !self.closed {
 			for (b, c) in
@@ -175,7 +176,7 @@ impl Meshable for PlanarPolyLine {
 				verts.push(vert);
 				normals.push(normal);
 				if let Some(new_color) = colors.next() {
-					color = new_color.as_rgba_f32();
+					color = new_color.to_f32_array();
 				}
 				if self.colors.len() > 0 {
 					vert_colors.push(color);
@@ -217,13 +218,13 @@ impl Meshable for PlanarPolyLine {
 		if self.colors.len() > 0 {
 			mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, vert_colors);
 		}
-		mesh
+		PlanarPolylineMeshBuilder(mesh)
 	}
 }
 
 impl From<PlanarPolyLine> for Mesh {
 	fn from(value: PlanarPolyLine) -> Self {
-		value.mesh()
+		value.mesh().build()
 	}
 }
 
@@ -244,5 +245,14 @@ impl PlanarPolyLine {
 			cross_section: square_points(thickness),
 			..default()
 		}
+	}
+}
+
+pub struct PlanarPolylineMeshBuilder(Mesh);
+
+impl MeshBuilder for PlanarPolylineMeshBuilder {
+	fn build(&self) -> Mesh {
+		// FIXME: Should move `mesh` impl here instead
+		self.0.clone()
 	}
 }

@@ -38,7 +38,8 @@ use std::{
 	ops::ControlFlow,
 	sync::{Arc, Mutex},
 };
-use bevy::utils::smallvec::{smallvec, SmallVec};
+use bevy::color::palettes::basic::PURPLE;
+use smallvec::{smallvec, SmallVec};
 use web_time::Duration;
 use crate::ui::widgets::borders::Border;
 
@@ -159,7 +160,7 @@ impl Default for PanelBundle {
 #[reflect(Component)]
 pub struct CuboidPanel {
 	pub size: Vec3,
-	pub colors: Option<CuboidFaces<RectCorners<Color>>>,
+	pub colors: Option<CuboidFaces<RectCorners<LinearRgba>>>,
 	pub translation: Vec3,
 	pub rotation: Quat,
 	pub mesh_margin: Vec3,
@@ -225,7 +226,8 @@ impl CuboidPanel {
 				size.y - mesh_margin.y,
 				size.z - mesh_margin.z,
 			)
-			.mesh();
+				.mesh()
+				.build();
 			offset_mesh_positions(&mut mesh, *translation, *rotation);
 			if let Some(colors) = colors {
 				mesh.insert_attribute(
@@ -233,7 +235,7 @@ impl CuboidPanel {
 					colors
 						.into_iter()
 						.flatten()
-						.map(Color::as_rgba_f32)
+						.map(LinearRgba::to_f32_array)
 						.collect::<Vec<_>>(),
 				)
 			}
@@ -772,7 +774,7 @@ pub fn draw_widget_shape_gizmos<const LAYER: Layer>(
 		&RenderLayers,
 	)>,
 ) {
-	let color = Color::PURPLE;
+	let color = PURPLE;
 	for (id, xform, shape, vis, layers) in &q {
 		if !**vis {
 			continue;
@@ -801,7 +803,7 @@ impl WidgetShape {
 		global_position: Vec3,
 		rotation: Quat,
 		scale: f32,
-		color: Color,
+		color: impl Into<Color>,
 	) {
 		let translation = global_position + Vec3::from(self.isometry.translation);
 		let rotation = rotation * Quat::from(self.isometry.rotation);
@@ -824,6 +826,7 @@ impl WidgetShape {
 			TypedShape::Capsule(capsule) => {
 				let a = xform * Vec3::from(capsule.segment.a);
 				let b = xform * Vec3::from(capsule.segment.b);
+				let color = color.into();
 				cylinder_gizmo(gizmos, a, b, capsule.radius * scale, color);
 				let dir = (b - a).normalize();
 				let a_rot = Quat::from_rotation_arc(Vec3::Z, dir);
@@ -839,12 +842,14 @@ impl WidgetShape {
 			TypedShape::Triangle(tri) => {
 				let [a, b, c]: [Vec3; 3] = [tri.a.into(), tri.b.into(), tri.c.into()];
 				let [a, b, c] = [xform * a, xform * b, xform * c];
+				let color = color.into();
 				gizmos.line(a, b, color);
 				gizmos.line(b, c, color);
 				gizmos.line(c, a, color);
 			}
 			TypedShape::TriMesh(_) => todo_warn!("Gizmo for WidgetShape(TriMesh)"),
 			TypedShape::Polyline(lines) => {
+				let color = color.into();
 				for [ia, ib] in lines.indices() {
 					let a = xform * Vec3::from(lines.vertices()[*ia as usize]);
 					let b = xform * Vec3::from(lines.vertices()[*ib as usize]);
@@ -862,7 +867,7 @@ impl WidgetShape {
 			TypedShape::Cylinder(cylinder) => {
 				let a = xform * Vec3::Y * cylinder.half_height;
 				let b = xform * Vec3::NEG_Y * cylinder.half_height;
-				cylinder_gizmo(gizmos, a, b, cylinder.radius * scale, color);
+				cylinder_gizmo(gizmos, a, b, cylinder.radius * scale, color.into());
 			}
 			TypedShape::Cone(_) => todo_warn!("Gizmo for WidgetShape(Cone)"),
 			TypedShape::RoundCuboid(round_cuboid) => {
@@ -890,7 +895,7 @@ fn cylinder_gizmo<T: GizmoConfigGroup>(
 	r: f32,
 	color: Color,
 ) {
-	let dir = Direction3d::new(b - a)
+	let dir = Dir3::new(b - a)
 		.expect("capsule or cylinder WidgetShape should be created with non-zero, finite length");
 	gizmos.circle(a, dir, r, color);
 	gizmos.circle(b, dir, r, color);
@@ -987,7 +992,7 @@ pub fn focus_state_colors(unfocused: Color, focused: Color) -> CowArc<'static, I
 	)
 }
 
-pub fn focus_state_emissive(unfocused: Color, focused: Color) -> CowArc<'static, InteractHandler> {
+pub fn focus_state_emissive(unfocused: LinearRgba, focused: LinearRgba) -> CowArc<'static, InteractHandler> {
 	focus_with_asset::<UiMat>(
 		move |mat| mat.base.base.emissive = focused,
 		move |mat| mat.base.base.emissive = unfocused,
@@ -1018,7 +1023,7 @@ pub fn focus_with_asset<A: Asset>(
 				};
 				entity.world_scope(move |world| {
 					let mut mats = world.resource_mut::<Assets<A>>();
-					let Some(mat) = mats.get_mut(handle.clone()) else {
+					let Some(mat) = mats.get_mut(handle.id()) else {
 						error!(?handle, "can't handle focus -- missing asset for handle");
 						return;
 					};

@@ -43,7 +43,9 @@ use enum_components::{EntityEnumCommands, EnumComponent, WithVariant};
 use leafwing_input_manager::action_state::ActionState;
 use rapier3d::geometry::SharedShape;
 use std::ops::ControlFlow;
-use bevy::utils::smallvec::smallvec;
+use bevy::color::palettes::basic::{GRAY, TEAL};
+use bevy::color::palettes::css::{LIMEGREEN, ORANGE_RED};
+use smallvec::smallvec;
 use web_time::Duration;
 use engine::ui::layout::ExpandToFitChildren;
 use engine::ui::widgets::borders::Border;
@@ -160,7 +162,7 @@ pub fn setup(
 							material: mats.add(UiMatBuilder {
 								std: StandardMaterial {
 									base_color: Color::BLACK,
-									emissive: Color::LIME_GREEN * 16.0,
+									emissive: LinearRgba::from(LIMEGREEN) * 16.0,
 									..default()
 								},
 								..default()
@@ -173,7 +175,7 @@ pub fn setup(
 									});
 									ControlFlow::Break(())
 								}),
-								focus_state_colors(Color::BLACK, Color::LIME_GREEN),
+								focus_state_colors(Color::BLACK, Color::from(LIMEGREEN)),
 							].into(),
 							adjacent: AdjacentWidgets::vertical_siblings(),
 							..default()
@@ -203,7 +205,7 @@ pub fn setup(
 							material: mats.add(UiMatBuilder {
 								std: StandardMaterial {
 									base_color: Color::BLACK,
-									emissive: Color::TEAL * 20.0,
+									emissive: LinearRgba::from(TEAL) * 20.0,
 									..default()
 								},
 								..default()
@@ -224,7 +226,7 @@ pub fn setup(
 									});
 									ControlFlow::Break(())
 								}),
-								focus_state_emissive(Color::TEAL * 20.0, Color::TEAL * 30.0),
+								focus_state_emissive(LinearRgba::from(TEAL) * 20.0, LinearRgba::from(TEAL) * 30.0),
 							].into(),
 							..default()
 						},
@@ -255,7 +257,7 @@ pub fn setup(
 							material: mats.add(UiMatBuilder {
 								std: StandardMaterial {
 									base_color: Color::BLACK,
-									emissive: Color::GRAY * 16.0,
+									emissive: LinearRgba::from(GRAY) * 16.0,
 									..default()
 								},
 								..default()
@@ -275,7 +277,7 @@ pub fn setup(
 									});
 									ControlFlow::Break(())
 								}),
-								focus_state_colors(Color::BLACK, Color::GRAY),
+								focus_state_colors(Color::BLACK, Color::from(GRAY)),
 							].into(),
 							adjacent: AdjacentWidgets::vertical_siblings(),
 							..default()
@@ -307,7 +309,7 @@ pub fn setup(
 							material: mats.add(UiMatBuilder {
 								std: StandardMaterial {
 									base_color: Color::BLACK,
-									emissive: Color::ORANGE_RED * 16.0,
+									emissive: LinearRgba::from(ORANGE_RED) * 16.0,
 									..default()
 								},
 								..default()
@@ -317,11 +319,11 @@ pub fn setup(
 								on_ok(|cmds| {
 									cmds.commands().add(|world: &mut World| {
 										world.resource_mut::<Events<AppExit>>()
-											.send(AppExit);
+											.send(AppExit::Success);
 									});
 									ControlFlow::Break(())
 								}),
-								focus_state_colors(Color::BLACK, Color::ORANGE_RED),
+								focus_state_colors(Color::BLACK, Color::from(ORANGE_RED)),
 							].into(),
 							adjacent: AdjacentWidgets::vertical_siblings(),
 							..default()

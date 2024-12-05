@@ -13,12 +13,14 @@ use bevy::{
 		},
 	},
 };
+use bevy::color::palettes::basic::FUCHSIA;
 use bevy_rapier3d::{
 	geometry::{Collider, CollisionGroups, Group},
 	math::Vect,
 	pipeline::QueryFilter,
 	plugin::RapierContext,
 };
+use bevy_rapier3d::prelude::ShapeCastOptions;
 use engine::ui::spawn_ui_camera;
 use enum_components::{EntityEnumCommands, WithVariant};
 
@@ -100,7 +102,7 @@ pub fn spawn_cameras(
 		for chunk in tex.data.chunks_mut(16) {
 			// Displays fuchsia if shader/custom pipeline aren't working
 			chunk.copy_from_slice(unsafe {
-				&*(&Color::FUCHSIA.as_rgba_f32() as *const [f32; 4] as *const [u8; 16])
+				&*(&FUCHSIA.to_f32_array() as *const [f32; 4] as *const [u8; 16])
 			});
 		}
 
@@ -221,12 +223,14 @@ pub fn position_target(
 			-rot,
 			dir,
 			col,
-			MAX_CAM_DIST - MIN_CAM_DIST,
-			true,
+			ShapeCastOptions {
+				max_time_of_impact: MAX_CAM_DIST - MIN_CAM_DIST,
+				..default()
+			},
 			filter,
 		);
-		let toi = if let Some((_, toi)) = result {
-			let toi = toi.toi;
+		let toi = if let Some((_, hit)) = result {
+			let toi = hit.time_of_impact;
 			if toi == 0.0 {
 				if ctx
 					.cast_shape(
@@ -234,8 +238,11 @@ pub fn position_target(
 						-rot,
 						-dir,
 						col,
-						(MAX_CAM_DIST - MIN_CAM_DIST) * 0.3, // Don't want enormous object right in front of camera if possible
-						true,
+						ShapeCastOptions {
+							// Don't want enormous object right in front of camera if possible
+							max_time_of_impact: (MAX_CAM_DIST - MIN_CAM_DIST) * 0.3,
+							..default()
+						},
 						filter,
 					)
 					.is_some()

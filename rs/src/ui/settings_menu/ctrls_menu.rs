@@ -36,8 +36,10 @@ use std::{
 	ops::{ControlFlow, ControlFlow::Break},
 	sync::Arc,
 };
+use bevy::color::palettes::basic::{GRAY, GREEN};
+use bevy::color::palettes::css::DARK_GRAY;
 use bevy::utils::CowArc;
-use bevy::utils::smallvec::smallvec;
+use smallvec::smallvec;
 use engine::draw::{square_points, PlanarPolyLine};
 use engine::input::ActionExt;
 use engine::ui::widgets::borders::Border;
@@ -60,7 +62,7 @@ pub fn setup(
 
 	let entry_btn_mat = mats.add(UiMatBuilder::from(StandardMaterial {
 		reflectance: 0.2,
-		..StandardMaterial::from(Color::DARK_GRAY.with_a(0.5))
+		..StandardMaterial::from(Color::from(DARK_GRAY.with_alpha(0.5)))
 	}));
 	
 	fn bindings_entries<A: ActionExt>(
@@ -176,7 +178,7 @@ pub fn setup(
 			.collect::<Vec<_>>()
 	}
 	
-	let entry_focus_border_mat = mats.add(UiMatBuilder::from(Color::GRAY));
+	let entry_focus_border_mat = mats.add(UiMatBuilder::from(Color::from(GRAY)));
 	
 	//FIXME: Temporary till per-player Options menu is implemented
 	let owner = BelongsToPlayer::new(1);
@@ -226,7 +228,7 @@ pub fn setup(
 			..default()
 		},
 		Node3dBundle::default(),
-		mats.add(UiMatBuilder::from(Color::DARK_GRAY)),
+		mats.add(UiMatBuilder::from(Color::from(DARK_GRAY))),
 	);
 	
 	let bindings_section_inner_components = (
@@ -256,7 +258,7 @@ pub fn setup(
 				size: Vec3::new(10.0, 0.25, 0.25),
 				..default()
 			},
-			material: mats.add(UiMatBuilder::from(Color::DARK_GRAY)),
+			material: mats.add(UiMatBuilder::from(Color::from(DARK_GRAY))),
 			..default()
 		}
 	);
@@ -384,7 +386,7 @@ pub fn setup(
 											..default()
 										},
 										font: ui_fonts.mono.clone(),
-										material: mats.add(UiMatBuilder::from(Color::GREEN)),
+										material: mats.add(UiMatBuilder::from(Color::from(GREEN))),
 										..default()
 									}
 								),

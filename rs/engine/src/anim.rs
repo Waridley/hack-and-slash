@@ -280,6 +280,7 @@ impl<T: Component> ComponentDelta<T> {
 
 pub type DynApply<T> = dyn FnOnce(Mut<T>, f32) + Send + Sync + 'static;
 
+#[derive(Component)]
 pub struct Delta<T> {
 	/// Current progress the animation has made. Return a finite number if progress can
 	/// be determined and the animation should be blended. Any non-finite number, such

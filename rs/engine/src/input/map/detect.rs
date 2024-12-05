@@ -25,9 +25,10 @@ use crate::{
 };
 use bevy::{
 	prelude::*,
-	utils::{smallvec::SmallVec, HashMap},
+	utils::HashMap,
 };
-use bevy::utils::smallvec::smallvec;
+use bevy::color::palettes::css::AQUAMARINE;
+use smallvec::{smallvec, SmallVec};
 use bevy_svg::prelude::Origin;
 
 pub struct DetectBindingPopupPlugin;
@@ -87,14 +88,15 @@ pub fn setup(
 						meshes.add(
 							PlanarPolyLine {
 								colors: smallvec![
-									smallvec![Color::rgba(0.0, 0.2, 0.2, 0.6)],
-									smallvec![Color::rgba(0.0, 0.4, 0.1, 0.6)],
-									smallvec![Color::rgba(0.0, 0.2, 0.2, 0.6)],
-									smallvec![Color::rgba(0.0, 0.1, 0.4, 0.6)],
+									smallvec![LinearRgba::new(0.0, 0.2, 0.2, 0.6)],
+									smallvec![LinearRgba::new(0.0, 0.4, 0.1, 0.6)],
+									smallvec![LinearRgba::new(0.0, 0.2, 0.2, 0.6)],
+									smallvec![LinearRgba::new(0.0, 0.1, 0.4, 0.6)],
 								],
 								..PlanarPolyLine::rect(8.0, 6.0, 0.25)
 							}
 							.mesh()
+							.build()
 							.with_duplicated_vertices()
 							.with_computed_flat_normals(),
 						),
@@ -121,7 +123,7 @@ pub fn setup(
 							extension: default(),
 							base: Matter {
 								extension: DistanceDither::ui(),
-								base: Color::AQUAMARINE.into(),
+								base: Color::from(AQUAMARINE).into(),
 							},
 						}),
 						transform: Transform {
