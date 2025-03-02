@@ -11,7 +11,7 @@ use bevy_rapier3d::{
 use bevy_rapier3d::prelude::ShapeCastOptions;
 use enum_components::{ERef, WithVariant};
 use leafwing_input_manager::{
-	action_state::ActionState, axislike::DualAxisData, systems::update_action_state,
+	action_state::ActionState, systems::update_action_state,
 };
 use particles::{PreviousGlobalTransform, Spewer};
 use rapier3d::pipeline::QueryFilterFlags;
@@ -195,7 +195,7 @@ pub fn jump(
 }
 
 pub fn dash(
-	input_dir: Option<DualAxisData>,
+	input_dir: Vec2,
 	dash_vel: f32,
 	linvel: &mut Vec3,
 	audio: &Audio,
@@ -203,14 +203,7 @@ pub fn dash(
 ) {
 	audio.play(sfx.dash.clone()).with_volume(0.2);
 	// Use the most-recently-input direction, not current velocity, to dash in the direction the player expects.
-	let dir = if let Some(dir) = input_dir.as_ref().and_then(DualAxisData::direction) {
-		dir.unit_vector()
-	} else {
-		// Default to forward if no input.
-		// Even if already moving in some direction, a lack of movement input indicates
-		// the player is expecting the dash button to do the default thing.
-		Vec2::new(0.0, 1.0)
-	} * dash_vel;
+	let dir = input_dir.normalize_or(Vec2::Y) * dash_vel;
 	linvel.x = dir.x;
 	linvel.y = dir.y;
 }
@@ -471,7 +464,7 @@ pub fn fill_weapons(mut q: Query<&mut WeaponCharge>, params: Res<PlayerParams>, 
 		if *charge <= params.abil.weapon_capacity {
 			**charge = f32::min(
 				*params.abil.weapon_capacity,
-				**charge + *params.abil.weapon_fill_per_second * t.delta_seconds(),
+				**charge + *params.abil.weapon_fill_per_second * t.delta_secs(),
 			);
 		}
 	}
@@ -524,7 +517,7 @@ pub struct Hurt {
 }
 
 pub fn hit_stuff(
-	ctx: Res<RapierContext>,
+	ctx: Single<&RapierContext>,
 	q: Query<
 		(
 			Entity,

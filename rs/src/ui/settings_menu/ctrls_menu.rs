@@ -8,9 +8,9 @@ use bevy::{
 use engine::{
 	entity_tree,
 	input::map::{
-		icons::{Icon, InputIcons, UserInputIcons},
+		icons::{Icon, BasicInputIcons, UserInputIcons},
 		widgets::{InputIcon, InputIconBundle},
-		GamepadSeries,
+		Platform,
 	},
 	todo_warn,
 	ui::{
@@ -28,7 +28,7 @@ use engine::{
 	util::LerpSlerp,
 };
 use leafwing_input_manager::{
-	prelude::{InputKind, InputMap, UserInput},
+	prelude::{InputMap, UserInputWrapper},
 	Actionlike,
 };
 use serde::{Deserialize, Serialize};
@@ -36,12 +36,14 @@ use std::{
 	ops::{ControlFlow, ControlFlow::Break},
 	sync::Arc,
 };
+use std::borrow::Cow;
 use bevy::color::palettes::basic::{GRAY, GREEN};
 use bevy::color::palettes::css::DARK_GRAY;
-use bevy::utils::CowArc;
+use atomicow::CowArc;
 use smallvec::smallvec;
 use engine::draw::{square_points, PlanarPolyLine};
 use engine::input::ActionExt;
+use engine::input::map::icons::{AxisIcons, DualAxisIcons, InputIconFileMap, TripleAxisIcons};
 use engine::ui::widgets::borders::Border;
 use engine::ui::widgets::{focus_toggle_border, InteractionKind, InteractionSource, Node3dBundle};
 use engine::util::Flat;
@@ -84,7 +86,7 @@ pub fn setup(
 						adjacent: AdjacentWidgets::all(FocusTarget::ChildN(1)),
 						handlers: InteractHandlers::on_action(UiAction::Opt1, move |cmds| {
 							let action_key = action_key.clone();
-							cmds.commands().add(move |world: &mut World| {
+							cmds.commands().queue(move |world: &mut World| {
 								let mut q = world.query::<(&mut InputMap<A>, &BelongsToPlayer)>();
 								let Some(mut imap) = q.iter_mut(world)
 									.find(|(imap, &imap_owner)| imap_owner == owner)
@@ -106,12 +108,12 @@ pub fn setup(
 							Text3dBundle {
 								text_3d: Text3d {
 									text: name.into(),
+									font: font.clone(),
 									align_origin: Vec3::new(0.0, 0.5, 0.5),
 									vertex_scale: Vec3::splat(0.5),
 									..default()
 								},
-								font: font.clone(),
-								material: text_mat.clone(),
+								material: MeshMaterial3d(text_mat.clone()),
 								..default()
 							},
 						),
@@ -122,7 +124,7 @@ pub fn setup(
 									mesh_margin: Vec3::new(0.0, 0.0, 0.5),
 									..default()
 								},
-								material: entry_btn_mat.clone(),
+								material: MeshMaterial3d(entry_btn_mat.clone()),
 								handlers: smallvec![
 									dbg_event(),
 									focus_toggle_border(),
@@ -155,7 +157,7 @@ pub fn setup(
 										},
 										..default()
 									},
-									entry_focus_border_mat.clone(),
+									MeshMaterial3d(entry_focus_border_mat.clone()),
 								),
 								(
 									CuboidContainerBundle {
@@ -228,7 +230,7 @@ pub fn setup(
 			..default()
 		},
 		Node3dBundle::default(),
-		mats.add(UiMatBuilder::from(Color::from(DARK_GRAY))),
+		MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(DARK_GRAY)))),
 	);
 	
 	let bindings_section_inner_components = (
@@ -244,10 +246,10 @@ pub fn setup(
 		text_3d: Text3d {
 			vertex_scale: Vec3::splat(0.7),
 			text: "Menu Controls".into(),
+			font: ui_fonts.mono.clone(),
 			..default()
 		},
-		font: ui_fonts.mono.clone(),
-		material: text_mat.clone(),
+		material: MeshMaterial3d(text_mat.clone()),
 		..default()
 	};
 	
@@ -258,7 +260,7 @@ pub fn setup(
 				size: Vec3::new(10.0, 0.25, 0.25),
 				..default()
 			},
-			material: mats.add(UiMatBuilder::from(Color::from(DARK_GRAY))),
+			material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(DARK_GRAY)))),
 			..default()
 		}
 	);
@@ -297,7 +299,7 @@ pub fn setup(
 						bindings_container_components.clone(),
 						;
 						=> |cmds| {
-							cmds.push_children(&game_bindings_entries);
+							cmds.add_children(&game_bindings_entries);
 						}
 					)
 				]
@@ -322,7 +324,7 @@ pub fn setup(
 						bindings_container_components,
 						;
 						=> |cmds| {
-							cmds.push_children(&ui_bindings_entries);
+							cmds.add_children(&ui_bindings_entries);
 						}
 					),
 				]
@@ -335,7 +337,7 @@ pub fn setup(
 			Name::new("ControlsMenu"),
 			CuboidPanelBundle {
 				transform,
-				material: mats.add(UiMatBuilder {
+				material: MeshMaterial3d(mats.add(UiMatBuilder {
 					std: StandardMaterial {
 						base_color: Color::rgba(0.1, 0.3, 0.1, 0.5),
 						alpha_mode: AlphaMode::Blend,
@@ -344,7 +346,7 @@ pub fn setup(
 						..default()
 					},
 					..default()
-				}),
+				})),
 				handlers: MenuStack::pop_on_back(GLOBAL_UI_RENDER_LAYERS, 0.7),
 				adjacent: all_first_control.clone(),
 				..default()
@@ -382,11 +384,11 @@ pub fn setup(
 									Text3dBundle {
 										text_3d: Text3d {
 											text: "Controls".into(),
+											font: ui_fonts.mono.clone(),
 											flat: false,
 											..default()
 										},
-										font: ui_fonts.mono.clone(),
-										material: mats.add(UiMatBuilder::from(Color::from(GREEN))),
+										material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(GREEN)))),
 										..default()
 									}
 								),
@@ -399,7 +401,7 @@ pub fn setup(
 									LineUpChildren::vertical().with_spacing(1.0),
 									;
 									=> |cmds| {
-										cmds.push_children(&[
+										cmds.add_children(&[
 											game_ctrls_section,
 											ui_ctrls_section,
 										]);
@@ -462,12 +464,12 @@ pub fn anchor_follow_focus(
 		target.translation.z = target
 			.translation
 			.z
-			.lerp(focus.translation.z, t.delta_seconds() * 10.0);
+			.lerp(focus.translation.z, t.delta_secs() * 10.0);
 	}
 	if target.rotation.angle_between(focus.rotation) > 0.001 {
 		target.rotation = target
 			.rotation
-			.slerp(focus.rotation, t.delta_seconds() * 10.0);
+			.slerp(focus.rotation, t.delta_secs() * 10.0);
 	}
 }
 
@@ -475,10 +477,11 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 	mut cmds: Commands,
 	q: Query<(Entity, &BindingListContainer<A>, Option<&BelongsToPlayer>)>,
 	imaps: Query<(Ref<InputMap<A>>, &BelongsToPlayer)>,
-	gamepads: Res<Gamepads>,
+	gamepads: Query<(Option<&Name>, &Gamepad)>,
 	mut global_imap: Option<ResMut<InputMap<A>>>,
 	fonts: Res<UiFonts>,
 	mut mats: ResMut<Assets<UiMat>>,
+	icon_map: Res<InputIconFileMap>,
 ) {
 	for (imap, owner) in global_imap
 		.as_mut()
@@ -491,78 +494,121 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 		for (id, container, _) in q.iter().filter(|it| it.2.copied() == owner) {
 			let gp = imap
 				.gamepad()
-				.and_then(|gp| gamepads.name(gp))
-				.map(GamepadSeries::guess);
+				.and_then(|gp| gamepads.get(gp).ok())
+				.and_then(|(name, _)| name)
+				.map(Name::as_str)
+				.and_then(Platform::guess_gamepad);
 			let action = &container.0;
 			let mut cmds = cmds.entity(id);
 			debug!(?id,"clearing icons for {action:?}");
 			cmds.despawn_descendants();
 			cmds.with_children(|cmds| {
-				let darker_gray = mats.add(UiMatBuilder::from(StandardMaterial {
+				let darker_gray = MeshMaterial3d(mats.add(UiMatBuilder::from(StandardMaterial {
 					reflectance: 0.01,
 					..StandardMaterial::from(Color::rgba(0.05, 0.05, 0.05, 0.7))
-				}));
+				})));
 				let text_mat = mats.add(new_unlit_material());
 
 				for binding in imap.get(action).into_iter().flatten() {
 					fn icon_bundle(
 						icon: Icon,
-						fonts: &UiFonts,
+						font: Handle<Font>,
 						mat: Handle<UiMat>,
 						scale: f32,
 					) -> InputIconBundle<UiMat> {
 						InputIconBundle::<UiMat> {
 							input_icon: InputIcon {
 								icon,
+								font,
 								size: Vec3::new(scale, 1.0, scale),
 								tolerance: 0.2,
 								..default()
 							},
-							font: fonts.mono.clone(),
-							material: mat,
+							material: MeshMaterial3d(mat),
 							..default()
 						}
 					}
-
-					macro_rules! multi_icon {
-						($cmds:ident, $icons:expr, $scale:expr) => {
-							match $icons {
-								InputIcons::Single(icon) => {
-									let id = $cmds
-										.spawn(icon_bundle(icon, &fonts, text_mat.clone(), $scale))
-										.id();
-								}
-								InputIcons::DualAxis {
-									vertical,
-									horizontal,
-								} => {
-									$cmds.spawn(icon_bundle(
-										vertical,
-										&fonts,
-										text_mat.clone(),
-										$scale,
-									));
-									$cmds.spawn(Text3dBundle::<UiMat> {
-										text_3d: Text3d {
-											text: "/".into(),
-											..default()
-										},
-										font: fonts.mono.clone(),
-										material: text_mat.clone(),
-										..default()
-									});
-									$cmds.spawn(icon_bundle(
-										horizontal,
-										&fonts,
-										text_mat.clone(),
-										$scale,
-									));
+					
+					fn separator(
+						cmds: &mut ChildBuilder,
+						text: impl Into<Cow<'static, str>>,
+						font: Handle<Font>,
+						text_mat: Handle<UiMat>
+					) {
+						cmds.spawn(Text3dBundle::<UiMat> {
+							text_3d: Text3d {
+								text: text.into(),
+								font,
+								..default()
+							},
+							material: MeshMaterial3d(text_mat.clone()),
+							..default()
+						});
+						
+					}
+					
+					fn basic_icons(
+						cmds: &mut ChildBuilder,
+						icons: BasicInputIcons,
+						scale: f32,
+						font: &Handle<Font>,
+						text_mat: &Handle<UiMat>
+					) {
+						match icons {
+							BasicInputIcons::Simple(icon) => {
+								cmds.spawn(icon_bundle(icon, font.clone(), text_mat.clone(), scale));
+							}
+							BasicInputIcons::Composite(btns) => {
+								let mut btns = btns.into_iter();
+								let btn = btns.next();
+								
+								// Manual intersperse to avoid mutably borrwing cmds twice
+								if let Some(btn) = btn {
+									basic_icons(cmds, btn, scale, font, text_mat);
+									
+									for btn in btns {
+										separator(cmds, "|", font.clone(), text_mat.clone());
+										basic_icons(cmds, btn, scale, font, text_mat);
+									}
 								}
 							}
-						};
+							BasicInputIcons::Chord(btns) => {
+								let mut btns = btns.into_iter();
+								let btn = btns.next();
+								
+								// Manual intersperse to avoid mutably borrwing cmds twice
+								if let Some(btn) = btn {
+									basic_icons(cmds, btn, scale, font, text_mat);
+									
+									for btn in btns {
+										separator(cmds, "+", font.clone(), text_mat.clone());
+										basic_icons(cmds, btn, scale, font, text_mat);
+									}
+								}
+							}
+						}
+					}
+					
+					fn axis_icons(
+						cmds: &mut ChildBuilder,
+						icons: AxisIcons,
+						scale: f32,
+						font: &Handle<Font>,
+						text_mat: &Handle<UiMat>
+					) {
+						match icons {
+							AxisIcons::Single(icon) => {
+								cmds.spawn(icon_bundle(icon, font.clone(), text_mat.clone(), scale));
+							},
+							AxisIcons::Composite { positive, negative } => {
+								basic_icons(cmds, positive, scale, font, &text_mat);
+								separator(cmds, "|", font.clone(), text_mat.clone());
+								basic_icons(cmds, negative, scale, font, &text_mat);
+							}
+						}
 					}
 
-					let icons = UserInputIcons::from_user_input(binding, gp);
+					let icons = UserInputIcons::from_user_input(binding.clone(), gp, &*icon_map);
 					debug!(?action, ?binding, ?icons);
 
 					cmds.spawn((
@@ -579,60 +625,63 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 					.with_children(|cmds| {
 						const FULL_SIZE: f32 = 1.2;
 						match icons {
-							UserInputIcons::Single(icons) => multi_icon!(cmds, icons, FULL_SIZE),
-							UserInputIcons::Chord(entries) => {
-								let mut entries = entries.into_iter();
-								if let Some(entry) = entries.next() {
-									multi_icon!(cmds, entry, FULL_SIZE);
-								}
-								for entry in entries {
-									cmds.spawn(Text3dBundle::<UiMat> {
-										text_3d: Text3d {
-											text: "+".into(),
-											..default()
+							UserInputIcons::Button(icons) => basic_icons(cmds, icons, FULL_SIZE, &fonts.mono, &text_mat),
+							UserInputIcons::Axis(icons) => axis_icons(cmds, icons, FULL_SIZE, &fonts.mono, &text_mat),
+							UserInputIcons::DualAxis(icons) => {
+								match icons {
+									DualAxisIcons::Single(icon) => {
+										cmds.spawn(icon_bundle(icon, fonts.mono.clone(), text_mat.clone(), FULL_SIZE));
+									}
+									DualAxisIcons::Composite {
+										horizontal: AxisIcons::Composite {
+											positive: right,
+											negative: left,
 										},
-										material: text_mat.clone(),
-										font: fonts.mono.clone(),
-										..default()
-									});
-									multi_icon!(cmds, entry, FULL_SIZE);
+										vertical: AxisIcons::Composite {
+											positive: up,
+											negative: down,
+										},
+									} => {
+										cmds.spawn((
+											CuboidContainerBundle::default(),
+											ExpandToFitChildren::default(),
+											RadialChildren {
+												radius: FULL_SIZE / 3.0,
+												..default()
+											},
+										))
+											.with_children(|cmds| {
+												// Slightly oversized for readability.
+												basic_icons(cmds, right, FULL_SIZE / 2.4, &fonts.mono, &text_mat);
+												basic_icons(cmds, up, FULL_SIZE / 2.4, &fonts.mono, &text_mat);
+												basic_icons(cmds, left, FULL_SIZE / 2.4, &fonts.mono, &text_mat);
+												basic_icons(cmds, down, FULL_SIZE / 2.4, &fonts.mono, &text_mat);
+											});
+									}
+									DualAxisIcons::Composite {
+										horizontal,
+										vertical,
+									} => {
+										// TODO: Layout vertical icons vertically?
+										axis_icons(cmds, horizontal, FULL_SIZE, &fonts.mono, &text_mat);
+										separator(cmds, "|", fonts.mono.clone(), text_mat.clone());
+										axis_icons(cmds, vertical, FULL_SIZE, &fonts.mono, &text_mat);
+									},
 								}
 							}
-							UserInputIcons::VirtualDPad(dpad) => {
-								let dpad = Arc::into_inner(dpad).expect(
-									"icons were just created and are only in Arc for Reflect",
-								);
-								cmds.spawn((
-									CuboidContainerBundle::default(),
-									ExpandToFitChildren::default(),
-									RadialChildren {
-										radius: FULL_SIZE / 3.0,
-										..default()
-									},
-								))
-								.with_children(|cmds| {
-									// Slightly oversized for readability.
-									multi_icon!(cmds, dpad.right, FULL_SIZE / 2.4);
-									multi_icon!(cmds, dpad.up, FULL_SIZE / 2.4);
-									multi_icon!(cmds, dpad.left, FULL_SIZE / 2.4);
-									multi_icon!(cmds, dpad.down, FULL_SIZE / 2.4);
-								});
-							}
-							UserInputIcons::VirtualAxis(axis) => {
-								let axis = Arc::into_inner(axis).expect(
-									"icons were just created and are only in Arc for Reflect",
-								);
-								multi_icon!(cmds, axis.positive, FULL_SIZE);
-								cmds.spawn(Text3dBundle::<UiMat> {
-									text_3d: Text3d {
-										text: "/".into(),
-										..default()
-									},
-									material: text_mat.clone(),
-									font: fonts.mono.clone(),
-									..default()
-								});
-								multi_icon!(cmds, axis.negative, FULL_SIZE);
+							UserInputIcons::TripleAxis(icons) => {
+								match icons {
+									TripleAxisIcons::Single(icon) => {
+										cmds.spawn(icon_bundle(icon, fonts.mono.clone(), text_mat.clone(), FULL_SIZE));
+									}
+									TripleAxisIcons::Composite { x, y, z } => {
+										axis_icons(cmds, x, FULL_SIZE, &fonts.mono, &text_mat);
+										separator(cmds, "|", fonts.mono.clone(), text_mat.clone());
+										axis_icons(cmds, y, FULL_SIZE, &fonts.mono, &text_mat);
+										separator(cmds, "|", fonts.mono.clone(), text_mat.clone());
+										axis_icons(cmds, z, FULL_SIZE, &fonts.mono, &text_mat);
+									}
+								}
 							}
 						}
 					});

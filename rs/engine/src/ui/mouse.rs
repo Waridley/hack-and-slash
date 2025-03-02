@@ -55,7 +55,7 @@ pub fn mouse_picks_focus(
 				continue;
 			};
 			let pos = ev.position - vp.min;
-			let Some(ray) = cam.viewport_to_world(cam_xform, pos) else {
+			let Ok(ray) = cam.viewport_to_world(cam_xform, pos) else {
 				continue;
 			};
 			let ray = Ray::new(ray.origin.into(), (*ray.direction).into());

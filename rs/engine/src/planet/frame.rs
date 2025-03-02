@@ -56,7 +56,7 @@ impl Default for Frame {
 }
 
 pub fn reframe_all_entities(
-	mut ctx: ResMut<RapierContext>,
+	mut ctx: Single<&mut RapierContext>,
 	mut q: Query<(
 		&mut Transform,
 		&mut GlobalTransform,

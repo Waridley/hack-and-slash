@@ -28,6 +28,7 @@ use bevy::{
 		Render, RenderApp, RenderSet,
 	},
 };
+use bevy::render::storage::GpuShaderStorageBuffer;
 use bevy::render::texture::GpuImage;
 use crate::planet::day_night::DayNightCycle;
 
@@ -71,7 +72,6 @@ pub fn prepare_sky_pipelines(
 	pipeline_cache: Res<PipelineCache>,
 	mut pipelines: ResMut<SpecializedRenderPipelines<SkyPipeline>>,
 	sky_pipeline: Res<SkyPipeline>,
-	msaa: Res<Msaa>,
 	q: Query<(Entity, &Skybox, &SkyShader)>,
 ) {
 	for (id, skybox, shader) in &q {
@@ -161,6 +161,7 @@ impl SpecializedRenderPipeline for SkyPipeline {
 				entry_point: "fragment".into(),
 				targets: vec![Some(ColorTargetState::from(TextureFormat::Rgba32Float))],
 			}),
+			zero_initialize_workgroup_memory: true,
 		}
 	}
 }
@@ -282,11 +283,12 @@ fn prepare_sky_bind_groups(
 	images: Res<RenderAssets<GpuImage>>,
 	fallback_image: Res<FallbackImage>,
 	render_device: Res<RenderDevice>,
+	storage_buffers: Res<RenderAssets<GpuShaderStorageBuffer>>,
 	views: Query<(Entity, &Skybox)>,
 	day_night: Res<DayNightCycle>,
 	t: Res<Time>,
 ) {
-	let s = t.elapsed_seconds_wrapped();
+	let s = t.elapsed_secs_wrapped();
 	let sin_t_z = (s * 0.1).sin();
 	let cos_t_z = (s * 0.1).cos();
 	let sin_t_x = (s * 0.25).sin();
@@ -305,6 +307,9 @@ fn prepare_sky_bind_groups(
 			(images.get(&skybox.image), view_uniforms.uniforms.binding())
 		{
 			let bind_groups = array_init::array_init(|i| {
+				let images = Res::clone(&images);
+				let fallback_image = Res::clone(&fallback_image);
+				let storage_buffers = Res::clone(&storage_buffers);
 				let uniforms = SkyCubeUniforms {
 					face_index: i as _,
 					face_width: skybox.size.x,
@@ -318,8 +323,11 @@ fn prepare_sky_bind_groups(
 				.unprepared_bind_group(
 					&SkyCubeUniforms::bind_group_layout(&render_device),
 					&render_device,
-					&images,
-					&fallback_image,
+					&mut (
+						images,
+						fallback_image,
+						storage_buffers,
+					)
 				)
 				.unwrap();
 				render_device.create_bind_group(

@@ -28,7 +28,7 @@ pub fn setup(
 				translation: Vec3::new(0.0, -32.0, 24.0),
 				..default()
 			},
-			material: mats.add(UiMatBuilder::from(Color::from(PURPLE))),
+			material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(PURPLE)))),
 			handlers: MenuStack::pop_on_back(GLOBAL_UI_RENDER_LAYERS, 0.7),
 			..default()
 		},
@@ -43,10 +43,10 @@ pub fn setup(
 				Text3dBundle {
 					text_3d: Text3d {
 						text: "Player Preferences".into(),
+						font: fonts.mono.clone(),
 						..default()
 					},
-					font: fonts.mono.clone(),
-					material: mats.add(new_unlit_material()),
+					material: MeshMaterial3d(mats.add(new_unlit_material())),
 					..default()
 				}
 			)

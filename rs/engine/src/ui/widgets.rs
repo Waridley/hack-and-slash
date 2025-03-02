@@ -8,8 +8,8 @@ use crate::{
 	},
 	util::{Prev, ZUp},
 };
+use atomicow::CowArc;
 use bevy::{
-	a11y::accesskit::{NodeBuilder, Role},
 	ecs::system::{EntityCommand, EntityCommands},
 	pbr::ExtendedMaterial,
 	prelude::*,
@@ -18,7 +18,7 @@ use bevy::{
 		render_asset::RenderAssetUsages,
 		view::{Layer, RenderLayers},
 	},
-	utils::{CowArc, HashMap, HashSet},
+	utils::{HashMap, HashSet},
 };
 use bevy_rapier3d::{
 	na::Quaternion,
@@ -38,8 +38,11 @@ use std::{
 	ops::ControlFlow,
 	sync::{Arc, Mutex},
 };
+use std::borrow::Cow;
 use bevy::color::palettes::basic::PURPLE;
+use leafwing_input_manager::action_state::ActionKindData;
 use smallvec::{smallvec, SmallVec};
+use tiny_bail::prelude::r;
 use web_time::Duration;
 use crate::ui::widgets::borders::Border;
 
@@ -117,7 +120,7 @@ macro_rules! node_3d_defaults {
 				view_visibility: ::std::default::Default::default(),
 				layers: $crate::ui::GLOBAL_UI_RENDER_LAYERS,
 		    adjacent: ::std::default::Default::default(),
-				ak_node: ::bevy::a11y::accesskit::NodeBuilder::new(::bevy::a11y::accesskit::Role::Unknown).into(),
+				ak_node: ::accesskit::Node::new(::accesskit::Role::Unknown).into(),
 	    }
     };
 }
@@ -142,8 +145,8 @@ impl Default for WidgetBundle {
 
 node_3d! { PanelBundle<M: Material = UiMat> {
 	shape: WidgetShape,
-	mesh: Handle<Mesh>,
-	material: Handle<M>,
+	mesh: Mesh3d,
+	material: MeshMaterial3d<M>,
 }}
 
 impl Default for PanelBundle {
@@ -180,7 +183,7 @@ impl Default for CuboidPanel {
 
 node_3d! { CuboidPanelBundle<M: Material = UiMat> {
 	panel: CuboidPanel,
-	material: Handle<M>,
+	material: MeshMaterial3d<M>,
 }}
 
 impl<M: Material> Default for CuboidPanelBundle<M> {
@@ -240,7 +243,7 @@ impl CuboidPanel {
 				)
 			}
 			let mesh = mesh.with_duplicated_vertices().with_computed_flat_normals();
-			cmds.insert(meshes.add(mesh));
+			cmds.insert(Mesh3d(meshes.add(mesh)));
 		}
 	}
 }
@@ -299,7 +302,7 @@ impl CylinderPanel {
 			offset_mesh_positions(&mut mesh, *translation, *rotation);
 			mesh.asset_usage = RenderAssetUsages::RENDER_WORLD;
 			let handle = meshes.add(mesh);
-			cmds.entity(id).insert(handle.clone());
+			cmds.entity(id).insert(Mesh3d(handle.clone()));
 			let mesh = meshes.get(&handle);
 			debug!(?handle, ?mesh);
 		}
@@ -308,7 +311,7 @@ impl CylinderPanel {
 
 node_3d! { CylinderPanelBundle<M: Material = UiMat> {
 	panel: CylinderPanel,
-	material: Handle<M>,
+	material: MeshMaterial3d<M>,
 }}
 
 impl<M: Material> Default for CylinderPanelBundle<M> {
@@ -349,9 +352,10 @@ pub fn new_unlit_material() -> UiMat {
 	.into()
 }
 
-#[derive(Component, Clone, Debug)]
+#[derive(Component, Clone, Debug, Reflect)]
 pub struct Text3d {
-	pub text: CowArc<'static, str>,
+	pub font: Handle<Font>,
+	pub text: Cow<'static, str>,
 	pub flat: bool,
 	pub vertex_translation: Vec3,
 	pub vertex_rotation: Quat,
@@ -364,6 +368,7 @@ impl Default for Text3d {
 	fn default() -> Self {
 		Self {
 			text: default(),
+			font: default(),
 			flat: true,
 			vertex_translation: Vec3::ZERO,
 			vertex_rotation: Quat::from_rotation_arc(Vec3::Z, Vec3::NEG_Y),
@@ -376,16 +381,14 @@ impl Default for Text3d {
 
 node_3d! { Text3dBundle<M: Material = UiMat> {
 	text_3d: Text3d,
-	font: Handle<Font>,
-	material: Handle<M>,
+	material: MeshMaterial3d<M>,
 }}
 
 impl<M: Material> Default for Text3dBundle<M> {
 	fn default() -> Self {
 		node_3d_defaults! {
 			text_3d: default(),
-			font: default(),
-			material: Handle::weak_from_u128(UNLIT_MATERIAL_ID),
+			material: MeshMaterial3d(Handle::weak_from_u128(UNLIT_MATERIAL_ID)),
 		}
 	}
 }
@@ -393,7 +396,7 @@ impl<M: Material> Default for Text3dBundle<M> {
 impl Text3d {
 	pub fn sync(
 		mut cmds: Commands,
-		mut q: Query<(&Text3d, &Handle<Font>, &mut AKNode)>,
+		mut q: Query<(&Text3d, &mut AKNode)>,
 		changed_text: Query<Entity, Changed<Text3d>>,
 		mut meshes: ResMut<Assets<Mesh>>,
 		mut cache: ResMut<TextMeshCache>,
@@ -403,14 +406,18 @@ impl Text3d {
 	) {
 		let mut to_try = to_retry.drain().chain(&changed_text).collect::<Vec<_>>();
 		for id in to_try {
-			debug!(?id);
-			let Ok((this, font, mut ak_node)) = q.get_mut(id) else {
-				to_retry.insert(id);
-				continue;
+			let (this, mut ak_node) = match q.get_mut(id) {
+				Ok(item) => item,
+				Err(e) => {
+					error!("Couldn't query for changed text entity: {e}");
+					to_retry.insert(id);
+					continue;
+				}
 			};
 			let mut cmds = cmds.entity(id);
 			let Self {
 				ref text,
+				ref font,
 				flat,
 				vertex_translation,
 				vertex_rotation,
@@ -449,7 +456,7 @@ impl Text3d {
 							mut indices,
 						},
 						bbox,
-					) = tessellator.tessellate(&text, &*font, tolerance, vertex_scale.xy());
+					) = r!(tessellator.tessellate(&text, &*font, tolerance, vertex_scale.xy()));
 
 					let half_size = Vec3::new(
 						bbox.size().x * 0.5,
@@ -533,7 +540,7 @@ impl Text3d {
 				continue;
 			};
 			debug!(?id, ?mesh, ?shape);
-			cmds.insert((mesh, shape));
+			cmds.insert((Mesh3d(mesh), shape));
 		}
 	}
 }
@@ -814,7 +821,11 @@ impl WidgetShape {
 		};
 		match self.as_typed_shape() {
 			TypedShape::Ball(ball) => {
-				gizmos.sphere(translation, rotation, ball.radius * scale, color);
+				let iso = Isometry3d {
+					translation: translation.into(),
+					rotation,
+				};
+				gizmos.sphere(iso, ball.radius * scale, color);
 			}
 			TypedShape::Cuboid(cuboid) => {
 				let xform = Transform {
@@ -831,8 +842,8 @@ impl WidgetShape {
 				let dir = (b - a).normalize();
 				let a_rot = Quat::from_rotation_arc(Vec3::Z, dir);
 				let b_rot = a_rot.inverse();
-				gizmos.arc_3d(PI, capsule.radius * scale, a, a_rot, color);
-				gizmos.arc_3d(PI, capsule.radius * scale, b, b_rot, color);
+				gizmos.arc_3d(PI, capsule.radius * scale, Isometry3d { translation: a.into(), rotation: a_rot }, color);
+				gizmos.arc_3d(PI, capsule.radius * scale, Isometry3d { translation: b.into(), rotation: b_rot }, color);
 			}
 			TypedShape::Segment(segment) => {
 				let a = xform * Vec3::from(segment.a);
@@ -897,9 +908,15 @@ fn cylinder_gizmo<T: GizmoConfigGroup>(
 ) {
 	let dir = Dir3::new(b - a)
 		.expect("capsule or cylinder WidgetShape should be created with non-zero, finite length");
-	gizmos.circle(a, dir, r, color);
-	gizmos.circle(b, dir, r, color);
 	let rot = Quat::from_rotation_arc(Vec3::Z, *dir);
+	gizmos.circle(Isometry3d {
+		translation: a.into(),
+		rotation: rot,
+	}, r, color);
+	gizmos.circle(Isometry3d {
+		translation: b.into(),
+		rotation: rot,
+	}, r, color);
 	let tan = rot * Vec3::X;
 	let r = tan * r;
 	let a_l = a - r;
@@ -986,23 +1003,27 @@ pub fn on_focus(
 }
 
 pub fn focus_state_colors(unfocused: Color, focused: Color) -> CowArc<'static, InteractHandler> {
-	focus_with_asset::<UiMat>(
+	focus_with_asset::<UiMat, MeshMaterial3d<UiMat>>(
+		|mat| mat.0.id(),
 		move |mat| mat.base.base.base_color = focused,
 		move |mat| mat.base.base.base_color = unfocused,
 	)
 }
 
 pub fn focus_state_emissive(unfocused: LinearRgba, focused: LinearRgba) -> CowArc<'static, InteractHandler> {
-	focus_with_asset::<UiMat>(
+	focus_with_asset::<UiMat, MeshMaterial3d<UiMat>>(
+		|mat| mat.0.id(),
 		move |mat| mat.base.base.emissive = focused,
 		move |mat| mat.base.base.emissive = unfocused,
 	)
 }
 
-pub fn focus_with_asset<A: Asset>(
+pub fn focus_with_asset<A: Asset, C: Component>(
+	handle_getter: impl Fn(&C) -> AssetId<A> + Send + Sync + 'static,
 	acquire: impl Fn(&mut A) + Send + Sync + 'static,
 	release: impl Fn(&mut A) + Send + Sync + 'static,
 ) -> CowArc<'static, InteractHandler> {
+	let handle_getter: Arc<dyn Fn(&C) -> AssetId<A> + Send + Sync + 'static> = Arc::new(handle_getter);
 	let acquire: Arc<dyn Fn(&mut A) + Send + Sync + 'static> = Arc::new(acquire);
 	let release: Arc<dyn Fn(&mut A) + Send + Sync + 'static> = Arc::new(release);
 	CowArc::Owned(Arc::new(move |ev, cmds| {
@@ -1012,19 +1033,22 @@ pub fn focus_with_asset<A: Asset>(
 				InteractionKind::Release => release.clone(),
 				InteractionKind::Hold(_) => return ControlFlow::Continue(()),
 			};
-			cmds.add(move |mut entity: EntityWorldMut| {
-				let Some(handle) = entity.get::<Handle<A>>().cloned() else {
+			let handle_getter = handle_getter.clone();
+			cmds.queue(move |mut entity: EntityWorldMut| {
+				let Some(handle_component) = entity.get::<C>() else {
 					let id = entity.id();
 					error!(
 						?id,
-						"can't handle focus -- entity is missing handle for asset type"
+						"can't handle focus -- entity is missing {}",
+						std::any::type_name::<C>(),
 					);
 					return;
 				};
-				entity.world_scope(move |world| {
+				let handle = handle_getter(handle_component);
+				entity.world_scope(|world| {
 					let mut mats = world.resource_mut::<Assets<A>>();
-					let Some(mat) = mats.get_mut(handle.id()) else {
-						error!(?handle, "can't handle focus -- missing asset for handle");
+					let Some(mat) = mats.get_mut(handle) else {
+						error!(?handle, "can't handle focus -- missing asset for id");
 						return;
 					};
 					handler(mat);
@@ -1046,7 +1070,7 @@ pub fn focus_toggle_border() -> CowArc<'static, InteractHandler> {
 				InteractionKind::Hold(_) => return ControlFlow::Continue(()),
 			};
 			
-			cmds.add(move |mut world: EntityWorldMut| {
+			cmds.queue(move |mut world: EntityWorldMut| {
 				let Some(children) = world.get::<Children>() else {
 					warn!("no border to show focus: no children");
 					return
@@ -1139,11 +1163,16 @@ impl InteractHandlers {
 				let data = state
 					.action_data(&action)
 					.expect("action is pressed ∴ ActionData exists");
-				let ev = Interaction {
-					source: InteractionSource::Action(action),
-					kind: InteractionKind::Hold(data.timing.current_duration),
-				};
-				propagate_interaction(&mut cmds, focus, ev, &q, &parents);
+				match &data.kind_data {
+					ActionKindData::Button(data) => {
+						let ev = Interaction {
+							source: InteractionSource::Action(action),
+							kind: InteractionKind::Hold(data.timing.current_duration),
+						};
+						propagate_interaction(&mut cmds, focus, ev, &q, &parents);
+					},
+					data => warn!(?data, "Only Button timing is supported"),
+				}
 			}
 			for action in state.get_just_released() {
 				let ev = Interaction {

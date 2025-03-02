@@ -311,8 +311,8 @@ pub struct ExpandToFitChildren {
 }
 
 impl ExpandToFitChildren {
-	pub fn apply<Descriptor: Component + SetSize>(
-		mut q: Query<(&Self, &mut Descriptor, &Children)>,
+	pub fn apply<Container: Component + SetSize>(
+		mut q: Query<(&Self, &mut Container, &Children)>,
 		children: Query<(Ref<WidgetShape>, Ref<Transform>)>,
 	) {
 		for (this, desc, kids) in &mut q {
@@ -328,7 +328,7 @@ impl ExpandToFitChildren {
 				let (shape, xform) = match children.get(child) {
 					Ok(child) => child,
 					Err(e) => {
-						error!("{e}");
+						error!("Couldn't get child from `children` query: {e}");
 						continue;
 					}
 				};

@@ -5,12 +5,12 @@ use crate::{
 		GlobalUi, MenuRef, MenuStack, UiAction, UiCam, GLOBAL_UI_RENDER_LAYERS,
 	},
 };
+use atomicow::CowArc;
 use bevy::{
 	a11y::Focus,
 	ecs::{identifier::error::IdentifierError, query::QueryEntityError},
 	prelude::*,
 	render::view::{Layer, RenderLayers},
-	utils::CowArc,
 };
 use leafwing_input_manager::prelude::ActionState;
 use serde::{Deserialize, Serialize};
@@ -384,27 +384,24 @@ pub fn handle_focus_actions(
 				focus.0 = Some(menu.focus);
 			}
 		}
-		if let Some(dir) = state.clamped_axis_pair(&UiAction::MoveCursor) {
-			if dir.length() > 0.5 {
-				let (dir, target) = curr
-					.0
-					.directions
-					.iter()
-					.find_map(|(wedge, target)| {
-						wedge.contains(dir.xy()).then_some((*wedge, target))
-					})
-					.unzip();
-				if *prev_cursor != dir {
-					if let Some(target) = target {
-						menu.focus = target
-							.resolve(menu.focus, &parents_q, &children_q, &names, &*menu)
-							.unwrap_or(menu.focus);
-						focus.0 = Some(menu.focus);
-					}
-					*prev_cursor = dir;
+		let dir = state.clamped_axis_pair(&UiAction::MoveCursor);
+		if dir.length() > 0.5 {
+			let (dir, target) = curr
+				.0
+				.directions
+				.iter()
+				.find_map(|(wedge, target)| {
+					wedge.contains(dir.xy()).then_some((*wedge, target))
+				})
+				.unzip();
+			if *prev_cursor != dir {
+				if let Some(target) = target {
+					menu.focus = target
+						.resolve(menu.focus, &parents_q, &children_q, &names, &*menu)
+						.unwrap_or(menu.focus);
+					focus.0 = Some(menu.focus);
 				}
-			} else {
-				*prev_cursor = None;
+				*prev_cursor = dir;
 			}
 		} else {
 			*prev_cursor = None;

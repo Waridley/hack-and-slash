@@ -16,11 +16,13 @@ particles = { workspace = true }
 macros = { workspace = true }
 
 # Engine
+accesskit = { workspace = true }
 bevy = { workspace = true, features = ["bevy_ui"] }
 bevy_rapier3d = { workspace = true }
 rapier3d = { workspace = true }
 
 # Util
+atomicow = { workspace = true }
 ab_glyph = { workspace = true }
 array-init = { workspace = true }
 base64 = { workspace = true }
@@ -39,6 +41,7 @@ ron = { workspace = true }
 serde = { workspace = true }
 smallvec = { workspace = true }
 smol_str = { workspace = true }
+tiny_bail = { workspace = true }
 web-time = { workspace = true }
 
 # Debugging
