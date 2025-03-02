@@ -107,8 +107,8 @@ pub fn spawn_pickups(
 
 		let mut cmds = cmds.spawn((
 			MaterialMeshBundle {
-				mesh: handles.mesh.clone(),
-				material: handles.material.clone(),
+				mesh: Mesh3d(handles.mesh.clone()),
+				material: MeshMaterial3d(handles.material.clone()),
 				transform,
 				..default()
 			},
@@ -156,8 +156,8 @@ pub fn collect(
 
 pub fn movement(mut q: Query<&mut Transform, WithPickup>, t: Res<Time>) {
 	// TODO: This is getting too complicated, just sample some noise or something
-	let s = t.elapsed_seconds();
-	let dt = t.delta_seconds();
+	let s = t.elapsed_secs();
+	let dt = t.delta_secs();
 	for mut xform in &mut q {
 		let rise_speed = s * (0.9 + ((s * 0.001 + xform.translation.y * 1000.0).sin() * 0.2));
 		xform.translation.z += dt * (8.0 * ((rise_speed + xform.translation.x).sin() + 0.36));

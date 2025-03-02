@@ -14,7 +14,6 @@ bevy = { workspace = true, features = [
     "default_font",
     "file_watcher",
     "asset_processor",
-    "bevy_dynamic_plugin",
 ] }
 bevy_dylib = { workspace = true }
 

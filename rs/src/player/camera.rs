@@ -145,12 +145,14 @@ pub fn spawn_cameras(
 			Skybox {
 				image: sky_texture.clone(),
 				brightness: 1_000.0,
+				rotation: Quat::from_rotation_x(FRAC_PI_2),
 			},
 			SkyShader(skybox_shader),
 			EnvironmentMapLight {
 				diffuse_map: sky_diffuse.clone(),
 				specular_map: sky_texture.clone(),
 				intensity: 1_000.0,
+				rotation: Quat::from_rotation_x(FRAC_PI_2),
 			},
 			BloomSettings {
 				intensity: 0.2,
@@ -202,7 +204,7 @@ pub struct CameraVertSlider(pub f32);
 pub struct CamTarget(pub Transform);
 
 pub fn position_target(
-	ctx: Res<RapierContext>,
+	ctx: Single<&RapierContext>,
 	cam_pivot_q: Query<(&GlobalTransform, &BelongsToPlayer), WithVariant<CamPivot>>,
 	mut cam_q: Query<(&mut CamTarget, &Collider, &BelongsToPlayer), WithVariant<Cam>>,
 ) {
@@ -271,7 +273,7 @@ pub fn follow_target(
 	t: Res<Time>,
 	mut sender: EventWriter<ComponentDelta<Transform>>,
 ) {
-	let dt = t.delta_seconds();
+	let dt = t.delta_secs();
 	for (id, cam_xform, target_xform, owner) in &mut cam_q {
 		let Some(smoothing) = player_q
 			.iter()

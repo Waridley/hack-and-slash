@@ -1,5 +1,5 @@
 use std::{f32::consts::*, num::NonZeroU8, ops::Add, time::Duration};
-
+use std::ops::RangeInclusive;
 use bevy::{
 	asset::AssetPath,
 	ecs::system::EntityCommands,
@@ -316,6 +316,7 @@ pub struct ReflectTorus {
 	pub minor_radius: f32,
 	pub major_resolution: usize,
 	pub minor_resolution: usize,
+	pub angle_range: RangeInclusive<f32>,
 }
 
 impl Default for ReflectTorus {
@@ -329,19 +330,18 @@ impl Default for ReflectTorus {
 			major_resolution,
 			angle_range,
 		} = Torus::default().mesh();
-		todo_warn!("use angle_range");
 		Self {
 			minor_radius,
 			major_radius,
 			minor_resolution,
 			major_resolution,
+			angle_range,
 		}
 	}
 }
 
 impl From<ReflectTorus> for TorusMeshBuilder {
 	fn from(value: ReflectTorus) -> Self {
-		todo_warn!("add angle_range to ReflectTorus\n\t-- or even better, use remote reflection in 0.15");
 		Self {
 			torus: Torus {
 				major_radius: value.major_radius,
@@ -349,7 +349,7 @@ impl From<ReflectTorus> for TorusMeshBuilder {
 			},
 			major_resolution: value.major_resolution,
 			minor_resolution: value.minor_resolution,
-			angle_range: Self::default().angle_range
+			angle_range: value.angle_range
 		}
 	}
 }
@@ -357,7 +357,7 @@ impl From<ReflectTorus> for TorusMeshBuilder {
 #[derive(Clone, Reflect)]
 pub struct ReflectIcosphere {
 	pub radius: f32,
-	pub subdivisions: usize,
+	pub subdivisions: u32,
 }
 
 impl Default for ReflectIcosphere {
@@ -457,19 +457,19 @@ impl PlayerSpawnData {
 				NeedsTerrain,
 			),
 			vis: SceneBundle {
-				scene: ship_scene,
+				scene: SceneRoot(ship_scene),
 				..default()
 			},
 			antigrav_pulse: PbrBundle {
-				mesh: antigrav_pulse_mesh,
-				material: antigrav_pulse_mat,
+				mesh: Mesh3d(antigrav_pulse_mesh),
+				material: MeshMaterial3d(antigrav_pulse_mat),
 				..default()
 			},
 			arms: [
 				(
 					PbrBundle {
-						mesh: arm_mesh.clone(),
-						material: mat_a,
+						mesh: Mesh3d(arm_mesh.clone()),
+						material: MeshMaterial3d(mat_a),
 						transform: Transform::from_translation(Vec3::X * 2.0),
 						..default()
 					},
@@ -477,8 +477,8 @@ impl PlayerSpawnData {
 				),
 				(
 					PbrBundle {
-						mesh: arm_mesh.clone(),
-						material: mat_b,
+						mesh: Mesh3d(arm_mesh.clone()),
+						material: MeshMaterial3d(mat_b),
 						transform: Transform::from_translation(
 							Quat::from_rotation_z(FRAC_PI_3 * 2.0) * Vec3::X * 2.0,
 						),
@@ -488,8 +488,8 @@ impl PlayerSpawnData {
 				),
 				(
 					PbrBundle {
-						mesh: arm_mesh,
-						material: mat_c,
+						mesh: Mesh3d(arm_mesh),
+						material: MeshMaterial3d(mat_c),
 						transform: Transform::from_translation(
 							Quat::from_rotation_z(FRAC_PI_3 * 4.0) * Vec3::X * 2.0,
 						),
@@ -500,8 +500,8 @@ impl PlayerSpawnData {
 			],
 			arm_particle_mesh,
 			crosshair: PbrBundle {
-				mesh: crosshair_mesh,
-				material: crosshair_mat,
+				mesh: Mesh3d(crosshair_mesh),
+				material: MeshMaterial3d(crosshair_mat),
 				transform: Transform::from_translation(Vec3::Y * 128.0),
 				..default()
 			},
@@ -924,7 +924,7 @@ fn player_arms(
 		}
 	});
 	for (arm, which) in meshes {
-		let particle_mesh = particle_mesh.clone();
+		let particle_mesh = Mesh3d(particle_mesh.clone());
 		let particle_mat = arm.material.clone();
 		let mut rng = nanorand::WyRand::new();
 		let spewer = Spewer {
@@ -1052,14 +1052,14 @@ pub fn idle(
 	mut arm_q: Query<&mut Transform, WithVariant<Arm>>,
 	t: Res<Time>,
 ) {
-	let s = t.elapsed_seconds_wrapped();
+	let s = t.elapsed_secs_wrapped();
 	for mut xform in &mut vis_q {
 		xform.translation.y = (s * 3.0).sin() * 0.24;
-		xform.rotate_local_y(-2.0 * t.delta_seconds());
+		xform.rotate_local_y(-2.0 * t.delta_secs());
 	}
 	for (mut xform, rvel) in &mut arms_q {
 		xform.rotation =
-			(xform.rotation * Quat::from_rotation_z(t.delta_seconds() * **rvel)).normalize();
+			(xform.rotation * Quat::from_rotation_z(t.delta_secs() * **rvel)).normalize();
 	}
 	for (n, mut xform) in arm_q.iter_mut().enumerate() {
 		let phase = (n as f32) * FRAC_PI_3 * 2.0;

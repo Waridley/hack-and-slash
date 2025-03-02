@@ -2,9 +2,9 @@ use crate::{
 	draw::PlanarPolyLine,
 	input::{
 		map::{
-			icons::{Icon, InputIcons},
+			icons::{Icon, BasicInputIcons},
 			widgets::{InputIcon, InputIconBundle},
-			GamepadSeries,
+			Platform,
 		},
 		ChordEntry, CurrentChord, InputState,
 	},
@@ -30,13 +30,14 @@ use bevy::{
 use bevy::color::palettes::css::AQUAMARINE;
 use smallvec::{smallvec, SmallVec};
 use bevy_svg::prelude::Origin;
+use crate::input::map::icons::{InputIconFileMap, UserInputIcons};
 
 pub struct DetectBindingPopupPlugin;
 
 impl Plugin for DetectBindingPopupPlugin {
 	fn build(&self, app: &mut App) {
 		app.add_systems(PreUpdate, setup)
-			.add_systems(Update, (manage_detect_popup, display_curr_chord))
+			.add_systems(Update, (manage_detect_popup, display_curr_chord.run_if(resource_exists::<InputIconFileMap>)))
 			.add_systems(Last, InputIcon::sync::<UiMat>);
 	}
 }
@@ -57,7 +58,7 @@ pub fn setup(
 					Popup,
 					CuboidPanelBundle {
 						panel: CuboidPanel { size, ..default() },
-						material: mats.add(ExtMat {
+						material: MeshMaterial3d(mats.add(ExtMat {
 							extension: default(),
 							base: Matter {
 								extension: DistanceDither::ui(),
@@ -69,7 +70,7 @@ pub fn setup(
 									..default()
 								},
 							},
-						}),
+						})),
 						visibility: Visibility::Hidden,
 						..default()
 					},
@@ -85,7 +86,7 @@ pub fn setup(
 							},
 							..default()
 						},
-						meshes.add(
+						Mesh3d(meshes.add(
 							PlanarPolyLine {
 								colors: smallvec![
 									smallvec![LinearRgba::new(0.0, 0.2, 0.2, 0.6)],
@@ -99,8 +100,8 @@ pub fn setup(
 							.build()
 							.with_duplicated_vertices()
 							.with_computed_flat_normals(),
-						),
-						mats.add(ExtMat {
+						)),
+						MeshMaterial3d(mats.add(ExtMat {
 							extension: default(),
 							base: Matter {
 								extension: DistanceDither::ui(),
@@ -109,23 +110,23 @@ pub fn setup(
 									..default()
 								},
 							},
-						}),
+						})),
 					));
 					cmds.spawn((Text3dBundle {
 						text_3d: Text3d {
 							text: "Press input(s) to bind...".into(),
+							font: ui_fonts.mono.clone(),
 							flat: false,
 							vertex_scale: Vec3::splat(0.45),
 							..default()
 						},
-						font: ui_fonts.mono.clone(),
-						material: mats.add(ExtMat {
+						material: MeshMaterial3d(mats.add(ExtMat {
 							extension: default(),
 							base: Matter {
 								extension: DistanceDither::ui(),
 								base: Color::from(AQUAMARINE).into(),
 							},
-						}),
+						})),
 						transform: Transform {
 							translation: Vec3::new(0.0, -1.0, 2.0),
 							..default()
@@ -134,11 +135,11 @@ pub fn setup(
 					},));
 
 					cmds.spawn((
-						TransformBundle::from_transform(Transform {
+						Transform {
 							translation: Vec3::new(-0.0, -2.0, -1.0),
 							..default()
-						}),
-						VisibilityBundle::default(),
+						},
+						Visibility::default(),
 						CurrChordIcons::default(),
 						LineUpChildren {
 							relative_positions: Vec3::new(1.5, -1.5, -0.32).normalize(),
@@ -190,8 +191,9 @@ pub fn display_curr_chord(
 	mut mats: ResMut<Assets<UiMat>>,
 	ui_fonts: Res<UiFonts>,
 	curr_chord: Res<CurrentChord>,
-	gamepads: Res<Gamepads>,
+	gamepads: Query<(Option<&Name>, &Gamepad)>,
 	mut icon_mat: Local<Option<Handle<UiMat>>>,
+	icon_map: Res<InputIconFileMap>,
 ) {
 	let icon_mat = icon_mat.get_or_insert_with(|| mats.add(UiMatBuilder::default()));
 	let Ok((id, mut icons)) = q.get_single_mut() else {
@@ -215,21 +217,18 @@ pub fn display_curr_chord(
 					.into_iter()
 					.collect()
 			} else {
-				let entry_icons = InputIcons::from_input_kind(
-					entry.0,
-					entry
-						.1
-						.and_then(|gp| gamepads.name(gp))
-						.map(GamepadSeries::guess),
-				)
-				.unwrap_or_default();
-				match entry_icons {
-					InputIcons::Single(icon) => [icon].into_iter().collect(),
-					InputIcons::DualAxis {
-						horizontal,
-						vertical,
-					} => [horizontal, vertical].into_iter().collect(),
-				}
+				let entry_icons = UserInputIcons::from_user_input(
+					entry.0.clone().into(),
+					entry.1
+						.and_then(|gp| gamepads.get(gp).ok())
+						.and_then(|(name, _)| name)
+						.map(Name::as_str)
+						.and_then(Platform::guess_gamepad),
+					&*icon_map,
+				);
+				use UserInputIcons::*;
+				use BasicInputIcons::*;
+				entry_icons.into_iter().collect()
 			};
 			let mut ids = SmallVec::new();
 			for icon in entry_icons {
@@ -242,19 +241,19 @@ pub fn display_curr_chord(
 							tolerance: 0.1,
 							..default()
 						},
-						font: ui_fonts.mono.clone(),
+						font: TextFont::from_font(ui_fonts.mono.clone()),
 						transform: Transform {
 							// scale: Vec3::splat(0.02),
 							..default()
 						},
-						material: icon_mat.clone(),
+						material: MeshMaterial3d(icon_mat.clone()),
 						..default()
 					})
 					.id();
 				cmds.entity(id).add_child(icon_id);
 				ids.push(icon_id);
 			}
-			icons.insert(*entry, ids);
+			icons.insert(entry.clone(), ids);
 		}
 	}
 }

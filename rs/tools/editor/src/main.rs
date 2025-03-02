@@ -46,7 +46,7 @@ fn run_game_as_child_process(mut game: ResMut<RunningGame>) {
 	}
 	let result = Command::new("cargo")
 		.arg("run")
-		.arg("--features=bevy/file_watcher,bevy/asset_processor,bevy/bevy_dynamic_plugin,debugging")
+		.arg("--features=bevy/file_watcher,bevy/asset_processor,debugging")
 		.arg("--profile=desktop")
 		.arg("--color=always")
 		.stdout(Stdio::piped())

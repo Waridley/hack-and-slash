@@ -296,7 +296,9 @@ pub struct Delta<T> {
 }
 
 // A `Delta` with no `Entity` is only an `Event` for `Resource`s, not `Component`s.
-impl<T: Resource> Event for Delta<T> {}
+impl<T: Resource> Event for Delta<T> {
+	type Traversal = ();
+}
 
 impl<T> Delta<T> {
 	pub fn new(progress: f32, apply: impl FnOnce(Mut<T>, f32) + Send + Sync + 'static) -> Self {
@@ -524,7 +526,7 @@ impl BlendTargets {
 
 	pub fn animate(
 		mut cmds: Commands,
-		global_xforms: Query<&GlobalTransform>,
+		mut global_xforms: Query<&GlobalTransform>,
 		parents: Query<&Parent>,
 		mut animations: Query<(Entity, &mut Self)>,
 		mut sender: EventWriter<ComponentDelta<Transform>>,
@@ -537,25 +539,38 @@ impl BlendTargets {
 				cmds.entity(id).despawn();
 			}
 
-			let to_global = match state.to.global(state.animated, &global_xforms) {
-				Ok(global) => global,
-				Err(e) => {
-					error!("{e}");
-					cmds.entity(id).despawn();
-					continue;
+			let to_global = {
+				let global_xforms = global_xforms.reborrow();
+				let to_global = match state.to.global(state.animated, global_xforms) {
+					Some(global) => global,
+					None => { error!("Couldn't find state.to.global"); cmds.entity(id).despawn(); continue }
+					// // See todo in `Target::global`
+					// Ok(global) => global,
+					// Err(e) => {
+					// 	error!("{e}");
+					// 	cmds.entity(id).despawn();
+					// 	continue;
+					// }
 				}
-			}
-			.compute_transform();
+					.compute_transform();
+				to_global
+			};
 
-			let from_global = match state.from.global(state.animated, &global_xforms) {
-				Ok(global) => global,
-				Err(e) => {
-					error!("{e}");
-					cmds.entity(id).despawn();
-					continue;
+			let from_global = {
+				let global_xforms = global_xforms.reborrow();
+				let from_global = match state.from.global(state.animated, global_xforms) {
+					Some(global) => global,
+					None => { error!("Couln't find state.from.global"); cmds.entity(id).despawn(); continue }
+					// Ok(global) => global,
+					// Err(e) => {
+					// 	error!("{e}");
+					// 	cmds.entity(id).despawn();
+					// 	continue;
+					// }
 				}
-			}
-			.compute_transform();
+					.compute_transform();
+				from_global
+			};
 
 			let progress = state.elapsed.as_secs_f32() / state.duration.as_secs_f32();
 			let progress = if let Some(easing) = state.easing {
@@ -569,7 +584,7 @@ impl BlendTargets {
 					Ok(parent_global) => {
 						GlobalTransform::from(new_global).reparented_to(parent_global)
 					}
-					Err(QueryEntityError::QueryDoesNotMatch(_)) => new_global, // Parent has no GlobalTransform
+					Err(QueryEntityError::QueryDoesNotMatch(_, _)) => new_global, // Parent has no GlobalTransform
 					Err(e) => {
 						error!("Can't find parent: {e}");
 						new_global
@@ -607,7 +622,7 @@ mod tests {
 				mut sender: EventWriter<ComponentDelta<Transform>>,
 				t: Res<Time>,
 			) {
-				let dt = t.delta_seconds();
+				let dt = t.delta_secs();
 				for Slide(target, vel) in animations.iter().copied() {
 					match q.get(target) {
 						Ok(_) => {

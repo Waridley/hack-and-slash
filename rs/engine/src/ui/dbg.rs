@@ -41,7 +41,7 @@ impl Plugin for DebugUiPlugin {
 				dbg_fps.run_if(dbg_window_toggled(true, KeyCode::KeyT)),
 				(dbg_res::<DayNightCycle>, dbg_res::<Weather>)
 					.run_if(dbg_window_toggled(true, KeyCode::KeyN)),
-				dbg_proxy::<RapierConfiguration, RapierCfgProxy>
+				dbg_single_proxy::<RapierConfiguration, RapierCfgProxy>
 					.run_if(dbg_window_toggled(false, KeyCode::KeyR)),
 			)
 				.chain() // Just to keep display order consistent
@@ -114,6 +114,41 @@ pub fn dbg_proxy<T: Resource + From<Proxy>, Proxy: for<'a> From<&'a T> + Partial
 
 	if proxy != *res {
 		*res = proxy.into()
+	}
+}
+
+pub fn dbg_single_proxy<T: Component + From<Proxy>, Proxy: for<'a> From<&'a T> + PartialEq<T> + Reflect>(
+	mut q: Query<&mut EguiContext, With<PrimaryWindow>>,
+	type_registry: Res<AppTypeRegistry>,
+	mut ui_hovered: ResMut<UiHovered>,
+	mut single: Single<&mut T>,
+) {
+	let mut proxy = Proxy::from(&**single);
+	
+	let egui_context = q.get_single_mut();
+	
+	let Ok(egui_context) = egui_context else {
+		return;
+	};
+	let mut egui_context = egui_context.clone();
+	
+	let mut hovered = false;
+	egui::Window::new(std::any::type_name::<T>().split("::").last().unwrap()).show(
+		egui_context.get_mut(),
+		|ui| {
+			let type_registry = &*type_registry.read();
+			let mut ctx = default();
+			let mut inspector = InspectorUi::new_no_short_circuit(type_registry, &mut ctx);
+			inspector.ui_for_reflect(&mut proxy, ui);
+			hovered |= ui.ui_contains_pointer();
+		},
+	);
+	if hovered != **ui_hovered {
+		**ui_hovered |= hovered;
+	}
+	
+	if proxy != **single {
+		**single = proxy.into()
 	}
 }
 
@@ -275,7 +310,6 @@ struct RapierCfgProxy {
 	pub gravity: bevy_rapier3d::math::Vect,
 	pub physics_pipeline_active: bool,
 	pub query_pipeline_active: bool,
-	pub timestep_mode: TimestepModeProxy,
 	pub scaled_shape_subdivision: u32,
 	pub force_update_from_transform_changes: bool,
 }
@@ -286,7 +320,6 @@ impl From<&RapierConfiguration> for RapierCfgProxy {
 			gravity: value.gravity,
 			physics_pipeline_active: value.physics_pipeline_active,
 			query_pipeline_active: value.query_pipeline_active,
-			timestep_mode: (&value.timestep_mode).into(),
 			scaled_shape_subdivision: value.scaled_shape_subdivision,
 			force_update_from_transform_changes: value.force_update_from_transform_changes,
 		}
@@ -299,7 +332,6 @@ impl From<RapierCfgProxy> for RapierConfiguration {
 			gravity: value.gravity,
 			physics_pipeline_active: value.physics_pipeline_active,
 			query_pipeline_active: value.query_pipeline_active,
-			timestep_mode: value.timestep_mode.into(),
 			scaled_shape_subdivision: value.scaled_shape_subdivision,
 			force_update_from_transform_changes: value.force_update_from_transform_changes,
 		}
@@ -311,7 +343,6 @@ impl PartialEq<RapierConfiguration> for RapierCfgProxy {
 		self.gravity == other.gravity
 			&& self.physics_pipeline_active == other.physics_pipeline_active
 			&& self.query_pipeline_active == other.query_pipeline_active
-			&& self.timestep_mode == (&other.timestep_mode).into()
 			&& self.scaled_shape_subdivision == other.scaled_shape_subdivision
 			&& self.force_update_from_transform_changes == other.force_update_from_transform_changes
 	}

@@ -49,65 +49,65 @@ pub const DT: f32 = 1.0 / 30.0;
 /// Up vector
 pub const UP: Vect = Vect::Z;
 
-#[derive(DynamicPlugin)]
-#[repr(C)]
-struct GameDynPlugin;
-
-impl Plugin for GameDynPlugin {
-	fn build(&self, app: &mut App) {
-		app.add_plugins((
-			(
-				bevy::core::TaskPoolPlugin::default(),
-				bevy::core::TypeRegistrationPlugin,
-				bevy::core::FrameCountPlugin,
-				bevy::time::TimePlugin,
-				bevy::transform::TransformPlugin,
-				bevy::hierarchy::HierarchyPlugin,
-				bevy::diagnostic::DiagnosticsPlugin,
-				bevy::input::InputPlugin,
-				// bevy::window::WindowPlugin::default(), // Need to give it the window from the editor
-				bevy::a11y::AccessibilityPlugin,
-				bevy::scene::ScenePlugin,
-			),
-			// bevy::winit::WinitPlugin::default(), // can't init EventLoop more than once
-			(
-				RenderPlugin::default(),
-				ImagePlugin::default(),
-				#[cfg(not(target_arch = "wasm32"))]
-				bevy::render::pipelined_rendering::PipelinedRenderingPlugin,
-				bevy::core_pipeline::CorePipelinePlugin,
-				bevy::sprite::SpritePlugin,
-				bevy::text::TextPlugin,
-				bevy::ui::UiPlugin,
-				bevy::pbr::PbrPlugin::default(),
-				bevy::gltf::GltfPlugin::default(),
-				bevy::audio::AudioPlugin::default(),
-				bevy::gilrs::GilrsPlugin,
-				bevy::animation::AnimationPlugin,
-				bevy::gizmos::GizmoPlugin,
-			),
-		));
-		#[cfg(feature = "debugging")]
-		app.configure_schedules(bevy::ecs::schedule::ScheduleBuildSettings {
-			ambiguity_detection: bevy::ecs::schedule::LogLevel::Warn,
-			..default()
-		});
-		game_plugin(app);
-	}
-}
+// #[derive(DynamicPlugin)]
+// #[repr(C)]
+// struct GameDynPlugin;
+//
+// impl Plugin for GameDynPlugin {
+// 	fn build(&self, app: &mut App) {
+// 		app.add_plugins((
+// 			(
+// 				bevy::core::TaskPoolPlugin::default(),
+// 				bevy::core::TypeRegistrationPlugin,
+// 				bevy::core::FrameCountPlugin,
+// 				bevy::time::TimePlugin,
+// 				bevy::transform::TransformPlugin,
+// 				bevy::hierarchy::HierarchyPlugin,
+// 				bevy::diagnostic::DiagnosticsPlugin,
+// 				bevy::input::InputPlugin,
+// 				// bevy::window::WindowPlugin::default(), // Need to give it the window from the editor
+// 				bevy::a11y::AccessibilityPlugin,
+// 				bevy::scene::ScenePlugin,
+// 			),
+// 			// bevy::winit::WinitPlugin::default(), // can't init EventLoop more than once
+// 			(
+// 				RenderPlugin::default(),
+// 				ImagePlugin::default(),
+// 				#[cfg(not(target_arch = "wasm32"))]
+// 				bevy::render::pipelined_rendering::PipelinedRenderingPlugin,
+// 				bevy::core_pipeline::CorePipelinePlugin,
+// 				bevy::sprite::SpritePlugin,
+// 				bevy::text::TextPlugin,
+// 				bevy::ui::UiPlugin,
+// 				bevy::pbr::PbrPlugin::default(),
+// 				bevy::gltf::GltfPlugin::default(),
+// 				bevy::audio::AudioPlugin::default(),
+// 				bevy::gilrs::GilrsPlugin,
+// 				bevy::animation::AnimationPlugin,
+// 				bevy::gizmos::GizmoPlugin,
+// 			),
+// 		));
+// 		#[cfg(feature = "debugging")]
+// 		app.configure_schedules(bevy::ecs::schedule::ScheduleBuildSettings {
+// 			ambiguity_detection: bevy::ecs::schedule::LogLevel::Warn,
+// 			..default()
+// 		});
+// 		game_plugin(app);
+// 	}
+// }
 
 pub fn game_plugin(app: &mut App) -> &mut App {
+	app.world_mut().spawn(RapierConfiguration {
+		gravity: Vect::new(0.0, 0.0, -9.80665),
+		// timestep_mode: TimestepMode::Interpolated {
+		// 	dt: DT,
+		// 	time_scale: 1.0,
+		// 	substeps: 1,
+		// },
+		..RapierConfiguration::new(1.0)
+	});
 	app.add_plugins(EnginePlugin)
 		.register_type::<Angle>()
-		.insert_resource(RapierConfiguration {
-			gravity: Vect::new(0.0, 0.0, -9.80665),
-			timestep_mode: TimestepMode::Interpolated {
-				dt: DT,
-				time_scale: 1.0,
-				substeps: 1,
-			},
-			..RapierConfiguration::new(1.0)
-		})
 		.add_plugins((
 			RapierPhysicsPlugin::<()>::default().in_schedule(Update),
 			FrameTimeDiagnosticsPlugin,
@@ -256,12 +256,12 @@ fn startup(
 	});
 
 	let mut window = windows.single_mut();
-	window.cursor.visible = false;
-	window.cursor.grab_mode = CursorGrabMode::Locked;
+	window.cursor_options.visible = false;
+	window.cursor_options.grab_mode = CursorGrabMode::Locked;
 }
 
 fn terminal_velocity(mut q: Query<(&mut CtrlVel, &TerminalVelocity)>, t: Res<Time>) {
-	let dt = t.delta_seconds();
+	let dt = t.delta_secs();
 	for (mut vel, term_vel) in q.iter_mut() {
 		// Don't trigger vel.deref_mut if not necessary
 		let term = term_vel.linvel;
@@ -293,7 +293,7 @@ fn fullscreen(kb: Res<ButtonInput<KeyCode>>, mut windows: Query<&mut Window, Wit
 	if kb.just_pressed(KeyCode::F11) {
 		let mut window = windows.single_mut();
 		window.mode = match window.mode {
-			Windowed => BorderlessFullscreen,
+			Windowed => BorderlessFullscreen(MonitorSelection::Current),
 			_ => Windowed,
 		};
 	}

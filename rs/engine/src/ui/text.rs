@@ -1,8 +1,10 @@
+use std::borrow::Cow;
 use crate::ui::widgets::WidgetShape;
+use atomicow::CowArc;
 use ab_glyph::{Font as _, OutlineCurve::*, ScaleFont};
 use bevy::{
 	prelude::*,
-	utils::{CowArc, HashMap},
+	utils::HashMap,
 };
 use lyon_tessellation::{
 	geometry_builder::simple_builder,
@@ -10,6 +12,7 @@ use lyon_tessellation::{
 	path::builder::{NoAttributes, PathBuilder},
 	FillOptions, FillRule, FillTessellator, VertexBuffers,
 };
+use tiny_bail::prelude::r;
 
 #[derive(Resource, Default)]
 pub struct Tessellator {
@@ -22,10 +25,13 @@ impl Tessellator {
 	pub fn tessellate(
 		&mut self,
 		text: &str,
-		Font { font }: &Font,
+		Font { data }: &Font,
 		tolerance: f32,
 		scale: Vec2,
-	) -> (VertexBuffers<Point, u16>, Rect) {
+	) -> Result<(VertexBuffers<Point, u16>, Rect), impl std::error::Error> {
+		// TODO: Cache FontArc instead of creating a new one every time? Unless it's cheap.
+		let font = ab_glyph::FontArc::try_from_vec((**data).clone())?;
+		debug!(?font);
 		let mut buffers = VertexBuffers::new();
 		let mut builder = simple_builder(&mut buffers).with_inverted_winding();
 		let opts = FILL_OPTS.with_tolerance(tolerance);
@@ -106,7 +112,7 @@ impl Tessellator {
 		if let Err(e) = builder.build() {
 			error!("{e}");
 		}
-		(buffers, bbox)
+		Result::<_, ab_glyph::InvalidFont>::Ok((buffers, bbox))
 	}
 }
 
@@ -118,7 +124,7 @@ pub struct UiFonts {
 #[derive(Resource, Default, Clone, Debug, Deref, DerefMut)]
 pub struct TextMeshCache(
 	pub  HashMap<
-		(CowArc<'static, str>, [u32; 16], Handle<Font>, bool),
+		(Cow<'static, str>, [u32; 16], Handle<Font>, bool),
 		Option<(Handle<Mesh>, WidgetShape)>,
 	>,
 );

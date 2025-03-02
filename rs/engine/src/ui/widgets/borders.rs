@@ -37,7 +37,7 @@ pub fn sync_cuboid_panel_borders(
 ) {
 	for (children, panel) in &panels {
 		for (id, border) in children.iter().filter_map(|child| borders.get(*child).ok()) {
-			cmds.entity(id).insert(meshes.add(PlanarPolyLine {
+			cmds.entity(id).insert(Mesh3d(meshes.add(PlanarPolyLine {
 				points: rect_points_offset(
 					panel.size.x + panel.mesh_margin.x + border.margin.x,
 					panel.size.z + panel.mesh_margin.z + border.margin.y,
@@ -46,7 +46,7 @@ pub fn sync_cuboid_panel_borders(
 				cross_section: border.cross_section.clone(),
 				colors: border.colors.clone(),
 				closed: true,
-			}.flat()));
+			}.flat())));
 		}
 	}
 }
@@ -59,7 +59,7 @@ pub fn sync_cuboid_container_borders(
 ) {
 	for (children, container) in &panels {
 		for (id, border) in children.iter().filter_map(|child| borders.get(*child).ok()) {
-			cmds.entity(id).insert(meshes.add(PlanarPolyLine {
+			cmds.entity(id).insert(Mesh3d(meshes.add(PlanarPolyLine {
 				points: rect_points_offset(
 					container.size.x + border.margin.x,
 					container.size.z + border.margin.y,
@@ -68,7 +68,7 @@ pub fn sync_cuboid_container_borders(
 				cross_section: border.cross_section.clone(),
 				colors: border.colors.clone(),
 				closed: true,
-			}.flat()));
+			}.flat())));
 		}
 	}
 }

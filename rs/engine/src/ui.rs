@@ -18,8 +18,8 @@ use crate::{
 	},
 	util::{CompassDirection, Diff, LerpSlerp, Prev, StateStack},
 };
+use atomicow::CowArc;
 use bevy::{
-	a11y::Focus,
 	asset::{io::Reader, AssetLoader, LoadContext, StrongHandle},
 	core_pipeline::{experimental::taa::TemporalAntiAliasBundle, fxaa::Fxaa},
 	diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
@@ -36,7 +36,7 @@ use bevy::{
 		view::{Layer, RenderLayers, VisibilitySystems::CheckVisibility},
 	},
 	ui::FocusPolicy,
-	utils::{CowArc, HashMap},
+	utils::HashMap,
 };
 use futures_lite::AsyncReadExt;
 use leafwing_input_manager::{prelude::*, Actionlike};
@@ -49,6 +49,7 @@ use std::{
 	ops::{Add, ControlFlow::Break, Mul},
 	sync::Arc,
 };
+use bevy::a11y::Focus;
 use bevy::color::palettes::basic::{AQUA, BLUE, FUCHSIA, GREEN, RED, WHITE, YELLOW};
 use bevy::color::palettes::css::ORANGE;
 use smallvec::smallvec;
@@ -112,6 +113,7 @@ impl Plugin for UiPlugin {
 		.register_type::<CuboidPanel>()
 		.register_type::<CylinderPanel>()
 		.register_type::<DitherFade>()
+		.register_type::<Text3d>()
 		.init_resource::<ActionState<UiAction>>()
 		.insert_resource(UiAction::default_mappings())
 		.init_resource::<UiHovered>()
@@ -353,13 +355,16 @@ pub enum UiAction {
 	Opt1,
 	Opt2,
 	Back,
+	#[actionlike(DualAxis)]
 	MoveCursor,
 	FocusNext,
 	FocusPrev,
 	NextTab, // TODO: Should these be an Axis or even DualAxis instead?
 	PrevTab,
+	#[actionlike(Axis)]
 	Zoom,
 	ResetZoom,
+	#[actionlike(DualAxis)]
 	Pan,
 	ResetPan,
 }
@@ -405,80 +410,62 @@ impl ActionExt for UiAction {
 		use KeyCode::*;
 		use UiAction::*;
 		InputMap::new([
-			// KB & Mouse
-			(Ok, Space.into()),
-			(Ok, Enter.into()),
-			(Ok, MouseButton::Left.into()),
-			(Opt1, MouseButton::Right.into()),
-			(Opt1, KeyE.into()),
-			(Opt2, KeyQ.into()),
-			(Back, Escape.into()),
-			(Back, Backspace.into()),
-			(MoveCursor, VirtualDPad::wasd().into()),
-			(MoveCursor, VirtualDPad::arrow_keys().into()),
-			(FocusNext, Tab.into()),
-			(FocusNext, MouseWheelDirection::Down.into()),
-			(FocusNext, MouseWheelDirection::Right.into()),
-			(
-				FocusPrev,
-				UserInput::Chord(vec![Modifier::Shift.into(), Tab.into()]),
-			),
-			(FocusPrev, MouseWheelDirection::Up.into()),
-			(FocusPrev, MouseWheelDirection::Left.into()),
-			(NextTab, KeyX.into()),
-			(PrevTab, KeyZ.into()),
-			(
-				Zoom,
-				UserInput::Chord(vec![
-					Modifier::Control.into(),
-					SingleAxis::mouse_wheel_y().into(),
-				]),
-			),
-			(
-				Zoom,
-				VirtualAxis {
-					negative: Minus.into(),
-					positive: Equal.into(),
-				}
-				.into(),
-			),
-			(ResetZoom, MouseButton::Middle.into()),
-			(ResetZoom, Digit0.into()),
-			(
-				Pan,
-				UserInput::Chord(vec![
-					MouseButton::Middle.into(),
-					DualAxis::mouse_motion().into(),
-				]),
-			),
-			(ResetPan, MouseButton::Middle.into()),
+			(Ok, Space),
+			(Ok, Enter),
+			(Opt1, KeyE),
+			(Opt2, KeyQ),
+			(Back, Escape),
+			(Back, Backspace),
+			(FocusNext, Tab),
+			(NextTab, KeyX),
+			(PrevTab, KeyZ),
+			(ResetZoom, Digit0),
 			(ResetPan, Digit0.into()),
-			// Controller
-			(Ok, GamepadButtonType::South.into()),
-			(Opt1, GamepadButtonType::West.into()),
-			(Opt2, GamepadButtonType::North.into()),
-			(Back, GamepadButtonType::East.into()),
-			(MoveCursor, VirtualDPad::dpad().into()),
-			(MoveCursor, DualAxis::left_stick().into()),
-			(NextTab, GamepadButtonType::RightTrigger.into()),
-			(PrevTab, GamepadButtonType::LeftTrigger.into()),
-			(
-				Zoom,
-				UserInput::Chord(vec![
-					GamepadButtonType::LeftTrigger2.into(),
-					SingleAxis::symmetric(GamepadAxisType::RightStickY, 0.1).into(),
-				]),
-			),
-			(
-				ResetZoom,
-				UserInput::Chord(vec![
-					GamepadButtonType::LeftTrigger2.into(),
-					GamepadButtonType::RightThumb.into(),
-				]),
-			),
-			(Pan, DualAxis::right_stick().into()),
-			(ResetPan, GamepadButtonType::RightThumb.into()),
 		])
+			.with_multiple([
+				(Ok, MouseButton::Left),
+				(Opt1, MouseButton::Right),
+				(ResetZoom, MouseButton::Middle),
+				(ResetPan, MouseButton::Middle),
+			])
+			.with_dual_axis(MoveCursor, VirtualDPad::wasd())
+			.with_dual_axis(MoveCursor, VirtualDPad::arrow_keys())
+			.with_multiple([
+				(FocusNext, MouseScrollDirection::DOWN),
+				(FocusNext, MouseScrollDirection::RIGHT),
+				(FocusPrev, MouseScrollDirection::UP),
+				(FocusPrev, MouseScrollDirection::LEFT),
+			])
+			.with(FocusPrev, ButtonlikeChord::modified(ModifierKey::Shift, Tab))
+			.with_axis(Zoom, AxislikeChord::new(ModifierKey::Control, MouseScrollAxis::Y))
+			.with_axis(Zoom, VirtualAxis::new(Minus, Equal))
+			.with_dual_axis(Pan, DualAxislikeChord::new(MouseButton::Middle, MouseMove::default()))
+			.with_multiple([
+				(Ok, GamepadButton::South),
+				(Opt1, GamepadButton::West),
+				(Opt2, GamepadButton::North),
+				(Back, GamepadButton::East),
+				(NextTab, GamepadButton::RightTrigger),
+				(PrevTab, GamepadButton::LeftTrigger),
+				(ResetPan, GamepadButton::RightThumb),
+			])
+			.with_dual_axis(MoveCursor, VirtualDPad::dpad())
+			.with_dual_axis(MoveCursor, GamepadStick::LEFT)
+			.with_axis(
+				Zoom,
+				AxislikeChord::new(
+					GamepadButton::LeftTrigger2,
+					GamepadControlAxis::new(GamepadAxis::RightStickY).with_processor(AxisProcessor::DeadZone(AxisDeadZone::symmetric(0.1))),
+				),
+			)
+			.with(
+				ResetZoom,
+				ButtonlikeChord::new([
+					GamepadButton::LeftTrigger2,
+					GamepadButton::RightThumb,
+				]),
+			)
+			.with_dual_axis(Pan, GamepadStick::RIGHT)
 	}
 
 	fn all() -> impl Iterator<Item = Self> {
@@ -529,7 +516,7 @@ pub fn cam_idle_animation(
        + 'static {
 	let (mut loop_t_x, mut loop_t_z) = (time_offset, time_offset);
 	move |id, xform, t, _| {
-		let dt = t.delta_seconds_f64();
+		let dt = t.delta_secs_f64();
 		loop_t_x = (loop_t_x + (dt * std::f64::consts::FRAC_1_SQRT_2)) % TAU;
 		loop_t_z = (loop_t_z + dt) % TAU;
 		let x = loop_t_x.sin() * 0.32;
@@ -567,23 +554,19 @@ pub fn show_fps(
 					.get_measurement(&FrameTimeDiagnosticsPlugin::FPS)
 					.map_or(f64::NAN, |meas| meas.value);
 				cmds.spawn((
-					TextBundle {
-						text: Text::from_section(
-							format!("{val:.2}"),
-							TextStyle {
-								font: ui_fonts.mono.clone(),
-								font_size: 24.0,
-								color: YELLOW.into(),
-							},
-						),
-						style: Style {
-							position_type: PositionType::Absolute,
-							right: Val::ZERO,
-							..default()
-						},
-						focus_policy: FocusPolicy::Pass,
+					Text(format!("{val:.2}")),
+					TextFont {
+						font: ui_fonts.mono.clone(),
+						font_size: 24.0,
 						..default()
 					},
+					TextColor(YELLOW.into()),
+					Node {
+						position_type: PositionType::Absolute,
+						right: Val::ZERO,
+						..default()
+					},
+					FocusPolicy::Pass,
 					FpsViewer,
 				));
 			}
@@ -599,7 +582,7 @@ pub fn show_fps(
 		let val = diags
 			.get_measurement(&FrameTimeDiagnosticsPlugin::FPS)
 			.map_or(f64::NAN, |meas| meas.value);
-		text.sections.first_mut().unwrap().value = format!("{val:.2}");
+		text.0 = format!("{val:.2}");
 	}
 }
 
@@ -643,7 +626,7 @@ impl<S: IntoSystemConfigs<M>, M> ToggleDbgUi<M> for S {
 }
 
 pub fn dbg_window_toggled(default: bool, code: KeyCode) -> impl Condition<()> {
-	input_toggle_active(false, KeyCode::Backquote).and_then(input_toggle_active(default, code))
+	input_toggle_active(false, KeyCode::Backquote).and(input_toggle_active(default, code))
 }
 
 pub fn reset_hovered(mut ui_hovered: ResMut<UiHovered>) {
@@ -661,7 +644,7 @@ impl MenuStack {
 		InteractHandlers::on_back(move |cmds| {
 			cmds.fade_out_secs(fade_secs);
 			let layers = layers.clone();
-			cmds.commands().add(move |world: &mut World| {
+			cmds.commands().queue(move |world: &mut World| {
 				let mut q = world.query::<(&mut MenuStack, &RenderLayers)>();
 				let Some((mut stack, _)) = q
 					.iter_mut(world)
@@ -721,7 +704,7 @@ pub fn anchor_follow_menu(
 				}
 			};
 
-			let new = xform.lerp_slerp(target.compute_transform(), t.delta_seconds() * 4.0);
+			let new = xform.lerp_slerp(target.compute_transform(), t.delta_secs() * 4.0);
 			if *xform != new {
 				*xform = new;
 			}
@@ -746,7 +729,7 @@ use bevy_inspector_egui::{
 	prelude::{InspectorOptions, ReflectInspectorOptions},
 };
 use layout::ExpandToFitChildren;
-use leafwing_input_manager::buttonlike::MouseMotionDirection;
+use leafwing_input_manager::clashing_inputs::BasicInputs;
 use text::{TextMeshCache, UiFonts};
 use web_time::Duration;
 use crate::input::ActionExt;
@@ -823,8 +806,8 @@ impl Add for Fade {
 	}
 }
 
-pub fn propagate_fade<M: Asset + AsMut<DitherFade>>(
-	q: Query<&Handle<M>>,
+pub fn propagate_fade<M: Material + AsMut<DitherFade>>(
+	q: Query<&MeshMaterial3d<M>>,
 	roots: Query<(Entity, Ref<Fade>)>,
 	children_q: Query<&Children>,
 	mut mats: ResMut<Assets<M>>,
@@ -843,7 +826,7 @@ pub fn propagate_fade<M: Asset + AsMut<DitherFade>>(
 		};
 
 		if let Ok(mat) = q.get(root) {
-			set_fade(mat)
+			set_fade(&mat.0)
 		}
 
 		let Ok(children) = children_q.get(root) else {
@@ -1072,7 +1055,7 @@ fn spawn_test_menu(
 							adjacent: AdjacentWidgets::all(FocusTarget::ChildN(0)),
 							..default()
 						},
-						meshes.add(PlanarPolyLine {
+						Mesh3d(meshes.add(PlanarPolyLine {
 							points: polygon_points(6, 6.0, i as f32),
 							cross_section: polygon_points(3, 0.25, 0.5),
 							colors: smallvec![
@@ -1085,8 +1068,8 @@ fn spawn_test_menu(
 							],
 							closed: false,
 							..default()
-						}.mesh().build().with_duplicated_vertices().with_computed_flat_normals()),
-						border_mat.clone(),
+						}.mesh().build().with_duplicated_vertices().with_computed_flat_normals())),
+						MeshMaterial3d(border_mat.clone()),
 						LineUpChildren {
 							relative_positions: Vec3::NEG_Z * 1.25,
 							align: Vec3::ZERO,
@@ -1097,11 +1080,11 @@ fn spawn_test_menu(
 								Text3dBundle::<UiMat> {
 									text_3d: Text3d {
 										text: "Testing...".into(),
+										font: ui_fonts.mono.clone(),
 										..default()
 									},
-									font: ui_fonts.mono.clone(),
 									transform: Transform::from_translation(Vec3::NEG_Y),
-									material: mats.add(new_unlit_material()),
+									material: MeshMaterial3d(mats.add(new_unlit_material())),
 									adjacent: AdjacentWidgets::vertical_siblings(),
 									..default()
 								},
@@ -1113,8 +1096,8 @@ fn spawn_test_menu(
 										Point::new(0.0, 2.5, 0.0),
 										0.5,
 									), ..default() },
-									mesh: meshes.add(Capsule3d::new(0.5, 5.0)),
-									material: mats.add(UiMatBuilder::from(Color::from(ORANGE))),
+									mesh: Mesh3d(meshes.add(Capsule3d::new(0.5, 5.0))),
+									material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(ORANGE)))),
 									transform: Transform {
 										rotation: Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
 										..default()
@@ -1126,15 +1109,15 @@ fn spawn_test_menu(
 									Text3dBundle::<UiMat> {
 										text_3d: Text3d {
 											text: "Test button".into(),
+											font: ui_fonts.mono.clone(),
 											..default()
 										},
-										font: ui_fonts.mono.clone(),
 										transform: Transform {
 											translation: Vec3::X,
 											rotation: Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
 											..default()
 										},
-										material: mats.add(new_unlit_material()),
+										material: MeshMaterial3d(mats.add(new_unlit_material())),
 										..default()
 									},
 								)]
@@ -1155,7 +1138,7 @@ fn spawn_test_menu(
 				translation: Vec3::new(6900.0, 4200.0, 0.0),
 				..default()
 			},
-			material: mats.add(UiMatBuilder {
+			material: MeshMaterial3d(mats.add(UiMatBuilder {
 				std: StandardMaterial {
 					base_color: Color::rgba(0.1, 0.1, 0.1, 0.8),
 					reflectance: 0.0,
@@ -1165,7 +1148,7 @@ fn spawn_test_menu(
 					..default()
 				},
 				..default()
-			}),
+			})),
 			..default()
 		},
 		TestMenu { faces },

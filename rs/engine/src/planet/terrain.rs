@@ -64,9 +64,9 @@ pub fn setup(
 	mut chunk_loading_tasks: ResMut<ChunkLoadingTasks>,
 	mut task_offloader: TaskOffloader,
 ) {
-	let material = assets.load("shaders/terrain.mat.ron");
+	let material = MeshMaterial3d(assets.load("shaders/terrain.mat.ron"));
 
-	cmds.insert_resource(TerrainMaterial(material.clone()));
+	cmds.insert_resource(TerrainMaterial(material.0.clone()));
 	let seed = rand::random::<PlanetSeed>();
 	info!(name: "seed", seed = %seed);
 
@@ -92,7 +92,7 @@ pub fn setup(
 	.with_computed_flat_normals()
 	.with_removed_attribute(Mesh::ATTRIBUTE_UV_0);
 	let collider = Collider::cuboid(32.0, 32.0, 32.0);
-	let mesh = assets.add(mesh);
+	let mesh = Mesh3d(assets.add(mesh));
 
 	cmds.insert_resource(TerrainTemplate {
 		mesh,
@@ -187,8 +187,8 @@ pub fn generate_chunk(
 /// Share mesh, material, and collider amongst multiple `TerrainObjects`
 #[derive(Resource, Clone)]
 pub struct TerrainTemplate {
-	pub mesh: Handle<Mesh>,
-	pub material: Handle<Matter>,
+	pub mesh: Mesh3d,
+	pub material: MeshMaterial3d<Matter>,
 	pub collider: Collider,
 }
 
@@ -472,12 +472,12 @@ pub fn spawn_loaded_chunks(
 						*center,
 						TerrainObject {
 							pbr: MaterialMeshBundle {
-								mesh,
+								mesh: Mesh3d(mesh),
 								transform: Transform {
 									rotation: Quat::from_rotation_x(FRAC_PI_2),
 									..default()
 								},
-								material: mat.0.clone(),
+								material: MeshMaterial3d(mat.0.clone()),
 								..default()
 							},
 							collider: Collider::from(SharedShape(heights.clone())),

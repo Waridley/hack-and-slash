@@ -9,7 +9,8 @@ use std::{
 	sync::OnceLock,
 	time::Duration,
 };
-
+use std::fmt::Formatter;
+use bevy::state::state::FreelyMutableState;
 use bevy::{
 	asset::{io::Reader, AssetLoader, AsyncReadExt, LoadContext},
 	ecs::{
@@ -27,10 +28,10 @@ use bevy::{
 	scene::{SceneLoaderError, SceneLoaderError::RonSpannedError},
 	utils::tracing::event,
 };
-use bevy::state::state::FreelyMutableState;
 use num_traits::NumCast;
 use ron::Error::InvalidValueForType;
 use serde::{de::DeserializeSeed, Deserialize, Serialize};
+use tiny_bail::prelude::r;
 
 #[inline(always)]
 pub fn quantize<const BITS: u32>(value: f32) -> f32 {
@@ -345,28 +346,28 @@ impl<T: Reflect + FromReflect + Asset> AssetLoader for RonReflectAssetLoader<T> 
 	type Settings = ();
 	type Error = SceneLoaderError;
 
-	async fn load<'a>(
-		&'a self,
-		reader: &'a mut Reader<'_>,
-		_settings: &'a Self::Settings,
-		_load_context: &'a mut LoadContext<'_>,
+	async fn load(
+		&self,
+		reader: &mut dyn Reader,
+		_settings: &Self::Settings,
+		_load_context: &mut LoadContext<'_>,
 	) -> Result<Self::Asset, Self::Error> {
 		let registration = self.registration.clone();
 		let registry = self.registry.clone();
-			let mut buf = Vec::new();
-			reader.read_to_end(&mut buf).await?;
-			let registry = registry.read();
-			let seed = TypedReflectDeserializer::new(&registration, &registry);
-			let mut de = ron::Deserializer::from_bytes(&buf)?;
-			let val = seed
-				.deserialize(&mut de)
-				.map_err(|e| RonSpannedError(de.span_error(e)))?;
-			T::take_from_reflect(val).map_err(|e| {
-				RonSpannedError(de.span_error(InvalidValueForType {
-					expected: T::type_path().into(),
-					found: format!("{e:?}"),
-				}))
-			})
+		let mut buf = Vec::new();
+		reader.read_to_end(&mut buf).await?;
+		let registry = registry.read();
+		let seed = TypedReflectDeserializer::new(&registration, &registry);
+		let mut de = ron::Deserializer::from_bytes(&buf)?;
+		let val = seed
+			.deserialize(&mut de)
+			.map_err(|e| RonSpannedError(de.span_error(e)))?;
+		T::take_from_reflect(val).map_err(|e| {
+			RonSpannedError(de.span_error(InvalidValueForType {
+				expected: T::type_path().into(),
+				found: format!("{e:?}"),
+			}))
+		})
 	}
 
 	fn extensions(&self) -> &[&str] {
@@ -718,15 +719,40 @@ impl Target {
 	pub fn global(
 		self,
 		this_entity: Entity,
-		global_xforms: &Query<&GlobalTransform>,
-	) -> Result<GlobalTransform, QueryEntityError> {
-		Ok(match self {
-			Target::RelativeTo { entity, relative } => *global_xforms.get(entity)? * relative,
-			Target::Local(local) => *global_xforms.get(this_entity)? * local,
+		global_xforms: Query<&GlobalTransform>,
+	) -> Option<GlobalTransform> {
+		// FIXME: Can't get lifetimes right for returning a Result.
+		//    Compiler insists the error uses 'w no matter what I do
+		Some(match self {
+			Target::RelativeTo { entity, relative } => match global_xforms.get(entity) {
+				Ok(xform) => *xform * relative,
+				Err(_) => return None,
+				// Err(e @ QueryEntityError::QueryDoesNotMatch(..)) => return Err(Box::new(QueryMismatch(entity, format!("{e}")))),
+				// Err(QueryEntityError::NoSuchEntity(e)) => return Err(Box::new(QueryEntityError::<'static>::NoSuchEntity(e))),
+				// Err(QueryEntityError::AliasedMutability(e)) => return Err(Box::new(QueryEntityError::<'static>::AliasedMutability(e))),
+			},
+			Target::Local(local) => match global_xforms.get(this_entity) {
+				Ok(xform) => *xform * local,
+				Err(_) => return None,
+				// Err(e @ QueryEntityError::QueryDoesNotMatch(..)) => return Err(Box::new(QueryMismatch(this_entity, format!("{e}")))),
+				// Err(QueryEntityError::NoSuchEntity(e)) => return Err(Box::new(QueryEntityError::<'static>::NoSuchEntity(e))),
+				// Err(QueryEntityError::AliasedMutability(e)) => return Err(Box::new(QueryEntityError::<'static>::AliasedMutability(e))),
+			}
 			Target::Global(global) => global,
 		})
 	}
 }
+
+// #[derive(Debug)]
+// struct QueryMismatch(Entity, String);
+//
+// impl std::fmt::Display for QueryMismatch {
+// 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+// 		self.1.fmt(f)
+// 	}
+// }
+//
+// impl std::error::Error for QueryMismatch {}
 
 pub trait Easings {
 	fn smoothstep(self) -> Self;
@@ -832,6 +858,19 @@ pub fn state_on_stack<S: States>(state: S) -> impl FnMut(Res<StateStack<S>>) -> 
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), inline(always))]
+pub fn host_is_windows() -> bool {
+	#[cfg(target_arch = "wasm32")]
+	if let Some(window) = web_sys::window() {
+		if let Ok(platform) = window.navigator().platform().as_deref() {
+			if platform.starts_with("Win") {
+				return true;
+			}
+		}
+	}
+	cfg!(target_os = "windows")
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), inline(always))]
 pub fn host_is_mac() -> bool {
 	#[cfg(target_arch = "wasm32")]
 	if let Some(window) = web_sys::window() {
@@ -842,6 +881,19 @@ pub fn host_is_mac() -> bool {
 		}
 	}
 	cfg!(target_os = "macos")
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), inline(always))]
+pub fn host_is_linux() -> bool {
+	#[cfg(target_arch = "wasm32")]
+	if let Some(window) = web_sys::window() {
+		if let Ok(platform) = window.navigator().platform().as_deref() {
+			if platform.starts_with("Linux") {
+				return true;
+			}
+		}
+	}
+	cfg!(target_os = "linux")
 }
 
 /// Convert a type from Y-up to Z-up coordinates
@@ -993,7 +1045,7 @@ macro_rules! entity_tree {
 				let $first_cmds = &mut $cmds;
 				$first;
 			};)?
-			
+
 			let mut $cmds = $cmds.spawn((
 		    $($bundles),*
 		  ));
@@ -1012,25 +1064,31 @@ macro_rules! entity_tree {
 }
 
 /// SystemId's for logging components of an entity
-pub static DEBUG_COMPONENTS: OnceLock<SystemId<(Entity, String)>> = OnceLock::new();
+pub static DEBUG_COMPONENTS: OnceLock<SystemId<In<(Entity, String)>>> = OnceLock::new();
 /// Register this system and call it to print the names of all of an entity's components.
 pub fn debug_component_names(In((id, msg)): In<(Entity, String)>, world: &mut World) {
-	let components = world
-		.inspect_entity(id)
-		.into_iter()
+	// Note: `inspect_entity` panics if entity does not exist. Not ideal for debugging.
+	let components = r!(world
+		.get_entity(id))
+		.archetype()
+		.components()
+		.filter_map(|id| world.components().get_info(id))
 		.map(ComponentInfo::name)
 		.collect::<Vec<_>>();
 	debug!(target: "dbg_components", ?id, ?components, "{msg}");
 }
 
 /// [error_component_names]
-pub static ERROR_COMPONENTS: OnceLock<SystemId<(Entity, String)>> = OnceLock::new();
+pub static ERROR_COMPONENTS: OnceLock<SystemId<In<(Entity, String)>>> = OnceLock::new();
 /// Register this system and call it to print the names of all of an entity's components.
 /// Useful when an entity unexpectedly fails to match a query.
 pub fn error_component_names(In((id, msg)): In<(Entity, String)>, world: &mut World) {
-	let components = world
-		.inspect_entity(id)
-		.into_iter()
+	// Note: `inspect_entity` panics if entity does not exist. Not ideal for debugging.
+	let components = r!(world
+		.get_entity(id))
+		.archetype()
+		.components()
+		.filter_map(|id| world.components().get_info(id))
 		.map(ComponentInfo::name)
 		.collect::<Vec<_>>();
 	error!(?components, "{msg}");
@@ -1145,9 +1203,7 @@ impl CompassDirection {
 			Self::East => Dir2::X,
 			Self::SouthEast => Dir2::new_unchecked(Vec2::new(FRAC_1_SQRT_2, -FRAC_1_SQRT_2)),
 			Self::South => Dir2::NEG_Y,
-			Self::SouthWest => {
-				Dir2::new_unchecked(Vec2::new(-FRAC_1_SQRT_2, -FRAC_1_SQRT_2))
-			}
+			Self::SouthWest => Dir2::new_unchecked(Vec2::new(-FRAC_1_SQRT_2, -FRAC_1_SQRT_2)),
 			Self::West => Dir2::NEG_X,
 			Self::NorthWest => Dir2::new_unchecked(Vec2::new(-FRAC_1_SQRT_2, FRAC_1_SQRT_2)),
 		}

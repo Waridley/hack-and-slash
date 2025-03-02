@@ -1,14 +1,12 @@
 use bevy::{
 	asset::Asset,
+	image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor, ImageType},
 	pbr::{ExtendedMaterial, MaterialExtension},
 	prelude::*,
 	render::{
 		extract_resource::ExtractResourcePlugin,
 		render_asset::RenderAssetUsages,
 		render_resource::{AsBindGroup, ShaderRef},
-		texture::{
-			ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor, ImageType,
-		},
 	},
 };
 use serde::{Deserialize, Serialize};

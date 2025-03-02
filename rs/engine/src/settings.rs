@@ -6,15 +6,19 @@ pub fn plugin(app: &mut App) -> &mut App {
 	app.init_resource::<Settings>().add_systems(First, load)
 }
 
-pub fn load(settings: Res<Settings>, mut cam_q: Query<&mut Fxaa>, mut msaa: ResMut<Msaa>) {
+pub fn load(mut cmds: Commands, settings: Res<Settings>, cam_q: Query<Entity, With<Camera>>) {
 	if settings.is_changed() {
-		for mut fxaa in &mut cam_q {
-			*msaa = if settings.msaa {
+		for id in &cam_q {
+			let mut cam = cmds.entity(id);
+			cam.insert(if settings.msaa {
 				Msaa::Sample4
 			} else {
 				Msaa::Off
-			};
-			fxaa.enabled = settings.fxaa;
+			});
+			cam.insert(Fxaa {
+				enabled: settings.fxaa,
+				..default()
+			});
 		}
 	}
 }

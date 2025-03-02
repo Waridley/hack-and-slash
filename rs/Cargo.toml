@@ -20,7 +20,7 @@ default = [
 ]
 
 [workspace.dependencies.bevy]
-version = "0.14.2"
+version = "0.15.3"
 default-features = false
 features = [
 #    "asset_processor", # only on desktop
@@ -51,6 +51,7 @@ features = [
 #    "default_font", # For editor, but probably not in-game
     "webgl2", # Needed so it doesn't default to WebGPU
     "bevy_state",
+    "bevy_window",
 ]
 
 [workspace.dependencies.bevy_asset]
@@ -64,19 +65,21 @@ particles = { package = "sond-bevy-particles", path = "../sond-bevy-particles" }
 macros = { package = "sond-has-macros", path = "engine/macros" }
 
 # Engine
-bevy_dylib = "0.13.0"
-bevy_rapier3d = { version = "0.27.0", default-features = false, features = ["dim3"] }
-rapier3d = { version = "0.21.0", features = ["wasm-bindgen", "serde-serialize"] }
-bevy_kira_audio = "0.20.0"
-leafwing-input-manager = "0.14.0"
+accesskit = "0.17.1"
+bevy_dylib = "0.15.0"
+bevy_rapier3d = { version = "0.28.0", default-features = false, features = ["dim3"] }
+rapier3d = { version = "0.22.0", features = ["wasm-bindgen", "serde-serialize"] }
+bevy_kira_audio = "0.21.0"
+leafwing-input-manager = { version = "0.16.0", features = ["timing"] }
 bevy_quickmenu = "0.2.0"
 bevy_common_assets = { version = "0.10.0", features = ["ron"] }
 
 # Util
 ab_glyph = "0.2.26"
 array-init = "2.1.0"
+atomicow = "1.0.0"
 base64 = "0.21.7"
-bevy_pkv = "0.11.0" # settings
+bevy_pkv = "0.12.0" # settings
 bevy_svg = { version = "0.13.0", path = "../vend/bevy_svg" }
 bytemuck = "1.14.1" # mostly for seeds
 crossbeam = "0.8.2"
@@ -96,10 +99,11 @@ static_assertions = "1.1.0"
 serde = "1"
 smallvec = "*" # same as bevy
 smol_str = "0.2.1"
+tiny_bail = "0.4.3"
 web-time = "1.0.0"
 
 # Debugging/Editor
-bevy-inspector-egui = {  version = "0.27.0", default-features = false }
+bevy-inspector-egui = {  version = "0.28.1", default-features = false }
 egui_plot = "0.29.0"
 
 # Testing
@@ -119,6 +123,7 @@ bevy_kira_audio = { workspace = true }
 leafwing-input-manager = { workspace = true }
 
 # Util
+atomicow = { workspace = true }
 bevy_pkv = { workspace = true }
 nanorand = { workspace = true }
 rand = { workspace = true }

@@ -27,6 +27,7 @@ use bevy::color::palettes::basic::{AQUA, BLUE, FUCHSIA, GRAY, GREEN, RED, YELLOW
 use bevy::color::palettes::css::DARK_GRAY;
 use smallvec::smallvec;
 use engine::draw::rect_points;
+use engine::input::map::icons::InputIconFileMap;
 use engine::ui::widgets::borders::Border;
 use engine::ui::widgets::focus_toggle_border;
 
@@ -42,8 +43,10 @@ impl Plugin for SettingsMenuPlugin {
 				PostUpdate,
 				(
 					ctrls_menu::anchor_follow_focus,
-					ctrls_menu::update_binding_list_widgets::<UiAction>,
-					ctrls_menu::update_binding_list_widgets::<PlayerAction>,
+					(
+						ctrls_menu::update_binding_list_widgets::<UiAction>,
+						ctrls_menu::update_binding_list_widgets::<PlayerAction>,
+					).run_if(resource_exists::<InputIconFileMap>)
 				),
 			);
 	}
@@ -70,8 +73,8 @@ pub fn setup(
 			})
 			.collect(),
 	};
-	let text_material = mats.add(new_unlit_material());
-	let blue_green_mat = mats.add(UiMatBuilder::from(Color::rgb(0.5, 0.8, 0.7)));
+	let text_material = MeshMaterial3d(mats.add(new_unlit_material()));
+	let blue_green_mat = MeshMaterial3d(mats.add(UiMatBuilder::from(Color::rgb(0.5, 0.8, 0.7))));
 	let button_focus_border_bundle = (
 		Node3dBundle {
 			transform: Transform {
@@ -86,7 +89,7 @@ pub fn setup(
 			cross_section: rect_points(0.1, 0.1),
 			..default()
 		},
-		blue_green_mat.clone()
+		blue_green_mat.clone(),
 	);
 	let focus_toggle_border = InteractHandlers(smallvec![
 		dbg_event(),
@@ -101,13 +104,13 @@ pub fn setup(
 				length: 6.0,
 				..default()
 			},
-			material: mats.add(UiMatBuilder::from(StandardMaterial {
+			material: MeshMaterial3d(mats.add(UiMatBuilder::from(StandardMaterial {
 				base_color: Color::rgba(0.1, 0.1, 0.1, 0.8),
 				alpha_mode: AlphaMode::Blend,
 				double_sided: true,
 				cull_mode: None,
 				..default()
-			})),
+			}))),
 			transform: Transform {
 				translation: Vec3::new(0.0, -32.0, -24.0),
 				..default()
@@ -121,11 +124,11 @@ pub fn setup(
 				Text3dBundle {
 					text_3d: Text3d {
 						text: "Settings".into(),
+						font: ui_fonts.mono.clone(),
 						flat: false,
 						..default()
 					},
 					material: blue_green_mat.clone(),
-					font: ui_fonts.mono.clone(),
 					transform: Transform {
 						translation: Vec3::new(0.0, -3.5, 0.0),
 						..default()
@@ -150,12 +153,12 @@ pub fn setup(
 					},
 					..default()
 				},
-				meshes.add(PlanarPolyLine {
+				Mesh3d(meshes.add(PlanarPolyLine {
 					points: polygon_points(6, 10.5, 0.0),
 					colors: smallvec![smallvec![LinearRgba::from(GRAY)]],
 					..default()
-				}.flat()),
-				mats.add(UiMatBuilder::from(Color::from(DARK_GRAY))),
+				}.flat())),
+				MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(DARK_GRAY)))),
 				RadialChildren {
 					radius: 7.0,
 					arrangement: RadialArrangement::Manual {
@@ -176,7 +179,7 @@ pub fn setup(
 								size: Vec3::new(5.0, 1.0, 1.5),
 								..default()
 							},
-							material: mats.add(UiMatBuilder::from(Color::from(AQUA.with_alpha(0.4)))),
+							material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(AQUA.with_alpha(0.4))))),
 							adjacent: adjacent.clone(),
 							handlers: focus_toggle_border.clone(),
 							..default()
@@ -189,9 +192,12 @@ pub fn setup(
 						#children: [
 							(
 								Text3dBundle {
-									text_3d: Text3d { text: "Gameplay".into(), ..default() },
+									text_3d: Text3d {
+										text: "Gameplay".into(),
+										font: ui_fonts.mono.clone(),
+										..default()
+									},
 									material: text_material.clone(),
-									font: ui_fonts.mono.clone(),
 									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
 									..default()
 								},
@@ -205,7 +211,7 @@ pub fn setup(
 								size: Vec3::new(5.0, 1.0, 1.5),
 								..default()
 							},
-							material: mats.add(UiMatBuilder::from(Color::from(YELLOW.with_alpha(0.4)))),
+							material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(YELLOW.with_alpha(0.4))))),
 							adjacent: adjacent.clone(),
 							handlers: focus_toggle_border.clone(),
 							..default()
@@ -218,9 +224,12 @@ pub fn setup(
 						#children: [
 							(
 								Text3dBundle {
-									text_3d: Text3d { text: "Graphics".into(), ..default() },
+									text_3d: Text3d {
+										text: "Graphics".into(),
+										font: ui_fonts.mono.clone(),
+										..default()
+									},
 									material: text_material.clone(),
-									font: ui_fonts.mono.clone(),
 									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
 									..default()
 								},
@@ -234,7 +243,7 @@ pub fn setup(
 								size: Vec3::new(5.0, 1.0, 1.5),
 								..default()
 							},
-							material: mats.add(UiMatBuilder::from(Color::from(FUCHSIA.with_alpha(0.40)))),
+							material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(FUCHSIA.with_alpha(0.40))))),
 							adjacent: adjacent.clone(),
 							handlers: focus_toggle_border.clone(),
 							..default()
@@ -247,9 +256,12 @@ pub fn setup(
 						#children: [
 							(
 								Text3dBundle {
-									text_3d: Text3d { text: "Accessibility".into(), ..default() },
+									text_3d: Text3d {
+										text: "Accessibility".into(),
+										font: ui_fonts.mono.clone(),
+										..default()
+									},
 									material: text_material.clone(),
-									font: ui_fonts.mono.clone(),
 									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
 									..default()
 								},
@@ -263,7 +275,7 @@ pub fn setup(
 								size: Vec3::new(5.0, 1.0, 1.5),
 								..default()
 							},
-							material: mats.add(UiMatBuilder::from(Color::from(RED.with_alpha(0.4)))),
+							material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(RED.with_alpha(0.4))))),
 							adjacent: adjacent.clone(),
 							handlers: focus_toggle_border.clone(),
 							..default()
@@ -276,9 +288,12 @@ pub fn setup(
 						#children: [
 							(
 								Text3dBundle {
-									text_3d: Text3d { text: "Sound".into(), ..default() },
+									text_3d: Text3d {
+										text: "Sound".into(),
+										font: ui_fonts.mono.clone(),
+										..default()
+									},
 									material: text_material.clone(),
-									font: ui_fonts.mono.clone(),
 									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
 									..default()
 								},
@@ -292,10 +307,10 @@ pub fn setup(
 								size: Vec3::new(5.0, 1.0, 1.5),
 								..default()
 							},
-							material: mats.add(UiMatBuilder::from(Color::from(GREEN.with_alpha(0.4)))),
+							material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(GREEN.with_alpha(0.4))))),
 							handlers: focus_toggle_border.clone()
 							.and([on_ok(|cmds| {
-									cmds.commands().add(|world: &mut World| {
+									cmds.commands().queue(|world: &mut World| {
 										let menu = world.resource::<SettingsSubMenus>().controls;
 										let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
 										q.single_mut(world).push(menu);
@@ -314,9 +329,12 @@ pub fn setup(
 						#children: [
 							(
 								Text3dBundle {
-									text_3d: Text3d { text: "Controls".into(), ..default() },
+									text_3d: Text3d {
+										text: "Controls".into(),
+										font: ui_fonts.mono.clone(),
+										..default()
+									},
 									material: text_material.clone(),
-									font: ui_fonts.mono.clone(),
 									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
 									..default()
 								},
@@ -330,7 +348,7 @@ pub fn setup(
 								size: Vec3::new(5.0, 1.0, 1.5),
 								..default()
 							},
-							material: mats.add(UiMatBuilder::from(Color::from(BLUE.with_alpha(0.4)))),
+							material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(BLUE.with_alpha(0.4))))),
 							adjacent: adjacent.clone(),
 							handlers: focus_toggle_border.clone(),
 							..default()
@@ -343,9 +361,12 @@ pub fn setup(
 						#children: [
 							(
 								Text3dBundle {
-									text_3d: Text3d { text: "Kumquats".into(), ..default() },
+									text_3d: Text3d {
+										text: "Kumquats".into(),
+										font: ui_fonts.mono.clone(),
+										..default()
+									},
 									material: text_material.clone(),
-									font: ui_fonts.mono.clone(),
 									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
 									..default()
 								},

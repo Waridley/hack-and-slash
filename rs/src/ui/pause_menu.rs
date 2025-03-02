@@ -83,14 +83,14 @@ pub fn setup(
 	mut meshes: ResMut<Assets<Mesh>>,
 	ui_fonts: Res<UiFonts>,
 ) {
-	let btn_txt_mat = mats.add(UiMatBuilder {
+	let btn_txt_mat = MeshMaterial3d(mats.add(UiMatBuilder {
 		std: StandardMaterial {
 			base_color: Color::BLACK,
 			unlit: true,
 			..default()
 		},
 		..default()
-	});
+	}));
 	
 	let expand = ExpandToFitChildren {
 		margin: Vec3::new(0.2, 0.0, 0.3),
@@ -105,10 +105,10 @@ pub fn setup(
 				size: Vec3::new(12.0, 12.0, 12.0),
 				..default()
 			},
-			material: mats.add(UiMatBuilder {
+			material: MeshMaterial3d(mats.add(UiMatBuilder {
 				std: Color::rgba(0.3, 0.3, 0.3, 0.3).into(),
 				..default()
-			}),
+			})),
 			adjacent: AdjacentWidgets::all(FocusTarget::ChildN(0)),
 			..default()
 		},
@@ -124,18 +124,18 @@ pub fn setup(
 					..default()
 				},
 				Border::default(),
-				mats.add(UiMatBuilder::from(Color::rgba(0.12, 0.004, 0.15, 0.92)))
+				MeshMaterial3d(mats.add(UiMatBuilder::from(Color::rgba(0.12, 0.004, 0.15, 0.92))))
 			),
 			(
 				Name::new("game_paused_txt"),
 				Text3dBundle {
 					text_3d: Text3d {
 						text: "Game Paused".into(),
+						font: ui_fonts.mono.clone(),
 						flat: false,
 						..default()
 					},
-					material: mats.add(UiMatBuilder::from(Color::WHITE)),
-					font: ui_fonts.mono.clone(),
+					material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::WHITE))),
 					transform: Transform {
 						translation: Vec3::new(0.0, -6.5, 5.0),
 						..default()
@@ -159,18 +159,18 @@ pub fn setup(
 					(
 						Name::new("resume_btn"),
 						CuboidPanelBundle {
-							material: mats.add(UiMatBuilder {
+							material: MeshMaterial3d(mats.add(UiMatBuilder {
 								std: StandardMaterial {
 									base_color: Color::BLACK,
 									emissive: LinearRgba::from(LIMEGREEN) * 16.0,
 									..default()
 								},
 								..default()
-							}),
+							})),
 							handlers: smallvec![
 								dbg_event(),
 								on_ok(|cmds| {
-									cmds.commands().add(|world: &mut World| {
+									cmds.commands().queue(|world: &mut World| {
 										world.run_system_once(unpause);
 									});
 									ControlFlow::Break(())
@@ -188,8 +188,11 @@ pub fn setup(
 						#children: [(
 							Name::new("resume_btn_txt"),
 							Text3dBundle {
-								text_3d: Text3d { text: "Resume Game".into(), ..default() },
-								font: ui_fonts.mono.clone(),
+								text_3d: Text3d {
+									text: "Resume Game".into(),
+									font: ui_fonts.mono.clone(),
+									..default()
+								},
 								material: btn_txt_mat.clone(),
 								transform: Transform {
 									translation: Vec3::NEG_Y * 0.61,
@@ -202,19 +205,19 @@ pub fn setup(
 					(
 						Name::new("prefs_btn"),
 						CuboidPanelBundle {
-							material: mats.add(UiMatBuilder {
+							material: MeshMaterial3d(mats.add(UiMatBuilder {
 								std: StandardMaterial {
 									base_color: Color::BLACK,
 									emissive: LinearRgba::from(TEAL) * 20.0,
 									..default()
 								},
 								..default()
-							}),
+							})),
 							adjacent: AdjacentWidgets::vertical_siblings(),
 							handlers: smallvec![
 								dbg_event(),
 								on_ok(|cmds| {
-									cmds.commands().add(|world: &mut World| {
+									cmds.commands().queue(|world: &mut World| {
 										let mut q = world.query_filtered::<Entity, With<PrefsMenu>>();
 										let panel_id = q.single(world);
 										world.entity_mut(panel_id).fade_in_secs(1.5);
@@ -239,8 +242,11 @@ pub fn setup(
 							(
 								Name::new("prefs_btn_txt"),
 								Text3dBundle {
-									text_3d: Text3d { text: "Preferences...".into(), ..default() },
-									font: ui_fonts.mono.clone(),
+									text_3d: Text3d {
+										text: "Preferences...".into(),
+										font: ui_fonts.mono.clone(),
+										..default()
+									},
 									material: btn_txt_mat.clone(),
 									transform: Transform {
 										translation: Vec3::NEG_Y * 0.61,
@@ -254,18 +260,18 @@ pub fn setup(
 					(
 						Name::new("settings_btn"),
 						CuboidPanelBundle {
-							material: mats.add(UiMatBuilder {
+							material: MeshMaterial3d(mats.add(UiMatBuilder {
 								std: StandardMaterial {
 									base_color: Color::BLACK,
 									emissive: LinearRgba::from(GRAY) * 16.0,
 									..default()
 								},
 								..default()
-							}),
+							})),
 							handlers: smallvec![
 								dbg_event(),
 								on_ok(|cmds| {
-									cmds.commands().add(|world: &mut World| {
+									cmds.commands().queue(|world: &mut World| {
 										let mut q = world.query_filtered::<Entity, With<SettingsMenu>>();
 										let panel_id = q.single(world);
 										world.entity_mut(panel_id).fade_in_secs(1.5);
@@ -291,8 +297,11 @@ pub fn setup(
 							(
 								Name::new("settings_btn_txt"),
 								Text3dBundle {
-									text_3d: Text3d { text: "Settings...".into(), ..default() },
-									font: ui_fonts.mono.clone(),
+									text_3d: Text3d {
+										text: "Settings...".into(),
+										font: ui_fonts.mono.clone(),
+										..default()
+									},
 									material: btn_txt_mat.clone(),
 									transform: Transform {
 										translation: Vec3::NEG_Y * 0.61,
@@ -306,18 +315,18 @@ pub fn setup(
 					(
 						Name::new("quit_btn"),
 						CuboidPanelBundle {
-							material: mats.add(UiMatBuilder {
+							material: MeshMaterial3d(mats.add(UiMatBuilder {
 								std: StandardMaterial {
 									base_color: Color::BLACK,
 									emissive: LinearRgba::from(ORANGE_RED) * 16.0,
 									..default()
 								},
 								..default()
-							}),
+							})),
 							handlers: smallvec![
 								dbg_event(),
 								on_ok(|cmds| {
-									cmds.commands().add(|world: &mut World| {
+									cmds.commands().queue(|world: &mut World| {
 										world.resource_mut::<Events<AppExit>>()
 											.send(AppExit::Success);
 									});
@@ -337,8 +346,11 @@ pub fn setup(
 							(
 								Name::new("quit_btn_txt"),
 								Text3dBundle {
-									text_3d: Text3d { text: "Quit Game".into(), ..default() },
-									font: ui_fonts.mono.clone(),
+									text_3d: Text3d {
+										text: "Quit Game".into(),
+										font: ui_fonts.mono.clone(),
+										..default()
+									},
 									material: btn_txt_mat.clone(),
 									transform: Transform {
 										translation: Vec3::NEG_Y * 0.61,
@@ -409,8 +421,8 @@ pub fn pause(
 			focus: resume_btn.single(),
 			..MenuRef::new(id)
 		});
-		window.cursor.visible = true;
-		window.cursor.grab_mode = CursorGrabMode::None;
+		window.cursor_options.visible = true;
+		window.cursor_options.grab_mode = CursorGrabMode::None;
 	} else {
 		error!("Can't pause game while it's not running");
 	}
@@ -434,8 +446,8 @@ pub fn unpause(
 		cmds.entity(id).fade_out_secs(0.5);
 		states.pop();
 		stack.pop();
-		window.cursor.visible = false;
-		window.cursor.grab_mode = CursorGrabMode::Locked;
+		window.cursor_options.visible = false;
+		window.cursor_options.grab_mode = CursorGrabMode::Locked;
 	} else {
 		error!("Pause menu isn't the top of the MenuStack");
 	}

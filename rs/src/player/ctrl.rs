@@ -1,7 +1,7 @@
 use bevy::{
 	prelude::*,
-	render::primitives::{Aabb, Sphere},
 };
+use bevy::math::{prelude::Sphere, bounding::{Aabb3d, BoundingSphere}};
 use bevy_rapier3d::{
 	na::Vector3,
 	parry::{
@@ -180,14 +180,14 @@ pub fn gravity(mut q: Query<(&mut CtrlVel, &CtrlState)>, params: Res<PlayerParam
 			ctrl_vel.linvel.z = f32::max(ctrl_vel.linvel.z, 0.0)
 		}
 
-		let decr = params.phys.gravity * t.delta_seconds();
+		let decr = params.phys.gravity * t.delta_secs();
 
 		ctrl_vel.linvel.z -= decr;
 	}
 }
 
 pub fn move_player(
-	mut ctx: ResMut<RapierContext>,
+	mut ctx: Single<&mut RapierContext>,
 	mut body_q: Query<
 		(Entity, &mut Transform, &GlobalTransform, &BelongsToPlayer),
 		WithVariant<Root>,
@@ -213,11 +213,11 @@ pub fn move_player(
 		WithVariant<ShipCenter>,
 	>,
 	params: Res<PlayerParams>,
-	sim_to_render: Res<SimulationToRenderTime>,
+	sim_to_render: Single<&SimulationToRenderTime>,
 	t: Res<Time>,
 ) {
 	let dt = crate::DT;
-	let mut diff = sim_to_render.diff + t.delta_seconds();
+	let mut diff = sim_to_render.diff + t.delta_secs();
 	let mut iters = 4;
 	while diff > 0.0 && iters > 0 {
 		diff -= dt;
@@ -349,10 +349,10 @@ pub fn move_player(
 						let pos = body_global.translation + result;
 						let iso = Isometry::new(pos.into(), UP.into());
 						let ball = col.as_ball().unwrap();
-						let aabb = Aabb::from(Sphere {
-							center: pos.into(),
-							radius: ball.raw.radius + (vel * dt).length(),
-						});
+						let aabb = BoundingSphere::new(
+							pos,
+							ball.raw.radius + (vel * dt).length(),
+						).aabb_3d();
 
 						// Attempt to prevent tunnelling by using an extruded sphere (capsule) instead
 						let capsule =

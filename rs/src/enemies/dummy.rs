@@ -48,12 +48,12 @@ fn setup(
 	mut meshes: ResMut<Assets<Mesh>>,
 	mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-	let mesh = meshes.add(Capsule3d {
+	let mesh = Mesh3d(meshes.add(Capsule3d {
 		radius: 2.0,
 		half_length: 4.0,
 		..default()
-	});
-	let material = materials.add(Color::from(YELLOW));
+	}));
+	let material = MeshMaterial3d(materials.add(Color::from(YELLOW)));
 	let collider = Collider::capsule(Vect::NEG_Y * 2.0, Vect::Y * 2.0, 2.0);
 	let locked_axes = LockedAxes::ROTATION_LOCKED
 		| LockedAxes::TRANSLATION_LOCKED_X
@@ -109,8 +109,8 @@ impl Spawnable for Dummy {
 
 #[derive(Resource, Clone)]
 pub struct DummyTemplate {
-	mesh: Handle<Mesh>,
-	material: Handle<StandardMaterial>,
+	mesh: Mesh3d,
+	material: MeshMaterial3d<StandardMaterial>,
 	collider: Collider,
 	locked_axes: LockedAxes,
 }
@@ -155,7 +155,7 @@ pub fn spawn_new_dummies(
 pub struct DummySpawnTimer(Timer);
 
 pub fn handle_hits(
-	mut ctx: ResMut<RapierContext>,
+	mut ctx: Single<&mut RapierContext>,
 	mut cmds: Commands,
 	audio: Res<Audio>,
 	sfx: Res<Sfx>,

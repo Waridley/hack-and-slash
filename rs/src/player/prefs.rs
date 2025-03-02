@@ -149,7 +149,7 @@ pub struct LookSensitivity(Vec2);
 
 impl Default for LookSensitivity {
 	fn default() -> Self {
-		Self(Vec2::new(-0.005, -0.005))
+		Self(Vec2::new(-0.05, -0.05))
 	}
 }
 

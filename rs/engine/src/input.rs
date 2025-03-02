@@ -1,6 +1,6 @@
 use bevy::{
 	input::{
-		gamepad::{GamepadAxisChangedEvent, GamepadButtonChangedEvent, GamepadButtonInput},
+		gamepad::{GamepadAxisChangedEvent, GamepadButtonChangedEvent},
 		keyboard::{Key, KeyboardInput},
 		mouse::{MouseButtonInput, MouseMotion, MouseWheel},
 		ButtonState,
@@ -9,13 +9,16 @@ use bevy::{
 	state::state::States,
 	utils::HashMap,
 };
-use leafwing_input_manager::{buttonlike::MouseMotionDirection, prelude::*};
+use bevy::reflect::{FromType, TypeRegistration};
+use leafwing_input_manager::prelude::*;
+use leafwing_input_manager::prelude::updating::CentralInputStore;
 use serde::{Deserialize, Serialize};
-
+use tiny_bail::prelude::r;
 use crate::{
 	input::InputState::DetectingBinding,
 	util::{AppExt, StateStack},
 };
+use crate::input::map::icons::{IconPathKey, InputIconFileMap};
 
 pub mod map;
 
@@ -26,6 +29,8 @@ impl Plugin for InputPlugin {
 		app.add_plugins((map::detect::DetectBindingPopupPlugin,))
 			.init_state_stack::<InputState>()
 			.init_resource::<CurrentChord>()
+			.register_axislike_input::<GamepadAxis>()
+			.register_type::<InputIconFileMap>()
 			.add_event::<ToBind>()
 			.add_systems(
 				First, // Consume inputs while detecting bindings
@@ -34,9 +39,21 @@ impl Plugin for InputPlugin {
 					dbg_set_detect_binding_state.before(detect_bindings),
 					detect_bindings.run_if(in_state(DetectingBinding)),
 					#[cfg(feature = "debugging")]
-					dbg_detect_bindings.after(detect_bindings),
+					dbg_detect_bindings.run_if(resource_exists::<InputIconFileMap>).after(detect_bindings),
 				),
 			);
+	}
+	
+	fn finish(&self, app: &mut App) {
+		let mut reg = TypeRegistration::of::<GamepadAxis>();
+		reg.insert(<ReflectDeserialize as FromType<GamepadAxis>>::from_type());
+		let mut registry = app.world_mut()
+			.resource_mut::<AppTypeRegistry>();
+		let mut registry = registry
+			.internal
+			.write()
+			.unwrap();
+		registry.overwrite_registration(reg);
 	}
 }
 
@@ -97,11 +114,40 @@ impl CurrentChord {
 	}
 }
 
-pub type ChordEntry = (InputKind, Option<Gamepad>);
+#[derive(Reflect, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum SerializableUserInputWrapper {
+	Button(Box<dyn Buttonlike>),
+	Axis(Box<dyn Axislike>),
+	DualAxis(Box<dyn DualAxislike>),
+	TripleAxis(Box<dyn TripleAxislike>),
+}
+
+impl From<UserInputWrapper> for SerializableUserInputWrapper {
+	fn from(wrapper: UserInputWrapper) -> Self {
+		match wrapper {
+			UserInputWrapper::Button(input) => Self::Button(input),
+			UserInputWrapper::Axis(input) => Self::Axis(input),
+			UserInputWrapper::DualAxis(input) => Self::DualAxis(input),
+			UserInputWrapper::TripleAxis(input) => Self::TripleAxis(input),
+		}
+	}
+}
+
+impl From<SerializableUserInputWrapper> for UserInputWrapper {
+	fn from(wrapper: SerializableUserInputWrapper) -> Self {
+		match wrapper {
+			SerializableUserInputWrapper::Button(input) => Self::Button(input),
+			SerializableUserInputWrapper::Axis(input) => Self::Axis(input),
+			SerializableUserInputWrapper::DualAxis(input) => Self::DualAxis(input),
+			SerializableUserInputWrapper::TripleAxis(input) => Self::TripleAxis(input),
+		}
+	}
+}
+
+pub type ChordEntry = (SerializableUserInputWrapper, Option<Entity>);
 
 pub fn detect_bindings(
-	mut gamepad_buttons: ResMut<Events<GamepadButtonInput>>,
-	mut gamepad_button_axes: ResMut<Events<GamepadButtonChangedEvent>>,
+	mut gamepad_buttons: ResMut<Events<GamepadButtonChangedEvent>>,
 	mut gamepad_axes: ResMut<Events<GamepadAxisChangedEvent>>,
 	mut keys: ResMut<Events<KeyboardInput>>,
 	mut mouse_buttons: ResMut<Events<MouseButtonInput>>,
@@ -124,32 +170,22 @@ pub fn detect_bindings(
 	// This allows chords to be bound, whether physically input by the user,
 	// or automatically sent by macro keys for example.
 
-	for btn in gamepad_buttons.drain() {
-		let entry = (btn.button.button_type.into(), Some(btn.button.gamepad));
+	for ev in gamepad_buttons.drain() {
+		let entry = (UserInputWrapper::Button(Box::new(ev.button)).into(), Some(ev.entity));
 		trace!("{entry:?}");
-		if btn.state.is_pressed() {
+		if ev.state.is_pressed() {
 			curr_chord.insert(entry, None);
-		} else if curr_chord.contains_key(&entry) {
+		} else if curr_chord.contains_key(&entry.into()) {
 			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		}
 	}
 
 	// Thresholds are higher than usual to make sure the user really wants the given input.
 
-	for btn in gamepad_button_axes.drain() {
-		let entry = (btn.button_type.into(), Some(btn.gamepad));
-		trace!("{entry:?}");
-		if btn.value > 0.7 {
-			curr_chord.insert(entry, None);
-		} else if curr_chord.contains_key(&entry) {
-			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
-		}
-	}
-
 	for axis in gamepad_axes.drain() {
 		let entry = (
-			SingleAxis::from_value(axis.axis_type, axis.value).into(),
-			Some(axis.gamepad),
+			UserInputWrapper::Axis(Box::new(axis.axis)).into(),
+			Some(axis.entity),
 		);
 		trace!("{entry:?}");
 		if axis.value.abs() > 0.7 {
@@ -160,7 +196,7 @@ pub fn detect_bindings(
 	}
 
 	for key in keys.drain() {
-		let entry = (key.key_code.into(), None);
+		let entry = (UserInputWrapper::Button(Box::new(key.key_code)).into(), None);
 		trace!("{entry:?}");
 		if key.state.is_pressed() {
 			curr_chord.insert(entry, Some(key.logical_key));
@@ -170,7 +206,7 @@ pub fn detect_bindings(
 	}
 
 	for btn in mouse_buttons.drain() {
-		let entry = (btn.button.into(), None);
+		let entry = (UserInputWrapper::Button(Box::new(btn.button)).into(), None);
 		trace!("{entry:?}");
 		if btn.state.is_pressed() {
 			curr_chord.insert(entry, None);
@@ -184,17 +220,17 @@ pub fn detect_bindings(
 		wheel_accum.y += wheel.y;
 		trace!("{wheel_accum:?}");
 		if wheel_accum.x >= 3.0 {
-			curr_chord.insert((MouseWheelDirection::Right.into(), None), None);
+			curr_chord.insert((UserInputWrapper::Button(Box::new(MouseScrollDirection::RIGHT)).into(), None), None);
 			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		} else if wheel_accum.x <= -3.0 {
-			curr_chord.insert((MouseWheelDirection::Left.into(), None), None);
+			curr_chord.insert((UserInputWrapper::Button(Box::new(MouseScrollDirection::LEFT)).into(), None), None);
 			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		}
 		if wheel_accum.y >= 3.0 {
-			curr_chord.insert((MouseWheelDirection::Up.into(), None), None);
+			curr_chord.insert((UserInputWrapper::Button(Box::new(MouseScrollDirection::UP)).into(), None), None);
 			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		} else if wheel_accum.y <= -3.0 {
-			curr_chord.insert((MouseWheelDirection::Down.into(), None), None);
+			curr_chord.insert((UserInputWrapper::Button(Box::new(MouseScrollDirection::DOWN)).into(), None), None);
 			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		}
 	}
@@ -204,17 +240,17 @@ pub fn detect_bindings(
 		trace!("{mouse_accum:?}");
 		// FIXME: Probably scale by sensitivity
 		if mouse_accum.x > 500.0 {
-			curr_chord.insert((MouseMotionDirection::Right.into(), None), None);
+			curr_chord.insert((UserInputWrapper::Button(Box::new(MouseMoveDirection::RIGHT)).into(), None), None);
 			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		} else if mouse_accum.x < -500.0 {
-			curr_chord.insert((MouseMotionDirection::Left.into(), None), None);
+			curr_chord.insert((UserInputWrapper::Button(Box::new(MouseMoveDirection::LEFT)).into(), None), None);
 			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		}
 		if mouse_accum.y > 500.0 {
-			curr_chord.insert((MouseMotionDirection::Down.into(), None), None);
+			curr_chord.insert((UserInputWrapper::Button(Box::new(MouseMoveDirection::DOWN)).into(), None), None);
 			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		} else if mouse_accum.y < -500.0 {
-			curr_chord.insert((MouseMotionDirection::Up.into(), None), None);
+			curr_chord.insert((UserInputWrapper::Button(Box::new(MouseMoveDirection::UP)).into(), None), None);
 			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		}
 	}
@@ -244,17 +280,24 @@ pub fn dbg_set_detect_binding_state(
 }
 
 #[cfg(feature = "debugging")]
-pub fn dbg_detect_bindings(mut rx: EventReader<ToBind>, gamepads: Res<Gamepads>) {
-	use crate::input::map::{icons::*, GamepadSeries};
+pub fn dbg_detect_bindings(
+	mut rx: EventReader<ToBind>,
+	gamepads: Query<(Option<&Name>, &Gamepad)>,
+	icon_map: Res<InputIconFileMap>,
+) {
+	use crate::input::map::{icons::*, Platform};
 	for event in rx.read() {
 		for ((input, gp), logical_key) in event.0.iter() {
 			let icons = if let Some(icon) = logical_key.as_ref() {
-				key(icon).map(InputIcons::Single)
+				key(icon).map(UserInputIcons::simple).unwrap_or_default()
 			} else {
-				InputIcons::from_input_kind(
-					*input,
-					gp.and_then(|gp| gamepads.name(gp))
-						.map(GamepadSeries::guess),
+				UserInputIcons::from_user_input(
+					input.clone().into(),
+					gp.and_then(|gp| gamepads.get(gp).ok())
+						.and_then(|(name, _)| name)
+						.map(Name::as_str)
+						.and_then(Platform::guess_gamepad),
+					&*icon_map,
 				)
 			};
 
@@ -268,20 +311,83 @@ pub trait ActionExt: Actionlike {
 	fn default_mappings() -> InputMap<Self>;
 	fn reset_to_default(&self, input_map: &mut InputMap<Self>) {
 		let default = Self::default_mappings();
-		let default = default.get(self);
-		if let Some(default) = default {
-			debug!(action=self.display_name(), ?default);
-			match input_map.get_mut(self) {
-				Some(bindings) => {
+		match self.input_control_kind() {
+			InputControlKind::Button => {
+				let default = default.get_buttonlike(self);
+				if let Some(default) = default {
+					debug!(action=self.display_name(), ?default);
+					let bindings = input_map.get_buttonlike_mut(self);
+					let bindings = if let Some(bindings) = bindings {
+						bindings
+					} else {
+						input_map.insert_one_to_many(self.clone(), std::iter::empty::<KeyCode>());
+						r!(input_map.get_buttonlike_mut(self))
+					};
 					bindings.clear();
-					bindings.clone_from(default);
-				}
-				None => {
-					input_map.insert_one_to_many(self.clone(), default.iter().cloned());
+					bindings.clone_from(&default);
+				} else {
+					input_map.clear_action(self);
 				}
 			}
-		} else {
-			input_map.clear_action(self);
+			InputControlKind::Axis => {
+				let default = default.get_axislike(self);
+				if let Some(default) = default {
+					debug!(action=self.display_name(), ?default);
+					let bindings = input_map.get_axislike_mut(self);
+					let bindings = if let Some(bindings) = bindings {
+						bindings
+					} else {
+						// Hack, will be cleared, need to initialize bindings list
+						input_map.insert_axis(self.clone(), GamepadAxis::LeftStickX);
+						r!(input_map.get_axislike_mut(self))
+					};
+					bindings.clear();
+					bindings.clone_from(&default);
+				} else {
+					input_map.clear_action(self);
+				}
+			}
+			InputControlKind::DualAxis => {
+				let default = default.get_dual_axislike(self);
+				if let Some(default) = default {
+					debug!(action=self.display_name(), ?default);
+					let bindings = input_map.get_dual_axislike_mut(self);
+					let bindings = if let Some(bindings) = bindings {
+						bindings
+					} else {
+						input_map.insert_dual_axis(self.clone(), GamepadStick::LEFT);
+						r!(input_map.get_dual_axislike_mut(self))
+					};
+					bindings.clear();
+					bindings.clone_from(&default);
+				} else {
+					input_map.clear_action(self);
+				}
+			}
+			InputControlKind::TripleAxis => {
+				let default = default.get_triple_axislike(self);
+				if let Some(default) = default {
+					debug!(action=self.display_name(), ?default);
+					let bindings = input_map.get_triple_axislike_mut(self);
+					let bindings = if let Some(bindings) = bindings {
+						bindings
+					} else {
+						input_map.insert_triple_axis(self.clone(), VirtualDPad3D {
+							up: Box::new(KeyCode::Escape),
+							down: Box::new(KeyCode::Escape),
+							left: Box::new(KeyCode::Escape),
+							right: Box::new(KeyCode::Escape),
+							forward: Box::new(KeyCode::Escape),
+							backward: Box::new(KeyCode::Escape),
+						});
+						r!(input_map.get_triple_axislike_mut(self))
+					};
+					bindings.clear();
+					bindings.clone_from(&default);
+				} else {
+					input_map.clear_action(self);
+				}
+			}
 		}
 	}
 	fn all() -> impl Iterator<Item = Self>;
