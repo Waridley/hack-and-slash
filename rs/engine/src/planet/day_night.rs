@@ -1,7 +1,7 @@
 use bevy::{prelude::*, render::extract_resource::ExtractResource};
 #[cfg(feature = "debugging")]
 use bevy_inspector_egui::prelude::*;
-use std::time::Duration;
+use web_time::Duration;
 
 const SECS_PER_MIN: f64 = 60.0;
 

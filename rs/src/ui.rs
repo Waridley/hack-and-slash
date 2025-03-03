@@ -1,6 +1,5 @@
 use crate::ui::settings_menu::SettingsMenuPlugin;
 use bevy::prelude::*;
-use enum_components::EnumComponent;
 use pause_menu::PauseMenuPlugin;
 use crate::ui::prefs_menu::PrefsMenuPlugin;
 use crate::util::IntoFnPlugin;

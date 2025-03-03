@@ -3,11 +3,11 @@
 use bevy::{
 	prelude::*,
 	render::{
-		mesh::{Indices, PrimitiveTopology, VertexAttributeValues},
+		mesh::{Indices, PrimitiveTopology},
 		render_asset::RenderAssetUsages,
 	},
 };
-use std::f32::consts::{FRAC_PI_2, PI, TAU};
+use std::f32::consts::TAU;
 use smallvec::{smallvec, SmallVec};
 
 /// The corners of a square with dimensions [1.0, 1.0], centered around the origin.

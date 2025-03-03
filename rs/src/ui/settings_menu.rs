@@ -1,27 +1,27 @@
-use crate::{player::input::PlayerAction, ui::pause_menu::pause_menu_widget};
+use crate::player::input::PlayerAction;
 use bevy::prelude::*;
 use engine::{
 	draw::{polygon_points, PlanarPolyLine},
 	entity_tree,
 	ui::{
-		focus::{AdjacentWidgets, FocusTarget, FocusTarget::Sibling, Wedge2d},
+		focus::{AdjacentWidgets, FocusTarget, Wedge2d},
 		layout::{ExpandToFitChildren, RadialArrangement, RadialChildren},
 		text::UiFonts,
 		widgets::{
-			dbg_event, focus_state_colors, new_unlit_material, on_back, on_ok, CuboidPanel,
-			CuboidPanelBundle, CylinderFaces, CylinderPanel, CylinderPanelBundle, InteractHandlers,
+			dbg_event, new_unlit_material, on_ok, CuboidPanel,
+			CuboidPanelBundle, CylinderPanel, CylinderPanelBundle, InteractHandlers,
 			Node3dBundle, Text3d, Text3dBundle, WidgetBundle, WidgetShape,
 		},
-		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiAction, UiCam, UiMat, UiMatBuilder,
+		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiAction, UiMat, UiMatBuilder,
 		GLOBAL_UI_RENDER_LAYERS,
 	},
 	util::{Angle, Flat},
 };
-use enum_components::{EntityEnumCommands, EnumComponent, WithVariant};
+use enum_components::{EntityEnumCommands, EnumComponent};
 use rapier3d::prelude::SharedShape;
 use std::{
-	f32::consts::{FRAC_PI_2, FRAC_PI_3, FRAC_PI_6},
-	ops::{ControlFlow, ControlFlow::Break},
+	f32::consts::{FRAC_PI_3, FRAC_PI_6},
+	ops::ControlFlow::Break,
 };
 use bevy::color::palettes::basic::{AQUA, BLUE, FUCHSIA, GRAY, GREEN, RED, YELLOW};
 use bevy::color::palettes::css::DARK_GRAY;
@@ -74,7 +74,7 @@ pub fn setup(
 			.collect(),
 	};
 	let text_material = MeshMaterial3d(mats.add(new_unlit_material()));
-	let blue_green_mat = MeshMaterial3d(mats.add(UiMatBuilder::from(Color::rgb(0.5, 0.8, 0.7))));
+	let blue_green_mat = MeshMaterial3d(mats.add(UiMatBuilder::from(Color::linear_rgb(0.5, 0.8, 0.7))));
 	let button_focus_border_bundle = (
 		Node3dBundle {
 			transform: Transform {
@@ -105,7 +105,7 @@ pub fn setup(
 				..default()
 			},
 			material: MeshMaterial3d(mats.add(UiMatBuilder::from(StandardMaterial {
-				base_color: Color::rgba(0.1, 0.1, 0.1, 0.8),
+				base_color: LinearRgba::new(0.1, 0.1, 0.1, 0.8).into(),
 				alpha_mode: AlphaMode::Blend,
 				double_sided: true,
 				cull_mode: None,

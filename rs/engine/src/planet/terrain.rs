@@ -238,6 +238,7 @@ impl Default for TerrainObject {
 }
 
 #[derive(Component, Debug, Clone)]
+#[require(Transform, Visibility)]
 pub struct Ground {
 	pub heights: Arc<HeightField>,
 }
@@ -456,12 +457,11 @@ pub fn spawn_loaded_chunks(
 					Name::new(format!("Chunk({},{})", index.x, index.y)),
 					*index,
 					center,
-					TransformBundle::from_transform(Transform::from_translation(Vec3::new(
+					Transform::from_translation(Vec3::new(
 						translation.x,
 						translation.y,
 						0.0,
-					))),
-					VisibilityBundle::default(),
+					)),
 					Ground {
 						heights: heights.clone(),
 					},

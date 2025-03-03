@@ -3,7 +3,6 @@ use crate::{
 	node_3d, node_3d_defaults,
 	ui::{
 		a11y::AKNode,
-		text::UiFonts,
 		widgets::{Text3d, WidgetShape, UNLIT_MATERIAL_ID},
 		UiMat,
 	},
@@ -59,7 +58,6 @@ impl InputIcon {
 		mut cmds: Commands,
 		mut q: Query<(Entity, &mut InputIcon, &mut AKNode, &MeshMaterial3d<M>), Changed<InputIcon>>,
 		asset_server: Res<AssetServer>,
-		fonts: Res<UiFonts>,
 	) {
 		for (id, mut this, mut ak_node, mat) in &mut q {
 			let Self {

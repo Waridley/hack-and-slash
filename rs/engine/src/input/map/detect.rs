@@ -2,7 +2,7 @@ use crate::{
 	draw::PlanarPolyLine,
 	input::{
 		map::{
-			icons::{Icon, BasicInputIcons},
+			icons::Icon,
 			widgets::{InputIcon, InputIconBundle},
 			Platform,
 		},
@@ -15,12 +15,11 @@ use crate::{
 	},
 	ui::{
 		layout::LineUpChildren,
-		text::{TextMeshCache, UiFonts},
+		text::UiFonts,
 		widgets::{
-			CuboidFaces, CuboidPanel, CuboidPanelBundle, Node3dBundle, RectCorners, Text3d,
+			CuboidPanel, CuboidPanelBundle, Node3dBundle, Text3d,
 			Text3dBundle,
-		},
-		CamAnchor, GlobalUi, Popup, PopupsRoot, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
+		}, GlobalUi, Popup, PopupsRoot, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
 	},
 };
 use bevy::{
@@ -29,7 +28,6 @@ use bevy::{
 };
 use bevy::color::palettes::css::AQUAMARINE;
 use smallvec::{smallvec, SmallVec};
-use bevy_svg::prelude::Origin;
 use crate::input::map::icons::{InputIconFileMap, UserInputIcons};
 
 pub struct DetectBindingPopupPlugin;
@@ -63,7 +61,7 @@ pub fn setup(
 							base: Matter {
 								extension: DistanceDither::ui(),
 								base: StandardMaterial {
-									base_color: Color::rgba(0.0, 0.001, 0.001, 0.6),
+									base_color: Color::linear_rgba(0.0, 0.001, 0.001, 0.6),
 									alpha_mode: AlphaMode::Blend,
 									double_sided: true,
 									cull_mode: None,
@@ -226,8 +224,8 @@ pub fn display_curr_chord(
 						.and_then(Platform::guess_gamepad),
 					&*icon_map,
 				);
-				use UserInputIcons::*;
-				use BasicInputIcons::*;
+				
+				
 				entry_icons.into_iter().collect()
 			};
 			let mut ids = SmallVec::new();

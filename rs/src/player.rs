@@ -32,7 +32,7 @@ use rapier3d::{math::Point, prelude::Aabb};
 
 use camera::spawn_cameras;
 use ctrl::{CtrlState, CtrlVel};
-use engine::{planet::terrain::NeedsTerrain, todo_warn, ui::{focus, layout::LineUpChildren, Fade, GLOBAL_UI_LAYER}};
+use engine::{planet::terrain::NeedsTerrain, ui::{focus, GLOBAL_UI_LAYER}};
 use player_entity::*;
 use prefs::PlayerPrefs;
 
@@ -447,64 +447,56 @@ impl PlayerSpawnData {
 					angvel: Vect::new(0.0, 0.0, PI / crate::DT), // Half a rotation per physics tick
 				}),
 				KinematicPositionBased,
-				TransformBundle::from_transform(transform),
+				transform,
 				Velocity::default(),
 				Friction {
 					coefficient: 0.0,
 					combine_rule: Min,
 				},
-				VisibilityBundle::default(),
+				Visibility::default(),
 				NeedsTerrain,
 			),
-			vis: SceneBundle {
-				scene: SceneRoot(ship_scene),
-				..default()
-			},
-			antigrav_pulse: PbrBundle {
-				mesh: Mesh3d(antigrav_pulse_mesh),
-				material: MeshMaterial3d(antigrav_pulse_mat),
-				..default()
-			},
+			vis: SceneRoot(ship_scene),
+			antigrav_pulse: (
+				Mesh3d(antigrav_pulse_mesh),
+				MeshMaterial3d(antigrav_pulse_mat),
+			),
 			arms: [
 				(
-					PbrBundle {
-						mesh: Mesh3d(arm_mesh.clone()),
-						material: MeshMaterial3d(mat_a),
-						transform: Transform::from_translation(Vec3::X * 2.0),
-						..default()
-					},
+					(
+						Mesh3d(arm_mesh.clone()),
+						MeshMaterial3d(mat_a),
+						Transform::from_translation(Vec3::X * 2.0),
+					),
 					PlayerArm::A,
 				),
 				(
-					PbrBundle {
-						mesh: Mesh3d(arm_mesh.clone()),
-						material: MeshMaterial3d(mat_b),
-						transform: Transform::from_translation(
+					(
+						Mesh3d(arm_mesh.clone()),
+						MeshMaterial3d(mat_b),
+						Transform::from_translation(
 							Quat::from_rotation_z(FRAC_PI_3 * 2.0) * Vec3::X * 2.0,
 						),
-						..default()
-					},
+					),
 					PlayerArm::B,
 				),
 				(
-					PbrBundle {
-						mesh: Mesh3d(arm_mesh),
-						material: MeshMaterial3d(mat_c),
-						transform: Transform::from_translation(
+					(
+						Mesh3d(arm_mesh),
+						MeshMaterial3d(mat_c),
+						Transform::from_translation(
 							Quat::from_rotation_z(FRAC_PI_3 * 4.0) * Vec3::X * 2.0,
 						),
-						..default()
-					},
+					),
 					PlayerArm::C,
 				),
 			],
 			arm_particle_mesh,
-			crosshair: PbrBundle {
-				mesh: Mesh3d(crosshair_mesh),
-				material: MeshMaterial3d(crosshair_mat),
-				transform: Transform::from_translation(Vec3::Y * 128.0),
-				..default()
-			},
+			crosshair: (
+				Mesh3d(crosshair_mesh),
+				MeshMaterial3d(crosshair_mat),
+				Transform::from_translation(Vec3::Y * 128.0),
+			),
 		}
 	}
 }
@@ -515,17 +507,17 @@ struct PlayerBundles {
 		BelongsToPlayer,
 		TerminalVelocity,
 		RigidBody,
-		TransformBundle,
+		Transform,
 		Velocity,
 		Friction,
-		VisibilityBundle,
+		Visibility,
 		NeedsTerrain,
 	),
-	vis: SceneBundle,
-	antigrav_pulse: PbrBundle,
-	arms: [(PbrBundle, PlayerArm); 3],
+	vis: SceneRoot,
+	antigrav_pulse: (Mesh3d, MeshMaterial3d<StandardMaterial>),
+	arms: [((Mesh3d, MeshMaterial3d<StandardMaterial>, Transform), PlayerArm); 3],
 	arm_particle_mesh: Handle<Mesh>,
-	crosshair: PbrBundle,
+	crosshair: (Mesh3d, MeshMaterial3d<StandardMaterial>, Transform),
 }
 
 #[derive(EnumComponent)]
@@ -648,12 +640,12 @@ pub fn spawn_players(
 fn populate_player_scene(
 	root: &mut EntityCommands,
 	owner: BelongsToPlayer,
-	vis: SceneBundle,
+	vis: SceneRoot,
 	char_collider: Collider,
-	antigrav_pulse: PbrBundle,
-	arm_meshes: [(PbrBundle, PlayerArm); 3],
+	antigrav_pulse: (Mesh3d, MeshMaterial3d<StandardMaterial>),
+	arm_meshes: [((Mesh3d, MeshMaterial3d<StandardMaterial>, Transform), PlayerArm); 3],
 	arm_particle_mesh: Handle<Mesh>,
-	crosshair: PbrBundle,
+	crosshair: (Mesh3d, MeshMaterial3d<StandardMaterial>, Transform),
 	prefs: PlayerPrefs,
 ) {
 	player_controller(root, owner, char_collider, prefs);
@@ -687,7 +679,7 @@ fn player_controller(
 				char_collider,
 				Restitution::new(0.5),
 				Ccd::enabled(),
-				TransformBundle::default(),
+				Transform::default(),
 				CtrlVel::default(),
 				CollisionGroups::new(Group::GROUP_1, !Group::GROUP_1),
 				InputManagerBundle {
@@ -715,11 +707,11 @@ fn player_controller(
 fn player_vis(
 	root: &mut EntityCommands,
 	owner: BelongsToPlayer,
-	vis: SceneBundle,
-	particle_mesh: PbrBundle,
-	arm_meshes: [(PbrBundle, PlayerArm); 3],
+	vis: SceneRoot,
+	particle_mesh: (Mesh3d, MeshMaterial3d<StandardMaterial>),
+	arm_meshes: [((Mesh3d, MeshMaterial3d<StandardMaterial>, Transform), PlayerArm); 3],
 	arm_particle_mesh: Handle<Mesh>,
-	crosshair: PbrBundle,
+	crosshair: (Mesh3d, MeshMaterial3d<StandardMaterial>, Transform),
 ) {
 	let mut cmds = root.commands();
 	let camera_pivot = camera::spawn_pivot(&mut cmds, owner, crosshair).id();
@@ -729,12 +721,12 @@ fn player_vis(
 		.spawn((
 			Name::new(format!("Player{}.ShipCenter", owner.0.get())),
 			owner,
-			TransformBundle::from_transform(Transform::from_translation(Vec3::NEG_Z * 0.64)),
+			(Transform::from_translation(Vec3::NEG_Z * 0.64)),
 			TransformInterpolation {
 				start: None,
 				end: Some(Isometry::translation(0.0, 0.0, -0.64)),
 			},
-			VisibilityBundle::default(), // for children ComputedVisibility
+			Visibility::default(), // for children ComputedVisibility
 		))
 		.set_enum(ShipCenter)
 		.with_children(move |builder| {
@@ -743,10 +735,10 @@ fn player_vis(
 				.spawn((
 					Name::new(format!("Player{}.ShipCenter.Ship", owner.0.get())),
 					owner,
-					TransformBundle::from_transform(Transform::from_rotation(
+					(Transform::from_rotation(
 						Quat::from_rotation_x(FRAC_PI_2),
 					)),
-					VisibilityBundle::default(),
+					Visibility::default(),
 				))
 				.set_enum(Ship)
 				.with_children(|builder| {
@@ -756,14 +748,7 @@ fn player_vis(
 						vis,
 					));
 
-					let transform = Transform {
-						// rotation: Quat::from_rotation_x(FRAC_PI_2),
-						..default()
-					};
-					let particle_mesh = MaterialMeshBundle {
-						transform,
-						..particle_mesh
-					};
+					let (particle_mesh, particle_mat) = particle_mesh;
 
 					let mut rng = nanorand::WyRand::new();
 					builder
@@ -789,10 +774,9 @@ fn player_vis(
 										};
 										cmds.spawn((
 											ParticleBundle {
-												mesh_bundle: MaterialMeshBundle {
-													transform: xform,
-													..particle_mesh.clone()
-												},
+												mesh: particle_mesh.clone(),
+												material: particle_mat.clone(),
+												transform: xform,
 												lifetime: Lifetime(Duration::from_secs_f32(0.24)),
 												initial_transform: InitialTransform(xform),
 												time_created,
@@ -811,10 +795,10 @@ fn player_vis(
 									use_global_coords: true,
 									..default()
 								},
-								transform: TransformBundle::from_transform(Transform {
+								transform: Transform {
 									translation: Vec3::new(0.0, -0.5, 0.0),
 									..default()
-								}),
+								},
 								..default()
 							},
 						))
@@ -822,17 +806,14 @@ fn player_vis(
 
 					builder.spawn((
 						Name::new(format!("Player{}.ShipCenter.Ship.Glow", owner.0.get())),
-						PointLightBundle {
-							point_light: PointLight {
-								color: Color::rgb(0.0, 1.0, 0.6),
-								intensity: 2_000_000.0,
-								range: 12.0,
-								shadows_enabled: false,
-								..default()
-							},
-							transform: Transform::from_xyz(0.0, -0.5, 0.0),
+						PointLight {
+							color: Color::linear_rgb(0.0, 1.0, 0.6),
+							intensity: 2_000_000.0,
+							range: 12.0,
+							shadows_enabled: false,
 							..default()
 						},
+						Transform::from_xyz(0.0, -0.5, 0.0),
 					));
 				});
 		})
@@ -841,8 +822,8 @@ fn player_vis(
 				.spawn((
 					owner,
 					Name::new(format!("Player{}.ShipCenter.Arms", owner.0.get())),
-					TransformBundle::from_transform(Transform::from_translation(Vec3::Z * 0.64)),
-					VisibilityBundle::default(),
+					(Transform::from_translation(Vec3::Z * 0.64)),
+					Visibility::default(),
 					RotVel::new(8.0),
 				))
 				.with_enum(Arms);
@@ -906,7 +887,7 @@ fn player_arms(
 	root_id: Entity,
 	arms_pivot: &mut EntityCommands,
 	owner: BelongsToPlayer,
-	meshes: [(PbrBundle, PlayerArm); 3],
+	meshes: [((Mesh3d, MeshMaterial3d<StandardMaterial>, Transform), PlayerArm); 3],
 	particle_mesh: Handle<Mesh>,
 ) {
 	arms_pivot.with_children(|builder| {
@@ -914,18 +895,14 @@ fn player_arms(
 			builder
 				.spawn((
 					owner,
-					arm.transform,
-					arm.global_transform,
-					arm.visibility,
-					arm.view_visibility,
-					arm.inherited_visibility,
+					arm.clone(),
 				))
 				.with_enum(Arm(*which));
 		}
 	});
 	for (arm, which) in meshes {
 		let particle_mesh = Mesh3d(particle_mesh.clone());
-		let particle_mat = arm.material.clone();
+		let particle_mat = arm.1.clone();
 		let mut rng = nanorand::WyRand::new();
 		let spewer = Spewer {
 			factory: Box::new(move |cmds, glob_xform: &GlobalTransform, time_created| {
@@ -947,13 +924,9 @@ fn player_arms(
 				xform.rotation = Quat::from_rotation_arc(Vec3::Z, init_rot_vec);
 				cmds.spawn((
 					ParticleBundle {
-						mesh_bundle: MaterialMeshBundle {
-							mesh: particle_mesh.clone(),
-							material: particle_mat.clone(),
-							transform: xform,
-							global_transform: xform.into(),
-							..default()
-						},
+						mesh: particle_mesh.clone(),
+						material: particle_mat.clone(),
+						transform: xform,
 						time_created,
 						initial_transform: InitialTransform(xform),
 						initial_global_transform: InitialGlobalTransform(*glob_xform),

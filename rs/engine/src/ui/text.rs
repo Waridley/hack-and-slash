@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 use crate::ui::widgets::WidgetShape;
-use atomicow::CowArc;
-use ab_glyph::{Font as _, OutlineCurve::*, ScaleFont};
+use ab_glyph::{Font as _, OutlineCurve::*};
 use bevy::{
 	prelude::*,
 	utils::HashMap,
@@ -12,7 +11,6 @@ use lyon_tessellation::{
 	path::builder::{NoAttributes, PathBuilder},
 	FillOptions, FillRule, FillTessellator, VertexBuffers,
 };
-use tiny_bail::prelude::r;
 
 #[derive(Resource, Default)]
 pub struct Tessellator {
@@ -42,7 +40,7 @@ impl Tessellator {
 		let (em_width, em_height) = font.outline(font.glyph_id('M')).map_or((1.0, 1.0), |ol| {
 			(ol.bounds.width() * scale.x, ol.bounds.height() * scale.y)
 		});
-		let mut last_glyph = None;
+		let last_glyph = None;
 		for (char, glyph) in text.chars().map(|c| (c, font.glyph_id(c))) {
 			if let Some(last_glyph) = last_glyph {
 				let kerning = font.kern_unscaled(last_glyph, glyph);

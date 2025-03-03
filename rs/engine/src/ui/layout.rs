@@ -1,16 +1,13 @@
 use super::widgets::{CuboidContainer, CuboidPanel, CylinderPanel, WidgetShape};
-use crate::util::{Angle, LogComponentNames, DEBUG_COMPONENTS};
-use bevy::{ecs::query::QueryEntityError, prelude::*};
+use crate::util::{Angle, LogComponentNames};
+use bevy::prelude::*;
 use bevy_rapier3d::parry::{
 	bounding_volume::{Aabb, BoundingVolume},
-	math::{Isometry, Point, Translation, Vector},
+	math::{Isometry, Translation, Vector},
 };
-use rapier3d::{
-	na::Vector3,
-	parry::query::Ray,
-};
+use rapier3d::na::Vector3;
 use serde::{Deserialize, Serialize};
-use std::f32::consts::{PI, TAU};
+use std::f32::consts::PI;
 use bevy_rapier3d::parry::query::cast_shapes;
 use bevy_rapier3d::prelude::ShapeCastOptions;
 

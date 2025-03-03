@@ -11,7 +11,7 @@ use bevy_rapier3d::{
 	math::Vect,
 	na::Vector3,
 	plugin::RapierContext,
-	prelude::{Collider, RigidBody, TransformInterpolation},
+	prelude::Collider,
 };
 use enum_components::{EntityEnumCommands, WithVariant};
 use rand::{prelude::IteratorRandom, Rng};
@@ -66,16 +66,6 @@ fn setup(
 	});
 }
 
-#[derive(Bundle, Default, Clone)]
-struct DummyBundle {
-	mat_mesh: MaterialMeshBundle<StandardMaterial>,
-	body: RigidBody,
-	collider: Collider,
-	interp: TransformInterpolation,
-	locked_axes: LockedAxes,
-	alive: Alive,
-}
-
 impl Spawnable for Dummy {
 	type Params = Res<'static, DummyTemplate>;
 	type InstanceData = NewDummy;
@@ -91,17 +81,13 @@ impl Spawnable for Dummy {
 			collider,
 			locked_axes,
 		} = params.clone();
-		let mut cmds = cmds.spawn(DummyBundle {
-			mat_mesh: MaterialMeshBundle {
-				mesh,
-				material,
-				transform,
-				..default()
-			},
+		let mut cmds = cmds.spawn((
+			mesh,
+			material,
+			transform,
 			collider,
 			locked_axes,
-			..default()
-		});
+		));
 		cmds.set_enum(Dummy);
 		cmds
 	}

@@ -11,14 +11,13 @@ use bevy::{
 };
 use bevy::reflect::{FromType, TypeRegistration};
 use leafwing_input_manager::prelude::*;
-use leafwing_input_manager::prelude::updating::CentralInputStore;
 use serde::{Deserialize, Serialize};
 use tiny_bail::prelude::r;
 use crate::{
 	input::InputState::DetectingBinding,
 	util::{AppExt, StateStack},
 };
-use crate::input::map::icons::{IconPathKey, InputIconFileMap};
+use crate::input::map::icons::InputIconFileMap;
 
 pub mod map;
 
@@ -47,7 +46,7 @@ impl Plugin for InputPlugin {
 	fn finish(&self, app: &mut App) {
 		let mut reg = TypeRegistration::of::<GamepadAxis>();
 		reg.insert(<ReflectDeserialize as FromType<GamepadAxis>>::from_type());
-		let mut registry = app.world_mut()
+		let registry = app.world_mut()
 			.resource_mut::<AppTypeRegistry>();
 		let mut registry = registry
 			.internal

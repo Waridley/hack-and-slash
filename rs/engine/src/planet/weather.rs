@@ -1,6 +1,6 @@
 use crate::{
 	planet::chunks::{CHUNK_SCALE, TERRAIN_CELL_SIZE},
-	ui::{a11y::AKNode, widgets::WidgetShape},
+	ui::a11y::AKNode,
 };
 use bevy::{
 	prelude::{Reflect, Resource, *},

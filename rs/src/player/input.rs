@@ -3,25 +3,16 @@ use std::{
 	time::Duration,
 };
 use std::fmt::Formatter;
-use bevy::{
-	input::mouse::MouseMotion,
-	prelude::{
-		GamepadAxis::{LeftStickX, LeftStickY, RightStickX, RightStickY},
-		*,
-	},
-	window::CursorGrabMode,
-};
+use bevy::prelude::*;
 use enum_components::WithVariant;
 use leafwing_input_manager::prelude::*;
-use leafwing_input_manager::prelude::updating::CentralInputStore;
 use serde::{Deserialize, Serialize};
 use engine::input::ActionExt;
-use engine::ui::UiHovered;
 
 use crate::{player::{
 	camera::CameraVertSlider, ctrl::CtrlVel, player_entity::CamPivot, prefs::LookSensitivity,
 	tune::PlayerParams, BelongsToPlayer,
-}, terminal_velocity, TerminalVelocity};
+}, terminal_velocity};
 
 #[derive(SystemSet, Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct InputSystems;

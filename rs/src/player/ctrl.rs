@@ -1,7 +1,7 @@
 use bevy::{
 	prelude::*,
 };
-use bevy::math::{prelude::Sphere, bounding::{Aabb3d, BoundingSphere}};
+use bevy::math::bounding::BoundingSphere;
 use bevy_rapier3d::{
 	na::Vector3,
 	parry::{

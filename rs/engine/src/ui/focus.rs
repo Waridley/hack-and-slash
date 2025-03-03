@@ -1,14 +1,9 @@
-use crate::{
-	todo_warn,
-	ui::{
-		widgets::{InteractHandler, InteractionKind, InteractionSource, WidgetGizmos, WidgetShape},
-		GlobalUi, MenuRef, MenuStack, UiAction, UiCam, GLOBAL_UI_RENDER_LAYERS,
-	},
-};
-use atomicow::CowArc;
+use crate::ui::{
+		widgets::WidgetShape, MenuRef, MenuStack, UiAction, GLOBAL_UI_RENDER_LAYERS,
+	};
 use bevy::{
 	a11y::Focus,
-	ecs::{identifier::error::IdentifierError, query::QueryEntityError},
+	ecs::identifier::error::IdentifierError,
 	prelude::*,
 	render::view::{Layer, RenderLayers},
 };
@@ -18,9 +13,7 @@ use std::{
 	f32::consts::{FRAC_PI_2, FRAC_PI_3, FRAC_PI_4, FRAC_PI_6, FRAC_PI_8, PI},
 	fmt::Formatter,
 	num::ParseIntError,
-	ops::ControlFlow,
-	str::{FromStr, Split},
-	sync::Arc,
+	str::FromStr,
 };
 use bevy::color::palettes::css::SEA_GREEN;
 
@@ -280,7 +273,7 @@ impl Wedge2d {
 	}
 
 	pub fn contains(self, vec: Vec2) -> bool {
-		self.direction.angle_between(vec).abs() - f32::EPSILON <= self.half_angle
+		self.direction.angle_to(vec).abs() - f32::EPSILON <= self.half_angle
 	}
 }
 
@@ -361,7 +354,7 @@ pub fn handle_focus_actions(
 			error!("`MenuStack` should exist for all `RenderLayers` for which `ActionState<UiAction>` exists");
 			continue;
 		};
-		let Some((mut menu, mut curr)) = cam
+		let Some((menu, curr)) = cam
 			.last_mut()
 			.and_then(|menu| q.get(menu.focus).ok().map(|curr| (menu, curr)))
 		else {
@@ -421,9 +414,9 @@ pub fn highlight_focus<const LAYER: Layer>(
 	)>,
 	mut stack: Query<(&mut MenuStack, &RenderLayers)>,
 ) {
-	let Some(mut focus) = stack
+	let Some(focus) = stack
 		.iter_mut()
-		.find(|(stack, layers)| **layers == RenderLayers::layer(LAYER))
+		.find(|(_, layers)| **layers == RenderLayers::layer(LAYER))
 		.and_then(|(stack, _)| {
 			if stack.last().is_some() {
 				Some(stack.map_unchanged(|stack| &mut stack.last_mut().unwrap().focus))

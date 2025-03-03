@@ -1,7 +1,7 @@
 use std::{
 	cmp::Ordering,
 	collections::VecDeque,
-	f32::consts::{FRAC_1_SQRT_2, PI, TAU},
+	f32::consts::{PI, TAU},
 	hash::Hash,
 	iter::Sum,
 	marker::PhantomData,
@@ -9,13 +9,12 @@ use std::{
 	sync::OnceLock,
 	time::Duration,
 };
-use std::fmt::Formatter;
 use bevy::state::state::FreelyMutableState;
 use bevy::{
-	asset::{io::Reader, AssetLoader, AsyncReadExt, LoadContext},
+	asset::{io::Reader, AssetLoader, LoadContext},
 	ecs::{
 		component::ComponentInfo,
-		query::{QueryEntityError, QueryFilter},
+		query::QueryFilter,
 		system::{EntityCommands, StaticSystemParam, SystemId, SystemParam, SystemParamItem},
 	},
 	math::Dir2,
@@ -26,7 +25,6 @@ use bevy::{
 		render_asset::RenderAssetUsages,
 	},
 	scene::{SceneLoaderError, SceneLoaderError::RonSpannedError},
-	utils::tracing::event,
 };
 use num_traits::NumCast;
 use ron::Error::InvalidValueForType;
@@ -1045,7 +1043,7 @@ macro_rules! entity_tree {
 				let $first_cmds = &mut $cmds;
 				$first;
 			};)?
-
+			#[allow(unused_mut)]
 			let mut $cmds = $cmds.spawn((
 		    $($bundles),*
 		  ));
@@ -1054,6 +1052,7 @@ macro_rules! entity_tree {
 					let $then_cmds = &mut $cmds;
 					$then;
 				};)?
+				#[allow(unused_mut)]
 				$($cmds.with_children(|mut $cmds| {
 			    $(entity_tree!($cmds; $children);)*
 			  });)?

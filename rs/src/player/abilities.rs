@@ -1,4 +1,4 @@
-use std::time::Duration;
+use web_time::Duration;
 
 use bevy::{prelude::*, transform::TransformSystem::TransformPropagate};
 use bevy_kira_audio::{Audio, AudioControl, AudioSource};
