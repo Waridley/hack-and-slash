@@ -1,6 +1,6 @@
 use bevy::prelude::*;
-use smallvec::{smallvec, SmallVec};
-use crate::draw::{rect_points, rect_points_offset, PlanarPolyLine};
+use smallvec::SmallVec;
+use crate::draw::{rect_points_offset, PlanarPolyLine};
 use crate::ui::widgets::{CuboidContainer, CuboidPanel};
 use crate::util::Flat;
 

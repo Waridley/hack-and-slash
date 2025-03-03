@@ -1,43 +1,27 @@
 use crate::{
 	player::input::PlayerAction,
-	ui::{
-		settings_menu,
-		settings_menu::{settings_sub_menu, SettingsMenu, SettingsSubMenus},
-	},
+	ui::settings_menu::{SettingsMenu, SettingsSubMenus},
 };
 use bevy::{
 	app::AppExit,
-	ecs::{
-		query::QuerySingleError,
-		system::{RunSystemOnce, SystemId},
-	},
-	pbr::ExtendedMaterial,
+	ecs::system::{RunSystemOnce, SystemId},
 	prelude::*,
 	window::CursorGrabMode,
 };
 use engine::{
-	anim::StartAnimation,
-	draw::PlanarPolyLine,
 	entity_tree,
 	input::InputState,
-	mats::{
-		fade::DitherFade,
-		fog::{DistanceDither, Matter},
-		ExtMat,
-	},
-	todo_warn,
 	ui::{
-		focus::{AdjacentWidgets, FocusTarget, Wedge2d},
+		focus::{AdjacentWidgets, FocusTarget},
 		layout::LineUpChildren,
 		text::UiFonts,
 		widgets::{
-			dbg_event, focus_state_colors, new_unlit_material, on_action, on_ok, CuboidFaces,
-			CuboidPanel, CuboidPanelBundle, InteractHandlers, Node3dBundle, PanelBundle,
-			RectCorners, Text3d, Text3dBundle, WidgetBundle, WidgetShape,
+			dbg_event, focus_state_colors, on_ok,
+			CuboidPanel, CuboidPanelBundle, Node3dBundle, Text3d, Text3dBundle, WidgetBundle, WidgetShape,
 		},
-		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiCam, UiMat, UiMatBuilder,
+		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiMat, UiMatBuilder,
 	},
-	util::{Flat, StateStack},
+	util::StateStack,
 };
 use enum_components::{EntityEnumCommands, EnumComponent, WithVariant};
 use leafwing_input_manager::action_state::ActionState;
@@ -46,7 +30,7 @@ use std::ops::ControlFlow;
 use bevy::color::palettes::basic::{GRAY, TEAL};
 use bevy::color::palettes::css::{LIMEGREEN, ORANGE_RED};
 use smallvec::smallvec;
-use web_time::Duration;
+use tiny_bail::prelude::r;
 use engine::ui::layout::ExpandToFitChildren;
 use engine::ui::widgets::borders::Border;
 use engine::ui::widgets::focus_state_emissive;
@@ -80,7 +64,6 @@ impl FromWorld for PauseSystems {
 pub fn setup(
 	mut cmds: Commands,
 	mut mats: ResMut<Assets<UiMat>>,
-	mut meshes: ResMut<Assets<Mesh>>,
 	ui_fonts: Res<UiFonts>,
 ) {
 	let btn_txt_mat = MeshMaterial3d(mats.add(UiMatBuilder {
@@ -106,7 +89,7 @@ pub fn setup(
 				..default()
 			},
 			material: MeshMaterial3d(mats.add(UiMatBuilder {
-				std: Color::rgba(0.3, 0.3, 0.3, 0.3).into(),
+				std: Color::linear_rgba(0.3, 0.3, 0.3, 0.3).into(),
 				..default()
 			})),
 			adjacent: AdjacentWidgets::all(FocusTarget::ChildN(0)),
@@ -124,7 +107,7 @@ pub fn setup(
 					..default()
 				},
 				Border::default(),
-				MeshMaterial3d(mats.add(UiMatBuilder::from(Color::rgba(0.12, 0.004, 0.15, 0.92))))
+				MeshMaterial3d(mats.add(UiMatBuilder::from(Color::linear_rgba(0.12, 0.004, 0.15, 0.92))))
 			),
 			(
 				Name::new("game_paused_txt"),
@@ -171,7 +154,7 @@ pub fn setup(
 								dbg_event(),
 								on_ok(|cmds| {
 									cmds.commands().queue(|world: &mut World| {
-										world.run_system_once(unpause);
+										r!(world.run_system_once(unpause));
 									});
 									ControlFlow::Break(())
 								}),
@@ -380,17 +363,15 @@ pub enum PauseMenuWidget {
 
 pub fn show_pause_menu(
 	mut cmds: Commands,
-	stack: Query<&MenuStack, With<GlobalUi>>,
-	panel: Query<Entity, WithVariant<pause_menu_widget::Panel>>,
+	stack: Single<&MenuStack, With<GlobalUi>>,
+	panel: Single<Entity, WithVariant<pause_menu_widget::Panel>>,
 	actions_q: Query<&ActionState<PlayerAction>>,
 	states: Res<StateStack<InputState>>,
 	systems: Res<PauseSystems>,
 ) {
-	let id = panel.single();
 	for actions in &actions_q {
 		if actions.just_pressed(&PlayerAction::PauseGame) {
-			let mut stack = stack.single();
-			if stack.last().map(|menu| menu.root) == Some(id) {
+			if stack.last().map(|menu| menu.root) == Some(*panel) {
 				cmds.run_system(systems.unpause);
 			} else if states.last() == Some(&InputState::InGame) {
 				cmds.run_system(systems.pause);

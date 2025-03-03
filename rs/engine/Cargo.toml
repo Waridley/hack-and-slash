@@ -8,7 +8,7 @@ description = "Things that will rarely change during development."
 debugging = ["bevy-inspector-egui", "egui_plot"]
 vis_test = ["testing", "render"]
 testing = ["colored", "linkme"]
-render = ["bevy/bevy_render", "bevy/bevy_winit", "bevy_rapier3d/debug-render", "bevy_rapier3d/async-collider"]
+render = ["bevy/bevy_render", "bevy/bevy_winit", "bevy_rapier3d/debug-render", "bevy_rapier3d/async-collider", "bevy-inspector-egui/bevy_render"]
 
 [dependencies]
 # Mine

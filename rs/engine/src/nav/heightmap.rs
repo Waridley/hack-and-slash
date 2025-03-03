@@ -303,9 +303,7 @@ pub struct MaxClimb<'heights> {
 
 impl NavEdgeFilter for MaxClimb<'_> {
 	fn test(&mut self, edge: NavEdge) -> bool {
-		let NavEdge::GroundToGround { source, target } = edge else {
-			return false;
-		};
+		let NavEdge::GroundToGround { source, target } = edge;
 
 		let (si, sj, sl) = split_triangle_id(CHUNK_ROWS, CHUNK_COLS, source.tri);
 		let (ti, tj, _tl) = split_triangle_id(CHUNK_ROWS, CHUNK_COLS, target.tri);

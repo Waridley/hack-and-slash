@@ -1,22 +1,17 @@
 use super::widgets::WidgetShape;
-use crate::{
-	todo_err, todo_warn,
-	ui::{GlobalUi, MenuStack, UiAction, UiCam, GLOBAL_UI_RENDER_LAYERS},
-};
+use crate::ui::{MenuStack, UiCam, GLOBAL_UI_RENDER_LAYERS};
 use bevy::{
-	input::mouse::MouseMotion,
 	prelude::*,
 	render::{
-		camera::{RenderTarget, Viewport},
-		view::{Layer, RenderLayers},
+		camera::RenderTarget,
+		view::RenderLayers,
 	},
 	window::{PrimaryWindow, WindowRef},
 };
 use bevy_rapier3d::parry::{
-	math::{Isometry, Translation, Vector},
+	math::Isometry,
 	query::Ray,
 };
-use leafwing_input_manager::prelude::InputMap;
 use std::cmp::Ordering;
 
 pub fn mouse_picks_focus(
@@ -61,7 +56,7 @@ pub fn mouse_picks_focus(
 			let ray = Ray::new(ray.origin.into(), (*ray.direction).into());
 
 			// TODO: This is awkward, might want to have `UiCam` store the entity for its `MenuStack`
-			let Some((mut stack, _)) = menu_stacks
+			let Some((stack, _)) = menu_stacks
 				.iter_mut()
 				.find(|(_, layers)| *cam_layers == **layers)
 			else {
@@ -75,7 +70,7 @@ pub fn mouse_picks_focus(
 			let mut menu = stack
 				.map_unchanged(|stack| stack.last_mut().expect("just ensured stack is not empty"));
 
-			let mut all_intersections = descendant_q
+			let all_intersections = descendant_q
 				.iter_descendants(menu.root)
 				.chain(std::iter::once(menu.root))
 				.chain(ancestor_q.iter_ancestors(menu.root))
@@ -95,7 +90,7 @@ pub fn mouse_picks_focus(
 				.collect::<Vec<_>>();
 			all_intersections
 				.iter()
-				.filter(|(id, toi)| {
+				.filter(|(id, _toi)| {
 					descendant_q
 						// If no descendants exist, this will automatically be a leaf.
 						.iter_descendants(*id)

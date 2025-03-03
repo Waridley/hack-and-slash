@@ -8,37 +8,14 @@ use crate::{
 		ExtMat,
 	},
 	ui::{
-		a11y::AKNode,
-		focus::{AdjacentWidgets, FocusTarget, Wedge2d},
+		focus::{AdjacentWidgets, FocusTarget},
 		layout::LineUpChildren,
 		widgets::{
-			draw_widget_shape_gizmos, CuboidFaces, CuboidPanel, CuboidPanelBundle, Node3dBundle,
-			RectCorners, Text3d, Text3dBundle, WidgetBundle, WidgetShape,
+			draw_widget_shape_gizmos, CuboidFaces, CuboidPanel, CuboidPanelBundle, Text3d, Text3dBundle, WidgetBundle, WidgetShape,
 		},
 	},
-	util::{CompassDirection, Diff, LerpSlerp, Prev, StateStack},
+	util::{Diff, LerpSlerp, StateStack},
 };
-use atomicow::CowArc;
-use bevy::{
-	asset::{io::Reader, AssetLoader, LoadContext, StrongHandle},
-	core_pipeline::{experimental::taa::TemporalAntiAliasBundle, fxaa::Fxaa},
-	diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
-	ecs::{
-		query::{QueryEntityError, QuerySingleError},
-		schedule::SystemConfigs,
-		system::EntityCommands,
-	},
-	input::common_conditions::input_toggle_active,
-	pbr::ExtendedMaterial,
-	prelude::*,
-	render::{
-		camera::Viewport,
-		view::{Layer, RenderLayers, VisibilitySystems::CheckVisibility},
-	},
-	ui::FocusPolicy,
-	utils::HashMap,
-};
-use futures_lite::AsyncReadExt;
 use leafwing_input_manager::{prelude::*, Actionlike};
 use rapier3d::{geometry::SharedShape, math::Point};
 use serde::{Deserialize, Serialize};
@@ -47,11 +24,27 @@ use std::{
 	f64::consts::TAU,
 	fmt::Formatter,
 	ops::{Add, ControlFlow::Break, Mul},
-	sync::Arc,
 };
-use bevy::a11y::Focus;
-use bevy::color::palettes::basic::{AQUA, BLUE, FUCHSIA, GREEN, RED, WHITE, YELLOW};
-use bevy::color::palettes::css::ORANGE;
+use bevy::{
+	color::palettes::css::ORANGE,
+	color::palettes::basic::{AQUA, BLUE, FUCHSIA, GREEN, RED, WHITE, YELLOW},
+	a11y::Focus,
+	core_pipeline::fxaa::Fxaa,
+	diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
+	ecs::{
+		query::QuerySingleError,
+		schedule::SystemConfigs,
+		system::EntityCommands,
+	},
+	input::common_conditions::input_toggle_active,
+	prelude::*,
+	render::{
+		camera::Viewport,
+		view::{Layer, RenderLayers, VisibilitySystems::CheckVisibility},
+	},
+	ui::FocusPolicy,
+	core_pipeline::experimental::taa::TemporalAntiAliasing
+};
 use smallvec::smallvec;
 
 pub mod a11y;
@@ -189,55 +182,49 @@ pub fn spawn_ui_camera<ID: Bundle + Clone>(
 	let cam_pos = Vec3::new(0.0, -20.0, 0.0);
 	let layers = RenderLayers::layer(layer);
 	cmds.spawn((
+		Name::new(format!("CamAnchor_{}", layer)),
 		identifier.clone(),
 		CamAnchor,
-		TransformBundle::default(),
-		VisibilityBundle::default(),
-		MenuStack::default(),
-		PrevFocus::default(),
 		layers.clone(),
 	))
 	.with_children(|cmds| {
 		cmds.spawn((
+			Name::new(format!("PopupsRoot_{}", layer)),
 			identifier.clone(),
 			PopupsRoot,
-			TransformBundle::from_transform(Transform {
+			Transform {
 				translation: Vec3::NEG_Y * 10.0,
 				..default()
-			}),
-			VisibilityBundle::default(),
+			},
 			layers.clone(),
 		));
 
 		let mut cam = cmds.spawn((
+			Name::new(format!("UICam_{}", layer)),
 			identifier,
 			UiCam::default(),
-			Camera3dBundle {
-				camera: Camera {
-					hdr: true,
-					order: layer as _,
-					clear_color: ClearColorConfig::None,
-					viewport,
-					..default()
-				},
-				projection: PerspectiveProjection {
-					fov: std::f32::consts::FRAC_PI_3,
-					..default()
-				}
-				.into(),
-				transform: Transform {
-					translation: cam_pos,
-					rotation: Quat::from_rotation_arc(
-						// default forward
-						Vec3::NEG_Z,
-						// desired forward
-						-cam_pos.normalize(),
-					),
-					..default()
-				},
+			Camera {
+				hdr: true,
+				order: layer as _,
+				clear_color: ClearColorConfig::None,
+				viewport,
 				..default()
 			},
-			TemporalAntiAliasBundle::default(),
+			Projection::Perspective(PerspectiveProjection {
+				fov: std::f32::consts::FRAC_PI_3,
+				..default()
+			}),
+			Transform {
+				translation: cam_pos,
+				rotation: Quat::from_rotation_arc(
+					// default forward
+					Vec3::NEG_Z,
+					// desired forward
+					-cam_pos.normalize(),
+				),
+				..default()
+			},
+			TemporalAntiAliasing::default(),
 			Fxaa::default(),
 			layers.clone(),
 		));
@@ -247,69 +234,60 @@ pub fn spawn_ui_camera<ID: Bundle + Clone>(
 		// Lights add together to white in front, but tint the sides of UI elements
 		let green_light_pos = cam_pos + Vec3::new(2.0, 0.0, 4.0);
 		cmds.spawn((
-			SpotLightBundle {
-				spot_light: SpotLight {
-					range: 256.0,
-					radius: 128.0,
-					color: Color::rgb(0.5, 0.75, 0.125),
-					intensity: 160_000_000.0,
-					inner_angle: std::f32::consts::FRAC_PI_8 * 7.0,
-					outer_angle: std::f32::consts::FRAC_PI_8 * 7.5,
-					..default()
-				},
-				transform: Transform {
-					translation: green_light_pos * 2.0,
-					rotation: Quat::from_rotation_arc(
-						Vec3::NEG_Z,
-						(-green_light_pos).normalize(),
-					),
-					..default()
-				},
+			SpotLight {
+				range: 256.0,
+				radius: 128.0,
+				color: Color::linear_rgb(0.5, 0.75, 0.125),
+				intensity: 160_000_000.0,
+				inner_angle: std::f32::consts::FRAC_PI_8 * 7.0,
+				outer_angle: std::f32::consts::FRAC_PI_8 * 7.5,
+				..default()
+			},
+			Transform {
+				translation: green_light_pos * 2.0,
+				rotation: Quat::from_rotation_arc(
+					Vec3::NEG_Z,
+					(-green_light_pos).normalize(),
+				),
 				..default()
 			},
 			layers.clone(),
 		));
 		let blue_light_pos = cam_pos + Vec3::new(-2.0, 0.0, 4.0);
 		cmds.spawn((
-			SpotLightBundle {
-				spot_light: SpotLight {
-					range: 256.0,
-					radius: 128.0,
-					color: Color::rgb(0.5, 0.25, 0.875),
-					intensity: 160_000_000.0,
-					inner_angle: std::f32::consts::FRAC_PI_8 * 7.0,
-					outer_angle: std::f32::consts::FRAC_PI_8 * 7.5,
-					..default()
-				},
-				transform: Transform {
-					translation: blue_light_pos * 2.0,
-					rotation: Quat::from_rotation_arc(
-						Vec3::NEG_Z,
-						(-blue_light_pos).normalize(),
-					),
-					..default()
-				},
+			SpotLight {
+				range: 256.0,
+				radius: 128.0,
+				color: Color::linear_rgb(0.5, 0.25, 0.875),
+				intensity: 160_000_000.0,
+				inner_angle: std::f32::consts::FRAC_PI_8 * 7.0,
+				outer_angle: std::f32::consts::FRAC_PI_8 * 7.5,
+				..default()
+			},
+			Transform {
+				translation: blue_light_pos * 2.0,
+				rotation: Quat::from_rotation_arc(
+					Vec3::NEG_Z,
+					(-blue_light_pos).normalize(),
+				),
 				..default()
 			},
 			layers.clone(),
 		));
 
 		cmds.spawn((
-			SpotLightBundle {
-				spot_light: SpotLight {
-					range: 256.0,
-					radius: 128.0,
-					intensity: 2_000_000.0,
-					inner_angle: std::f32::consts::FRAC_PI_8 * 7.0,
-					outer_angle: std::f32::consts::FRAC_PI_8 * 7.5,
-					color: Color::rgb(1.0, 0.125, 1.0),
-					..default()
-				},
-				transform: Transform {
-					translation: Vec3::NEG_Z * 64.0,
-					rotation: Quat::from_rotation_arc(Vec3::NEG_Z, Vec3::Z),
-					..default()
-				},
+			SpotLight {
+				range: 256.0,
+				radius: 128.0,
+				intensity: 2_000_000.0,
+				inner_angle: std::f32::consts::FRAC_PI_8 * 7.0,
+				outer_angle: std::f32::consts::FRAC_PI_8 * 7.5,
+				color: Color::linear_rgb(1.0, 0.125, 1.0),
+				..default()
+			},
+			Transform {
+				translation: Vec3::NEG_Z * 64.0,
+				rotation: Quat::from_rotation_arc(Vec3::NEG_Z, Vec3::Z),
 				..default()
 			},
 			layers.clone(),
@@ -322,13 +300,15 @@ pub fn spawn_ui_camera<ID: Bundle + Clone>(
 #[reflect(Component)]
 pub struct GlobalUi;
 
-/// Component for any UI camera entity, player or global.
+/// Component for any UI camera entity -- both per-player UI and global UI.
 #[derive(Component, Default, Copy, Clone, Debug, Reflect)]
+#[require(Camera3d)]
 #[reflect(Component)]
 pub struct UiCam;
 
 /// Add this component to the parent of each UI camera
 #[derive(Component, Reflect, Copy, Clone, Debug)]
+#[require(Transform, Visibility, MenuStack, PrevFocus)]
 pub struct CamAnchor;
 
 /// Keeps track of whether a UI element is hovered over so that clicking
@@ -481,6 +461,7 @@ impl std::fmt::Display for UiAction {
 
 /// Marker for the parents of all popup menus.
 #[derive(Component, Debug, Reflect)]
+#[require(Transform, Visibility)]
 #[reflect(Component)]
 pub struct PopupsRoot;
 
@@ -713,8 +694,8 @@ pub fn anchor_follow_menu(
 }
 
 use crate::{
-	anim::{AnimationHandle, Delta, DynAnimation},
-	draw::{polygon_points, square_points, PlanarPolyLine},
+	anim::{AnimationHandle, DynAnimation},
+	draw::{polygon_points, PlanarPolyLine},
 	ui::{
 		text::Tessellator,
 		widgets::{
@@ -729,7 +710,6 @@ use bevy_inspector_egui::{
 	prelude::{InspectorOptions, ReflectInspectorOptions},
 };
 use layout::ExpandToFitChildren;
-use leafwing_input_manager::clashing_inputs::BasicInputs;
 use text::{TextMeshCache, UiFonts};
 use web_time::Duration;
 use crate::input::ActionExt;
@@ -818,7 +798,7 @@ pub fn propagate_fade<M: Material + AsMut<DitherFade>>(
 		}
 
 		let mut set_fade = |handle: &Handle<M>| {
-			let Some(mut mat) = mats.get_mut(handle) else {
+			let Some(mat) = mats.get_mut(handle) else {
 				warn!("missing {handle:?}");
 				return;
 			};
@@ -876,7 +856,7 @@ impl FadeCommands for EntityCommands<'_> {
 	fn fade_in(&mut self, duration: Duration) -> AnimationHandle<DynAnimation<Fade>> {
 		let mut elapsed = Duration::ZERO;
 		let duration = duration.as_secs_f32();
-		self.start_animation(move |id, fade, t, mut ctrl| {
+		self.start_animation(move |id, _fade, t, mut ctrl| {
 			elapsed += t.delta();
 			let t = elapsed.as_secs_f32() / duration;
 			let t = if t >= 1.0 {
@@ -892,7 +872,7 @@ impl FadeCommands for EntityCommands<'_> {
 	fn fade_out(&mut self, duration: Duration) -> AnimationHandle<DynAnimation<Fade>> {
 		let mut elapsed = Duration::ZERO;
 		let duration = duration.as_secs_f32();
-		self.start_animation(move |id, fade, t, mut ctrl| {
+		self.start_animation(move |id, _fade, t, mut ctrl| {
 			elapsed += t.delta();
 			let t = 1.0 - (elapsed.as_secs_f32() / duration);
 			let t = if t <= 0.0 {
@@ -910,7 +890,7 @@ impl FadeCommands for EntityWorldMut<'_> {
 	fn fade_in(&mut self, duration: Duration) -> AnimationHandle<DynAnimation<Fade>> {
 		let mut elapsed = Duration::ZERO;
 		let duration = duration.as_secs_f32();
-		self.start_animation(move |id, fade, t, mut ctrl| {
+		self.start_animation(move |id, _fade, t, mut ctrl| {
 			elapsed += t.delta();
 			let t = elapsed.as_secs_f32() / duration;
 			let t = if t >= 1.0 {
@@ -926,7 +906,7 @@ impl FadeCommands for EntityWorldMut<'_> {
 	fn fade_out(&mut self, duration: Duration) -> AnimationHandle<DynAnimation<Fade>> {
 		let mut elapsed = Duration::ZERO;
 		let duration = duration.as_secs_f32();
-		self.start_animation(move |id, fade, t, mut ctrl| {
+		self.start_animation(move |id, _fade, t, mut ctrl| {
 			elapsed += t.delta();
 			let t = 1.0 - (elapsed.as_secs_f32() / duration);
 			let t = if t <= 0.0 {
@@ -1140,7 +1120,7 @@ fn spawn_test_menu(
 			},
 			material: MeshMaterial3d(mats.add(UiMatBuilder {
 				std: StandardMaterial {
-					base_color: Color::rgba(0.1, 0.1, 0.1, 0.8),
+					base_color: Color::linear_rgba(0.1, 0.1, 0.1, 0.8),
 					reflectance: 0.0,
 					alpha_mode: AlphaMode::Blend,
 					double_sided: true,

@@ -123,13 +123,13 @@ bevy_kira_audio = { workspace = true }
 leafwing-input-manager = { workspace = true }
 
 # Util
-atomicow = { workspace = true }
 bevy_pkv = { workspace = true }
 nanorand = { workspace = true }
 rand = { workspace = true }
 rand_xorshift = { workspace = true }
 serde = { workspace = true }
 smallvec = { workspace = true }
+tiny_bail = { workspace = true }
 web-time = { workspace = true }
 
 # Debugging

@@ -1,61 +1,50 @@
-use crate::ui::settings_menu::SettingsSubMenus;
-use bevy::{
-	ecs::query::QueryEntityError,
-	prelude::*,
-	reflect::{Enum, EnumInfo, TypeInfo, Typed},
-	render::view::RenderLayers,
+use crate::{
+	player::input::PlayerAction,
+	player::BelongsToPlayer,
+	ui::settings_menu::SettingsSubMenus
 };
+use bevy::color::palettes::basic::{GRAY, GREEN};
+use bevy::color::palettes::css::DARK_GRAY;
+use bevy::prelude::*;
 use engine::{
+	draw::square_points,
 	entity_tree,
+	input::map::icons::{AxisIcons, DualAxisIcons, InputIconFileMap, TripleAxisIcons},
 	input::map::{
-		icons::{Icon, BasicInputIcons, UserInputIcons},
+		icons::{BasicInputIcons, Icon, UserInputIcons},
 		widgets::{InputIcon, InputIconBundle},
 		Platform,
 	},
-	todo_warn,
+	input::ActionExt,
+	ui::widgets::borders::Border,
+	ui::widgets::{focus_toggle_border, Node3dBundle},
 	ui::{
 		focus::{AdjacentWidgets, FocusTarget},
 		layout::{ExpandToFitChildren, LineUpChildren, RadialChildren},
 		text::UiFonts,
 		widgets::{
-			dbg_event, focus_state_colors, new_unlit_material, on_focus, CuboidContainer,
+			dbg_event, new_unlit_material,
 			CuboidContainerBundle, CuboidPanel, CuboidPanelBundle, InteractHandlers, Text3d,
 			Text3dBundle,
 		},
-		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiAction, UiMat, UiMatBuilder,
+		Fade, GlobalUi, MenuStack, UiAction, UiMat, UiMatBuilder,
 		GLOBAL_UI_RENDER_LAYERS,
-	},
-	util::LerpSlerp,
+	}
 };
 use leafwing_input_manager::{
-	prelude::{InputMap, UserInputWrapper},
+	prelude::InputMap,
 	Actionlike,
 };
 use serde::{Deserialize, Serialize};
-use std::{
-	ops::{ControlFlow, ControlFlow::Break},
-	sync::Arc,
-};
-use std::borrow::Cow;
-use bevy::color::palettes::basic::{GRAY, GREEN};
-use bevy::color::palettes::css::DARK_GRAY;
-use atomicow::CowArc;
 use smallvec::smallvec;
-use engine::draw::{square_points, PlanarPolyLine};
-use engine::input::ActionExt;
-use engine::input::map::icons::{AxisIcons, DualAxisIcons, InputIconFileMap, TripleAxisIcons};
-use engine::ui::widgets::borders::Border;
-use engine::ui::widgets::{focus_toggle_border, InteractionKind, InteractionSource, Node3dBundle};
-use engine::util::Flat;
-use crate::player::BelongsToPlayer;
-use crate::player::input::PlayerAction;
+use std::borrow::Cow;
+use std::ops::ControlFlow::Break;
 
 const GAME_BINDINGS_CONTAINER_NAME: &'static str = "GameBindingsContainer";
 const UI_BINDINGS_CONTAINER_NAME: &'static str = "UiBindingsContainer";
 
 pub fn setup(
 	mut cmds: Commands,
-	mut meshes: ResMut<Assets<Mesh>>,
 	mut mats: ResMut<Assets<UiMat>>,
 	ui_fonts: Res<UiFonts>,
 	mut sub_menus: ResMut<SettingsSubMenus>,
@@ -89,7 +78,7 @@ pub fn setup(
 							cmds.commands().queue(move |world: &mut World| {
 								let mut q = world.query::<(&mut InputMap<A>, &BelongsToPlayer)>();
 								let Some(mut imap) = q.iter_mut(world)
-									.find(|(imap, &imap_owner)| imap_owner == owner)
+									.find(|(_, &imap_owner)| imap_owner == owner)
 									.map(|(imap, _)| imap)
 								else {
 									error!("failed to find imap for player {owner:?}");
@@ -339,7 +328,7 @@ pub fn setup(
 				transform,
 				material: MeshMaterial3d(mats.add(UiMatBuilder {
 					std: StandardMaterial {
-						base_color: Color::rgba(0.1, 0.3, 0.1, 0.5),
+						base_color: Color::linear_rgba(0.1, 0.3, 0.1, 0.5),
 						alpha_mode: AlphaMode::Blend,
 						cull_mode: None,
 						double_sided: true,
@@ -418,7 +407,7 @@ pub fn setup(
 	sub_menus.controls.root = root;
 	sub_menus.controls.focus = root;
 	sub_menus.controls.cam_target = cmds
-		.spawn((TransformBundle::from_transform(transform), GLOBAL_UI_RENDER_LAYERS, CtrlsCamTarget))
+		.spawn((transform, GLOBAL_UI_RENDER_LAYERS, CtrlsCamTarget))
 		.id();
 }
 
@@ -438,7 +427,7 @@ pub fn anchor_follow_focus(
 	t: Res<Time>,
 ) {
 	let mut stack = stack.single_mut();
-	let Some(mut menu) = stack.last_mut() else {
+	let Some(menu) = stack.last_mut() else {
 		return;
 	};
 	if menu.root != sub_menus.controls.root {
@@ -485,7 +474,7 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 ) {
 	for (imap, owner) in global_imap
 		.as_mut()
-		.map(|mut it| (Ref::from(it.reborrow()), None))
+		.map(|it| (Ref::from(it.reborrow()), None))
 		.into_iter()
 		.chain(imaps.iter().map(|(imap, owner)| (imap, Some(*owner))))
 		.filter(|(imap, _)| imap.is_changed())
@@ -505,7 +494,7 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 			cmds.with_children(|cmds| {
 				let darker_gray = MeshMaterial3d(mats.add(UiMatBuilder::from(StandardMaterial {
 					reflectance: 0.01,
-					..StandardMaterial::from(Color::rgba(0.05, 0.05, 0.05, 0.7))
+					..StandardMaterial::from(Color::linear_rgba(0.05, 0.05, 0.05, 0.7))
 				})));
 				let text_mat = mats.add(new_unlit_material());
 

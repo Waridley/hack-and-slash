@@ -106,12 +106,9 @@ pub fn spawn_pickups(
 		info!("{:?}", &transform.translation);
 
 		let mut cmds = cmds.spawn((
-			MaterialMeshBundle {
-				mesh: Mesh3d(handles.mesh.clone()),
-				material: MeshMaterial3d(handles.material.clone()),
-				transform,
-				..default()
-			},
+			Mesh3d(handles.mesh.clone()),
+			MeshMaterial3d(handles.material.clone()),
+			transform,
 			Collider::ball(8.0),
 			Sensor,
 			KinematicPositionBased,

@@ -1,7 +1,7 @@
 use std::f32::consts::FRAC_PI_2;
 
 use bevy::{
-	core_pipeline::{bloom::BloomSettings, fxaa::Fxaa, tonemapping::Tonemapping, Skybox},
+	core_pipeline::{fxaa::Fxaa, tonemapping::Tonemapping, Skybox},
 	ecs::system::EntityCommands,
 	prelude::*,
 	render::{
@@ -14,6 +14,7 @@ use bevy::{
 	},
 };
 use bevy::color::palettes::basic::FUCHSIA;
+use bevy::core_pipeline::bloom::Bloom;
 use bevy_rapier3d::{
 	geometry::{Collider, CollisionGroups, Group},
 	math::Vect,
@@ -118,8 +119,8 @@ pub fn spawn_cameras(
 	let mut cmds = cmds.spawn((
 		owner,
 		// Start the camera above the player in the fog, then zoom down
-		TransformBundle::from_transform(Transform::from_translation(Vec3::Z * 4096.0)),
-		VisibilityBundle::default(),
+		Transform::from_translation(Vec3::Z * 4096.0),
+		Visibility::default(),
 		Collider::ball(2.0),
 		CollisionGroups::new(Group::empty(), Group::empty()),
 		CamTarget::default(),
@@ -129,19 +130,17 @@ pub fn spawn_cameras(
 		// Adjusting transform of Camera entity causes weird visual glitches,
 		// but parenting handles it properly
 		cmds.spawn((
-			Camera3dBundle {
-				camera: Camera {
-					hdr: true,
-					..default()
-				},
-				transform: Transform {
-					rotation: Quat::from_rotation_x(FRAC_PI_2),
-					..default()
-				},
-				tonemapping: Tonemapping::BlenderFilmic,
+			Camera3d::default(),
+			Camera {
+				hdr: true,
 				..default()
 			},
-			VisibilityBundle::default(),
+			Transform {
+				rotation: Quat::from_rotation_x(FRAC_PI_2),
+				..default()
+			},
+			Tonemapping::BlenderFilmic,
+			Visibility::default(),
 			Skybox {
 				image: sky_texture.clone(),
 				brightness: 1_000.0,
@@ -154,7 +153,7 @@ pub fn spawn_cameras(
 				intensity: 1_000.0,
 				rotation: Quat::from_rotation_x(FRAC_PI_2),
 			},
-			BloomSettings {
+			Bloom {
 				intensity: 0.2,
 				..default()
 			},
@@ -178,17 +177,17 @@ pub fn spawn_cameras(
 pub fn spawn_pivot<'a>(
 	cmds: &'a mut Commands,
 	owner: BelongsToPlayer,
-	crosshair: PbrBundle,
+	crosshair: (Mesh3d, MeshMaterial3d<StandardMaterial>, Transform),
 ) -> EntityCommands<'a> {
 	let mut cmds = cmds
 		.spawn((
 			owner,
 			CameraVertSlider(0.125),
-			TransformBundle::from_transform(Transform {
+			Transform {
 				translation: Vect::new(0.0, 0.0, MIN_CAM_DIST),
 				..default()
-			}),
-			VisibilityBundle::default(),
+			},
+			Visibility::default(),
 		))
 		.with_enum(CamPivot);
 	cmds.with_children(|builder| {

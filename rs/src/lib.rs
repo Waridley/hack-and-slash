@@ -5,7 +5,6 @@ use std::{f32::consts::*, fmt::Debug, time::Duration};
 use bevy::{
 	diagnostic::FrameTimeDiagnosticsPlugin,
 	prelude::*,
-	render::RenderPlugin,
 	window::{CursorGrabMode, PrimaryWindow},
 };
 #[allow(unused_imports, clippy::single_component_path_imports)]
@@ -250,7 +249,7 @@ fn startup(
 	cmds.insert_resource(AbsoluteBounds { extents: 65536.0 });
 
 	cmds.insert_resource(AmbientLight {
-		color: Color::rgb(0.64, 0.32, 1.0),
+		color: Color::linear_rgb(0.64, 0.32, 1.0),
 		brightness: 50.0,
 		..default()
 	});

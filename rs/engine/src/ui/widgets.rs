@@ -1,42 +1,34 @@
 use crate::{
-	mats::{fade::DitherFade, fog::DistanceDither},
 	todo_warn,
 	ui::{
 		a11y::AKNode,
-		text::{Tessellator, TextMeshCache},
-		AdjacentWidgets, MenuStack, UiAction, UiCam, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
+		text::{Tessellator, TextMeshCache}, MenuStack, UiAction, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
 	},
-	util::{Prev, ZUp},
 };
 use atomicow::CowArc;
 use bevy::{
-	ecs::system::{EntityCommand, EntityCommands},
-	pbr::ExtendedMaterial,
+	ecs::system::EntityCommands,
 	prelude::*,
 	render::{
 		mesh::{Indices, PrimitiveTopology::TriangleList, VertexAttributeValues},
 		render_asset::RenderAssetUsages,
 		view::{Layer, RenderLayers},
 	},
-	utils::{HashMap, HashSet},
+	utils::HashSet,
 };
-use bevy_rapier3d::{
-	na::Quaternion,
-	parry::{
-		math::{Isometry, Translation, Vector},
+use bevy_rapier3d::parry::{
+		math::{Isometry, Vector},
 		shape::TypedShape,
-	},
-};
+	};
 use leafwing_input_manager::prelude::ActionState;
 use lyon_tessellation::{FillOptions, VertexBuffers};
-use rapier3d::{na::UnitQuaternion, parry::shape::SharedShape};
+use rapier3d::parry::shape::SharedShape;
 use serde::{Deserialize, Serialize};
 use std::{
 	f32::consts::PI,
 	fmt::{Debug, Formatter},
-	num::TryFromIntError,
 	ops::ControlFlow,
-	sync::{Arc, Mutex},
+	sync::Arc,
 };
 use std::borrow::Cow;
 use bevy::color::palettes::basic::PURPLE;
@@ -400,11 +392,11 @@ impl Text3d {
 		changed_text: Query<Entity, Changed<Text3d>>,
 		mut meshes: ResMut<Assets<Mesh>>,
 		mut cache: ResMut<TextMeshCache>,
-		mut fonts: ResMut<Assets<Font>>,
+		fonts: Res<Assets<Font>>,
 		mut to_retry: Local<HashSet<Entity>>,
 		mut tessellator: ResMut<Tessellator>,
 	) {
-		let mut to_try = to_retry.drain().chain(&changed_text).collect::<Vec<_>>();
+		let to_try = to_retry.drain().chain(&changed_text).collect::<Vec<_>>();
 		for id in to_try {
 			let (this, mut ak_node) = match q.get_mut(id) {
 				Ok(item) => item,
@@ -444,11 +436,7 @@ impl Text3d {
 			let Some((mesh, shape)) = cache
 				.entry((text.clone(), xform_key, font.clone(), flat))
 				.or_insert_with(|| {
-					let mut font = fonts.reborrow().map_unchanged(|fonts| {
-						fonts
-							.get_mut(font)
-							.expect("Font was already confirmed to exist")
-					});
+					let font = fonts.get(font).expect("Font was already confirmed to exist");
 
 					let (
 						VertexBuffers {
@@ -881,7 +869,7 @@ impl WidgetShape {
 				cylinder_gizmo(gizmos, a, b, cylinder.radius * scale, color.into());
 			}
 			TypedShape::Cone(_) => todo_warn!("Gizmo for WidgetShape(Cone)"),
-			TypedShape::RoundCuboid(round_cuboid) => {
+			TypedShape::RoundCuboid(_) => {
 				todo_warn!("Gizmo for WidgetShape(RoundCuboid)")
 			}
 			TypedShape::RoundTriangle(_) => {

@@ -1,7 +1,7 @@
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 use std::ops::Index;
 use crate::input::map::{icons::kenney::generic_base_dir, Platform};
-use bevy::{asset::AssetPath, input::keyboard::Key, prelude::*, render::view::RenderLayers};
+use bevy::{asset::AssetPath, input::keyboard::Key, prelude::*};
 use leafwing_input_manager::prelude::*;
 use smol_str::SmolStr;
 use std::path::PathBuf;
@@ -112,7 +112,7 @@ impl AxisIcons {
 					}
 				}
 				BasicInputs::Chord(btns) => {
-					error!(?axis, "AxisIcons should be a Composite of 2 Simple or Chord inputs, not a Chord itself");
+					error!(?axis, ?btns, "AxisIcons should be a Composite of 2 Simple or Chord inputs, not a Chord itself");
 					return None
 				}
 			}
@@ -179,7 +179,7 @@ impl DualAxisIcons {
 							error!(?dual_axis, "BasicInputs::Composite contains no buttons");
 							return None
 						},
-						1..3 => {
+						1..=3 => {
 							error!(?dual_axis, "BasicInputs::Composite does not contain enough buttons");
 							[
 								&btns[0],
@@ -208,7 +208,7 @@ impl DualAxisIcons {
 					}
 				}
 				BasicInputs::Chord(btns) => {
-					error!(?dual_axis, "DualAxisIcons should be a Composite of 2 Simple or Chord inputs, not a Chord itself");
+					error!(?dual_axis, ?btns, "DualAxisIcons should be a Composite of 2 Simple or Chord inputs, not a Chord itself");
 					return None
 				}
 			}
@@ -248,7 +248,7 @@ impl Default for TripleAxisIcons {
 }
 
 impl TripleAxisIcons {
-	pub fn from_triple_axis(triple_axis: Box<dyn TripleAxislike>, platform: Option<Platform>, map: &InputIconFileMap) -> Option<Self> {
+	pub fn from_triple_axis(_triple_axis: Box<dyn TripleAxislike>, _platform: Option<Platform>, _map: &InputIconFileMap) -> Option<Self> {
 		todo!()
 	}
 }
@@ -355,14 +355,9 @@ pub fn key(key: &Key) -> Option<Icon> {
 }
 
 pub mod kenney {
-	use super::super::Platform;
+	
 	use crate::util;
-	use bevy::{
-		asset::AssetPath,
-		input::keyboard::Key,
-		log::error,
-		prelude::*,
-	};
+	use bevy::input::keyboard::Key;
 	use smol_str::SmolStr;
 	use std::path::PathBuf;
 	

@@ -4992,7 +4992,6 @@ dependencies = [
 name = "sond-has"
 version = "0.1.0"
 dependencies = [
- "atomicow",
  "bevy",
  "bevy-inspector-egui",
  "bevy_dylib",
@@ -5011,6 +5010,7 @@ dependencies = [
  "sond-bevy-particles",
  "sond-has-engine",
  "sond-has-engine-dylib",
+ "tiny_bail",
  "web-time",
 ]
 
