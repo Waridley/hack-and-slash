@@ -1,19 +1,25 @@
-use crate::ui::settings_menu::SettingsMenuPlugin;
+use crate::{
+	ui::{prefs_menu::PrefsMenuPlugin, settings_menu::SettingsMenuPlugin},
+	util::IntoFnPlugin,
+};
 use bevy::prelude::*;
 use pause_menu::PauseMenuPlugin;
-use crate::ui::prefs_menu::PrefsMenuPlugin;
-use crate::util::IntoFnPlugin;
 
 #[cfg(feature = "debugging")]
 pub mod dbg_ui;
 pub mod hud;
 pub mod pause_menu;
-pub mod settings_menu;
 pub mod prefs_menu;
+pub mod settings_menu;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	#[cfg(feature = "debugging")]
 	app.add_plugins(dbg_ui::plugin.plugfn());
 
-	app.add_plugins((hud::plugin.plugfn(), PauseMenuPlugin, SettingsMenuPlugin, PrefsMenuPlugin))
+	app.add_plugins((
+		hud::plugin.plugfn(),
+		PauseMenuPlugin,
+		SettingsMenuPlugin,
+		PrefsMenuPlugin,
+	))
 }

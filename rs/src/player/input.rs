@@ -1,18 +1,21 @@
-use std::{
-	f32::consts::{FRAC_PI_2, TAU},
-	time::Duration,
-};
-use std::fmt::Formatter;
 use bevy::prelude::*;
+use engine::input::ActionExt;
 use enum_components::WithVariant;
 use leafwing_input_manager::prelude::*;
 use serde::{Deserialize, Serialize};
-use engine::input::ActionExt;
+use std::{
+	f32::consts::{FRAC_PI_2, TAU},
+	fmt::Formatter,
+	time::Duration,
+};
 
-use crate::{player::{
-	camera::CameraVertSlider, ctrl::CtrlVel, player_entity::CamPivot, prefs::LookSensitivity,
-	tune::PlayerParams, BelongsToPlayer,
-}, terminal_velocity};
+use crate::{
+	player::{
+		camera::CameraVertSlider, ctrl::CtrlVel, player_entity::CamPivot, prefs::LookSensitivity,
+		tune::PlayerParams, BelongsToPlayer,
+	},
+	terminal_velocity,
+};
 
 #[derive(SystemSet, Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct InputSystems;
@@ -114,12 +117,14 @@ impl ActionExt for PlayerAction {
 			(AoE, PageUp),
 			(Dash, ShiftLeft),
 			(PauseGame, Escape),
-		]).with_multiple([
+		])
+		.with_multiple([
 			(FireA, MouseButton::Left),
 			(FireB, MouseButton::Right),
 			(FireC, MouseButton::Middle),
 			(Dash, MouseButton::Other(9)),
-		]).with_multiple([
+		])
+		.with_multiple([
 			(Jump, GamepadButton::South),
 			(FireA, GamepadButton::RightTrigger2),
 			(FireB, GamepadButton::LeftTrigger2),
@@ -127,14 +132,15 @@ impl ActionExt for PlayerAction {
 			(AoE, GamepadButton::RightTrigger),
 			(Dash, GamepadButton::West),
 			(PauseGame, GamepadButton::Start),
-		]).with_dual_axis(Move, VirtualDPad::wasd())
-			.with_dual_axis(Look, VirtualDPad::arrow_keys())
-			.with_dual_axis(Move, GamepadStick::LEFT)
-			.with_dual_axis(Look, GamepadStick::RIGHT)
-			.with_dual_axis(Look, MouseMove::default())
+		])
+		.with_dual_axis(Move, VirtualDPad::wasd())
+		.with_dual_axis(Look, VirtualDPad::arrow_keys())
+		.with_dual_axis(Move, GamepadStick::LEFT)
+		.with_dual_axis(Look, GamepadStick::RIGHT)
+		.with_dual_axis(Look, MouseMove::default())
 	}
-	
-	fn all() -> impl Iterator<Item=Self> {
+
+	fn all() -> impl Iterator<Item = Self> {
 		Self::ALL.into_iter()
 	}
 }
@@ -149,7 +155,12 @@ impl std::fmt::Display for PlayerAction {
 pub struct InputStorageTimer(Timer);
 
 pub fn look_input(
-	mut player_q: Query<(&ActionState<PlayerAction>, &mut CtrlVel, &BelongsToPlayer, &LookSensitivity)>,
+	mut player_q: Query<(
+		&ActionState<PlayerAction>,
+		&mut CtrlVel,
+		&BelongsToPlayer,
+		&LookSensitivity,
+	)>,
 	mut camera_pivot_q: Query<
 		(&mut Transform, &mut CameraVertSlider, &BelongsToPlayer),
 		WithVariant<CamPivot>,
@@ -165,7 +176,10 @@ pub fn look_input(
 		input = input.clamp_length_max(1.0);
 
 		if input.x.abs() > f32::EPSILON {
-			vel.angvel.z = (vel.angvel.z - (input.x * sens.x * dt)).clamp(-std::f32::consts::PI / crate::DT, std::f32::consts::PI / crate::DT);
+			vel.angvel.z = (vel.angvel.z - (input.x * sens.x * dt)).clamp(
+				-std::f32::consts::PI / crate::DT,
+				std::f32::consts::PI / crate::DT,
+			);
 		} else {
 			vel.angvel.z *= 0.8
 		}
@@ -174,7 +188,7 @@ pub fn look_input(
 			.iter_mut()
 			.find_map(|(xform, slider, owner)| (owner == player_id).then_some((xform, slider)))
 			.unwrap();
-		
+
 		if input.y.abs() > f32::EPSILON {
 			slider.0 = (slider.0 + input.y * sens.y * dt).clamp(0.0, 1.0);
 		}
@@ -191,15 +205,16 @@ pub fn movement_input(
 	for (action_state, mut ctrl_vel) in &mut q {
 		let mut input = Vec2::ZERO;
 		let dt = t.delta_secs();
-		
-		if let Some(data) = action_state.dual_axis_data(&PlayerAction::Move) {			input += data.pair;
+
+		if let Some(data) = action_state.dual_axis_data(&PlayerAction::Move) {
+			input += data.pair;
 		}
 		input = input.clamp_length_max(1.0);
 
-		let Vec2 { x, y } = ctrl_vel.linvel.xy().lerp(
-			input * params.phys.max_speed,
-			params.phys.accel * dt,
-		);
+		let Vec2 { x, y } = ctrl_vel
+			.linvel
+			.xy()
+			.lerp(input * params.phys.max_speed, params.phys.accel * dt);
 
 		// Only trigger change detection if actually changed
 		if ctrl_vel.linvel.x != x {

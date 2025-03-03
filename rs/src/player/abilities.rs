@@ -6,13 +6,10 @@ use bevy_rapier3d::{
 	geometry::CollisionGroups,
 	pipeline::QueryFilter,
 	plugin::RapierContext,
-	prelude::{Collider, ShapeCastHit},
+	prelude::{Collider, ShapeCastHit, ShapeCastOptions},
 };
-use bevy_rapier3d::prelude::ShapeCastOptions;
 use enum_components::{ERef, WithVariant};
-use leafwing_input_manager::{
-	action_state::ActionState, systems::update_action_state,
-};
+use leafwing_input_manager::{action_state::ActionState, systems::update_action_state};
 use particles::{PreviousGlobalTransform, Spewer};
 use rapier3d::pipeline::QueryFilterFlags;
 use serde::{Deserialize, Serialize};
@@ -194,13 +191,7 @@ pub fn jump(
 	}
 }
 
-pub fn dash(
-	input_dir: Vec2,
-	dash_vel: f32,
-	linvel: &mut Vec3,
-	audio: &Audio,
-	sfx: &Sfx,
-) {
+pub fn dash(input_dir: Vec2, dash_vel: f32, linvel: &mut Vec3, audio: &Audio, sfx: &Sfx) {
 	audio.play(sfx.dash.clone()).with_volume(0.2);
 	// Use the most-recently-input direction, not current velocity, to dash in the direction the player expects.
 	let dir = input_dir.normalize_or(Vec2::Y) * dash_vel;

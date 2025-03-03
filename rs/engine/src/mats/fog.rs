@@ -38,7 +38,11 @@ impl Plugin for MatterPlugin {
 			))
 			.add_systems(Update, (update_matter_globals,));
 
-		let registry = app.world().get_resource::<AppTypeRegistry>().unwrap().clone();
+		let registry = app
+			.world()
+			.get_resource::<AppTypeRegistry>()
+			.unwrap()
+			.clone();
 		{
 			let mut reg = registry.write();
 			reg.register::<DistanceDither>();

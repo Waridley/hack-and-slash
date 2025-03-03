@@ -457,11 +457,7 @@ pub fn spawn_loaded_chunks(
 					Name::new(format!("Chunk({},{})", index.x, index.y)),
 					*index,
 					center,
-					Transform::from_translation(Vec3::new(
-						translation.x,
-						translation.y,
-						0.0,
-					)),
+					Transform::from_translation(Vec3::new(translation.x, translation.y, 0.0)),
 					Ground {
 						heights: heights.clone(),
 					},

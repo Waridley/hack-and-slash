@@ -1,9 +1,9 @@
 use bevy::{
+	color::palettes::basic::GRAY,
 	pbr::{ExtendedMaterial, MaterialExtension},
 	prelude::*,
 	render::render_resource::{AsBindGroup, ShaderRef},
 };
-use bevy::color::palettes::basic::GRAY;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -41,7 +41,11 @@ impl Plugin for MatsPlugin {
 				MaterialPlugin::<ExtMat<DitherFade>>::default(),
 			));
 
-		let registry = app.world().get_resource::<AppTypeRegistry>().unwrap().clone();
+		let registry = app
+			.world()
+			.get_resource::<AppTypeRegistry>()
+			.unwrap()
+			.clone();
 		{
 			let mut reg = registry.write();
 			reg.register::<BubbleMaterial>();

@@ -1,11 +1,10 @@
+use crate::player::{player_entity::Root, BelongsToPlayer};
 use bevy::{ecs::query::QueryData, prelude::*};
 use bevy_pkv::PkvStore;
-use engine::{ui::UiAction, util::Angle};
+use engine::{input::ActionExt, ui::UiAction, util::Angle};
 use enum_components::WithVariant;
 use leafwing_input_manager::prelude::*;
 use serde::{Deserialize, Serialize};
-use engine::input::ActionExt;
-use crate::player::{player_entity::Root, BelongsToPlayer};
 
 use super::input::PlayerAction;
 
@@ -49,7 +48,11 @@ pub struct PlayerPrefs {
 	pub ui_input_map: InputMap<UiAction>,
 }
 
-pub type ChangedPrefs = Or<(ChangedCameraPrefs, Changed<InputMap<PlayerAction>>, Changed<InputMap<UiAction>>)>;
+pub type ChangedPrefs = Or<(
+	ChangedCameraPrefs,
+	Changed<InputMap<PlayerAction>>,
+	Changed<InputMap<UiAction>>,
+)>;
 
 pub type ChangedCameraPrefs = Or<(
 	Changed<InvertCamera>,

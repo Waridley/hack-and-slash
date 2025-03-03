@@ -1,5 +1,3 @@
-use std::{f32::consts::*, num::NonZeroU8, ops::Add, time::Duration};
-use std::ops::RangeInclusive;
 use bevy::{
 	asset::AssetPath,
 	ecs::system::EntityCommands,
@@ -29,10 +27,19 @@ use particles::{
 	PreviousTransform, Spewer, SpewerBundle,
 };
 use rapier3d::{math::Point, prelude::Aabb};
+use std::{
+	f32::consts::*,
+	num::NonZeroU8,
+	ops::{Add, RangeInclusive},
+	time::Duration,
+};
 
 use camera::spawn_cameras;
 use ctrl::{CtrlState, CtrlVel};
-use engine::{planet::terrain::NeedsTerrain, ui::{focus, GLOBAL_UI_LAYER}};
+use engine::{
+	planet::terrain::NeedsTerrain,
+	ui::{focus, GLOBAL_UI_LAYER},
+};
 use player_entity::*;
 use prefs::PlayerPrefs;
 
@@ -237,14 +244,10 @@ pub fn update_player_spawn_data(
 
 	if let Some(mut data) = data {
 		data.ship_scene = asset_server.load(ship_scene);
-		*meshes
-			.get_mut(data.antigrav_pulse_mesh.id())
-			.unwrap() = TorusMeshBuilder::from(antigrav_pulse_mesh).into();
-		*std_mats
-			.get_mut(data.antigrav_pulse_mat.id())
-			.unwrap() = antigrav_pulse_mat;
-		*meshes.get_mut(data.arm_mesh.id()).unwrap() =
-			SphereMeshBuilder::from(arm_mesh).into();
+		*meshes.get_mut(data.antigrav_pulse_mesh.id()).unwrap() =
+			TorusMeshBuilder::from(antigrav_pulse_mesh).into();
+		*std_mats.get_mut(data.antigrav_pulse_mat.id()).unwrap() = antigrav_pulse_mat;
+		*meshes.get_mut(data.arm_mesh.id()).unwrap() = SphereMeshBuilder::from(arm_mesh).into();
 		*meshes.get_mut(data.arm_particle_mesh.id()).unwrap() =
 			RegularPolygon::new(arm_particle_radius, 3).into();
 		*std_mats.get_mut(data.arm_mats[0].id()).unwrap() = StandardMaterial {
@@ -349,7 +352,7 @@ impl From<ReflectTorus> for TorusMeshBuilder {
 			},
 			major_resolution: value.major_resolution,
 			minor_resolution: value.minor_resolution,
-			angle_range: value.angle_range
+			angle_range: value.angle_range,
 		}
 	}
 }
@@ -515,7 +518,10 @@ struct PlayerBundles {
 	),
 	vis: SceneRoot,
 	antigrav_pulse: (Mesh3d, MeshMaterial3d<StandardMaterial>),
-	arms: [((Mesh3d, MeshMaterial3d<StandardMaterial>, Transform), PlayerArm); 3],
+	arms: [(
+		(Mesh3d, MeshMaterial3d<StandardMaterial>, Transform),
+		PlayerArm,
+	); 3],
 	arm_particle_mesh: Handle<Mesh>,
 	crosshair: (Mesh3d, MeshMaterial3d<StandardMaterial>, Transform),
 }
@@ -643,7 +649,10 @@ fn populate_player_scene(
 	vis: SceneRoot,
 	char_collider: Collider,
 	antigrav_pulse: (Mesh3d, MeshMaterial3d<StandardMaterial>),
-	arm_meshes: [((Mesh3d, MeshMaterial3d<StandardMaterial>, Transform), PlayerArm); 3],
+	arm_meshes: [(
+		(Mesh3d, MeshMaterial3d<StandardMaterial>, Transform),
+		PlayerArm,
+	); 3],
 	arm_particle_mesh: Handle<Mesh>,
 	crosshair: (Mesh3d, MeshMaterial3d<StandardMaterial>, Transform),
 	prefs: PlayerPrefs,
@@ -709,7 +718,10 @@ fn player_vis(
 	owner: BelongsToPlayer,
 	vis: SceneRoot,
 	particle_mesh: (Mesh3d, MeshMaterial3d<StandardMaterial>),
-	arm_meshes: [((Mesh3d, MeshMaterial3d<StandardMaterial>, Transform), PlayerArm); 3],
+	arm_meshes: [(
+		(Mesh3d, MeshMaterial3d<StandardMaterial>, Transform),
+		PlayerArm,
+	); 3],
 	arm_particle_mesh: Handle<Mesh>,
 	crosshair: (Mesh3d, MeshMaterial3d<StandardMaterial>, Transform),
 ) {
@@ -735,9 +747,7 @@ fn player_vis(
 				.spawn((
 					Name::new(format!("Player{}.ShipCenter.Ship", owner.0.get())),
 					owner,
-					(Transform::from_rotation(
-						Quat::from_rotation_x(FRAC_PI_2),
-					)),
+					(Transform::from_rotation(Quat::from_rotation_x(FRAC_PI_2))),
 					Visibility::default(),
 				))
 				.set_enum(Ship)
@@ -887,17 +897,15 @@ fn player_arms(
 	root_id: Entity,
 	arms_pivot: &mut EntityCommands,
 	owner: BelongsToPlayer,
-	meshes: [((Mesh3d, MeshMaterial3d<StandardMaterial>, Transform), PlayerArm); 3],
+	meshes: [(
+		(Mesh3d, MeshMaterial3d<StandardMaterial>, Transform),
+		PlayerArm,
+	); 3],
 	particle_mesh: Handle<Mesh>,
 ) {
 	arms_pivot.with_children(|builder| {
 		for (arm, which) in &meshes {
-			builder
-				.spawn((
-					owner,
-					arm.clone(),
-				))
-				.with_enum(Arm(*which));
+			builder.spawn((owner, arm.clone())).with_enum(Arm(*which));
 		}
 	});
 	for (arm, which) in meshes {

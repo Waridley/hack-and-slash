@@ -543,16 +543,19 @@ impl BlendTargets {
 				let global_xforms = global_xforms.reborrow();
 				let to_global = match state.to.global(state.animated, global_xforms) {
 					Some(global) => global,
-					None => { error!("Couldn't find state.to.global"); cmds.entity(id).despawn(); continue }
-					// // See todo in `Target::global`
-					// Ok(global) => global,
-					// Err(e) => {
-					// 	error!("{e}");
-					// 	cmds.entity(id).despawn();
-					// 	continue;
-					// }
+					None => {
+						error!("Couldn't find state.to.global");
+						cmds.entity(id).despawn();
+						continue;
+					} // // See todo in `Target::global`
+					  // Ok(global) => global,
+					  // Err(e) => {
+					  // 	error!("{e}");
+					  // 	cmds.entity(id).despawn();
+					  // 	continue;
+					  // }
 				}
-					.compute_transform();
+				.compute_transform();
 				to_global
 			};
 
@@ -560,15 +563,18 @@ impl BlendTargets {
 				let global_xforms = global_xforms.reborrow();
 				let from_global = match state.from.global(state.animated, global_xforms) {
 					Some(global) => global,
-					None => { error!("Couln't find state.from.global"); cmds.entity(id).despawn(); continue }
-					// Ok(global) => global,
-					// Err(e) => {
-					// 	error!("{e}");
-					// 	cmds.entity(id).despawn();
-					// 	continue;
-					// }
+					None => {
+						error!("Couln't find state.from.global");
+						cmds.entity(id).despawn();
+						continue;
+					} // Ok(global) => global,
+					  // Err(e) => {
+					  // 	error!("{e}");
+					  // 	cmds.entity(id).despawn();
+					  // 	continue;
+					  // }
 				}
-					.compute_transform();
+				.compute_transform();
 				from_global
 			};
 

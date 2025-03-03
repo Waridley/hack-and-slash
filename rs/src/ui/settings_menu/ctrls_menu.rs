@@ -1,45 +1,43 @@
 use crate::{
-	player::input::PlayerAction,
-	player::BelongsToPlayer,
-	ui::settings_menu::SettingsSubMenus
+	player::{input::PlayerAction, BelongsToPlayer},
+	ui::settings_menu::SettingsSubMenus,
 };
-use bevy::color::palettes::basic::{GRAY, GREEN};
-use bevy::color::palettes::css::DARK_GRAY;
-use bevy::prelude::*;
+use bevy::{
+	color::palettes::{
+		basic::{GRAY, GREEN},
+		css::DARK_GRAY,
+	},
+	prelude::*,
+};
 use engine::{
 	draw::square_points,
 	entity_tree,
-	input::map::icons::{AxisIcons, DualAxisIcons, InputIconFileMap, TripleAxisIcons},
-	input::map::{
-		icons::{BasicInputIcons, Icon, UserInputIcons},
-		widgets::{InputIcon, InputIconBundle},
-		Platform,
+	input::{
+		map::{
+			icons::{
+				AxisIcons, BasicInputIcons, DualAxisIcons, Icon, InputIconFileMap, TripleAxisIcons,
+				UserInputIcons,
+			},
+			widgets::{InputIcon, InputIconBundle},
+			Platform,
+		},
+		ActionExt,
 	},
-	input::ActionExt,
-	ui::widgets::borders::Border,
-	ui::widgets::focus_toggle_border,
 	ui::{
 		focus::{AdjacentWidgets, FocusTarget},
 		layout::{ExpandToFitChildren, LineUpChildren, RadialChildren},
 		text::UiFonts,
 		widgets::{
-			dbg_event, new_unlit_material,
-			CuboidPanel, CuboidPanelBundle, InteractHandlers, Text3d,
-			Text3dBundle,
+			borders::Border, dbg_event, focus_toggle_border, new_unlit_material, CuboidContainer,
+			CuboidPanel, CuboidPanelBundle, InteractHandlers, Node3d, Text3d, Text3dBundle,
 		},
-		Fade, GlobalUi, MenuStack, UiAction, UiMat, UiMatBuilder,
-		GLOBAL_UI_RENDER_LAYERS,
-	}
+		Fade, GlobalUi, MenuStack, UiAction, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
+	},
 };
-use leafwing_input_manager::{
-	prelude::InputMap,
-	Actionlike,
-};
+use leafwing_input_manager::{prelude::InputMap, Actionlike};
 use serde::{Deserialize, Serialize};
 use smallvec::smallvec;
-use std::borrow::Cow;
-use std::ops::ControlFlow::Break;
-use engine::ui::widgets::{CuboidContainer, Node3d};
+use std::{borrow::Cow, ops::ControlFlow::Break};
 
 const GAME_BINDINGS_CONTAINER_NAME: &'static str = "GameBindingsContainer";
 const UI_BINDINGS_CONTAINER_NAME: &'static str = "UiBindingsContainer";
@@ -56,7 +54,7 @@ pub fn setup(
 		reflectance: 0.2,
 		..StandardMaterial::from(Color::from(DARK_GRAY.with_alpha(0.5)))
 	}));
-	
+
 	fn bindings_entries<A: ActionExt>(
 		cmds: &mut Commands,
 		actions: impl Iterator<Item = A>,
@@ -69,7 +67,7 @@ pub fn setup(
 		actions
 			.map(move |action| {
 				let name = action.display_name();
-				
+
 				let action_key = action.clone();
 				entity_tree!(cmds; (
 					CuboidContainer::default(),
@@ -159,16 +157,17 @@ pub fn setup(
 							]
 						),
 					]
-				)).id()
+				))
+				.id()
 			})
 			.collect::<Vec<_>>()
 	}
-	
+
 	let entry_focus_border_mat = mats.add(UiMatBuilder::from(Color::from(GRAY)));
-	
+
 	//FIXME: Temporary till per-player Options menu is implemented
 	let owner = BelongsToPlayer::new(1);
-	
+
 	let game_bindings_entries = bindings_entries(
 		&mut cmds,
 		PlayerAction::ALL.into_iter(),
@@ -178,7 +177,7 @@ pub fn setup(
 		ui_fonts.mono.clone(),
 		owner,
 	);
-	
+
 	let ui_bindings_entries = bindings_entries(
 		&mut cmds,
 		UiAction::ALL.into_iter(),
@@ -193,9 +192,13 @@ pub fn setup(
 		translation: Vec3::new(0.0, -48.0, -48.0),
 		..default()
 	};
-	
-	let all_first_control = AdjacentWidgets::all(format!("[{GAME_BINDINGS_CONTAINER_NAME}]/#0/#1").parse().unwrap());
-	
+
+	let all_first_control = AdjacentWidgets::all(
+		format!("[{GAME_BINDINGS_CONTAINER_NAME}]/#0/#1")
+			.parse()
+			.unwrap(),
+	);
+
 	let bindings_section_components = (
 		CuboidContainer::default(),
 		all_first_control.clone(),
@@ -203,9 +206,11 @@ pub fn setup(
 			margin: Vec3::new(1.0, 0.0, 1.0),
 			..default()
 		},
-		LineUpChildren::vertical().with_alignment(Vec3::new(0.0, -20.0, -1.0)).with_spacing(1.0),
+		LineUpChildren::vertical()
+			.with_alignment(Vec3::new(0.0, -20.0, -1.0))
+			.with_spacing(1.0),
 	);
-	
+
 	let bindings_section_border = (
 		Border {
 			margin: Vec2::splat(0.5),
@@ -214,14 +219,14 @@ pub fn setup(
 		Node3d,
 		MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(DARK_GRAY)))),
 	);
-	
+
 	let bindings_section_inner_components = (
 		CuboidContainer::default(),
 		all_first_control.clone(),
 		ExpandToFitChildren::default(),
 		LineUpChildren::vertical().with_spacing(0.5),
 	);
-	
+
 	let bindings_header_text = Text3dBundle {
 		text_3d: Text3d {
 			vertex_scale: Vec3::splat(0.7),
@@ -232,7 +237,7 @@ pub fn setup(
 		material: MeshMaterial3d(text_mat.clone()),
 		..default()
 	};
-	
+
 	let divider = (
 		Name::new("divider"),
 		CuboidPanelBundle {
@@ -242,16 +247,16 @@ pub fn setup(
 			},
 			material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(DARK_GRAY)))),
 			..default()
-		}
+		},
 	);
-	
+
 	let bindings_container_components = (
 		CuboidContainer::default(),
 		AdjacentWidgets::all("#0/#1".parse().unwrap()),
 		LineUpChildren::vertical(),
 		ExpandToFitChildren::default(),
 	);
-	
+
 	let game_ctrls_section = entity_tree!(cmds; (
 		Name::new("GameBindingsSection"),
 		bindings_section_components.clone(),
@@ -283,8 +288,9 @@ pub fn setup(
 				]
 			)
 		]
-	)).id();
-	
+	))
+	.id();
+
 	let ui_ctrls_section = entity_tree!(cmds; (
 		Name::new("UiBindingsSection"),
 		bindings_section_components,
@@ -308,8 +314,9 @@ pub fn setup(
 				]
 			),
 		]
-	)).id();
-	
+	))
+	.id();
+
 	let root = entity_tree! { cmds;
 		(
 			Name::new("ControlsMenu"),
@@ -439,9 +446,7 @@ pub fn anchor_follow_focus(
 			.lerp(focus.translation.z, t.delta_secs() * 10.0);
 	}
 	if target.rotation.angle_between(focus.rotation) > 0.001 {
-		target.rotation = target
-			.rotation
-			.slerp(focus.rotation, t.delta_secs() * 10.0);
+		target.rotation = target.rotation.slerp(focus.rotation, t.delta_secs() * 10.0);
 	}
 }
 
@@ -462,7 +467,11 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 		.chain(imaps.iter().map(|(imap, owner)| (imap, Some(*owner))))
 		.filter(|(imap, _)| imap.is_changed())
 	{
-		debug!(action_type=std::any::type_name::<A>(), ?owner, imap=bevy::asset::ron::to_string(&*imap).unwrap());
+		debug!(
+			action_type = std::any::type_name::<A>(),
+			?owner,
+			imap = bevy::asset::ron::to_string(&*imap).unwrap()
+		);
 		for (id, container, _) in q.iter().filter(|it| it.2.copied() == owner) {
 			let gp = imap
 				.gamepad()
@@ -472,7 +481,7 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 				.and_then(Platform::guess_gamepad);
 			let action = &container.0;
 			let mut cmds = cmds.entity(id);
-			debug!(?id,"clearing icons for {action:?}");
+			debug!(?id, "clearing icons for {action:?}");
 			cmds.despawn_descendants();
 			cmds.with_children(|cmds| {
 				let darker_gray = MeshMaterial3d(mats.add(UiMatBuilder::from(StandardMaterial {
@@ -500,12 +509,12 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 							..default()
 						}
 					}
-					
+
 					fn separator(
 						cmds: &mut ChildBuilder,
 						text: impl Into<Cow<'static, str>>,
 						font: Handle<Font>,
-						text_mat: Handle<UiMat>
+						text_mat: Handle<UiMat>,
 					) {
 						cmds.spawn(Text3dBundle::<UiMat> {
 							text_3d: Text3d {
@@ -516,28 +525,32 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 							material: MeshMaterial3d(text_mat.clone()),
 							..default()
 						});
-						
 					}
-					
+
 					fn basic_icons(
 						cmds: &mut ChildBuilder,
 						icons: BasicInputIcons,
 						scale: f32,
 						font: &Handle<Font>,
-						text_mat: &Handle<UiMat>
+						text_mat: &Handle<UiMat>,
 					) {
 						match icons {
 							BasicInputIcons::Simple(icon) => {
-								cmds.spawn(icon_bundle(icon, font.clone(), text_mat.clone(), scale));
+								cmds.spawn(icon_bundle(
+									icon,
+									font.clone(),
+									text_mat.clone(),
+									scale,
+								));
 							}
 							BasicInputIcons::Composite(btns) => {
 								let mut btns = btns.into_iter();
 								let btn = btns.next();
-								
+
 								// Manual intersperse to avoid mutably borrwing cmds twice
 								if let Some(btn) = btn {
 									basic_icons(cmds, btn, scale, font, text_mat);
-									
+
 									for btn in btns {
 										separator(cmds, "|", font.clone(), text_mat.clone());
 										basic_icons(cmds, btn, scale, font, text_mat);
@@ -547,11 +560,11 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 							BasicInputIcons::Chord(btns) => {
 								let mut btns = btns.into_iter();
 								let btn = btns.next();
-								
+
 								// Manual intersperse to avoid mutably borrwing cmds twice
 								if let Some(btn) = btn {
 									basic_icons(cmds, btn, scale, font, text_mat);
-									
+
 									for btn in btns {
 										separator(cmds, "+", font.clone(), text_mat.clone());
 										basic_icons(cmds, btn, scale, font, text_mat);
@@ -560,18 +573,23 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 							}
 						}
 					}
-					
+
 					fn axis_icons(
 						cmds: &mut ChildBuilder,
 						icons: AxisIcons,
 						scale: f32,
 						font: &Handle<Font>,
-						text_mat: &Handle<UiMat>
+						text_mat: &Handle<UiMat>,
 					) {
 						match icons {
 							AxisIcons::Single(icon) => {
-								cmds.spawn(icon_bundle(icon, font.clone(), text_mat.clone(), scale));
-							},
+								cmds.spawn(icon_bundle(
+									icon,
+									font.clone(),
+									text_mat.clone(),
+									scale,
+								));
+							}
 							AxisIcons::Composite { positive, negative } => {
 								basic_icons(cmds, positive, scale, font, &text_mat);
 								separator(cmds, "|", font.clone(), text_mat.clone());
@@ -597,22 +615,33 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 					.with_children(|cmds| {
 						const FULL_SIZE: f32 = 1.2;
 						match icons {
-							UserInputIcons::Button(icons) => basic_icons(cmds, icons, FULL_SIZE, &fonts.mono, &text_mat),
-							UserInputIcons::Axis(icons) => axis_icons(cmds, icons, FULL_SIZE, &fonts.mono, &text_mat),
+							UserInputIcons::Button(icons) => {
+								basic_icons(cmds, icons, FULL_SIZE, &fonts.mono, &text_mat)
+							}
+							UserInputIcons::Axis(icons) => {
+								axis_icons(cmds, icons, FULL_SIZE, &fonts.mono, &text_mat)
+							}
 							UserInputIcons::DualAxis(icons) => {
 								match icons {
 									DualAxisIcons::Single(icon) => {
-										cmds.spawn(icon_bundle(icon, fonts.mono.clone(), text_mat.clone(), FULL_SIZE));
+										cmds.spawn(icon_bundle(
+											icon,
+											fonts.mono.clone(),
+											text_mat.clone(),
+											FULL_SIZE,
+										));
 									}
 									DualAxisIcons::Composite {
-										horizontal: AxisIcons::Composite {
-											positive: right,
-											negative: left,
-										},
-										vertical: AxisIcons::Composite {
-											positive: up,
-											negative: down,
-										},
+										horizontal:
+											AxisIcons::Composite {
+												positive: right,
+												negative: left,
+											},
+										vertical:
+											AxisIcons::Composite {
+												positive: up,
+												negative: down,
+											},
 									} => {
 										cmds.spawn((
 											CuboidContainer::default(),
@@ -622,39 +651,78 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 												..default()
 											},
 										))
-											.with_children(|cmds| {
-												// Slightly oversized for readability.
-												basic_icons(cmds, right, FULL_SIZE / 2.4, &fonts.mono, &text_mat);
-												basic_icons(cmds, up, FULL_SIZE / 2.4, &fonts.mono, &text_mat);
-												basic_icons(cmds, left, FULL_SIZE / 2.4, &fonts.mono, &text_mat);
-												basic_icons(cmds, down, FULL_SIZE / 2.4, &fonts.mono, &text_mat);
-											});
+										.with_children(|cmds| {
+											// Slightly oversized for readability.
+											basic_icons(
+												cmds,
+												right,
+												FULL_SIZE / 2.4,
+												&fonts.mono,
+												&text_mat,
+											);
+											basic_icons(
+												cmds,
+												up,
+												FULL_SIZE / 2.4,
+												&fonts.mono,
+												&text_mat,
+											);
+											basic_icons(
+												cmds,
+												left,
+												FULL_SIZE / 2.4,
+												&fonts.mono,
+												&text_mat,
+											);
+											basic_icons(
+												cmds,
+												down,
+												FULL_SIZE / 2.4,
+												&fonts.mono,
+												&text_mat,
+											);
+										});
 									}
 									DualAxisIcons::Composite {
 										horizontal,
 										vertical,
 									} => {
 										// TODO: Layout vertical icons vertically?
-										axis_icons(cmds, horizontal, FULL_SIZE, &fonts.mono, &text_mat);
+										axis_icons(
+											cmds,
+											horizontal,
+											FULL_SIZE,
+											&fonts.mono,
+											&text_mat,
+										);
 										separator(cmds, "|", fonts.mono.clone(), text_mat.clone());
-										axis_icons(cmds, vertical, FULL_SIZE, &fonts.mono, &text_mat);
-									},
-								}
-							}
-							UserInputIcons::TripleAxis(icons) => {
-								match icons {
-									TripleAxisIcons::Single(icon) => {
-										cmds.spawn(icon_bundle(icon, fonts.mono.clone(), text_mat.clone(), FULL_SIZE));
-									}
-									TripleAxisIcons::Composite { x, y, z } => {
-										axis_icons(cmds, x, FULL_SIZE, &fonts.mono, &text_mat);
-										separator(cmds, "|", fonts.mono.clone(), text_mat.clone());
-										axis_icons(cmds, y, FULL_SIZE, &fonts.mono, &text_mat);
-										separator(cmds, "|", fonts.mono.clone(), text_mat.clone());
-										axis_icons(cmds, z, FULL_SIZE, &fonts.mono, &text_mat);
+										axis_icons(
+											cmds,
+											vertical,
+											FULL_SIZE,
+											&fonts.mono,
+											&text_mat,
+										);
 									}
 								}
 							}
+							UserInputIcons::TripleAxis(icons) => match icons {
+								TripleAxisIcons::Single(icon) => {
+									cmds.spawn(icon_bundle(
+										icon,
+										fonts.mono.clone(),
+										text_mat.clone(),
+										FULL_SIZE,
+									));
+								}
+								TripleAxisIcons::Composite { x, y, z } => {
+									axis_icons(cmds, x, FULL_SIZE, &fonts.mono, &text_mat);
+									separator(cmds, "|", fonts.mono.clone(), text_mat.clone());
+									axis_icons(cmds, y, FULL_SIZE, &fonts.mono, &text_mat);
+									separator(cmds, "|", fonts.mono.clone(), text_mat.clone());
+									axis_icons(cmds, z, FULL_SIZE, &fonts.mono, &text_mat);
+								}
+							},
 						}
 					});
 				}
