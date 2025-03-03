@@ -17,7 +17,7 @@ use crate::{
 		layout::LineUpChildren,
 		text::UiFonts,
 		widgets::{
-			CuboidPanel, CuboidPanelBundle, Node3dBundle, Text3d,
+			CuboidPanel, CuboidPanelBundle, Text3d,
 			Text3dBundle,
 		}, GlobalUi, Popup, PopupsRoot, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
 	},
@@ -29,6 +29,7 @@ use bevy::{
 use bevy::color::palettes::css::AQUAMARINE;
 use smallvec::{smallvec, SmallVec};
 use crate::input::map::icons::{InputIconFileMap, UserInputIcons};
+use crate::ui::widgets::Node3d;
 
 pub struct DetectBindingPopupPlugin;
 
@@ -69,19 +70,17 @@ pub fn setup(
 								},
 							},
 						})),
-						visibility: Visibility::Hidden,
 						..default()
 					},
+					Visibility::Hidden,
 					DetectBindingPopup,
 				));
 
 				cmds.with_children(|cmds| {
 					cmds.spawn((
-						Node3dBundle {
-							transform: Transform {
-								translation: Vec3::NEG_Y * 0.5,
-								..default()
-							},
+						Node3d,
+						Transform {
+							translation: Vec3::NEG_Y * 0.5,
 							..default()
 						},
 						Mesh3d(meshes.add(
@@ -110,27 +109,29 @@ pub fn setup(
 							},
 						})),
 					));
-					cmds.spawn((Text3dBundle {
-						text_3d: Text3d {
-							text: "Press input(s) to bind...".into(),
-							font: ui_fonts.mono.clone(),
-							flat: false,
-							vertex_scale: Vec3::splat(0.45),
+					cmds.spawn((
+						Text3dBundle {
+							text_3d: Text3d {
+								text: "Press input(s) to bind...".into(),
+								font: ui_fonts.mono.clone(),
+								flat: false,
+								vertex_scale: Vec3::splat(0.45),
+								..default()
+							},
+							material: MeshMaterial3d(mats.add(ExtMat {
+								extension: default(),
+								base: Matter {
+									extension: DistanceDither::ui(),
+									base: Color::from(AQUAMARINE).into(),
+								},
+							})),
 							..default()
 						},
-						material: MeshMaterial3d(mats.add(ExtMat {
-							extension: default(),
-							base: Matter {
-								extension: DistanceDither::ui(),
-								base: Color::from(AQUAMARINE).into(),
-							},
-						})),
-						transform: Transform {
+						Transform {
 							translation: Vec3::new(0.0, -1.0, 2.0),
 							..default()
 						},
-						..default()
-					},));
+					));
 
 					cmds.spawn((
 						Transform {
@@ -234,14 +235,10 @@ pub fn display_curr_chord(
 					.spawn(InputIconBundle::<UiMat> {
 						input_icon: InputIcon {
 							icon,
+							font: ui_fonts.mono.clone(),
 							size: Vec3::splat(1.0),
 							flat: false,
 							tolerance: 0.1,
-							..default()
-						},
-						font: TextFont::from_font(ui_fonts.mono.clone()),
-						transform: Transform {
-							// scale: Vec3::splat(0.02),
 							..default()
 						},
 						material: MeshMaterial3d(icon_mat.clone()),

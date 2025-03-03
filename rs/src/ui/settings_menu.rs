@@ -1,5 +1,11 @@
 use crate::player::input::PlayerAction;
+use bevy::color::palettes::basic::{AQUA, BLUE, FUCHSIA, GRAY, GREEN, RED, YELLOW};
+use bevy::color::palettes::css::DARK_GRAY;
 use bevy::prelude::*;
+use engine::draw::rect_points;
+use engine::input::map::icons::InputIconFileMap;
+use engine::ui::widgets::borders::Border;
+use engine::ui::widgets::{focus_toggle_border, Node3d};
 use engine::{
 	draw::{polygon_points, PlanarPolyLine},
 	entity_tree,
@@ -8,9 +14,8 @@ use engine::{
 		layout::{ExpandToFitChildren, RadialArrangement, RadialChildren},
 		text::UiFonts,
 		widgets::{
-			dbg_event, new_unlit_material, on_ok, CuboidPanel,
-			CuboidPanelBundle, CylinderPanel, CylinderPanelBundle, InteractHandlers,
-			Node3dBundle, Text3d, Text3dBundle, WidgetBundle, WidgetShape,
+			dbg_event, new_unlit_material, on_ok, CuboidPanel, CuboidPanelBundle, CylinderPanel,
+			CylinderPanelBundle, InteractHandlers, Text3d, Text3dBundle, WidgetShape,
 		},
 		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiAction, UiMat, UiMatBuilder,
 		GLOBAL_UI_RENDER_LAYERS,
@@ -19,17 +24,11 @@ use engine::{
 };
 use enum_components::{EntityEnumCommands, EnumComponent};
 use rapier3d::prelude::SharedShape;
+use smallvec::smallvec;
 use std::{
 	f32::consts::{FRAC_PI_3, FRAC_PI_6},
 	ops::ControlFlow::Break,
 };
-use bevy::color::palettes::basic::{AQUA, BLUE, FUCHSIA, GRAY, GREEN, RED, YELLOW};
-use bevy::color::palettes::css::DARK_GRAY;
-use smallvec::smallvec;
-use engine::draw::rect_points;
-use engine::input::map::icons::InputIconFileMap;
-use engine::ui::widgets::borders::Border;
-use engine::ui::widgets::focus_toggle_border;
 
 pub mod ctrls_menu;
 
@@ -46,7 +45,8 @@ impl Plugin for SettingsMenuPlugin {
 					(
 						ctrls_menu::update_binding_list_widgets::<UiAction>,
 						ctrls_menu::update_binding_list_widgets::<PlayerAction>,
-					).run_if(resource_exists::<InputIconFileMap>)
+					)
+						.run_if(resource_exists::<InputIconFileMap>),
 				),
 			);
 	}
@@ -74,16 +74,15 @@ pub fn setup(
 			.collect(),
 	};
 	let text_material = MeshMaterial3d(mats.add(new_unlit_material()));
-	let blue_green_mat = MeshMaterial3d(mats.add(UiMatBuilder::from(Color::linear_rgb(0.5, 0.8, 0.7))));
+	let blue_green_mat =
+		MeshMaterial3d(mats.add(UiMatBuilder::from(Color::linear_rgb(0.5, 0.8, 0.7))));
 	let button_focus_border_bundle = (
-		Node3dBundle {
-			transform: Transform {
-				translation: Vec3::NEG_Y * 0.5,
-				..default()
-			},
-			visibility: Visibility::Hidden,
+		Node3d,
+		Transform {
+			translation: Vec3::NEG_Y * 0.5,
 			..default()
 		},
+		Visibility::Hidden,
 		Border {
 			margin: Vec2::splat(0.25),
 			cross_section: rect_points(0.1, 0.1),
@@ -91,10 +90,7 @@ pub fn setup(
 		},
 		blue_green_mat.clone(),
 	);
-	let focus_toggle_border = InteractHandlers(smallvec![
-		dbg_event(),
-		focus_toggle_border(),
-	]);
+	let focus_toggle_border = InteractHandlers(smallvec![dbg_event(), focus_toggle_border(),]);
 	entity_tree!(cmds; (
 		Name::new("SettingsMenu"),
 		SettingsMenu,
@@ -111,13 +107,13 @@ pub fn setup(
 				cull_mode: None,
 				..default()
 			}))),
-			transform: Transform {
-				translation: Vec3::new(0.0, -32.0, -24.0),
-				..default()
-			},
-			handlers: MenuStack::pop_on_back(GLOBAL_UI_RENDER_LAYERS, 0.7),
 			..default()
 		},
+		Transform {
+			translation: Vec3::new(0.0, -32.0, -24.0),
+			..default()
+		},
+		MenuStack::pop_on_back(GLOBAL_UI_RENDER_LAYERS, 0.7),
 		Fade::ZERO;
 		#children: [
 			(
@@ -129,29 +125,26 @@ pub fn setup(
 						..default()
 					},
 					material: blue_green_mat.clone(),
-					transform: Transform {
-						translation: Vec3::new(0.0, -3.5, 0.0),
-						..default()
-					},
+					..default()
+				},
+				Transform {
+					translation: Vec3::new(0.0, -3.5, 0.0),
 					..default()
 				},
 			),
 			(
-				WidgetBundle {
-					shape: WidgetShape { shape: SharedShape::cylinder(3.0, 10.0), ..default() },
-					transform: Transform {
-						translation: Vec3::NEG_Y * 3.5,
-						..default()
-					},
-					adjacent: AdjacentWidgets {
-						prev: Some(ChildN(5)),
-						next: Some(ChildN(0)),
-						directions: (0..5).map(|i| (
-							Wedge2d::sixth(Vec2::from_angle((FRAC_PI_3 * i as f32) + FRAC_PI_6)),
-							ChildN(i),
-						)).collect(),
-					},
+				WidgetShape { shape: SharedShape::cylinder(3.0, 10.0), ..default() },
+				Transform {
+					translation: Vec3::NEG_Y * 3.5,
 					..default()
+				},
+				AdjacentWidgets {
+					prev: Some(ChildN(5)),
+					next: Some(ChildN(0)),
+					directions: (0..5).map(|i| (
+						Wedge2d::sixth(Vec2::from_angle((FRAC_PI_3 * i as f32) + FRAC_PI_6)),
+						ChildN(i),
+					)).collect(),
 				},
 				Mesh3d(meshes.add(PlanarPolyLine {
 					points: polygon_points(6, 10.5, 0.0),
@@ -180,10 +173,10 @@ pub fn setup(
 								..default()
 							},
 							material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(AQUA.with_alpha(0.4))))),
-							adjacent: adjacent.clone(),
-							handlers: focus_toggle_border.clone(),
 							..default()
 						},
+						adjacent.clone(),
+						focus_toggle_border.clone(),
 						ExpandToFitChildren {
 							margin: Vec3::splat(0.25),
 							offset: Vec3::Y * 0.5,
@@ -198,9 +191,9 @@ pub fn setup(
 										..default()
 									},
 									material: text_material.clone(),
-									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
 									..default()
 								},
+								Transform::from_translation(Vec3::NEG_Y * 0.5),
 							),
 							(button_focus_border_bundle.clone()),
 						]
@@ -212,10 +205,10 @@ pub fn setup(
 								..default()
 							},
 							material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(YELLOW.with_alpha(0.4))))),
-							adjacent: adjacent.clone(),
-							handlers: focus_toggle_border.clone(),
 							..default()
 						},
+						adjacent.clone(),
+						focus_toggle_border.clone(),
 						ExpandToFitChildren {
 							margin: Vec3::splat(0.25),
 							offset: Vec3::Y * 0.5,
@@ -230,9 +223,9 @@ pub fn setup(
 										..default()
 									},
 									material: text_material.clone(),
-									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
 									..default()
 								},
+								Transform::from_translation(Vec3::NEG_Y * 0.5),
 							),
 							(button_focus_border_bundle.clone()),
 						]
@@ -244,10 +237,10 @@ pub fn setup(
 								..default()
 							},
 							material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(FUCHSIA.with_alpha(0.40))))),
-							adjacent: adjacent.clone(),
-							handlers: focus_toggle_border.clone(),
 							..default()
 						},
+						adjacent.clone(),
+						focus_toggle_border.clone(),
 						ExpandToFitChildren {
 							margin: Vec3::splat(0.25),
 							offset: Vec3::Y * 0.5,
@@ -262,9 +255,9 @@ pub fn setup(
 										..default()
 									},
 									material: text_material.clone(),
-									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
 									..default()
 								},
+								Transform::from_translation(Vec3::NEG_Y * 0.5),
 							),
 							(button_focus_border_bundle.clone()),
 						]
@@ -276,10 +269,10 @@ pub fn setup(
 								..default()
 							},
 							material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(RED.with_alpha(0.4))))),
-							adjacent: adjacent.clone(),
-							handlers: focus_toggle_border.clone(),
 							..default()
 						},
+						adjacent.clone(),
+						focus_toggle_border.clone(),
 						ExpandToFitChildren {
 							margin: Vec3::splat(0.25),
 							offset: Vec3::Y * 0.5,
@@ -294,9 +287,9 @@ pub fn setup(
 										..default()
 									},
 									material: text_material.clone(),
-									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
 									..default()
 								},
+								Transform::from_translation(Vec3::NEG_Y * 0.5),
 							),
 							(button_focus_border_bundle.clone()),
 						]
@@ -308,19 +301,19 @@ pub fn setup(
 								..default()
 							},
 							material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(GREEN.with_alpha(0.4))))),
-							handlers: focus_toggle_border.clone()
-							.and([on_ok(|cmds| {
-									cmds.commands().queue(|world: &mut World| {
-										let menu = world.resource::<SettingsSubMenus>().controls;
-										let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
-										q.single_mut(world).push(menu);
-										world.entity_mut(menu.root).fade_in_secs(1.5);
-									});
-									Break(())
-								})]),
-							adjacent: adjacent.clone(),
 							..default()
 						},
+						focus_toggle_border.clone()
+							.and([on_ok(|cmds| {
+								cmds.commands().queue(|world: &mut World| {
+									let menu = world.resource::<SettingsSubMenus>().controls;
+									let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
+									q.single_mut(world).push(menu);
+									world.entity_mut(menu.root).fade_in_secs(1.5);
+								});
+								Break(())
+							})]),
+						adjacent.clone(),
 						ExpandToFitChildren {
 							margin: Vec3::splat(0.25),
 							offset: Vec3::Y * 0.5,
@@ -335,9 +328,9 @@ pub fn setup(
 										..default()
 									},
 									material: text_material.clone(),
-									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
 									..default()
 								},
+								Transform::from_translation(Vec3::NEG_Y * 0.5),
 							),
 							(button_focus_border_bundle.clone()),
 						]
@@ -349,10 +342,10 @@ pub fn setup(
 								..default()
 							},
 							material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(BLUE.with_alpha(0.4))))),
-							adjacent: adjacent.clone(),
-							handlers: focus_toggle_border.clone(),
 							..default()
 						},
+						adjacent.clone(),
+						focus_toggle_border.clone(),
 						ExpandToFitChildren {
 							margin: Vec3::splat(0.25),
 							offset: Vec3::Y * 0.5,
@@ -367,9 +360,9 @@ pub fn setup(
 										..default()
 									},
 									material: text_material.clone(),
-									transform: Transform::from_translation(Vec3::NEG_Y * 0.5),
 									..default()
 								},
+								Transform::from_translation(Vec3::NEG_Y * 0.5),
 							),
 							(button_focus_border_bundle.clone()),
 						]

@@ -7,6 +7,7 @@ use crate::{
 };
 use atomicow::CowArc;
 use bevy::{
+	a11y::AccessibilityNode,
 	ecs::system::EntityCommands,
 	prelude::*,
 	render::{
@@ -41,6 +42,7 @@ use crate::ui::widgets::borders::Border;
 pub mod borders;
 
 #[derive(Component, Clone, Deref, DerefMut)]
+#[require(Node3d)]
 pub struct WidgetShape {
 	#[deref]
 	pub shape: SharedShape,
@@ -74,84 +76,35 @@ pub fn offset_mesh_positions(mesh: &mut Mesh, translation: Vec3, rotation: Quat)
 	}
 }
 
-#[macro_export]
-macro_rules! node_3d {
-    {$T:ident $(<$($G:ident $(: $Constraints:tt)? $(= $Def:ident)?),*>)? $(where $($W:ident: $WConstraints:tt),*)? {
-	    $($fields:ident: $tys:ty),* $(,)?
-    }} => {
-	    #[derive(Bundle, Clone)]
-	    pub struct $T$(<$($G $(: $Constraints)? $(= $Def)?),*>)? $(where $($W: $WConstraints)*)? {
-		    $(pub $fields: $tys,)*
-		    pub handlers: $crate::ui::widgets::InteractHandlers,
-				pub transform: Transform,
-				pub global_transform: GlobalTransform,
-				pub visibility: Visibility,
-				pub inherited_visibility: InheritedVisibility,
-				pub view_visibility: ViewVisibility,
-				pub layers: RenderLayers,
-		    pub adjacent: $crate::ui::focus::AdjacentWidgets,
-				pub ak_node: AKNode,
-	    }
-    }
-}
+#[derive(Component, Default, Debug, Clone)]
+#[require(
+	crate::ui::widgets::InteractHandlers,
+	Transform,
+	GlobalTransform,
+	Visibility,
+	InheritedVisibility,
+	ViewVisibility,
+	RenderLayers(|| crate::ui::GLOBAL_UI_RENDER_LAYERS),
+	crate::ui::focus::AdjacentWidgets,
+	AKNode(|| AccessibilityNode(accesskit::Node::new(::accesskit::Role::Unknown))),
+)]
+pub struct Node3d;
 
-node_3d! { Node3dBundle {} }
+#[derive(Component, Default, Clone, Debug, Reflect)]
+#[require(WidgetShape)]
+#[reflect(Component)]
+pub struct Panel;
 
-#[macro_export]
-macro_rules! node_3d_defaults {
-    ($($fields:ident: $values:expr),* $(,)?) => {
-	    Self {
-		    $(
-		      $fields: $values,
-		    )*
-				handlers: ::std::default::Default::default(),
-				transform: ::std::default::Default::default(),
-				global_transform: ::std::default::Default::default(),
-				visibility: ::std::default::Default::default(),
-				inherited_visibility: ::std::default::Default::default(),
-				view_visibility: ::std::default::Default::default(),
-				layers: $crate::ui::GLOBAL_UI_RENDER_LAYERS,
-		    adjacent: ::std::default::Default::default(),
-				ak_node: ::accesskit::Node::new(::accesskit::Role::Unknown).into(),
-	    }
-    };
-}
-
-impl Default for Node3dBundle {
-	fn default() -> Self {
-		node_3d_defaults! {}
-	}
-}
-
-node_3d! { WidgetBundle {
-	shape: WidgetShape,
-}}
-
-impl Default for WidgetBundle {
-	fn default() -> Self {
-		node_3d_defaults! {
-			shape: default(),
-		}
-	}
-}
-
-node_3d! { PanelBundle<M: Material = UiMat> {
-	shape: WidgetShape,
-	mesh: Mesh3d,
-	material: MeshMaterial3d<M>,
-}}
-
-impl Default for PanelBundle {
-	fn default() -> Self {
-		node_3d_defaults! {
-			shape: default(),
-			mesh: default(),
-			material: default(),
-		}
-	}
+#[derive(Bundle, Default, Debug, Clone)]
+pub struct PanelBundle<M: Material = UiMat> {
+	pub panel: Panel,
+	pub shape: WidgetShape,
+	pub mesh: Mesh3d,
+	pub material: MeshMaterial3d<M>,
 }
 
 #[derive(Component, Clone, Debug, Reflect)]
+#[require(Node3d)]
 #[reflect(Component)]
 pub struct CuboidPanel {
 	pub size: Vec3,
@@ -173,18 +126,10 @@ impl Default for CuboidPanel {
 	}
 }
 
-node_3d! { CuboidPanelBundle<M: Material = UiMat> {
-	panel: CuboidPanel,
-	material: MeshMaterial3d<M>,
-}}
-
-impl<M: Material> Default for CuboidPanelBundle<M> {
-	fn default() -> Self {
-		node_3d_defaults! {
-			panel: default(),
-			material: default(),
-		}
-	}
+#[derive(Bundle, Default, Debug, Clone, Reflect)]
+pub struct CuboidPanelBundle<M: Material = UiMat> {
+	pub panel: CuboidPanel,
+	pub material: MeshMaterial3d<M>,
 }
 
 impl CuboidPanel {
@@ -241,6 +186,7 @@ impl CuboidPanel {
 }
 
 #[derive(Component, Debug, Clone, Reflect)]
+#[require(Node3d)]
 #[reflect(Component)]
 pub struct CylinderPanel {
 	/// Circumradius of the regular polygon defining the cross-section
@@ -301,18 +247,10 @@ impl CylinderPanel {
 	}
 }
 
-node_3d! { CylinderPanelBundle<M: Material = UiMat> {
-	panel: CylinderPanel,
-	material: MeshMaterial3d<M>,
-}}
-
-impl<M: Material> Default for CylinderPanelBundle<M> {
-	fn default() -> Self {
-		node_3d_defaults! {
-			panel: default(),
-			material: default(),
-		}
-	}
+#[derive(Bundle, Default, Debug, Clone, Reflect)]
+pub struct CylinderPanelBundle<M: Material = UiMat> {
+	pub panel: CylinderPanel,
+	pub material: MeshMaterial3d<M>,
 }
 
 #[derive(Debug, Default, Clone, Reflect)]
@@ -345,6 +283,7 @@ pub fn new_unlit_material() -> UiMat {
 }
 
 #[derive(Component, Clone, Debug, Reflect)]
+#[require(Node3d)] // WidgetShape is automatically generated
 pub struct Text3d {
 	pub font: Handle<Font>,
 	pub text: Cow<'static, str>,
@@ -371,16 +310,17 @@ impl Default for Text3d {
 	}
 }
 
-node_3d! { Text3dBundle<M: Material = UiMat> {
-	text_3d: Text3d,
-	material: MeshMaterial3d<M>,
-}}
+#[derive(Bundle, Debug, Clone, Reflect)]
+pub struct Text3dBundle<M: Material = UiMat> {
+	pub text_3d: Text3d,
+	pub material: MeshMaterial3d<M>,
+}
 
 impl<M: Material> Default for Text3dBundle<M> {
 	fn default() -> Self {
-		node_3d_defaults! {
+		Self {
 			text_3d: default(),
-			material: MeshMaterial3d(Handle::weak_from_u128(UNLIT_MATERIAL_ID)),
+			material: default(),
 		}
 	}
 }
@@ -1245,6 +1185,7 @@ pub struct Interaction {
 }
 
 #[derive(Component, Copy, Clone, Debug, Reflect, Serialize, Deserialize)]
+#[require(Node3d)]
 #[reflect(Component, Serialize, Deserialize)]
 pub struct CuboidContainer {
 	pub size: Vec3,
@@ -1265,24 +1206,12 @@ impl CuboidContainer {
 	}
 }
 
-node_3d! { CuboidContainerBundle {
-	container: CuboidContainer,
-}}
-
 impl Default for CuboidContainer {
 	fn default() -> Self {
 		Self {
 			size: Vec3::ONE,
 			translation: default(),
 			rotation: default(),
-		}
-	}
-}
-
-impl Default for CuboidContainerBundle {
-	fn default() -> Self {
-		node_3d_defaults! {
-			container: default(),
 		}
 	}
 }
