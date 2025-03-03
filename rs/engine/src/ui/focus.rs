@@ -1,8 +1,7 @@
-use crate::ui::{
-		widgets::WidgetShape, MenuRef, MenuStack, UiAction, GLOBAL_UI_RENDER_LAYERS,
-	};
+use crate::ui::{widgets::WidgetShape, MenuRef, MenuStack, UiAction, GLOBAL_UI_RENDER_LAYERS};
 use bevy::{
 	a11y::Focus,
+	color::palettes::css::SEA_GREEN,
 	ecs::identifier::error::IdentifierError,
 	prelude::*,
 	render::view::{Layer, RenderLayers},
@@ -15,7 +14,6 @@ use std::{
 	num::ParseIntError,
 	str::FromStr,
 };
-use bevy::color::palettes::css::SEA_GREEN;
 
 /// Tells [handle_focus_actions] how to find the next entity to focus.
 ///
@@ -383,9 +381,7 @@ pub fn handle_focus_actions(
 				.0
 				.directions
 				.iter()
-				.find_map(|(wedge, target)| {
-					wedge.contains(dir.xy()).then_some((*wedge, target))
-				})
+				.find_map(|(wedge, target)| wedge.contains(dir.xy()).then_some((*wedge, target)))
 				.unzip();
 			if *prev_cursor != dir {
 				if let Some(target) = target {

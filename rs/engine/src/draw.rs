@@ -7,8 +7,8 @@ use bevy::{
 		render_asset::RenderAssetUsages,
 	},
 };
-use std::f32::consts::TAU;
 use smallvec::{smallvec, SmallVec};
+use std::f32::consts::TAU;
 
 /// The corners of a square with dimensions [1.0, 1.0], centered around the origin.
 #[inline]

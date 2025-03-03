@@ -1,14 +1,19 @@
+use crate::{
+	draw::{rect_points_offset, PlanarPolyLine},
+	ui::widgets::{CuboidContainer, CuboidPanel},
+	util::Flat,
+};
 use bevy::prelude::*;
 use smallvec::SmallVec;
-use crate::draw::{rect_points_offset, PlanarPolyLine};
-use crate::ui::widgets::{CuboidContainer, CuboidPanel};
-use crate::util::Flat;
 
 pub struct WidgetBordersPlugin;
 
 impl Plugin for WidgetBordersPlugin {
 	fn build(&self, app: &mut App) {
-		app.add_systems(Last, (sync_cuboid_panel_borders, sync_cuboid_container_borders));
+		app.add_systems(
+			Last,
+			(sync_cuboid_panel_borders, sync_cuboid_container_borders),
+		);
 	}
 }
 
@@ -37,16 +42,21 @@ pub fn sync_cuboid_panel_borders(
 ) {
 	for (children, panel) in &panels {
 		for (id, border) in children.iter().filter_map(|child| borders.get(*child).ok()) {
-			cmds.entity(id).insert(Mesh3d(meshes.add(PlanarPolyLine {
-				points: rect_points_offset(
-					panel.size.x + panel.mesh_margin.x + border.margin.x,
-					panel.size.z + panel.mesh_margin.z + border.margin.y,
-					panel.translation.xz(),
+			cmds.entity(id).insert(Mesh3d(
+				meshes.add(
+					PlanarPolyLine {
+						points: rect_points_offset(
+							panel.size.x + panel.mesh_margin.x + border.margin.x,
+							panel.size.z + panel.mesh_margin.z + border.margin.y,
+							panel.translation.xz(),
+						),
+						cross_section: border.cross_section.clone(),
+						colors: border.colors.clone(),
+						closed: true,
+					}
+					.flat(),
 				),
-				cross_section: border.cross_section.clone(),
-				colors: border.colors.clone(),
-				closed: true,
-			}.flat())));
+			));
 		}
 	}
 }
@@ -59,16 +69,21 @@ pub fn sync_cuboid_container_borders(
 ) {
 	for (children, container) in &panels {
 		for (id, border) in children.iter().filter_map(|child| borders.get(*child).ok()) {
-			cmds.entity(id).insert(Mesh3d(meshes.add(PlanarPolyLine {
-				points: rect_points_offset(
-					container.size.x + border.margin.x,
-					container.size.z + border.margin.y,
-					container.translation.xz()
+			cmds.entity(id).insert(Mesh3d(
+				meshes.add(
+					PlanarPolyLine {
+						points: rect_points_offset(
+							container.size.x + border.margin.x,
+							container.size.z + border.margin.y,
+							container.translation.xz(),
+						),
+						cross_section: border.cross_section.clone(),
+						colors: border.colors.clone(),
+						closed: true,
+					}
+					.flat(),
 				),
-				cross_section: border.cross_section.clone(),
-				colors: border.colors.clone(),
-				closed: true,
-			}.flat())));
+			));
 		}
 	}
 }

@@ -1,7 +1,8 @@
 use std::f32::consts::FRAC_PI_2;
 
 use bevy::{
-	core_pipeline::{fxaa::Fxaa, tonemapping::Tonemapping, Skybox},
+	color::palettes::basic::FUCHSIA,
+	core_pipeline::{bloom::Bloom, fxaa::Fxaa, tonemapping::Tonemapping, Skybox},
 	ecs::system::EntityCommands,
 	prelude::*,
 	render::{
@@ -13,15 +14,13 @@ use bevy::{
 		},
 	},
 };
-use bevy::color::palettes::basic::FUCHSIA;
-use bevy::core_pipeline::bloom::Bloom;
 use bevy_rapier3d::{
 	geometry::{Collider, CollisionGroups, Group},
 	math::Vect,
 	pipeline::QueryFilter,
 	plugin::RapierContext,
+	prelude::ShapeCastOptions,
 };
-use bevy_rapier3d::prelude::ShapeCastOptions;
 use engine::ui::spawn_ui_camera;
 use enum_components::{EntityEnumCommands, WithVariant};
 

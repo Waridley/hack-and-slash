@@ -2,12 +2,15 @@ use crate::{
 	todo_warn,
 	ui::{
 		a11y::AKNode,
-		text::{Tessellator, TextMeshCache}, MenuStack, UiAction, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
+		text::{Tessellator, TextMeshCache},
+		widgets::borders::Border,
+		MenuStack, UiAction, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
 	},
 };
 use atomicow::CowArc;
 use bevy::{
 	a11y::AccessibilityNode,
+	color::palettes::basic::PURPLE,
 	ecs::system::EntityCommands,
 	prelude::*,
 	render::{
@@ -18,26 +21,23 @@ use bevy::{
 	utils::HashSet,
 };
 use bevy_rapier3d::parry::{
-		math::{Isometry, Vector},
-		shape::TypedShape,
-	};
-use leafwing_input_manager::prelude::ActionState;
+	math::{Isometry, Vector},
+	shape::TypedShape,
+};
+use leafwing_input_manager::{action_state::ActionKindData, prelude::ActionState};
 use lyon_tessellation::{FillOptions, VertexBuffers};
 use rapier3d::parry::shape::SharedShape;
 use serde::{Deserialize, Serialize};
+use smallvec::{smallvec, SmallVec};
 use std::{
+	borrow::Cow,
 	f32::consts::PI,
 	fmt::{Debug, Formatter},
 	ops::ControlFlow,
 	sync::Arc,
 };
-use std::borrow::Cow;
-use bevy::color::palettes::basic::PURPLE;
-use leafwing_input_manager::action_state::ActionKindData;
-use smallvec::{smallvec, SmallVec};
 use tiny_bail::prelude::r;
 use web_time::Duration;
-use crate::ui::widgets::borders::Border;
 
 pub mod borders;
 
@@ -166,8 +166,8 @@ impl CuboidPanel {
 				size.y - mesh_margin.y,
 				size.z - mesh_margin.z,
 			)
-				.mesh()
-				.build();
+			.mesh()
+			.build();
 			offset_mesh_positions(&mut mesh, *translation, *rotation);
 			if let Some(colors) = colors {
 				mesh.insert_attribute(
@@ -376,7 +376,9 @@ impl Text3d {
 			let Some((mesh, shape)) = cache
 				.entry((text.clone(), xform_key, font.clone(), flat))
 				.or_insert_with(|| {
-					let font = fonts.get(font).expect("Font was already confirmed to exist");
+					let font = fonts
+						.get(font)
+						.expect("Font was already confirmed to exist");
 
 					let (
 						VertexBuffers {
@@ -770,8 +772,24 @@ impl WidgetShape {
 				let dir = (b - a).normalize();
 				let a_rot = Quat::from_rotation_arc(Vec3::Z, dir);
 				let b_rot = a_rot.inverse();
-				gizmos.arc_3d(PI, capsule.radius * scale, Isometry3d { translation: a.into(), rotation: a_rot }, color);
-				gizmos.arc_3d(PI, capsule.radius * scale, Isometry3d { translation: b.into(), rotation: b_rot }, color);
+				gizmos.arc_3d(
+					PI,
+					capsule.radius * scale,
+					Isometry3d {
+						translation: a.into(),
+						rotation: a_rot,
+					},
+					color,
+				);
+				gizmos.arc_3d(
+					PI,
+					capsule.radius * scale,
+					Isometry3d {
+						translation: b.into(),
+						rotation: b_rot,
+					},
+					color,
+				);
 			}
 			TypedShape::Segment(segment) => {
 				let a = xform * Vec3::from(segment.a);
@@ -837,14 +855,22 @@ fn cylinder_gizmo<T: GizmoConfigGroup>(
 	let dir = Dir3::new(b - a)
 		.expect("capsule or cylinder WidgetShape should be created with non-zero, finite length");
 	let rot = Quat::from_rotation_arc(Vec3::Z, *dir);
-	gizmos.circle(Isometry3d {
-		translation: a.into(),
-		rotation: rot,
-	}, r, color);
-	gizmos.circle(Isometry3d {
-		translation: b.into(),
-		rotation: rot,
-	}, r, color);
+	gizmos.circle(
+		Isometry3d {
+			translation: a.into(),
+			rotation: rot,
+		},
+		r,
+		color,
+	);
+	gizmos.circle(
+		Isometry3d {
+			translation: b.into(),
+			rotation: rot,
+		},
+		r,
+		color,
+	);
 	let tan = rot * Vec3::X;
 	let r = tan * r;
 	let a_l = a - r;
@@ -938,7 +964,10 @@ pub fn focus_state_colors(unfocused: Color, focused: Color) -> CowArc<'static, I
 	)
 }
 
-pub fn focus_state_emissive(unfocused: LinearRgba, focused: LinearRgba) -> CowArc<'static, InteractHandler> {
+pub fn focus_state_emissive(
+	unfocused: LinearRgba,
+	focused: LinearRgba,
+) -> CowArc<'static, InteractHandler> {
 	focus_with_asset::<UiMat, MeshMaterial3d<UiMat>>(
 		|mat| mat.0.id(),
 		move |mat| mat.base.base.emissive = focused,
@@ -951,7 +980,8 @@ pub fn focus_with_asset<A: Asset, C: Component>(
 	acquire: impl Fn(&mut A) + Send + Sync + 'static,
 	release: impl Fn(&mut A) + Send + Sync + 'static,
 ) -> CowArc<'static, InteractHandler> {
-	let handle_getter: Arc<dyn Fn(&C) -> AssetId<A> + Send + Sync + 'static> = Arc::new(handle_getter);
+	let handle_getter: Arc<dyn Fn(&C) -> AssetId<A> + Send + Sync + 'static> =
+		Arc::new(handle_getter);
 	let acquire: Arc<dyn Fn(&mut A) + Send + Sync + 'static> = Arc::new(acquire);
 	let release: Arc<dyn Fn(&mut A) + Send + Sync + 'static> = Arc::new(release);
 	CowArc::Owned(Arc::new(move |ev, cmds| {
@@ -997,13 +1027,16 @@ pub fn focus_toggle_border() -> CowArc<'static, InteractHandler> {
 				InteractionKind::Release => Visibility::Hidden,
 				InteractionKind::Hold(_) => return ControlFlow::Continue(()),
 			};
-			
+
 			cmds.queue(move |mut world: EntityWorldMut| {
 				let Some(children) = world.get::<Children>() else {
 					warn!("no border to show focus: no children");
-					return
+					return;
 				};
-				let children = children.into_iter().copied().collect::<SmallVec<[Entity; 8]>>();
+				let children = children
+					.into_iter()
+					.copied()
+					.collect::<SmallVec<[Entity; 8]>>();
 				world.world_scope(|world| {
 					let mut q = world.query_filtered::<&mut Visibility, With<Border>>();
 					let mut found = false;
@@ -1098,7 +1131,7 @@ impl InteractHandlers {
 							kind: InteractionKind::Hold(data.timing.current_duration),
 						};
 						propagate_interaction(&mut cmds, focus, ev, &q, &parents);
-					},
+					}
 					data => warn!(?data, "Only Button timing is supported"),
 				}
 			}

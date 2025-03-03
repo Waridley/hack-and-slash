@@ -1,3 +1,7 @@
+use crate::{
+	input::{map::icons::InputIconFileMap, InputState::DetectingBinding},
+	util::{AppExt, StateStack},
+};
 use bevy::{
 	input::{
 		gamepad::{GamepadAxisChangedEvent, GamepadButtonChangedEvent},
@@ -6,18 +10,13 @@ use bevy::{
 		ButtonState,
 	},
 	prelude::*,
+	reflect::{FromType, TypeRegistration},
 	state::state::States,
 	utils::HashMap,
 };
-use bevy::reflect::{FromType, TypeRegistration};
 use leafwing_input_manager::prelude::*;
 use serde::{Deserialize, Serialize};
 use tiny_bail::prelude::r;
-use crate::{
-	input::InputState::DetectingBinding,
-	util::{AppExt, StateStack},
-};
-use crate::input::map::icons::InputIconFileMap;
 
 pub mod map;
 
@@ -38,20 +37,18 @@ impl Plugin for InputPlugin {
 					dbg_set_detect_binding_state.before(detect_bindings),
 					detect_bindings.run_if(in_state(DetectingBinding)),
 					#[cfg(feature = "debugging")]
-					dbg_detect_bindings.run_if(resource_exists::<InputIconFileMap>).after(detect_bindings),
+					dbg_detect_bindings
+						.run_if(resource_exists::<InputIconFileMap>)
+						.after(detect_bindings),
 				),
 			);
 	}
-	
+
 	fn finish(&self, app: &mut App) {
 		let mut reg = TypeRegistration::of::<GamepadAxis>();
 		reg.insert(<ReflectDeserialize as FromType<GamepadAxis>>::from_type());
-		let registry = app.world_mut()
-			.resource_mut::<AppTypeRegistry>();
-		let mut registry = registry
-			.internal
-			.write()
-			.unwrap();
+		let registry = app.world_mut().resource_mut::<AppTypeRegistry>();
+		let mut registry = registry.internal.write().unwrap();
 		registry.overwrite_registration(reg);
 	}
 }
@@ -170,7 +167,10 @@ pub fn detect_bindings(
 	// or automatically sent by macro keys for example.
 
 	for ev in gamepad_buttons.drain() {
-		let entry = (UserInputWrapper::Button(Box::new(ev.button)).into(), Some(ev.entity));
+		let entry = (
+			UserInputWrapper::Button(Box::new(ev.button)).into(),
+			Some(ev.entity),
+		);
 		trace!("{entry:?}");
 		if ev.state.is_pressed() {
 			curr_chord.insert(entry, None);
@@ -195,7 +195,10 @@ pub fn detect_bindings(
 	}
 
 	for key in keys.drain() {
-		let entry = (UserInputWrapper::Button(Box::new(key.key_code)).into(), None);
+		let entry = (
+			UserInputWrapper::Button(Box::new(key.key_code)).into(),
+			None,
+		);
 		trace!("{entry:?}");
 		if key.state.is_pressed() {
 			curr_chord.insert(entry, Some(key.logical_key));
@@ -219,17 +222,41 @@ pub fn detect_bindings(
 		wheel_accum.y += wheel.y;
 		trace!("{wheel_accum:?}");
 		if wheel_accum.x >= 3.0 {
-			curr_chord.insert((UserInputWrapper::Button(Box::new(MouseScrollDirection::RIGHT)).into(), None), None);
+			curr_chord.insert(
+				(
+					UserInputWrapper::Button(Box::new(MouseScrollDirection::RIGHT)).into(),
+					None,
+				),
+				None,
+			);
 			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		} else if wheel_accum.x <= -3.0 {
-			curr_chord.insert((UserInputWrapper::Button(Box::new(MouseScrollDirection::LEFT)).into(), None), None);
+			curr_chord.insert(
+				(
+					UserInputWrapper::Button(Box::new(MouseScrollDirection::LEFT)).into(),
+					None,
+				),
+				None,
+			);
 			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		}
 		if wheel_accum.y >= 3.0 {
-			curr_chord.insert((UserInputWrapper::Button(Box::new(MouseScrollDirection::UP)).into(), None), None);
+			curr_chord.insert(
+				(
+					UserInputWrapper::Button(Box::new(MouseScrollDirection::UP)).into(),
+					None,
+				),
+				None,
+			);
 			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		} else if wheel_accum.y <= -3.0 {
-			curr_chord.insert((UserInputWrapper::Button(Box::new(MouseScrollDirection::DOWN)).into(), None), None);
+			curr_chord.insert(
+				(
+					UserInputWrapper::Button(Box::new(MouseScrollDirection::DOWN)).into(),
+					None,
+				),
+				None,
+			);
 			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		}
 	}
@@ -239,17 +266,41 @@ pub fn detect_bindings(
 		trace!("{mouse_accum:?}");
 		// FIXME: Probably scale by sensitivity
 		if mouse_accum.x > 500.0 {
-			curr_chord.insert((UserInputWrapper::Button(Box::new(MouseMoveDirection::RIGHT)).into(), None), None);
+			curr_chord.insert(
+				(
+					UserInputWrapper::Button(Box::new(MouseMoveDirection::RIGHT)).into(),
+					None,
+				),
+				None,
+			);
 			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		} else if mouse_accum.x < -500.0 {
-			curr_chord.insert((UserInputWrapper::Button(Box::new(MouseMoveDirection::LEFT)).into(), None), None);
+			curr_chord.insert(
+				(
+					UserInputWrapper::Button(Box::new(MouseMoveDirection::LEFT)).into(),
+					None,
+				),
+				None,
+			);
 			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		}
 		if mouse_accum.y > 500.0 {
-			curr_chord.insert((UserInputWrapper::Button(Box::new(MouseMoveDirection::DOWN)).into(), None), None);
+			curr_chord.insert(
+				(
+					UserInputWrapper::Button(Box::new(MouseMoveDirection::DOWN)).into(),
+					None,
+				),
+				None,
+			);
 			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		} else if mouse_accum.y < -500.0 {
-			curr_chord.insert((UserInputWrapper::Button(Box::new(MouseMoveDirection::UP)).into(), None), None);
+			curr_chord.insert(
+				(
+					UserInputWrapper::Button(Box::new(MouseMoveDirection::UP)).into(),
+					None,
+				),
+				None,
+			);
 			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		}
 	}
@@ -314,7 +365,7 @@ pub trait ActionExt: Actionlike {
 			InputControlKind::Button => {
 				let default = default.get_buttonlike(self);
 				if let Some(default) = default {
-					debug!(action=self.display_name(), ?default);
+					debug!(action = self.display_name(), ?default);
 					let bindings = input_map.get_buttonlike_mut(self);
 					let bindings = if let Some(bindings) = bindings {
 						bindings
@@ -331,7 +382,7 @@ pub trait ActionExt: Actionlike {
 			InputControlKind::Axis => {
 				let default = default.get_axislike(self);
 				if let Some(default) = default {
-					debug!(action=self.display_name(), ?default);
+					debug!(action = self.display_name(), ?default);
 					let bindings = input_map.get_axislike_mut(self);
 					let bindings = if let Some(bindings) = bindings {
 						bindings
@@ -349,7 +400,7 @@ pub trait ActionExt: Actionlike {
 			InputControlKind::DualAxis => {
 				let default = default.get_dual_axislike(self);
 				if let Some(default) = default {
-					debug!(action=self.display_name(), ?default);
+					debug!(action = self.display_name(), ?default);
 					let bindings = input_map.get_dual_axislike_mut(self);
 					let bindings = if let Some(bindings) = bindings {
 						bindings
@@ -366,19 +417,22 @@ pub trait ActionExt: Actionlike {
 			InputControlKind::TripleAxis => {
 				let default = default.get_triple_axislike(self);
 				if let Some(default) = default {
-					debug!(action=self.display_name(), ?default);
+					debug!(action = self.display_name(), ?default);
 					let bindings = input_map.get_triple_axislike_mut(self);
 					let bindings = if let Some(bindings) = bindings {
 						bindings
 					} else {
-						input_map.insert_triple_axis(self.clone(), VirtualDPad3D {
-							up: Box::new(KeyCode::Escape),
-							down: Box::new(KeyCode::Escape),
-							left: Box::new(KeyCode::Escape),
-							right: Box::new(KeyCode::Escape),
-							forward: Box::new(KeyCode::Escape),
-							backward: Box::new(KeyCode::Escape),
-						});
+						input_map.insert_triple_axis(
+							self.clone(),
+							VirtualDPad3D {
+								up: Box::new(KeyCode::Escape),
+								down: Box::new(KeyCode::Escape),
+								left: Box::new(KeyCode::Escape),
+								right: Box::new(KeyCode::Escape),
+								forward: Box::new(KeyCode::Escape),
+								backward: Box::new(KeyCode::Escape),
+							},
+						);
 						r!(input_map.get_triple_axislike_mut(self))
 					};
 					bindings.clear();

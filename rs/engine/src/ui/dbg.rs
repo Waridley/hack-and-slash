@@ -117,21 +117,24 @@ pub fn dbg_proxy<T: Resource + From<Proxy>, Proxy: for<'a> From<&'a T> + Partial
 	}
 }
 
-pub fn dbg_single_proxy<T: Component + From<Proxy>, Proxy: for<'a> From<&'a T> + PartialEq<T> + Reflect>(
+pub fn dbg_single_proxy<
+	T: Component + From<Proxy>,
+	Proxy: for<'a> From<&'a T> + PartialEq<T> + Reflect,
+>(
 	mut q: Query<&mut EguiContext, With<PrimaryWindow>>,
 	type_registry: Res<AppTypeRegistry>,
 	mut ui_hovered: ResMut<UiHovered>,
 	mut single: Single<&mut T>,
 ) {
 	let mut proxy = Proxy::from(&**single);
-	
+
 	let egui_context = q.get_single_mut();
-	
+
 	let Ok(egui_context) = egui_context else {
 		return;
 	};
 	let mut egui_context = egui_context.clone();
-	
+
 	let mut hovered = false;
 	egui::Window::new(std::any::type_name::<T>().split("::").last().unwrap()).show(
 		egui_context.get_mut(),
@@ -146,7 +149,7 @@ pub fn dbg_single_proxy<T: Component + From<Proxy>, Proxy: for<'a> From<&'a T> +
 	if hovered != **ui_hovered {
 		**ui_hovered |= hovered;
 	}
-	
+
 	if proxy != **single {
 		**single = proxy.into()
 	}

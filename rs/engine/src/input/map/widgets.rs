@@ -1,10 +1,8 @@
 use super::icons::Icon;
-use crate::{
-	ui::{
-		a11y::AKNode,
-		widgets::{Node3d, Text3d, WidgetShape, UNLIT_MATERIAL_ID},
-		UiMat,
-	},
+use crate::ui::{
+	a11y::AKNode,
+	widgets::{Node3d, Text3d, WidgetShape, UNLIT_MATERIAL_ID},
+	UiMat,
 };
 use bevy::{ecs::system::EntityCommands, prelude::*, render::view::RenderLayers};
 use bevy_rapier3d::parry::{math::Isometry, shape::SharedShape};

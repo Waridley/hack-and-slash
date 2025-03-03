@@ -1,14 +1,10 @@
-use std::hash::Hash;
-use std::ops::Index;
 use crate::input::map::{icons::kenney::generic_base_dir, Platform};
-use bevy::{asset::AssetPath, input::keyboard::Key, prelude::*};
-use leafwing_input_manager::prelude::*;
-use smol_str::SmolStr;
-use std::path::PathBuf;
-use bevy::utils::HashMap;
-use leafwing_input_manager::clashing_inputs::BasicInputs;
+use bevy::{asset::AssetPath, input::keyboard::Key, prelude::*, utils::HashMap};
+use leafwing_input_manager::{clashing_inputs::BasicInputs, prelude::*};
 use serde::{Deserialize, Serialize};
 use smallvec::{smallvec, SmallVec};
+use smol_str::SmolStr;
+use std::{hash::Hash, ops::Index, path::PathBuf};
 
 pub fn default_icon() -> AssetPath<'static> {
 	PathBuf::from("ui/Kenney/input-prompts/Flairs/Vector/flair_disabled.svg").into()
@@ -29,16 +25,26 @@ impl Default for BasicInputIcons {
 }
 
 impl BasicInputIcons {
-	pub fn from_button(btn: Box<dyn Buttonlike>, platform: Option<Platform>, map: &InputIconFileMap) -> Option<Self> {
+	pub fn from_button(
+		btn: Box<dyn Buttonlike>,
+		platform: Option<Platform>,
+		map: &InputIconFileMap,
+	) -> Option<Self> {
 		Some(match btn.decompose() {
 			BasicInputs::None => return None,
-			BasicInputs::Simple(btn) => Self::Simple(Icon::from_path(map.get_button_icon(&(btn, platform).into())?)),
-			BasicInputs::Composite(btns) => Self::Composite(btns.into_iter()
-				.filter_map(|btn| Self::from_button(btn, platform, map))
-				.collect()),
-			BasicInputs::Chord(btns) => Self::Chord(btns.into_iter()
-				.filter_map(|btn| Self::from_button(btn, platform, map))
-				.collect()),
+			BasicInputs::Simple(btn) => Self::Simple(Icon::from_path(
+				map.get_button_icon(&(btn, platform).into())?,
+			)),
+			BasicInputs::Composite(btns) => Self::Composite(
+				btns.into_iter()
+					.filter_map(|btn| Self::from_button(btn, platform, map))
+					.collect(),
+			),
+			BasicInputs::Chord(btns) => Self::Chord(
+				btns.into_iter()
+					.filter_map(|btn| Self::from_button(btn, platform, map))
+					.collect(),
+			),
 		})
 	}
 }
@@ -49,8 +55,11 @@ impl IntoIterator for BasicInputIcons {
 	fn into_iter(self) -> Self::IntoIter {
 		match self {
 			BasicInputIcons::Simple(icon) => smallvec![icon].into_iter(),
-			BasicInputIcons::Composite(icons) |
-			BasicInputIcons::Chord(icons) => icons.into_iter().flatten().collect::<SmallVec<_>>().into_iter(),
+			BasicInputIcons::Composite(icons) | BasicInputIcons::Chord(icons) => icons
+				.into_iter()
+				.flatten()
+				.collect::<SmallVec<_>>()
+				.into_iter(),
 		}
 	}
 }
@@ -61,7 +70,7 @@ pub enum AxisIcons {
 	Composite {
 		positive: BasicInputIcons,
 		negative: BasicInputIcons,
-	}
+	},
 }
 
 impl Default for AxisIcons {
@@ -71,52 +80,60 @@ impl Default for AxisIcons {
 }
 
 impl AxisIcons {
-	pub fn from_axis(axis: Box<dyn Axislike>, platform: Option<Platform>, map: &InputIconFileMap) -> Option<Self> {
-		Some(if let Some(path) = map.get_axis_icon(&(axis.clone(), platform).into()) {
-			Self::Single(Icon::from_path(path))
-		} else {
-			match axis.decompose() {
-				BasicInputs::None => return None,
-				BasicInputs::Simple(btn) => {
-					warn!("Expected {btn:?} to have AxisIcons path");
-					let Some(basic_icons) = BasicInputIcons::from_button(btn.clone(), platform, map) else {
-						error!("Missing icon for {btn:?}");
-						return None
-					};
-					Self::Composite {
-						positive: basic_icons.clone(),
-						negative: basic_icons.clone(),
+	pub fn from_axis(
+		axis: Box<dyn Axislike>,
+		platform: Option<Platform>,
+		map: &InputIconFileMap,
+	) -> Option<Self> {
+		Some(
+			if let Some(path) = map.get_axis_icon(&(axis.clone(), platform).into()) {
+				Self::Single(Icon::from_path(path))
+			} else {
+				match axis.decompose() {
+					BasicInputs::None => return None,
+					BasicInputs::Simple(btn) => {
+						warn!("Expected {btn:?} to have AxisIcons path");
+						let Some(basic_icons) =
+							BasicInputIcons::from_button(btn.clone(), platform, map)
+						else {
+							error!("Missing icon for {btn:?}");
+							return None;
+						};
+						Self::Composite {
+							positive: basic_icons.clone(),
+							negative: basic_icons.clone(),
+						}
+					}
+					BasicInputs::Composite(btns) => {
+						let [positive, negative] = match btns.len() {
+							0 => {
+								error!(?axis, "BasicInput::Composite contains no buttons");
+								return None;
+							}
+							1 => {
+								warn!(?axis, "BasicInputs::Composite contains only one button");
+								[&btns[0], &btns[0]]
+							}
+							2 => [&btns[0], &btns[1]],
+							_ => {
+								error!(?axis, "BasicInputs::Composite contains too many buttons");
+								[&btns[0], &btns[1]]
+							}
+						};
+						Self::Composite {
+							positive: BasicInputIcons::from_button(positive.clone(), platform, map)
+								.unwrap_or_default(),
+							negative: BasicInputIcons::from_button(negative.clone(), platform, map)
+								.unwrap_or_default(),
+						}
+					}
+					BasicInputs::Chord(btns) => {
+						error!(?axis, ?btns, "AxisIcons should be a Composite of 2 Simple or Chord inputs, not a Chord itself");
+						return None;
 					}
 				}
-				BasicInputs::Composite(btns) => {
-					let [positive, negative] = match btns.len() {
-						0 => {
-							error!(?axis, "BasicInput::Composite contains no buttons");
-							return None
-						}
-						1 => {
-							warn!(?axis, "BasicInputs::Composite contains only one button");
-							[&btns[0], &btns[0]]
-						}
-						2 => {
-							[&btns[0], &btns[1]]
-						}
-						_ => {
-							error!(?axis, "BasicInputs::Composite contains too many buttons");
-							[&btns[0], &btns[1]]
-						}
-					};
-					Self::Composite {
-						positive: BasicInputIcons::from_button(positive.clone(), platform, map).unwrap_or_default(),
-						negative: BasicInputIcons::from_button(negative.clone(), platform, map).unwrap_or_default(),
-					}
-				}
-				BasicInputs::Chord(btns) => {
-					error!(?axis, ?btns, "AxisIcons should be a Composite of 2 Simple or Chord inputs, not a Chord itself");
-					return None
-				}
-			}
-		})
+			},
+		)
 	}
 }
 
@@ -126,11 +143,11 @@ impl IntoIterator for AxisIcons {
 	fn into_iter(self) -> Self::IntoIter {
 		match self {
 			AxisIcons::Single(icon) => smallvec![icon].into_iter(),
-			AxisIcons::Composite {
-				positive, negative
-			} => {
-				[positive, negative].into_iter().flatten().collect::<SmallVec<_>>().into_iter()
-			}
+			AxisIcons::Composite { positive, negative } => [positive, negative]
+				.into_iter()
+				.flatten()
+				.collect::<SmallVec<_>>()
+				.into_iter(),
 		}
 	}
 }
@@ -141,7 +158,7 @@ pub enum DualAxisIcons {
 	Composite {
 		horizontal: AxisIcons,
 		vertical: AxisIcons,
-	}
+	},
 }
 
 impl Default for DualAxisIcons {
@@ -151,68 +168,81 @@ impl Default for DualAxisIcons {
 }
 
 impl DualAxisIcons {
-	pub fn from_dual_axis(dual_axis: Box<dyn DualAxislike>, platform: Option<Platform>, map: &InputIconFileMap) -> Option<Self> {
-		Some(if let Some(path) = map.get_dual_axis_icon(&(dual_axis.clone(), platform).into()) {
-			Self::Single(Icon::from_path(path))
-		} else {
-			match dual_axis.decompose() {
-				BasicInputs::None => return None,
-				BasicInputs::Simple(btn) => {
-					warn!("Expected {btn:?} to have AxisIcons path");
-					let Some(basic_icons) = BasicInputIcons::from_button(btn.clone(), platform, map) else {
-						error!("Missing icon for {btn:?}");
-						return None
-					};
-					let axis_icons = AxisIcons::Composite {
-						positive: basic_icons.clone(),
-						negative: basic_icons.clone(),
-					};
-					Self::Composite {
-						horizontal: axis_icons.clone(),
-						vertical: axis_icons.clone(),
-					}
-				}
-				BasicInputs::Composite(btns) => {
-					// TODO: Try to recognize AxisIcons::Single for each axis
-					let [hp, hn, vp, vn] = match btns.len() {
-						0 => {
-							error!(?dual_axis, "BasicInputs::Composite contains no buttons");
-							return None
-						},
-						1..=3 => {
-							error!(?dual_axis, "BasicInputs::Composite does not contain enough buttons");
-							[
-								&btns[0],
-								&btns[1.min(btns.len() - 1)],
-								&btns[2.min(btns.len() - 1)],
-								&btns[3.min(btns.len() - 1)],
-							]
-						}
-						4 => {
-							[&btns[0], &btns[1], &btns[2], &btns[3]]
-						}
-						_ => {
-							error!("BasicInputs::Composite contains too many buttons");
-							[&btns[0], &btns[1], &btns[2], &btns[3]]
-						}
-					};
-					Self::Composite {
-						horizontal: AxisIcons::Composite {
-							positive: BasicInputIcons::from_button(hp.clone(), platform, map).unwrap_or_default(),
-							negative: BasicInputIcons::from_button(hn.clone(), platform, map).unwrap_or_default(),
-						},
-						vertical: AxisIcons::Composite {
-							positive: BasicInputIcons::from_button(vp.clone(), platform, map).unwrap_or_default(),
-							negative: BasicInputIcons::from_button(vn.clone(), platform, map).unwrap_or_default(),
+	pub fn from_dual_axis(
+		dual_axis: Box<dyn DualAxislike>,
+		platform: Option<Platform>,
+		map: &InputIconFileMap,
+	) -> Option<Self> {
+		Some(
+			if let Some(path) = map.get_dual_axis_icon(&(dual_axis.clone(), platform).into()) {
+				Self::Single(Icon::from_path(path))
+			} else {
+				match dual_axis.decompose() {
+					BasicInputs::None => return None,
+					BasicInputs::Simple(btn) => {
+						warn!("Expected {btn:?} to have AxisIcons path");
+						let Some(basic_icons) =
+							BasicInputIcons::from_button(btn.clone(), platform, map)
+						else {
+							error!("Missing icon for {btn:?}");
+							return None;
+						};
+						let axis_icons = AxisIcons::Composite {
+							positive: basic_icons.clone(),
+							negative: basic_icons.clone(),
+						};
+						Self::Composite {
+							horizontal: axis_icons.clone(),
+							vertical: axis_icons.clone(),
 						}
 					}
+					BasicInputs::Composite(btns) => {
+						// TODO: Try to recognize AxisIcons::Single for each axis
+						let [hp, hn, vp, vn] = match btns.len() {
+							0 => {
+								error!(?dual_axis, "BasicInputs::Composite contains no buttons");
+								return None;
+							}
+							1..=3 => {
+								error!(
+									?dual_axis,
+									"BasicInputs::Composite does not contain enough buttons"
+								);
+								[
+									&btns[0],
+									&btns[1.min(btns.len() - 1)],
+									&btns[2.min(btns.len() - 1)],
+									&btns[3.min(btns.len() - 1)],
+								]
+							}
+							4 => [&btns[0], &btns[1], &btns[2], &btns[3]],
+							_ => {
+								error!("BasicInputs::Composite contains too many buttons");
+								[&btns[0], &btns[1], &btns[2], &btns[3]]
+							}
+						};
+						Self::Composite {
+							horizontal: AxisIcons::Composite {
+								positive: BasicInputIcons::from_button(hp.clone(), platform, map)
+									.unwrap_or_default(),
+								negative: BasicInputIcons::from_button(hn.clone(), platform, map)
+									.unwrap_or_default(),
+							},
+							vertical: AxisIcons::Composite {
+								positive: BasicInputIcons::from_button(vp.clone(), platform, map)
+									.unwrap_or_default(),
+								negative: BasicInputIcons::from_button(vn.clone(), platform, map)
+									.unwrap_or_default(),
+							},
+						}
+					}
+					BasicInputs::Chord(btns) => {
+						error!(?dual_axis, ?btns, "DualAxisIcons should be a Composite of 2 Simple or Chord inputs, not a Chord itself");
+						return None;
+					}
 				}
-				BasicInputs::Chord(btns) => {
-					error!(?dual_axis, ?btns, "DualAxisIcons should be a Composite of 2 Simple or Chord inputs, not a Chord itself");
-					return None
-				}
-			}
-		})
+			},
+		)
 	}
 }
 
@@ -223,10 +253,13 @@ impl IntoIterator for DualAxisIcons {
 		match self {
 			DualAxisIcons::Single(icon) => smallvec![icon].into_iter(),
 			DualAxisIcons::Composite {
-				horizontal, vertical,
-			} => {
-				[horizontal, vertical].into_iter().flatten().collect::<SmallVec<_>>().into_iter()
-			}
+				horizontal,
+				vertical,
+			} => [horizontal, vertical]
+				.into_iter()
+				.flatten()
+				.collect::<SmallVec<_>>()
+				.into_iter(),
 		}
 	}
 }
@@ -238,7 +271,7 @@ pub enum TripleAxisIcons {
 		x: AxisIcons,
 		y: AxisIcons,
 		z: AxisIcons,
-	}
+	},
 }
 
 impl Default for TripleAxisIcons {
@@ -248,7 +281,11 @@ impl Default for TripleAxisIcons {
 }
 
 impl TripleAxisIcons {
-	pub fn from_triple_axis(_triple_axis: Box<dyn TripleAxislike>, _platform: Option<Platform>, _map: &InputIconFileMap) -> Option<Self> {
+	pub fn from_triple_axis(
+		_triple_axis: Box<dyn TripleAxislike>,
+		_platform: Option<Platform>,
+		_map: &InputIconFileMap,
+	) -> Option<Self> {
 		todo!()
 	}
 }
@@ -259,11 +296,11 @@ impl IntoIterator for TripleAxisIcons {
 	fn into_iter(self) -> Self::IntoIter {
 		match self {
 			TripleAxisIcons::Single(icon) => smallvec![icon].into_iter(),
-			TripleAxisIcons::Composite {
-				x, y, z
-			} => {
-				[x, y, z].into_iter().flatten().collect::<SmallVec<_>>().into_iter()
-			}
+			TripleAxisIcons::Composite { x, y, z } => [x, y, z]
+				.into_iter()
+				.flatten()
+				.collect::<SmallVec<_>>()
+				.into_iter(),
 		}
 	}
 }
@@ -281,13 +318,25 @@ impl UserInputIcons {
 	pub fn simple(icon: Icon) -> Self {
 		Self::Button(BasicInputIcons::Simple(icon))
 	}
-	
-	pub fn from_user_input(input: UserInputWrapper, platform: Option<Platform>, map: &InputIconFileMap) -> UserInputIcons {
+
+	pub fn from_user_input(
+		input: UserInputWrapper,
+		platform: Option<Platform>,
+		map: &InputIconFileMap,
+	) -> UserInputIcons {
 		match input {
-			UserInputWrapper::Button(btn) => Self::Button(BasicInputIcons::from_button(btn, platform, map).unwrap_or_default()),
-			UserInputWrapper::Axis(axis) => Self::Axis(AxisIcons::from_axis(axis, platform, map).unwrap_or_default()),
-			UserInputWrapper::DualAxis(da) => Self::DualAxis(DualAxisIcons::from_dual_axis(da, platform, map).unwrap_or_default()),
-			UserInputWrapper::TripleAxis(ta) => Self::TripleAxis(TripleAxisIcons::from_triple_axis(ta, platform, map).unwrap_or_default()),
+			UserInputWrapper::Button(btn) => {
+				Self::Button(BasicInputIcons::from_button(btn, platform, map).unwrap_or_default())
+			}
+			UserInputWrapper::Axis(axis) => {
+				Self::Axis(AxisIcons::from_axis(axis, platform, map).unwrap_or_default())
+			}
+			UserInputWrapper::DualAxis(da) => {
+				Self::DualAxis(DualAxisIcons::from_dual_axis(da, platform, map).unwrap_or_default())
+			}
+			UserInputWrapper::TripleAxis(ta) => Self::TripleAxis(
+				TripleAxisIcons::from_triple_axis(ta, platform, map).unwrap_or_default(),
+			),
 		}
 	}
 }
@@ -299,8 +348,12 @@ impl IntoIterator for UserInputIcons {
 		match self {
 			UserInputIcons::Button(icons) => icons.into_iter().collect::<SmallVec<_>>().into_iter(),
 			UserInputIcons::Axis(icons) => icons.into_iter().collect::<SmallVec<_>>().into_iter(),
-			UserInputIcons::DualAxis(icons) => icons.into_iter().collect::<SmallVec<_>>().into_iter(),
-			UserInputIcons::TripleAxis(icons) => icons.into_iter().collect::<SmallVec<_>>().into_iter(),
+			UserInputIcons::DualAxis(icons) => {
+				icons.into_iter().collect::<SmallVec<_>>().into_iter()
+			}
+			UserInputIcons::TripleAxis(icons) => {
+				icons.into_iter().collect::<SmallVec<_>>().into_iter()
+			}
 		}
 	}
 }
@@ -355,24 +408,24 @@ pub fn key(key: &Key) -> Option<Icon> {
 }
 
 pub mod kenney {
-	
+
 	use crate::util;
 	use bevy::input::keyboard::Key;
 	use smol_str::SmolStr;
 	use std::path::PathBuf;
-	
+
 	pub fn base_dir() -> PathBuf {
 		PathBuf::from("ui/Kenney/input-prompts")
 	}
-	
+
 	pub fn kb_mouse_base_dir() -> PathBuf {
 		PathBuf::from("ui/Kenney/input-prompts/Keyboard & Mouse/Vector")
 	}
-	
+
 	pub fn generic_base_dir() -> PathBuf {
 		PathBuf::from("ui/Kenney/input-prompts/Generic/Vector")
 	}
-	
+
 	pub fn key_name(key: &Key) -> Option<SmolStr> {
 		use Key::*;
 		let s: &'static str = match key {
@@ -419,7 +472,7 @@ pub mod kenney {
 		};
 		Some(s.into())
 	}
-	
+
 	pub fn rename_char(winit_char: SmolStr) -> Option<SmolStr> {
 		let s: &'static str = match &*winit_char {
 			"a" | "A" => "a",
@@ -479,16 +532,16 @@ pub mod kenney {
 			"/" => "slash_forward",
 			"`" | // Kenney has no backtick icon
 			"~" => "tilde",
-			
+
 			// I think these are separate `Key`s, but just in case
 			" " => "space",
 			"\t" => "tab_icon_alternative",
-			
+
 			_ => return None,
 		};
 		Some(SmolStr::new_static(s))
 	}
-	
+
 	pub fn platform_alt() -> &'static str {
 		if util::host_is_mac() {
 			"option"
@@ -496,7 +549,7 @@ pub mod kenney {
 			"alt"
 		}
 	}
-	
+
 	pub fn platform_meta() -> &'static str {
 		if util::host_is_mac() {
 			"command"
@@ -505,7 +558,7 @@ pub mod kenney {
 			"win"
 		}
 	}
-	
+
 	pub fn platform_backspace() -> &'static str {
 		if util::host_is_mac() {
 			"backspace_icon_alternative"
@@ -528,8 +581,7 @@ pub struct InputIconFileMap {
 #[reflect(PartialEq, Hash, Serialize, Deserialize, where T: PartialEq + Hash + Serialize + for<'de> Deserialize<'de>)]
 pub struct IconPathKey<T>(
 	T,
-	#[serde(default, skip_serializing_if = "Option::is_none")]
-	Option<Platform>,
+	#[serde(default, skip_serializing_if = "Option::is_none")] Option<Platform>,
 );
 
 impl<T: ?Sized> From<Box<T>> for IconPathKey<Box<T>> {
@@ -551,48 +603,99 @@ impl<T: ?Sized> From<(Box<T>, Option<Platform>)> for IconPathKey<Box<T>> {
 }
 
 impl InputIconFileMap {
-	pub fn insert(&mut self, input: impl Into<UserInputWrapper>, platform: Option<Platform>, path: AssetPath<'static>) -> Option<AssetPath<'static>> {
+	pub fn insert(
+		&mut self,
+		input: impl Into<UserInputWrapper>,
+		platform: Option<Platform>,
+		path: AssetPath<'static>,
+	) -> Option<AssetPath<'static>> {
 		match input.into() {
-			UserInputWrapper::Button(btn) => self.button_map.insert(IconPathKey(btn, platform), path),
+			UserInputWrapper::Button(btn) => {
+				self.button_map.insert(IconPathKey(btn, platform), path)
+			}
 			UserInputWrapper::Axis(axis) => self.axis_map.insert(IconPathKey(axis, platform), path),
-			UserInputWrapper::DualAxis(da) => self.dual_axis_map.insert(IconPathKey(da, platform), path),
-			UserInputWrapper::TripleAxis(ta) => self.triple_axis_map.insert(IconPathKey(ta, platform), path),
+			UserInputWrapper::DualAxis(da) => {
+				self.dual_axis_map.insert(IconPathKey(da, platform), path)
+			}
+			UserInputWrapper::TripleAxis(ta) => {
+				self.triple_axis_map.insert(IconPathKey(ta, platform), path)
+			}
 		}
 	}
-	
-	pub fn insert_button(&mut self, input: impl Buttonlike, platform: Option<Platform>, path: AssetPath<'static>) -> Option<AssetPath<'static>> {
-		self.button_map.insert(IconPathKey(Box::new(input), platform), path)
+
+	pub fn insert_button(
+		&mut self,
+		input: impl Buttonlike,
+		platform: Option<Platform>,
+		path: AssetPath<'static>,
+	) -> Option<AssetPath<'static>> {
+		self.button_map
+			.insert(IconPathKey(Box::new(input), platform), path)
 	}
-	
-	pub fn insert_axis(&mut self, input: impl Axislike, platform: Option<Platform>, path: AssetPath<'static>) -> Option<AssetPath<'static>> {
-		self.axis_map.insert(IconPathKey(Box::new(input), platform), path)
+
+	pub fn insert_axis(
+		&mut self,
+		input: impl Axislike,
+		platform: Option<Platform>,
+		path: AssetPath<'static>,
+	) -> Option<AssetPath<'static>> {
+		self.axis_map
+			.insert(IconPathKey(Box::new(input), platform), path)
 	}
-	
-	pub fn insert_dual_axis(&mut self, input: impl DualAxislike, platform: Option<Platform>, path: AssetPath<'static>) -> Option<AssetPath<'static>> {
-		self.dual_axis_map.insert(IconPathKey(Box::new(input), platform), path)
+
+	pub fn insert_dual_axis(
+		&mut self,
+		input: impl DualAxislike,
+		platform: Option<Platform>,
+		path: AssetPath<'static>,
+	) -> Option<AssetPath<'static>> {
+		self.dual_axis_map
+			.insert(IconPathKey(Box::new(input), platform), path)
 	}
-	
-	pub fn insert_triple_axis(&mut self, input: impl TripleAxislike, platform: Option<Platform>, path: AssetPath<'static>) -> Option<AssetPath<'static>> {
-		self.triple_axis_map.insert(IconPathKey(Box::new(input), platform), path)
+
+	pub fn insert_triple_axis(
+		&mut self,
+		input: impl TripleAxislike,
+		platform: Option<Platform>,
+		path: AssetPath<'static>,
+	) -> Option<AssetPath<'static>> {
+		self.triple_axis_map
+			.insert(IconPathKey(Box::new(input), platform), path)
 	}
-	
-	pub fn get_button_icon(&self, button: &IconPathKey<Box<dyn Buttonlike>>) -> Option<&AssetPath<'static>> {
-		self.button_map.get(button)
+
+	pub fn get_button_icon(
+		&self,
+		button: &IconPathKey<Box<dyn Buttonlike>>,
+	) -> Option<&AssetPath<'static>> {
+		self.button_map
+			.get(button)
 			.or_else(|| self.button_map.get(&IconPathKey(button.0.clone(), None)))
 	}
-	
-	pub fn get_axis_icon(&self, axis: &IconPathKey<Box<dyn Axislike>>) -> Option<&AssetPath<'static>> {
-		self.axis_map.get(axis)
+
+	pub fn get_axis_icon(
+		&self,
+		axis: &IconPathKey<Box<dyn Axislike>>,
+	) -> Option<&AssetPath<'static>> {
+		self.axis_map
+			.get(axis)
 			.or_else(|| self.axis_map.get(&IconPathKey(axis.0.clone(), None)))
 	}
-	
-	pub fn get_dual_axis_icon(&self, da: &IconPathKey<Box<dyn DualAxislike>>) -> Option<&AssetPath<'static>> {
-		self.dual_axis_map.get(da)
+
+	pub fn get_dual_axis_icon(
+		&self,
+		da: &IconPathKey<Box<dyn DualAxislike>>,
+	) -> Option<&AssetPath<'static>> {
+		self.dual_axis_map
+			.get(da)
 			.or_else(|| self.dual_axis_map.get(&IconPathKey(da.0.clone(), None)))
 	}
-	
-	pub fn get_triple_axis_icon(&self, ta: &IconPathKey<Box<dyn TripleAxislike>>) -> Option<&AssetPath<'static>> {
-		self.triple_axis_map.get(ta)
+
+	pub fn get_triple_axis_icon(
+		&self,
+		ta: &IconPathKey<Box<dyn TripleAxislike>>,
+	) -> Option<&AssetPath<'static>> {
+		self.triple_axis_map
+			.get(ta)
 			.or_else(|| self.triple_axis_map.get(&IconPathKey(ta.0.clone(), None)))
 	}
 }

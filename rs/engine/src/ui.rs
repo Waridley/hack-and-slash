@@ -11,31 +11,21 @@ use crate::{
 		focus::{AdjacentWidgets, FocusTarget},
 		layout::LineUpChildren,
 		widgets::{
-			draw_widget_shape_gizmos, CuboidFaces, CuboidPanel, CuboidPanelBundle, Text3d, Text3dBundle, WidgetShape,
+			draw_widget_shape_gizmos, CuboidFaces, CuboidPanel, CuboidPanelBundle, Text3d,
+			Text3dBundle, WidgetShape,
 		},
 	},
 	util::{Diff, LerpSlerp, StateStack},
 };
-use leafwing_input_manager::{prelude::*, Actionlike};
-use rapier3d::{geometry::SharedShape, math::Point};
-use serde::{Deserialize, Serialize};
-use std::{
-	collections::VecDeque,
-	f64::consts::TAU,
-	fmt::Formatter,
-	ops::{Add, ControlFlow::Break, Mul},
-};
 use bevy::{
-	color::palettes::css::ORANGE,
-	color::palettes::basic::{AQUA, BLUE, FUCHSIA, GREEN, RED, WHITE, YELLOW},
 	a11y::Focus,
-	core_pipeline::fxaa::Fxaa,
-	diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
-	ecs::{
-		query::QuerySingleError,
-		schedule::SystemConfigs,
-		system::EntityCommands,
+	color::palettes::{
+		basic::{AQUA, BLUE, FUCHSIA, GREEN, RED, WHITE, YELLOW},
+		css::ORANGE,
 	},
+	core_pipeline::{experimental::taa::TemporalAntiAliasing, fxaa::Fxaa},
+	diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
+	ecs::{query::QuerySingleError, schedule::SystemConfigs, system::EntityCommands},
 	input::common_conditions::input_toggle_active,
 	prelude::*,
 	render::{
@@ -43,9 +33,17 @@ use bevy::{
 		view::{Layer, RenderLayers, VisibilitySystems::CheckVisibility},
 	},
 	ui::FocusPolicy,
-	core_pipeline::experimental::taa::TemporalAntiAliasing
 };
+use leafwing_input_manager::{prelude::*, Actionlike};
+use rapier3d::{geometry::SharedShape, math::Point};
+use serde::{Deserialize, Serialize};
 use smallvec::smallvec;
+use std::{
+	collections::VecDeque,
+	f64::consts::TAU,
+	fmt::Formatter,
+	ops::{Add, ControlFlow::Break, Mul},
+};
 
 pub mod a11y;
 #[cfg(feature = "debugging")]
@@ -245,10 +243,7 @@ pub fn spawn_ui_camera<ID: Bundle + Clone>(
 			},
 			Transform {
 				translation: green_light_pos * 2.0,
-				rotation: Quat::from_rotation_arc(
-					Vec3::NEG_Z,
-					(-green_light_pos).normalize(),
-				),
+				rotation: Quat::from_rotation_arc(Vec3::NEG_Z, (-green_light_pos).normalize()),
 				..default()
 			},
 			layers.clone(),
@@ -266,10 +261,7 @@ pub fn spawn_ui_camera<ID: Bundle + Clone>(
 			},
 			Transform {
 				translation: blue_light_pos * 2.0,
-				rotation: Quat::from_rotation_arc(
-					Vec3::NEG_Z,
-					(-blue_light_pos).normalize(),
-				),
+				rotation: Quat::from_rotation_arc(Vec3::NEG_Z, (-blue_light_pos).normalize()),
 				..default()
 			},
 			layers.clone(),
@@ -402,50 +394,57 @@ impl ActionExt for UiAction {
 			(ResetZoom, Digit0),
 			(ResetPan, Digit0.into()),
 		])
-			.with_multiple([
-				(Ok, MouseButton::Left),
-				(Opt1, MouseButton::Right),
-				(ResetZoom, MouseButton::Middle),
-				(ResetPan, MouseButton::Middle),
-			])
-			.with_dual_axis(MoveCursor, VirtualDPad::wasd())
-			.with_dual_axis(MoveCursor, VirtualDPad::arrow_keys())
-			.with_multiple([
-				(FocusNext, MouseScrollDirection::DOWN),
-				(FocusNext, MouseScrollDirection::RIGHT),
-				(FocusPrev, MouseScrollDirection::UP),
-				(FocusPrev, MouseScrollDirection::LEFT),
-			])
-			.with(FocusPrev, ButtonlikeChord::modified(ModifierKey::Shift, Tab))
-			.with_axis(Zoom, AxislikeChord::new(ModifierKey::Control, MouseScrollAxis::Y))
-			.with_axis(Zoom, VirtualAxis::new(Minus, Equal))
-			.with_dual_axis(Pan, DualAxislikeChord::new(MouseButton::Middle, MouseMove::default()))
-			.with_multiple([
-				(Ok, GamepadButton::South),
-				(Opt1, GamepadButton::West),
-				(Opt2, GamepadButton::North),
-				(Back, GamepadButton::East),
-				(NextTab, GamepadButton::RightTrigger),
-				(PrevTab, GamepadButton::LeftTrigger),
-				(ResetPan, GamepadButton::RightThumb),
-			])
-			.with_dual_axis(MoveCursor, VirtualDPad::dpad())
-			.with_dual_axis(MoveCursor, GamepadStick::LEFT)
-			.with_axis(
-				Zoom,
-				AxislikeChord::new(
-					GamepadButton::LeftTrigger2,
-					GamepadControlAxis::new(GamepadAxis::RightStickY).with_processor(AxisProcessor::DeadZone(AxisDeadZone::symmetric(0.1))),
-				),
-			)
-			.with(
-				ResetZoom,
-				ButtonlikeChord::new([
-					GamepadButton::LeftTrigger2,
-					GamepadButton::RightThumb,
-				]),
-			)
-			.with_dual_axis(Pan, GamepadStick::RIGHT)
+		.with_multiple([
+			(Ok, MouseButton::Left),
+			(Opt1, MouseButton::Right),
+			(ResetZoom, MouseButton::Middle),
+			(ResetPan, MouseButton::Middle),
+		])
+		.with_dual_axis(MoveCursor, VirtualDPad::wasd())
+		.with_dual_axis(MoveCursor, VirtualDPad::arrow_keys())
+		.with_multiple([
+			(FocusNext, MouseScrollDirection::DOWN),
+			(FocusNext, MouseScrollDirection::RIGHT),
+			(FocusPrev, MouseScrollDirection::UP),
+			(FocusPrev, MouseScrollDirection::LEFT),
+		])
+		.with(
+			FocusPrev,
+			ButtonlikeChord::modified(ModifierKey::Shift, Tab),
+		)
+		.with_axis(
+			Zoom,
+			AxislikeChord::new(ModifierKey::Control, MouseScrollAxis::Y),
+		)
+		.with_axis(Zoom, VirtualAxis::new(Minus, Equal))
+		.with_dual_axis(
+			Pan,
+			DualAxislikeChord::new(MouseButton::Middle, MouseMove::default()),
+		)
+		.with_multiple([
+			(Ok, GamepadButton::South),
+			(Opt1, GamepadButton::West),
+			(Opt2, GamepadButton::North),
+			(Back, GamepadButton::East),
+			(NextTab, GamepadButton::RightTrigger),
+			(PrevTab, GamepadButton::LeftTrigger),
+			(ResetPan, GamepadButton::RightThumb),
+		])
+		.with_dual_axis(MoveCursor, VirtualDPad::dpad())
+		.with_dual_axis(MoveCursor, GamepadStick::LEFT)
+		.with_axis(
+			Zoom,
+			AxislikeChord::new(
+				GamepadButton::LeftTrigger2,
+				GamepadControlAxis::new(GamepadAxis::RightStickY)
+					.with_processor(AxisProcessor::DeadZone(AxisDeadZone::symmetric(0.1))),
+			),
+		)
+		.with(
+			ResetZoom,
+			ButtonlikeChord::new([GamepadButton::LeftTrigger2, GamepadButton::RightThumb]),
+		)
+		.with_dual_axis(Pan, GamepadStick::RIGHT)
 	}
 
 	fn all() -> impl Iterator<Item = Self> {
@@ -696,11 +695,12 @@ pub fn anchor_follow_menu(
 use crate::{
 	anim::{AnimationHandle, DynAnimation},
 	draw::{polygon_points, PlanarPolyLine},
+	input::ActionExt,
 	ui::{
 		text::Tessellator,
 		widgets::{
-			new_unlit_material, CuboidContainer, CylinderPanel, InteractHandlers, PanelBundle,
-			PrevFocus,
+			new_unlit_material, CuboidContainer, CylinderPanel, InteractHandlers, Node3d,
+			PanelBundle, PrevFocus,
 		},
 	},
 };
@@ -712,8 +712,6 @@ use bevy_inspector_egui::{
 use layout::ExpandToFitChildren;
 use text::{TextMeshCache, UiFonts};
 use web_time::Duration;
-use crate::input::ActionExt;
-use crate::ui::widgets::Node3d;
 
 /// Component that starts a new branch of a tree of entities that can be
 /// faded in an out together.

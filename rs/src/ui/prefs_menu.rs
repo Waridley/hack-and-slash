@@ -1,10 +1,13 @@
-use bevy::color::palettes::basic::PURPLE;
-use bevy::prelude::*;
-use engine::entity_tree;
-use engine::ui::{Fade, MenuStack, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS};
-use engine::ui::layout::ExpandToFitChildren;
-use engine::ui::text::UiFonts;
-use engine::ui::widgets::{new_unlit_material, CuboidPanelBundle, Text3d, Text3dBundle};
+use bevy::{color::palettes::basic::PURPLE, prelude::*};
+use engine::{
+	entity_tree,
+	ui::{
+		layout::ExpandToFitChildren,
+		text::UiFonts,
+		widgets::{new_unlit_material, CuboidPanelBundle, Text3d, Text3dBundle},
+		Fade, MenuStack, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
+	},
+};
 
 pub struct PrefsMenuPlugin;
 
@@ -14,12 +17,7 @@ impl Plugin for PrefsMenuPlugin {
 	}
 }
 
-pub fn setup(
-	mut cmds: Commands,
-	mut mats: ResMut<Assets<UiMat>>,
-	fonts: Res<UiFonts>,
-) {
-	
+pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, fonts: Res<UiFonts>) {
 	entity_tree!(cmds; (
 		Name::new("PrefsMenu"),
 		PrefsMenu,
@@ -56,4 +54,3 @@ pub fn setup(
 
 #[derive(Component, Debug)]
 pub struct PrefsMenu;
-

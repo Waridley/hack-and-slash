@@ -1,17 +1,13 @@
 use std::{f32::consts::FRAC_PI_2, time::Duration};
 
 use bevy::{
+	color::palettes::basic::YELLOW,
 	ecs::system::{EntityCommands, SystemParamItem},
 	prelude::*,
 };
-use bevy::color::palettes::basic::YELLOW;
 use bevy_kira_audio::{Audio, AudioControl};
 use bevy_rapier3d::{
-	dynamics::LockedAxes,
-	math::Vect,
-	na::Vector3,
-	plugin::RapierContext,
-	prelude::Collider,
+	dynamics::LockedAxes, math::Vect, na::Vector3, plugin::RapierContext, prelude::Collider,
 };
 use enum_components::{EntityEnumCommands, WithVariant};
 use rand::{prelude::IteratorRandom, Rng};
@@ -81,13 +77,7 @@ impl Spawnable for Dummy {
 			collider,
 			locked_axes,
 		} = params.clone();
-		let mut cmds = cmds.spawn((
-			mesh,
-			material,
-			transform,
-			collider,
-			locked_axes,
-		));
+		let mut cmds = cmds.spawn((mesh, material, transform, collider, locked_axes));
 		cmds.set_enum(Dummy);
 		cmds
 	}

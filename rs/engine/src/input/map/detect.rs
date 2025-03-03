@@ -2,7 +2,7 @@ use crate::{
 	draw::PlanarPolyLine,
 	input::{
 		map::{
-			icons::Icon,
+			icons::{Icon, InputIconFileMap, UserInputIcons},
 			widgets::{InputIcon, InputIconBundle},
 			Platform,
 		},
@@ -16,27 +16,25 @@ use crate::{
 	ui::{
 		layout::LineUpChildren,
 		text::UiFonts,
-		widgets::{
-			CuboidPanel, CuboidPanelBundle, Text3d,
-			Text3dBundle,
-		}, GlobalUi, Popup, PopupsRoot, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
+		widgets::{CuboidPanel, CuboidPanelBundle, Node3d, Text3d, Text3dBundle},
+		GlobalUi, Popup, PopupsRoot, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
 	},
 };
-use bevy::{
-	prelude::*,
-	utils::HashMap,
-};
-use bevy::color::palettes::css::AQUAMARINE;
+use bevy::{color::palettes::css::AQUAMARINE, prelude::*, utils::HashMap};
 use smallvec::{smallvec, SmallVec};
-use crate::input::map::icons::{InputIconFileMap, UserInputIcons};
-use crate::ui::widgets::Node3d;
 
 pub struct DetectBindingPopupPlugin;
 
 impl Plugin for DetectBindingPopupPlugin {
 	fn build(&self, app: &mut App) {
 		app.add_systems(PreUpdate, setup)
-			.add_systems(Update, (manage_detect_popup, display_curr_chord.run_if(resource_exists::<InputIconFileMap>)))
+			.add_systems(
+				Update,
+				(
+					manage_detect_popup,
+					display_curr_chord.run_if(resource_exists::<InputIconFileMap>),
+				),
+			)
 			.add_systems(Last, InputIcon::sync::<UiMat>);
 	}
 }
@@ -83,21 +81,23 @@ pub fn setup(
 							translation: Vec3::NEG_Y * 0.5,
 							..default()
 						},
-						Mesh3d(meshes.add(
-							PlanarPolyLine {
-								colors: smallvec![
-									smallvec![LinearRgba::new(0.0, 0.2, 0.2, 0.6)],
-									smallvec![LinearRgba::new(0.0, 0.4, 0.1, 0.6)],
-									smallvec![LinearRgba::new(0.0, 0.2, 0.2, 0.6)],
-									smallvec![LinearRgba::new(0.0, 0.1, 0.4, 0.6)],
-								],
-								..PlanarPolyLine::rect(8.0, 6.0, 0.25)
-							}
-							.mesh()
-							.build()
-							.with_duplicated_vertices()
-							.with_computed_flat_normals(),
-						)),
+						Mesh3d(
+							meshes.add(
+								PlanarPolyLine {
+									colors: smallvec![
+										smallvec![LinearRgba::new(0.0, 0.2, 0.2, 0.6)],
+										smallvec![LinearRgba::new(0.0, 0.4, 0.1, 0.6)],
+										smallvec![LinearRgba::new(0.0, 0.2, 0.2, 0.6)],
+										smallvec![LinearRgba::new(0.0, 0.1, 0.4, 0.6)],
+									],
+									..PlanarPolyLine::rect(8.0, 6.0, 0.25)
+								}
+								.mesh()
+								.build()
+								.with_duplicated_vertices()
+								.with_computed_flat_normals(),
+							),
+						),
 						MeshMaterial3d(mats.add(ExtMat {
 							extension: default(),
 							base: Matter {
@@ -218,15 +218,15 @@ pub fn display_curr_chord(
 			} else {
 				let entry_icons = UserInputIcons::from_user_input(
 					entry.0.clone().into(),
-					entry.1
+					entry
+						.1
 						.and_then(|gp| gamepads.get(gp).ok())
 						.and_then(|(name, _)| name)
 						.map(Name::as_str)
 						.and_then(Platform::guess_gamepad),
 					&*icon_map,
 				);
-				
-				
+
 				entry_icons.into_iter().collect()
 			};
 			let mut ids = SmallVec::new();

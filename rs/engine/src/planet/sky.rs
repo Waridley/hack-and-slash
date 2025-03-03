@@ -1,3 +1,4 @@
+use crate::planet::day_night::DayNightCycle;
 use bevy::{
 	core_pipeline::{
 		core_3d::graph::{Core3d, Node3d},
@@ -23,14 +24,12 @@ use bevy::{
 			TextureViewDimension, VertexState,
 		},
 		renderer::{RenderContext, RenderDevice},
-		texture::FallbackImage,
+		storage::GpuShaderStorageBuffer,
+		texture::{FallbackImage, GpuImage},
 		view::{ViewUniform, ViewUniformOffset, ViewUniforms},
 		Render, RenderApp, RenderSet,
 	},
 };
-use bevy::render::storage::GpuShaderStorageBuffer;
-use bevy::render::texture::GpuImage;
-use crate::planet::day_night::DayNightCycle;
 
 pub struct SkyPlugin;
 
@@ -323,11 +322,7 @@ fn prepare_sky_bind_groups(
 				.unprepared_bind_group(
 					&SkyCubeUniforms::bind_group_layout(&render_device),
 					&render_device,
-					&mut (
-						images,
-						fallback_image,
-						storage_buffers,
-					)
+					&mut (images, fallback_image, storage_buffers),
 				)
 				.unwrap();
 				render_device.create_bind_group(

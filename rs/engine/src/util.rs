@@ -1,15 +1,3 @@
-use std::{
-	cmp::Ordering,
-	collections::VecDeque,
-	f32::consts::{PI, TAU},
-	hash::Hash,
-	iter::Sum,
-	marker::PhantomData,
-	ops::{Add, Div, Index, IndexMut, Mul, Sub},
-	sync::OnceLock,
-	time::Duration,
-};
-use bevy::state::state::FreelyMutableState;
 use bevy::{
 	asset::{io::Reader, AssetLoader, LoadContext},
 	ecs::{
@@ -25,10 +13,22 @@ use bevy::{
 		render_asset::RenderAssetUsages,
 	},
 	scene::{SceneLoaderError, SceneLoaderError::RonSpannedError},
+	state::state::FreelyMutableState,
 };
 use num_traits::NumCast;
 use ron::Error::InvalidValueForType;
 use serde::{de::DeserializeSeed, Deserialize, Serialize};
+use std::{
+	cmp::Ordering,
+	collections::VecDeque,
+	f32::consts::{PI, TAU},
+	hash::Hash,
+	iter::Sum,
+	marker::PhantomData,
+	ops::{Add, Div, Index, IndexMut, Mul, Sub},
+	sync::OnceLock,
+	time::Duration,
+};
 use tiny_bail::prelude::r;
 
 #[inline(always)]
@@ -735,7 +735,7 @@ impl Target {
 				// Err(e @ QueryEntityError::QueryDoesNotMatch(..)) => return Err(Box::new(QueryMismatch(this_entity, format!("{e}")))),
 				// Err(QueryEntityError::NoSuchEntity(e)) => return Err(Box::new(QueryEntityError::<'static>::NoSuchEntity(e))),
 				// Err(QueryEntityError::AliasedMutability(e)) => return Err(Box::new(QueryEntityError::<'static>::AliasedMutability(e))),
-			}
+			},
 			Target::Global(global) => global,
 		})
 	}
@@ -1067,8 +1067,7 @@ pub static DEBUG_COMPONENTS: OnceLock<SystemId<In<(Entity, String)>>> = OnceLock
 /// Register this system and call it to print the names of all of an entity's components.
 pub fn debug_component_names(In((id, msg)): In<(Entity, String)>, world: &mut World) {
 	// Note: `inspect_entity` panics if entity does not exist. Not ideal for debugging.
-	let components = r!(world
-		.get_entity(id))
+	let components = r!(world.get_entity(id))
 		.archetype()
 		.components()
 		.filter_map(|id| world.components().get_info(id))
@@ -1083,8 +1082,7 @@ pub static ERROR_COMPONENTS: OnceLock<SystemId<In<(Entity, String)>>> = OnceLock
 /// Useful when an entity unexpectedly fails to match a query.
 pub fn error_component_names(In((id, msg)): In<(Entity, String)>, world: &mut World) {
 	// Note: `inspect_entity` panics if entity does not exist. Not ideal for debugging.
-	let components = r!(world
-		.get_entity(id))
+	let components = r!(world.get_entity(id))
 		.archetype()
 		.components()
 		.filter_map(|id| world.components().get_info(id))

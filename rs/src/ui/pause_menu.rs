@@ -1,9 +1,16 @@
 use crate::{
 	player::input::PlayerAction,
-	ui::settings_menu::{SettingsMenu, SettingsSubMenus},
+	ui::{
+		prefs_menu::PrefsMenu,
+		settings_menu::{SettingsMenu, SettingsSubMenus},
+	},
 };
 use bevy::{
 	app::AppExit,
+	color::palettes::{
+		basic::{GRAY, TEAL},
+		css::{LIMEGREEN, ORANGE_RED},
+	},
 	ecs::system::{RunSystemOnce, SystemId},
 	prelude::*,
 	window::CursorGrabMode,
@@ -13,11 +20,12 @@ use engine::{
 	input::InputState,
 	ui::{
 		focus::{AdjacentWidgets, FocusTarget},
-		layout::LineUpChildren,
+		layout::{ExpandToFitChildren, LineUpChildren},
 		text::UiFonts,
 		widgets::{
-			dbg_event, focus_state_colors, on_ok,
-			CuboidPanel, CuboidPanelBundle, Text3d, Text3dBundle, WidgetShape,
+			borders::Border, dbg_event, focus_state_colors, focus_state_emissive, on_ok,
+			CuboidPanel, CuboidPanelBundle, InteractHandlers, Node3d, Text3d, Text3dBundle,
+			WidgetShape,
 		},
 		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiMat, UiMatBuilder,
 	},
@@ -26,15 +34,9 @@ use engine::{
 use enum_components::{EntityEnumCommands, EnumComponent, WithVariant};
 use leafwing_input_manager::action_state::ActionState;
 use rapier3d::geometry::SharedShape;
-use std::ops::ControlFlow;
-use bevy::color::palettes::basic::{GRAY, TEAL};
-use bevy::color::palettes::css::{LIMEGREEN, ORANGE_RED};
 use smallvec::smallvec;
+use std::ops::ControlFlow;
 use tiny_bail::prelude::r;
-use engine::ui::layout::ExpandToFitChildren;
-use engine::ui::widgets::borders::Border;
-use engine::ui::widgets::{focus_state_emissive, InteractHandlers, Node3d};
-use crate::ui::prefs_menu::PrefsMenu;
 
 pub struct PauseMenuPlugin;
 
@@ -61,11 +63,7 @@ impl FromWorld for PauseSystems {
 	}
 }
 
-pub fn setup(
-	mut cmds: Commands,
-	mut mats: ResMut<Assets<UiMat>>,
-	ui_fonts: Res<UiFonts>,
-) {
+pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<UiFonts>) {
 	let btn_txt_mat = MeshMaterial3d(mats.add(UiMatBuilder {
 		std: StandardMaterial {
 			base_color: Color::BLACK,
@@ -74,13 +72,13 @@ pub fn setup(
 		},
 		..default()
 	}));
-	
+
 	let expand = ExpandToFitChildren {
 		margin: Vec3::new(0.2, 0.0, 0.3),
 		offset: Vec3::new(0.0, 0.51, 0.0),
 		..default()
 	};
-	
+
 	entity_tree!(cmds; (
 		Name::new("PauseMenu"),
 		CuboidPanelBundle {

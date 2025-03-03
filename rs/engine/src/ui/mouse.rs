@@ -2,16 +2,10 @@ use super::widgets::WidgetShape;
 use crate::ui::{MenuStack, UiCam, GLOBAL_UI_RENDER_LAYERS};
 use bevy::{
 	prelude::*,
-	render::{
-		camera::RenderTarget,
-		view::RenderLayers,
-	},
+	render::{camera::RenderTarget, view::RenderLayers},
 	window::{PrimaryWindow, WindowRef},
 };
-use bevy_rapier3d::parry::{
-	math::Isometry,
-	query::Ray,
-};
+use bevy_rapier3d::parry::{math::Isometry, query::Ray};
 use std::cmp::Ordering;
 
 pub fn mouse_picks_focus(

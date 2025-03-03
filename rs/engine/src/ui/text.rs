@@ -1,16 +1,13 @@
-use std::borrow::Cow;
 use crate::ui::widgets::WidgetShape;
 use ab_glyph::{Font as _, OutlineCurve::*};
-use bevy::{
-	prelude::*,
-	utils::HashMap,
-};
+use bevy::{prelude::*, utils::HashMap};
 use lyon_tessellation::{
 	geometry_builder::simple_builder,
 	math::{Point, Vector},
 	path::builder::{NoAttributes, PathBuilder},
 	FillOptions, FillRule, FillTessellator, VertexBuffers,
 };
+use std::borrow::Cow;
 
 #[derive(Resource, Default)]
 pub struct Tessellator {

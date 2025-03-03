@@ -1,7 +1,4 @@
-use bevy::{
-	prelude::*,
-};
-use bevy::math::bounding::BoundingSphere;
+use bevy::{math::bounding::BoundingSphere, prelude::*};
 use bevy_rapier3d::{
 	na::Vector3,
 	parry::{
@@ -349,10 +346,8 @@ pub fn move_player(
 						let pos = body_global.translation + result;
 						let iso = Isometry::new(pos.into(), UP.into());
 						let ball = col.as_ball().unwrap();
-						let aabb = BoundingSphere::new(
-							pos,
-							ball.raw.radius + (vel * dt).length(),
-						).aabb_3d();
+						let aabb = BoundingSphere::new(pos, ball.raw.radius + (vel * dt).length())
+							.aabb_3d();
 
 						// Attempt to prevent tunnelling by using an extruded sphere (capsule) instead
 						let capsule =

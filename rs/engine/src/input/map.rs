@@ -1,6 +1,6 @@
+use crate::util;
 use bevy::reflect::prelude::*;
 use serde::{Deserialize, Serialize};
-use crate::util;
 
 pub mod detect;
 pub mod icons;
@@ -21,10 +21,9 @@ pub enum Platform {
 
 impl Platform {
 	pub fn guess(gamepad_name: &str) -> Option<Self> {
-		Self::guess_gamepad(gamepad_name)
-			.or_else(Self::guess_os)
+		Self::guess_gamepad(gamepad_name).or_else(Self::guess_os)
 	}
-	
+
 	pub fn guess_os() -> Option<Self> {
 		if util::host_is_windows() {
 			Some(Self::Windows)
@@ -36,7 +35,7 @@ impl Platform {
 			None
 		}
 	}
-	
+
 	pub fn guess_gamepad(name: &str) -> Option<Self> {
 		// TODO: Hard-coded feature flags for consoles
 
