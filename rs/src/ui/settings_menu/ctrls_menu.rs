@@ -17,14 +17,14 @@ use engine::{
 	},
 	input::ActionExt,
 	ui::widgets::borders::Border,
-	ui::widgets::{focus_toggle_border, Node3dBundle},
+	ui::widgets::focus_toggle_border,
 	ui::{
 		focus::{AdjacentWidgets, FocusTarget},
 		layout::{ExpandToFitChildren, LineUpChildren, RadialChildren},
 		text::UiFonts,
 		widgets::{
 			dbg_event, new_unlit_material,
-			CuboidContainerBundle, CuboidPanel, CuboidPanelBundle, InteractHandlers, Text3d,
+			CuboidPanel, CuboidPanelBundle, InteractHandlers, Text3d,
 			Text3dBundle,
 		},
 		Fade, GlobalUi, MenuStack, UiAction, UiMat, UiMatBuilder,
@@ -39,6 +39,7 @@ use serde::{Deserialize, Serialize};
 use smallvec::smallvec;
 use std::borrow::Cow;
 use std::ops::ControlFlow::Break;
+use engine::ui::widgets::{CuboidContainer, Node3d};
 
 const GAME_BINDINGS_CONTAINER_NAME: &'static str = "GameBindingsContainer";
 const UI_BINDINGS_CONTAINER_NAME: &'static str = "UiBindingsContainer";
@@ -71,25 +72,23 @@ pub fn setup(
 				
 				let action_key = action.clone();
 				entity_tree!(cmds; (
-					CuboidContainerBundle {
-						adjacent: AdjacentWidgets::all(FocusTarget::ChildN(1)),
-						handlers: InteractHandlers::on_action(UiAction::Opt1, move |cmds| {
-							let action_key = action_key.clone();
-							cmds.commands().queue(move |world: &mut World| {
-								let mut q = world.query::<(&mut InputMap<A>, &BelongsToPlayer)>();
-								let Some(mut imap) = q.iter_mut(world)
-									.find(|(_, &imap_owner)| imap_owner == owner)
-									.map(|(imap, _)| imap)
-								else {
-									error!("failed to find imap for player {owner:?}");
-									return
-								};
-								action_key.reset_to_default(&mut *imap);
-							});
-							Break(())
-						}),
-						..default()
-					},
+					CuboidContainer::default(),
+					AdjacentWidgets::all(FocusTarget::ChildN(1)),
+					InteractHandlers::on_action(UiAction::Opt1, move |cmds| {
+						let action_key = action_key.clone();
+						cmds.commands().queue(move |world: &mut World| {
+							let mut q = world.query::<(&mut InputMap<A>, &BelongsToPlayer)>();
+							let Some(mut imap) = q.iter_mut(world)
+								.find(|(_, &imap_owner)| imap_owner == owner)
+								.map(|(imap, _)| imap)
+							else {
+								error!("failed to find imap for player {owner:?}");
+								return
+							};
+							action_key.reset_to_default(&mut *imap);
+						});
+						Break(())
+					}),
 					LineUpChildren::horizontal().with_spacing(0.3).with_alignment(Vec3::NEG_X),
 					ExpandToFitChildren::default();
 					#children: [
@@ -114,16 +113,16 @@ pub fn setup(
 									..default()
 								},
 								material: MeshMaterial3d(entry_btn_mat.clone()),
-								handlers: smallvec![
-									dbg_event(),
-									focus_toggle_border(),
-								].into(),
-								adjacent: AdjacentWidgets::vertical(
-									"../-1/#1".parse().unwrap(),
-									"../+1/#1".parse().unwrap(),
-								),
 								..default()
 							},
+							InteractHandlers(smallvec![
+								dbg_event(),
+								focus_toggle_border(),
+							]),
+							AdjacentWidgets::vertical(
+								"../-1/#1".parse().unwrap(),
+								"../+1/#1".parse().unwrap(),
+							),
 							ExpandToFitChildren {
 								margin: Vec3::new(0.25, 0.0, 0.25),
 								min_size: Vec3::ONE,
@@ -138,22 +137,18 @@ pub fn setup(
 										margin: Vec2::new(0.0, -1.0),
 										..default()
 									},
-									Node3dBundle {
-										visibility: Visibility::Hidden,
-										transform: Transform {
-											translation: Vec3::NEG_Y,
-											..default()
-										},
+									Node3d,
+									Visibility::Hidden,
+									Transform {
+										translation: Vec3::NEG_Y,
 										..default()
 									},
 									MeshMaterial3d(entry_focus_border_mat.clone()),
 								),
 								(
-									CuboidContainerBundle {
-										transform: Transform {
-											translation: Vec3::NEG_Y * 0.5,
-											..default()
-										},
+									CuboidContainer::default(),
+									Transform {
+										translation: Vec3::NEG_Y * 0.5,
 										..default()
 									},
 									BindingListContainer(action),
@@ -202,10 +197,8 @@ pub fn setup(
 	let all_first_control = AdjacentWidgets::all(format!("[{GAME_BINDINGS_CONTAINER_NAME}]/#0/#1").parse().unwrap());
 	
 	let bindings_section_components = (
-		CuboidContainerBundle {
-			adjacent: all_first_control.clone(),
-			..default()
-		},
+		CuboidContainer::default(),
+		all_first_control.clone(),
 		ExpandToFitChildren {
 			margin: Vec3::new(1.0, 0.0, 1.0),
 			..default()
@@ -218,15 +211,13 @@ pub fn setup(
 			margin: Vec2::splat(0.5),
 			..default()
 		},
-		Node3dBundle::default(),
+		Node3d,
 		MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(DARK_GRAY)))),
 	);
 	
 	let bindings_section_inner_components = (
-		CuboidContainerBundle {
-			adjacent: all_first_control.clone(),
-			..default()
-		},
+		CuboidContainer::default(),
+		all_first_control.clone(),
 		ExpandToFitChildren::default(),
 		LineUpChildren::vertical().with_spacing(0.5),
 	);
@@ -255,10 +246,8 @@ pub fn setup(
 	);
 	
 	let bindings_container_components = (
-		CuboidContainerBundle {
-			adjacent: AdjacentWidgets::all("#0/#1".parse().unwrap()),
-			..default()
-		},
+		CuboidContainer::default(),
+		AdjacentWidgets::all("#0/#1".parse().unwrap()),
 		LineUpChildren::vertical(),
 		ExpandToFitChildren::default(),
 	);
@@ -325,7 +314,6 @@ pub fn setup(
 		(
 			Name::new("ControlsMenu"),
 			CuboidPanelBundle {
-				transform,
 				material: MeshMaterial3d(mats.add(UiMatBuilder {
 					std: StandardMaterial {
 						base_color: Color::linear_rgba(0.1, 0.3, 0.1, 0.5),
@@ -336,10 +324,11 @@ pub fn setup(
 					},
 					..default()
 				})),
-				handlers: MenuStack::pop_on_back(GLOBAL_UI_RENDER_LAYERS, 0.7),
-				adjacent: all_first_control.clone(),
 				..default()
 			},
+			transform,
+			MenuStack::pop_on_back(GLOBAL_UI_RENDER_LAYERS, 0.7),
+			all_first_control.clone(),
 			ExpandToFitChildren {
 				margin: Vec3::new(1.0, 0.0, 1.0),
 				offset: Vec3::Y,
@@ -349,22 +338,18 @@ pub fn setup(
 			;
 			#children: [
 				(
-					CuboidContainerBundle {
-						transform: Transform {
-							translation: Vec3::NEG_Y,
-							..default()
-						},
-						adjacent: all_first_control.clone(),
+					CuboidContainer::default(),
+					Transform {
+						translation: Vec3::NEG_Y,
 						..default()
 					},
+					all_first_control.clone(),
 					ExpandToFitChildren::default(),
 					;
 					#children: [
 						(
-							CuboidContainerBundle {
-								adjacent: all_first_control.clone(),
-								..default()
-							},
+							CuboidContainer::default(),
+							all_first_control.clone(),
 							ExpandToFitChildren::default(),
 							LineUpChildren::vertical().with_spacing(1.0),
 							;
@@ -382,10 +367,8 @@ pub fn setup(
 									}
 								),
 								(
-									CuboidContainerBundle {
-										adjacent: all_first_control.clone(),
-										..default()
-									},
+									CuboidContainer::default(),
+									all_first_control.clone(),
 									ExpandToFitChildren::default(),
 									LineUpChildren::vertical().with_spacing(1.0),
 									;
@@ -632,7 +615,7 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 										},
 									} => {
 										cmds.spawn((
-											CuboidContainerBundle::default(),
+											CuboidContainer::default(),
 											ExpandToFitChildren::default(),
 											RadialChildren {
 												radius: FULL_SIZE / 3.0,

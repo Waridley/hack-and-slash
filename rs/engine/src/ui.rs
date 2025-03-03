@@ -11,7 +11,7 @@ use crate::{
 		focus::{AdjacentWidgets, FocusTarget},
 		layout::LineUpChildren,
 		widgets::{
-			draw_widget_shape_gizmos, CuboidFaces, CuboidPanel, CuboidPanelBundle, Text3d, Text3dBundle, WidgetBundle, WidgetShape,
+			draw_widget_shape_gizmos, CuboidFaces, CuboidPanel, CuboidPanelBundle, Text3d, Text3dBundle, WidgetShape,
 		},
 	},
 	util::{Diff, LerpSlerp, StateStack},
@@ -713,6 +713,7 @@ use layout::ExpandToFitChildren;
 use text::{TextMeshCache, UiFonts};
 use web_time::Duration;
 use crate::input::ActionExt;
+use crate::ui::widgets::Node3d;
 
 /// Component that starts a new branch of a tree of entities that can be
 /// faded in an out together.
@@ -1020,21 +1021,18 @@ fn spawn_test_menu(
 	{
 		faces[i] = entity_tree!(cmds;
 			( // Face container
-				WidgetBundle {
-					shape: WidgetShape {
+				(
+					WidgetShape {
 						shape: SharedShape::cuboid(6.3, 0.5, 3.0),
 						..default()
 					},
 					transform,
-					adjacent: AdjacentWidgets::all(FocusTarget::ChildN(0)),
-					..default()
-				};
+					AdjacentWidgets::all(FocusTarget::ChildN(0)),
+				);
 				#children: [
 					( // Border
-						WidgetBundle {
-							adjacent: AdjacentWidgets::all(FocusTarget::ChildN(0)),
-							..default()
-						},
+						Node3d,
+						AdjacentWidgets::all(FocusTarget::ChildN(0)),
 						Mesh3d(meshes.add(PlanarPolyLine {
 							points: polygon_points(6, 6.0, i as f32),
 							cross_section: polygon_points(3, 0.25, 0.5),
@@ -1063,11 +1061,11 @@ fn spawn_test_menu(
 										font: ui_fonts.mono.clone(),
 										..default()
 									},
-									transform: Transform::from_translation(Vec3::NEG_Y),
 									material: MeshMaterial3d(mats.add(new_unlit_material())),
-									adjacent: AdjacentWidgets::vertical_siblings(),
 									..default()
 								},
+								Transform::from_translation(Vec3::NEG_Y),
+								AdjacentWidgets::vertical_siblings(),
 							),
 							( // Test button
 								PanelBundle {
@@ -1078,13 +1076,14 @@ fn spawn_test_menu(
 									), ..default() },
 									mesh: Mesh3d(meshes.add(Capsule3d::new(0.5, 5.0))),
 									material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(ORANGE)))),
-									transform: Transform {
-										rotation: Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
-										..default()
-									},
-									adjacent: AdjacentWidgets::vertical_siblings(),
 									..default()
-								};
+								},
+								Transform {
+									rotation: Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
+									..default()
+								},
+								AdjacentWidgets::vertical_siblings(),
+								;
 								#children: [( // Test button text
 									Text3dBundle::<UiMat> {
 										text_3d: Text3d {
@@ -1092,12 +1091,12 @@ fn spawn_test_menu(
 											font: ui_fonts.mono.clone(),
 											..default()
 										},
-										transform: Transform {
-											translation: Vec3::X,
-											rotation: Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
-											..default()
-										},
 										material: MeshMaterial3d(mats.add(new_unlit_material())),
+										..default()
+									},
+									Transform {
+										translation: Vec3::X,
+										rotation: Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
 										..default()
 									},
 								)]
@@ -1114,10 +1113,6 @@ fn spawn_test_menu(
 		Name::new("TestMenu"),
 		CuboidPanelBundle {
 			panel: CuboidPanel { size, ..default() },
-			transform: Transform {
-				translation: Vec3::new(6900.0, 4200.0, 0.0),
-				..default()
-			},
 			material: MeshMaterial3d(mats.add(UiMatBuilder {
 				std: StandardMaterial {
 					base_color: Color::linear_rgba(0.1, 0.1, 0.1, 0.8),
@@ -1129,6 +1124,10 @@ fn spawn_test_menu(
 				},
 				..default()
 			})),
+			..default()
+		},
+		Transform {
+			translation: Vec3::new(6900.0, 4200.0, 0.0),
 			..default()
 		},
 		TestMenu { faces },

@@ -1,9 +1,8 @@
 use super::icons::Icon;
 use crate::{
-	node_3d, node_3d_defaults,
 	ui::{
 		a11y::AKNode,
-		widgets::{Text3d, WidgetShape, UNLIT_MATERIAL_ID},
+		widgets::{Node3d, Text3d, WidgetShape, UNLIT_MATERIAL_ID},
 		UiMat,
 	},
 };
@@ -12,6 +11,7 @@ use bevy_rapier3d::parry::{math::Isometry, shape::SharedShape};
 use bevy_svg::prelude::{Origin, Svg, SvgMesh3d, SvgMesh3dBundle};
 
 #[derive(Component, Debug, Clone)]
+#[require(Node3d)]
 pub struct InputIcon {
 	pub icon: Icon,
 	pub font: Handle<Font>,
@@ -37,20 +37,10 @@ impl Default for InputIcon {
 	}
 }
 
-node_3d! { InputIconBundle<M: Material = UiMat> {
-	input_icon: InputIcon,
-	font: TextFont,
-	material: MeshMaterial3d<M>,
-}}
-
-impl<M: Material> Default for InputIconBundle<M> {
-	fn default() -> Self {
-		node_3d_defaults! {
-			input_icon: default(),
-			font: default(),
-			material: MeshMaterial3d(Handle::weak_from_u128(UNLIT_MATERIAL_ID)),
-		}
-	}
+#[derive(Bundle, Default, Debug, Clone)]
+pub struct InputIconBundle<M: Material = UiMat> {
+	pub input_icon: InputIcon,
+	pub material: MeshMaterial3d<M>,
 }
 
 impl InputIcon {

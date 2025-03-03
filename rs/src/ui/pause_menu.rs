@@ -17,7 +17,7 @@ use engine::{
 		text::UiFonts,
 		widgets::{
 			dbg_event, focus_state_colors, on_ok,
-			CuboidPanel, CuboidPanelBundle, Node3dBundle, Text3d, Text3dBundle, WidgetBundle, WidgetShape,
+			CuboidPanel, CuboidPanelBundle, Text3d, Text3dBundle, WidgetShape,
 		},
 		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiMat, UiMatBuilder,
 	},
@@ -33,7 +33,7 @@ use smallvec::smallvec;
 use tiny_bail::prelude::r;
 use engine::ui::layout::ExpandToFitChildren;
 use engine::ui::widgets::borders::Border;
-use engine::ui::widgets::focus_state_emissive;
+use engine::ui::widgets::{focus_state_emissive, InteractHandlers, Node3d};
 use crate::ui::prefs_menu::PrefsMenu;
 
 pub struct PauseMenuPlugin;
@@ -92,18 +92,16 @@ pub fn setup(
 				std: Color::linear_rgba(0.3, 0.3, 0.3, 0.3).into(),
 				..default()
 			})),
-			adjacent: AdjacentWidgets::all(FocusTarget::ChildN(0)),
 			..default()
 		},
+		AdjacentWidgets::all(FocusTarget::ChildN(0)),
 		Fade::ZERO;
 		#children: [
 			(
 				Name::new("border"),
-				Node3dBundle {
-					transform: Transform {
-						translation: Vec3::NEG_Y * 6.5,
-						..default()
-					},
+				Node3d,
+				Transform {
+					translation: Vec3::NEG_Y * 6.5,
 					..default()
 				},
 				Border::default(),
@@ -119,24 +117,21 @@ pub fn setup(
 						..default()
 					},
 					material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::WHITE))),
-					transform: Transform {
-						translation: Vec3::new(0.0, -6.5, 5.0),
-						..default()
-					},
+					..default()
+				},
+				Transform {
+					translation: Vec3::new(0.0, -6.5, 5.0),
 					..default()
 				},
 			),
 			(
 				Name::new("pause_menu_btns_container"),
-				WidgetBundle {
-					shape: WidgetShape { shape: SharedShape::cuboid(5.5, 1.0, 5.5), ..default() },
-					transform: Transform {
-						translation: Vec3::NEG_Y * 6.5,
-						..default()
-					},
-					adjacent: AdjacentWidgets::all(FocusTarget::ChildN(0)),
+				WidgetShape { shape: SharedShape::cuboid(5.5, 1.0, 5.5), ..default() },
+				Transform {
+					translation: Vec3::NEG_Y * 6.5,
 					..default()
 				},
+				AdjacentWidgets::all(FocusTarget::ChildN(0)),
 				LineUpChildren::vertical().with_spacing(0.2);
 				#children: [
 					(
@@ -150,19 +145,19 @@ pub fn setup(
 								},
 								..default()
 							})),
-							handlers: smallvec![
-								dbg_event(),
-								on_ok(|cmds| {
-									cmds.commands().queue(|world: &mut World| {
-										r!(world.run_system_once(unpause));
-									});
-									ControlFlow::Break(())
-								}),
-								focus_state_colors(Color::BLACK, Color::from(LIMEGREEN)),
-							].into(),
-							adjacent: AdjacentWidgets::vertical_siblings(),
 							..default()
 						},
+						InteractHandlers(smallvec![
+							dbg_event(),
+							on_ok(|cmds| {
+								cmds.commands().queue(|world: &mut World| {
+									r!(world.run_system_once(unpause));
+								});
+								ControlFlow::Break(())
+							}),
+							focus_state_colors(Color::BLACK, Color::from(LIMEGREEN)),
+						]),
+						AdjacentWidgets::vertical_siblings(),
 						expand.clone(),
 						;
 						=> |cmds| {
@@ -177,12 +172,12 @@ pub fn setup(
 									..default()
 								},
 								material: btn_txt_mat.clone(),
-								transform: Transform {
-									translation: Vec3::NEG_Y * 0.61,
-									..default()
-								},
 								..default()
-							}
+							},
+							Transform {
+								translation: Vec3::NEG_Y * 0.61,
+								..default()
+							},
 						)]
 					),
 					(
@@ -196,26 +191,26 @@ pub fn setup(
 								},
 								..default()
 							})),
-							adjacent: AdjacentWidgets::vertical_siblings(),
-							handlers: smallvec![
-								dbg_event(),
-								on_ok(|cmds| {
-									cmds.commands().queue(|world: &mut World| {
-										let mut q = world.query_filtered::<Entity, With<PrefsMenu>>();
-										let panel_id = q.single(world);
-										world.entity_mut(panel_id).fade_in_secs(1.5);
-
-										let top_menu = MenuRef::new(panel_id);
-										let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
-										let mut stack = q.single_mut(world);
-										stack.push(top_menu);
-									});
-									ControlFlow::Break(())
-								}),
-								focus_state_emissive(LinearRgba::from(TEAL) * 20.0, LinearRgba::from(TEAL) * 30.0),
-							].into(),
 							..default()
 						},
+						InteractHandlers(smallvec![
+							dbg_event(),
+							on_ok(|cmds| {
+								cmds.commands().queue(|world: &mut World| {
+									let mut q = world.query_filtered::<Entity, With<PrefsMenu>>();
+									let panel_id = q.single(world);
+									world.entity_mut(panel_id).fade_in_secs(1.5);
+
+									let top_menu = MenuRef::new(panel_id);
+									let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
+									let mut stack = q.single_mut(world);
+									stack.push(top_menu);
+								});
+								ControlFlow::Break(())
+							}),
+							focus_state_emissive(LinearRgba::from(TEAL) * 20.0, LinearRgba::from(TEAL) * 30.0),
+						]),
+						AdjacentWidgets::vertical_siblings(),
 						expand.clone(),
 						;
 						=> |cmds| {
@@ -231,12 +226,12 @@ pub fn setup(
 										..default()
 									},
 									material: btn_txt_mat.clone(),
-									transform: Transform {
-										translation: Vec3::NEG_Y * 0.61,
-										..default()
-									},
 									..default()
-								}
+								},
+								Transform {
+									translation: Vec3::NEG_Y * 0.61,
+									..default()
+								},
 							),
 						]
 					),
@@ -251,26 +246,26 @@ pub fn setup(
 								},
 								..default()
 							})),
-							handlers: smallvec![
-								dbg_event(),
-								on_ok(|cmds| {
-									cmds.commands().queue(|world: &mut World| {
-										let mut q = world.query_filtered::<Entity, With<SettingsMenu>>();
-										let panel_id = q.single(world);
-										world.entity_mut(panel_id).fade_in_secs(1.5);
-
-										let top_menu = world.resource::<SettingsSubMenus>().top;
-										let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
-										let mut stack = q.single_mut(world);
-										stack.push(top_menu);
-									});
-									ControlFlow::Break(())
-								}),
-								focus_state_colors(Color::BLACK, Color::from(GRAY)),
-							].into(),
-							adjacent: AdjacentWidgets::vertical_siblings(),
 							..default()
 						},
+						InteractHandlers(smallvec![
+							dbg_event(),
+							on_ok(|cmds| {
+								cmds.commands().queue(|world: &mut World| {
+									let mut q = world.query_filtered::<Entity, With<SettingsMenu>>();
+									let panel_id = q.single(world);
+									world.entity_mut(panel_id).fade_in_secs(1.5);
+
+									let top_menu = world.resource::<SettingsSubMenus>().top;
+									let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
+									let mut stack = q.single_mut(world);
+									stack.push(top_menu);
+								});
+								ControlFlow::Break(())
+							}),
+							focus_state_colors(Color::BLACK, Color::from(GRAY)),
+						]),
+						AdjacentWidgets::vertical_siblings(),
 						expand.clone(),
 						;
 						=> |cmds| {
@@ -286,12 +281,12 @@ pub fn setup(
 										..default()
 									},
 									material: btn_txt_mat.clone(),
-									transform: Transform {
-										translation: Vec3::NEG_Y * 0.61,
-										..default()
-									},
 									..default()
-								}
+								},
+								Transform {
+									translation: Vec3::NEG_Y * 0.61,
+									..default()
+								},
 							),
 						]
 					),
@@ -306,20 +301,20 @@ pub fn setup(
 								},
 								..default()
 							})),
-							handlers: smallvec![
-								dbg_event(),
-								on_ok(|cmds| {
-									cmds.commands().queue(|world: &mut World| {
-										world.resource_mut::<Events<AppExit>>()
-											.send(AppExit::Success);
-									});
-									ControlFlow::Break(())
-								}),
-								focus_state_colors(Color::BLACK, Color::from(ORANGE_RED)),
-							].into(),
-							adjacent: AdjacentWidgets::vertical_siblings(),
 							..default()
 						},
+						InteractHandlers(smallvec![
+							dbg_event(),
+							on_ok(|cmds| {
+								cmds.commands().queue(|world: &mut World| {
+									world.resource_mut::<Events<AppExit>>()
+										.send(AppExit::Success);
+								});
+								ControlFlow::Break(())
+							}),
+							focus_state_colors(Color::BLACK, Color::from(ORANGE_RED)),
+						]),
+						AdjacentWidgets::vertical_siblings(),
 						expand.clone(),
 						;
 						=> |cmds| {
@@ -335,12 +330,12 @@ pub fn setup(
 										..default()
 									},
 									material: btn_txt_mat.clone(),
-									transform: Transform {
-										translation: Vec3::NEG_Y * 0.61,
-										..default()
-									},
 									..default()
-								}
+								},
+								Transform {
+									translation: Vec3::NEG_Y * 0.61,
+									..default()
+								},
 							),
 						]
 					),
