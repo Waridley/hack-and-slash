@@ -80,9 +80,7 @@ impl Tessellator {
 					builder.begin(from);
 				};
 			}
-			let Some(outline) = outline else {
-				continue
-			};
+			let Some(outline) = outline else { continue };
 			for curve in outline.curves {
 				match curve {
 					Line(from, to) => {
