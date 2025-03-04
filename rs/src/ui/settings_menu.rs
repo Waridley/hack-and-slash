@@ -2,7 +2,6 @@ use crate::player::input::PlayerAction;
 use bevy::{
 	color::palettes::{
 		basic::{AQUA, BLUE, FUCHSIA, GRAY, GREEN, RED, YELLOW},
-		css::DARK_GRAY,
 	},
 	prelude::*,
 };
@@ -77,7 +76,7 @@ pub fn setup(
 	};
 	let text_material = MeshMaterial3d(mats.add(new_unlit_material()));
 	let blue_green_mat =
-		MeshMaterial3d(mats.add(UiMatBuilder::from(Color::linear_rgb(0.5, 0.8, 0.7))));
+		MeshMaterial3d(mats.add(UiMatBuilder::from(Color::srgb(0.5, 0.8, 0.7))));
 	let button_focus_border_bundle = (
 		Node3d,
 		Transform {
@@ -103,7 +102,7 @@ pub fn setup(
 				..default()
 			},
 			material: MeshMaterial3d(mats.add(UiMatBuilder::from(StandardMaterial {
-				base_color: LinearRgba::new(0.1, 0.1, 0.1, 0.8).into(),
+				base_color: Srgba::new(0.1, 0.1, 0.1, 0.8).into(),
 				alpha_mode: AlphaMode::Blend,
 				double_sided: true,
 				cull_mode: None,
@@ -150,10 +149,10 @@ pub fn setup(
 				},
 				Mesh3d(meshes.add(PlanarPolyLine {
 					points: polygon_points(6, 10.5, 0.0),
-					colors: smallvec![smallvec![LinearRgba::from(GRAY)]],
+					colors: smallvec![smallvec![Srgba::from(GRAY)]],
 					..default()
 				}.flat())),
-				MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(DARK_GRAY)))),
+				MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(Srgba::gray(0.05))))),
 				RadialChildren {
 					radius: 7.0,
 					arrangement: RadialArrangement::Manual {

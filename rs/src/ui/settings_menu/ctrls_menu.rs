@@ -5,7 +5,6 @@ use crate::{
 use bevy::{
 	color::palettes::{
 		basic::{GRAY, GREEN},
-		css::DARK_GRAY,
 	},
 	prelude::*,
 };
@@ -52,7 +51,7 @@ pub fn setup(
 
 	let entry_btn_mat = mats.add(UiMatBuilder::from(StandardMaterial {
 		reflectance: 0.2,
-		..StandardMaterial::from(Color::from(DARK_GRAY.with_alpha(0.5)))
+		..StandardMaterial::from(Color::from(Srgba::gray(0.2).with_alpha(0.5)))
 	}));
 
 	fn bindings_entries<A: ActionExt>(
@@ -217,7 +216,7 @@ pub fn setup(
 			..default()
 		},
 		Node3d,
-		MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(DARK_GRAY)))),
+		MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(Srgba::gray(0.2))))),
 	);
 
 	let bindings_section_inner_components = (
@@ -245,7 +244,7 @@ pub fn setup(
 				size: Vec3::new(10.0, 0.25, 0.25),
 				..default()
 			},
-			material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(DARK_GRAY)))),
+			material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(Srgba::gray(0.2))))),
 			..default()
 		},
 	);
@@ -323,7 +322,7 @@ pub fn setup(
 			CuboidPanelBundle {
 				material: MeshMaterial3d(mats.add(UiMatBuilder {
 					std: StandardMaterial {
-						base_color: Color::linear_rgba(0.1, 0.3, 0.1, 0.5),
+						base_color: Color::srgba(0.1, 0.3, 0.1, 0.5),
 						alpha_mode: AlphaMode::Blend,
 						cull_mode: None,
 						double_sided: true,
@@ -486,7 +485,7 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 			cmds.with_children(|cmds| {
 				let darker_gray = MeshMaterial3d(mats.add(UiMatBuilder::from(StandardMaterial {
 					reflectance: 0.01,
-					..StandardMaterial::from(Color::linear_rgba(0.05, 0.05, 0.05, 0.7))
+					..StandardMaterial::from(Color::srgba(0.05, 0.05, 0.05, 0.7))
 				})));
 				let text_mat = mats.add(new_unlit_material());
 

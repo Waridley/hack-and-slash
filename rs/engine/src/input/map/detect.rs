@@ -60,7 +60,7 @@ pub fn setup(
 							base: Matter {
 								extension: DistanceDither::ui(),
 								base: StandardMaterial {
-									base_color: Color::linear_rgba(0.0, 0.001, 0.001, 0.6),
+									base_color: Color::srgba(0.0, 0.001, 0.001, 0.6),
 									alpha_mode: AlphaMode::Blend,
 									double_sided: true,
 									cull_mode: None,
@@ -85,10 +85,10 @@ pub fn setup(
 							meshes.add(
 								PlanarPolyLine {
 									colors: smallvec![
-										smallvec![LinearRgba::new(0.0, 0.2, 0.2, 0.6)],
-										smallvec![LinearRgba::new(0.0, 0.4, 0.1, 0.6)],
-										smallvec![LinearRgba::new(0.0, 0.2, 0.2, 0.6)],
-										smallvec![LinearRgba::new(0.0, 0.1, 0.4, 0.6)],
+										smallvec![Srgba::new(0.0, 0.2, 0.2, 0.6)],
+										smallvec![Srgba::new(0.0, 0.4, 0.1, 0.6)],
+										smallvec![Srgba::new(0.0, 0.2, 0.2, 0.6)],
+										smallvec![Srgba::new(0.0, 0.1, 0.4, 0.6)],
 									],
 									..PlanarPolyLine::rect(8.0, 6.0, 0.25)
 								}
