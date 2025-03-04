@@ -68,7 +68,7 @@ pub struct BubbleMaterial {
 impl Default for BubbleMaterial {
 	fn default() -> Self {
 		Self {
-			glow_color: GRAY.into(),
+			glow_color: LinearRgba::WHITE,
 		}
 	}
 }

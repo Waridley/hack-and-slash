@@ -20,7 +20,7 @@ impl Plugin for WidgetBordersPlugin {
 #[derive(Component, Debug, Clone)]
 pub struct Border {
 	pub cross_section: SmallVec<[Vec2; 4]>,
-	pub colors: SmallVec<[SmallVec<[LinearRgba; 1]>; 2]>,
+	pub colors: SmallVec<[SmallVec<[Srgba; 1]>; 2]>,
 	pub margin: Vec2,
 }
 
@@ -48,7 +48,7 @@ pub fn sync_cuboid_panel_borders(
 						points: rect_points_offset(
 							panel.size.x + panel.mesh_margin.x + border.margin.x,
 							panel.size.z + panel.mesh_margin.z + border.margin.y,
-							panel.translation.xz(),
+							panel.vertex_translation.xz(),
 						),
 						cross_section: border.cross_section.clone(),
 						colors: border.colors.clone(),

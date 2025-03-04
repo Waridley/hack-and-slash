@@ -87,7 +87,7 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 				..default()
 			},
 			material: MeshMaterial3d(mats.add(UiMatBuilder {
-				std: Color::linear_rgba(0.3, 0.3, 0.3, 0.3).into(),
+				std: Color::srgba(0.3, 0.3, 0.3, 0.3).into(),
 				..default()
 			})),
 			..default()
@@ -103,7 +103,7 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 					..default()
 				},
 				Border::default(),
-				MeshMaterial3d(mats.add(UiMatBuilder::from(Color::linear_rgba(0.12, 0.004, 0.15, 0.92))))
+				MeshMaterial3d(mats.add(UiMatBuilder::from(Color::srgba(0.12, 0.004, 0.15, 0.92))))
 			),
 			(
 				Name::new("game_paused_txt"),
@@ -138,7 +138,7 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 							material: MeshMaterial3d(mats.add(UiMatBuilder {
 								std: StandardMaterial {
 									base_color: Color::BLACK,
-									emissive: LinearRgba::from(LIMEGREEN) * 16.0,
+									emissive: LinearRgba::from(LIMEGREEN) * 3.0,
 									..default()
 								},
 								..default()
@@ -184,7 +184,7 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 							material: MeshMaterial3d(mats.add(UiMatBuilder {
 								std: StandardMaterial {
 									base_color: Color::BLACK,
-									emissive: LinearRgba::from(TEAL) * 20.0,
+									emissive: LinearRgba::from(TEAL) * 4.0,
 									..default()
 								},
 								..default()
@@ -206,7 +206,7 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 								});
 								ControlFlow::Break(())
 							}),
-							focus_state_emissive(LinearRgba::from(TEAL) * 20.0, LinearRgba::from(TEAL) * 30.0),
+							focus_state_emissive(LinearRgba::from(TEAL) * 4.0, LinearRgba::from(TEAL) * 6.0),
 						]),
 						AdjacentWidgets::vertical_siblings(),
 						expand.clone(),
@@ -239,7 +239,7 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 							material: MeshMaterial3d(mats.add(UiMatBuilder {
 								std: StandardMaterial {
 									base_color: Color::BLACK,
-									emissive: LinearRgba::from(GRAY) * 16.0,
+									emissive: LinearRgba::gray(0.5),
 									..default()
 								},
 								..default()
@@ -294,7 +294,7 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 							material: MeshMaterial3d(mats.add(UiMatBuilder {
 								std: StandardMaterial {
 									base_color: Color::BLACK,
-									emissive: LinearRgba::from(ORANGE_RED) * 16.0,
+									emissive: LinearRgba::from(ORANGE_RED) * 3.0,
 									..default()
 								},
 								..default()

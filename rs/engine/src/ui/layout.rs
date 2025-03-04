@@ -356,8 +356,8 @@ impl SetSize for CuboidPanel {
 		if this.size != size {
 			this.size = size;
 		}
-		if this.translation != center {
-			this.translation = center;
+		if this.vertex_translation != center {
+			this.vertex_translation = center;
 		}
 	}
 }

@@ -43,20 +43,29 @@ impl Tessellator {
 				let kerning = font.kern_unscaled(last_glyph, glyph);
 				pos.x += kerning * scale.x;
 			}
-			if char == ' ' {
+			let (outline, bounds) = if char == ' ' {
 				pos.x += em_width;
-			}
-			let Some(outline) = font.outline(glyph) else {
-				error!(?char, ?glyph, "Failed to outline glyph");
-				continue;
+				let bounds = Rect::new(
+					pos.x,
+					pos.y - em_height,
+					pos.x + (em_width * scale.x),
+					pos.y,
+				);
+				(None, bounds)
+			} else {
+				let Some(outline) = font.outline(glyph) else {
+					error!(?char, ?glyph, "Failed to outline glyph");
+					continue;
+				};
+				let bounds = Rect::new(
+					pos.x + (outline.bounds.min.x * scale.x),
+					// Don't include tails, bottom of bbox should be the baseline
+					pos.y - em_height,
+					pos.x + (outline.bounds.max.x * scale.x),
+					pos.y,
+				);
+				(Some(outline), bounds)
 			};
-			let bounds = Rect::new(
-				pos.x + (outline.bounds.min.x * scale.x),
-				// Don't include tails, bottom of bbox should be the baseline
-				pos.y - em_height,
-				pos.x + (outline.bounds.max.x * scale.x),
-				pos.y,
-			);
 			bbox = bbox.union(bounds);
 			let mut last = Point::new(f32::NAN, f32::NAN);
 			fn maybe_close(
@@ -71,6 +80,9 @@ impl Tessellator {
 					builder.begin(from);
 				};
 			}
+			let Some(outline) = outline else {
+				continue
+			};
 			for curve in outline.curves {
 				match curve {
 					Line(from, to) => {

@@ -7,7 +7,7 @@ use smol_str::SmolStr;
 use std::{hash::Hash, ops::Index, path::PathBuf};
 
 pub fn default_icon() -> AssetPath<'static> {
-	PathBuf::from("ui/Kenney/input-prompts/Flairs/Vector/flair_disabled.svg").into()
+	PathBuf::from("ui/Kenney/input-prompts/Flairs/Vector/flair_circle_red_8.svg").into()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Reflect)]
@@ -198,7 +198,7 @@ impl DualAxisIcons {
 					}
 					BasicInputs::Composite(btns) => {
 						// TODO: Try to recognize AxisIcons::Single for each axis
-						let [hp, hn, vp, vn] = match btns.len() {
+						let [vp, vn, hn, hp] = match btns.len() {
 							0 => {
 								error!(?dual_axis, "BasicInputs::Composite contains no buttons");
 								return None;
@@ -383,7 +383,7 @@ impl Default for Icon {
 	fn default() -> Self {
 		Self {
 			image: default_icon(),
-			text: None,
+			text: Some("�".into()),
 		}
 	}
 }

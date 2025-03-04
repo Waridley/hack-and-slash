@@ -235,7 +235,7 @@ pub fn spawn_ui_camera<ID: Bundle + Clone>(
 			SpotLight {
 				range: 256.0,
 				radius: 128.0,
-				color: Color::linear_rgb(0.5, 0.75, 0.125),
+				color: Color::srgb(0.5, 0.75, 0.125),
 				intensity: 160_000_000.0,
 				inner_angle: std::f32::consts::FRAC_PI_8 * 7.0,
 				outer_angle: std::f32::consts::FRAC_PI_8 * 7.5,
@@ -253,7 +253,7 @@ pub fn spawn_ui_camera<ID: Bundle + Clone>(
 			SpotLight {
 				range: 256.0,
 				radius: 128.0,
-				color: Color::linear_rgb(0.5, 0.25, 0.875),
+				color: Color::srgb(0.5, 0.25, 0.875),
 				intensity: 160_000_000.0,
 				inner_angle: std::f32::consts::FRAC_PI_8 * 7.0,
 				outer_angle: std::f32::consts::FRAC_PI_8 * 7.5,
@@ -274,7 +274,7 @@ pub fn spawn_ui_camera<ID: Bundle + Clone>(
 				intensity: 2_000_000.0,
 				inner_angle: std::f32::consts::FRAC_PI_8 * 7.0,
 				outer_angle: std::f32::consts::FRAC_PI_8 * 7.5,
-				color: Color::linear_rgb(1.0, 0.125, 1.0),
+				color: Color::srgb(1.0, 0.125, 1.0),
 				..default()
 			},
 			Transform {
@@ -1113,7 +1113,7 @@ fn spawn_test_menu(
 			panel: CuboidPanel { size, ..default() },
 			material: MeshMaterial3d(mats.add(UiMatBuilder {
 				std: StandardMaterial {
-					base_color: Color::linear_rgba(0.1, 0.1, 0.1, 0.8),
+					base_color: Color::srgba(0.1, 0.1, 0.1, 0.8),
 					reflectance: 0.0,
 					alpha_mode: AlphaMode::Blend,
 					double_sided: true,

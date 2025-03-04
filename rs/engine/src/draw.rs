@@ -84,7 +84,7 @@ pub struct PlanarPolyLine {
 	/// Also, if any inner `Vec` is empty, the last color from the previous one will be used.
 	/// If the outer `Vec` is shorter than `points`, the last color will also be repeated for
 	/// all remaining vertices.
-	pub colors: SmallVec<[SmallVec<[LinearRgba; 1]>; 2]>,
+	pub colors: SmallVec<[SmallVec<[Srgba; 1]>; 2]>,
 	/// If `true`, the last point will be connected to the first, closing the shape.
 	///
 	/// Defaults to `true`.
@@ -114,8 +114,8 @@ impl FromIterator<Vec2> for PlanarPolyLine {
 
 /// Construct a `PlanarPolyLine` with a square cross-section and a single
 /// color at each corner.
-impl FromIterator<(Vec2, LinearRgba)> for PlanarPolyLine {
-	fn from_iter<T: IntoIterator<Item = (Vec2, LinearRgba)>>(iter: T) -> Self {
+impl FromIterator<(Vec2, Srgba)> for PlanarPolyLine {
+	fn from_iter<T: IntoIterator<Item = (Vec2, Srgba)>>(iter: T) -> Self {
 		let (points, colors) = iter
 			.into_iter()
 			.map(|(point, color)| (point, smallvec![color]))

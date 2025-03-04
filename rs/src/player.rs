@@ -33,7 +33,7 @@ use std::{
 	ops::{Add, RangeInclusive},
 	time::Duration,
 };
-
+use serde::{Deserialize, Serialize};
 use camera::spawn_cameras;
 use ctrl::{CtrlState, CtrlVel};
 use engine::{
@@ -117,8 +117,8 @@ pub fn plugin(app: &mut App) -> &mut App {
 		crate::anim::AnimationPlugin::<RotVel>::PLUGIN,
 	))
 	.register_type::<AssetPath>()
-	.register_type::<ReflectTorus>()
-	.register_type::<ReflectIcosphere>()
+	.register_type::<TorusMeshBuilderReflectable>()
+	.register_type::<IcosphereMeshBuilderReflectable>()
 	.register_type::<(Color, Color, Color)>()
 	.register_type::<PlayerAssets>()
 	.register_type::<BoosterCharge>()
@@ -131,7 +131,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 	.add_systems(Startup, setup)
 	.add_systems(
 		First,
-		update_player_spawn_data.run_if(resource_exists::<PlayerAssets>),
+		update_player_spawn_data.run_if(resource_exists_and_changed::<PlayerAssets>),
 	)
 	.add_systems(PreUpdate, Prev::<CtrlState>::update_component)
 	.add_systems(
@@ -215,10 +215,6 @@ pub fn update_player_spawn_data(
 	player_assets: Res<PlayerAssets>,
 	data: Option<ResMut<PlayerSpawnData>>,
 ) {
-	if !player_assets.is_changed() {
-		return;
-	}
-
 	let Some(id) = PlayerId::new(1) else {
 		unreachable!()
 	};
@@ -245,9 +241,9 @@ pub fn update_player_spawn_data(
 	if let Some(mut data) = data {
 		data.ship_scene = asset_server.load(ship_scene);
 		*meshes.get_mut(data.antigrav_pulse_mesh.id()).unwrap() =
-			TorusMeshBuilder::from(antigrav_pulse_mesh).into();
+			dbg!(TorusMeshBuilder::from(antigrav_pulse_mesh)).build();
 		*std_mats.get_mut(data.antigrav_pulse_mat.id()).unwrap() = antigrav_pulse_mat;
-		*meshes.get_mut(data.arm_mesh.id()).unwrap() = SphereMeshBuilder::from(arm_mesh).into();
+		*meshes.get_mut(data.arm_mesh.id()).unwrap() = SphereMeshBuilder::from(arm_mesh).build();
 		*meshes.get_mut(data.arm_particle_mesh.id()).unwrap() =
 			RegularPolygon::new(arm_particle_radius, 3).into();
 		*std_mats.get_mut(data.arm_mats[0].id()).unwrap() = StandardMaterial {
@@ -313,8 +309,10 @@ pub fn update_player_spawn_data(
 	}
 }
 
-#[derive(Clone, Reflect)]
-pub struct ReflectTorus {
+#[derive(Clone, Reflect, Serialize, Deserialize)]
+#[reflect(Serialize, Deserialize)]
+#[serde(default)]
+pub struct TorusMeshBuilderReflectable {
 	pub major_radius: f32,
 	pub minor_radius: f32,
 	pub major_resolution: usize,
@@ -322,7 +320,7 @@ pub struct ReflectTorus {
 	pub angle_range: RangeInclusive<f32>,
 }
 
-impl Default for ReflectTorus {
+impl Default for TorusMeshBuilderReflectable {
 	fn default() -> Self {
 		let TorusMeshBuilder {
 			torus: Torus {
@@ -343,8 +341,8 @@ impl Default for ReflectTorus {
 	}
 }
 
-impl From<ReflectTorus> for TorusMeshBuilder {
-	fn from(value: ReflectTorus) -> Self {
+impl From<TorusMeshBuilderReflectable> for TorusMeshBuilder {
+	fn from(value: TorusMeshBuilderReflectable) -> Self {
 		Self {
 			torus: Torus {
 				major_radius: value.major_radius,
@@ -357,13 +355,15 @@ impl From<ReflectTorus> for TorusMeshBuilder {
 	}
 }
 
-#[derive(Clone, Reflect)]
-pub struct ReflectIcosphere {
+#[derive(Clone, Reflect, Serialize, Deserialize)]
+#[reflect(Serialize, Deserialize)]
+#[serde(default)]
+pub struct IcosphereMeshBuilderReflectable {
 	pub radius: f32,
 	pub subdivisions: u32,
 }
 
-impl Default for ReflectIcosphere {
+impl Default for IcosphereMeshBuilderReflectable {
 	fn default() -> Self {
 		Self {
 			radius: Sphere::default().radius,
@@ -372,8 +372,8 @@ impl Default for ReflectIcosphere {
 	}
 }
 
-impl From<ReflectIcosphere> for SphereMeshBuilder {
-	fn from(value: ReflectIcosphere) -> Self {
+impl From<IcosphereMeshBuilderReflectable> for SphereMeshBuilder {
+	fn from(value: IcosphereMeshBuilderReflectable) -> Self {
 		SphereMeshBuilder::new(
 			value.radius,
 			SphereKind::Ico {
@@ -387,12 +387,12 @@ impl From<ReflectIcosphere> for SphereMeshBuilder {
 #[reflect(Resource, Default)]
 pub struct PlayerAssets {
 	pub ship_scene: AssetPath<'static>,
-	pub antigrav_pulse_mesh: ReflectTorus,
+	pub antigrav_pulse_mesh: TorusMeshBuilderReflectable,
 	pub antigrav_pulse_mat: StandardMaterial,
-	pub arm_mesh: ReflectIcosphere,
+	pub arm_mesh: IcosphereMeshBuilderReflectable,
 	pub arm_particle_radius: f32,
 	pub arm_mats: (LinearRgba, LinearRgba, LinearRgba),
-	pub crosshair_mesh: ReflectTorus,
+	pub crosshair_mesh: TorusMeshBuilderReflectable,
 	pub crosshair_mat: StandardMaterial,
 }
 
@@ -817,7 +817,7 @@ fn player_vis(
 					builder.spawn((
 						Name::new(format!("Player{}.ShipCenter.Ship.Glow", owner.0.get())),
 						PointLight {
-							color: Color::linear_rgb(0.0, 1.0, 0.6),
+							color: Color::srgb(0.0, 1.0, 0.6),
 							intensity: 2_000_000.0,
 							range: 12.0,
 							shadows_enabled: false,

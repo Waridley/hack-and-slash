@@ -36,6 +36,9 @@ use std::{
 	ops::ControlFlow,
 	sync::Arc,
 };
+use bevy::math::Vec3A;
+use bevy::render::mesh::MeshAabb;
+use bevy::render::primitives::Aabb;
 use tiny_bail::prelude::r;
 use web_time::Duration;
 
@@ -108,9 +111,9 @@ pub struct PanelBundle<M: Material = UiMat> {
 #[reflect(Component)]
 pub struct CuboidPanel {
 	pub size: Vec3,
-	pub colors: Option<CuboidFaces<RectCorners<LinearRgba>>>,
-	pub translation: Vec3,
-	pub rotation: Quat,
+	pub colors: Option<CuboidFaces<RectCorners<Srgba>>>,
+	pub vertex_translation: Vec3,
+	pub vertex_rotation: Quat,
 	pub mesh_margin: Vec3,
 }
 
@@ -119,8 +122,8 @@ impl Default for CuboidPanel {
 		Self {
 			size: Vec3::ONE,
 			colors: default(),
-			translation: default(),
-			rotation: default(),
+			vertex_translation: default(),
+			vertex_rotation: default(),
 			mesh_margin: default(),
 		}
 	}
@@ -143,8 +146,8 @@ impl CuboidPanel {
 			CuboidPanel {
 				size,
 				colors,
-				translation,
-				rotation,
+				vertex_translation: translation,
+				vertex_rotation: rotation,
 				mesh_margin,
 			},
 		) in &mut q
@@ -175,12 +178,13 @@ impl CuboidPanel {
 					colors
 						.into_iter()
 						.flatten()
-						.map(LinearRgba::to_f32_array)
+						.map(Srgba::to_f32_array)
 						.collect::<Vec<_>>(),
 				)
 			}
 			let mesh = mesh.with_duplicated_vertices().with_computed_flat_normals();
-			cmds.insert(Mesh3d(meshes.add(mesh)));
+			let aabb = mesh.compute_aabb().unwrap();
+			cmds.insert((Mesh3d(meshes.add(mesh)), aabb));
 		}
 	}
 }
@@ -902,10 +906,7 @@ impl From<SmallVec<[CowArc<'static, InteractHandler>; 2]>> for InteractHandlers 
 pub fn dbg_event() -> CowArc<'static, InteractHandler> {
 	CowArc::Static(&|ev, cmds| {
 		let id = cmds.id();
-		match &ev.kind {
-			InteractionKind::Hold(_) => trace!(?id, ?ev),
-			_ => debug!(?id, ?ev),
-		};
+		trace!(?id, ?ev);
 		ControlFlow::Continue(())
 	})
 }

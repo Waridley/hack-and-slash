@@ -249,7 +249,7 @@ fn startup(
 	cmds.insert_resource(AbsoluteBounds { extents: 65536.0 });
 
 	cmds.insert_resource(AmbientLight {
-		color: Color::linear_rgb(0.64, 0.32, 1.0),
+		color: Color::srgb(0.64, 0.32, 1.0),
 		brightness: 50.0,
 		..default()
 	});
