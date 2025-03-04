@@ -1,7 +1,7 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Run (debug)" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
     <option name="buildProfileId" value="Custom:desktop" />
-    <option name="command" value="run --profile desktop --package sond-has --bin sond-has --features=&quot;bevy/file_watcher,bevy/asset_processor,debugging,dylib&quot;" />
+    <option name="command" value="run --profile desktop --package sond-has --bin sond-has --features=bevy/file_watcher,bevy/asset_processor,debugging,dylib" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$/rs" />
     <envs>
       <env name="RUSTFLAGS" value="-Zthreads=16 -Clink-arg=-fuse-ld=mold -Zshare-generics=y" />

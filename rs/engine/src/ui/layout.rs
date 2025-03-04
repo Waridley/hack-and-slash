@@ -1,5 +1,5 @@
 use super::widgets::{CuboidContainer, CuboidPanel, CylinderPanel, WidgetShape};
-use crate::util::{Angle, LogComponentNames};
+use crate::util::Angle;
 use bevy::prelude::*;
 use bevy_rapier3d::{
 	parry::{
@@ -9,6 +9,7 @@ use bevy_rapier3d::{
 	},
 	prelude::ShapeCastOptions,
 };
+use itertools::Itertools;
 use rapier3d::na::Vector3;
 use serde::{Deserialize, Serialize};
 use std::f32::consts::PI;
@@ -103,7 +104,7 @@ pub fn apply_constraints(
 	sibling_constraints: Query<&SiblingConstraint>,
 	mut shapes: Query<(Entity, &mut Transform, Option<&Parent>, &WidgetShape)>,
 ) {
-	for (id, constraint, children) in &child_constraints {
+	for (container, constraint, children) in &child_constraints {
 		match children.len() {
 			0 => continue,
 			1 => {
@@ -113,48 +114,40 @@ pub fn apply_constraints(
 							child.1.translation = constraint.offset
 						}
 					}
-					Err(e) => cmds.debug_components(children[0], e),
+					Err(e) => trace!(?container, "Get only child for translation: {e}"),
 				}
 				continue;
 			}
 			_ => {}
 		}
 		let mut separations = Vec::with_capacity(children.len());
-		for pair in children.windows(2) {
-			let [a, b] = match shapes.get_many([pair[0], pair[1]]) {
-				Ok(pair) => pair,
-				Err(e) => {
-					cmds.debug_components(pair[0], e);
-					cmds.debug_components(pair[1], e);
-					continue;
-				}
-			};
-			debug_assert_eq!(Some(id), a.2.map(Parent::get));
-			debug_assert_eq!(Some(id), b.2.map(Parent::get));
+		for pair in children
+			.iter()
+			.copied()
+			.filter(|child| shapes.get(*child)
+				.inspect_err(|e| trace!(?container, "Get children for separation: {e}"))
+				.is_ok()
+			)
+			.tuple_windows::<(_, _)>()
+		{
+			let [a, b] = shapes.get_many([pair.0, pair.1])
+				.expect("pairs are filtered for entities that already match `shapes`");
 
 			let sep = compute_separation(constraint.relative_positions, a.3, b.3);
-			separations.push(sep);
+			separations.push((pair, sep));
 		}
-		let sep_sum = separations.iter().sum::<Vec3>();
+		let sep_sum = separations.iter().map(|(_, sep)| sep).sum::<Vec3>();
 		let offset = sep_sum * ((-constraint.align + Vec3::ONE) * 0.5);
-		let mut first_child = match shapes.get_mut(children[0]) {
-			Ok(child) => child,
-			Err(e) => {
-				cmds.debug_components(children[0], e);
-				continue;
-			}
+		let Some(&((first_child, _), _)) = separations.get(0) else {
+			continue
 		};
+		let mut first_child = shapes.get_mut(first_child)
+			.expect("already got this entity when computing separation");
 		first_child.1.translation = -offset + constraint.offset;
-		for (i, pair) in children.windows(2).enumerate() {
-			let [a, mut b] = match shapes.get_many_mut([pair[0], pair[1]]) {
-				Ok(pair) => pair,
-				Err(e) => {
-					cmds.debug_components(pair[0], e);
-					cmds.debug_components(pair[1], e);
-					continue;
-				}
-			};
-			b.1.translation = a.1.translation + separations[i];
+		for ((a, b), sep) in separations {
+			let [mut a, mut b] = shapes.get_many_mut([a, b])
+				.expect("already got these entities when computing separation");
+			b.1.translation = a.1.translation + sep;
 		}
 	}
 
@@ -163,7 +156,7 @@ pub fn apply_constraints(
 		let [a, mut b] = match shapes.get_many_mut([constraint.a, constraint.b]) {
 			Ok(pair) => pair,
 			Err(e) => {
-				debug!("{e}");
+				debug!(?constraint, "Get pair for sibling constraints: {e}");
 				continue;
 			}
 		};

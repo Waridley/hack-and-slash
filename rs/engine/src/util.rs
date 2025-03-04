@@ -1091,37 +1091,6 @@ pub fn error_component_names(In((id, msg)): In<(Entity, String)>, world: &mut Wo
 	error!(?components, "{msg}");
 }
 
-// TODO: These could be macros for more flexibility and so the target
-//    isn't always `dbg_components`, but it seems like the arguments
-//    would be moderately complicated.
-pub trait LogComponentNames {
-	/// Run [debug_component_names]
-	fn debug_components(&mut self, id: Entity, msg: impl std::fmt::Display);
-	/// Run [error_component_names]
-	fn error_components(&mut self, id: Entity, msg: impl std::fmt::Display);
-}
-
-impl LogComponentNames for Commands<'_, '_> {
-	#[inline(never)]
-	#[track_caller]
-	fn debug_components(&mut self, id: Entity, msg: impl std::fmt::Display) {
-		let location = std::panic::Location::caller();
-		self.run_system_with_input(
-			*DEBUG_COMPONENTS.get().unwrap(),
-			(id, format!("{location}: {msg}")),
-		);
-	}
-
-	#[inline(never)]
-	#[track_caller]
-	fn error_components(&mut self, id: Entity, msg: impl std::fmt::Display) {
-		let location = std::panic::Location::caller();
-		self.run_system_with_input(
-			*ERROR_COMPONENTS.get().unwrap(),
-			(id, format!("{location}: {msg}")),
-		);
-	}
-}
 
 #[macro_export]
 macro_rules! todo_warn {

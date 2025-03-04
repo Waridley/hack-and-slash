@@ -133,7 +133,7 @@ pub struct CuboidPanelBundle<M: Material = UiMat> {
 }
 
 impl CuboidPanel {
-	pub fn sync(
+	pub fn sync_mesh(
 		mut cmds: Commands,
 		mut q: Query<(Entity, &Self), Changed<Self>>,
 		mut meshes: ResMut<Assets<Mesh>>,
@@ -211,7 +211,7 @@ impl Default for CylinderPanel {
 }
 
 impl CylinderPanel {
-	pub fn sync(
+	pub fn sync_mesh(
 		mut cmds: Commands,
 		q: Query<(Entity, &Self), Changed<Self>>,
 		mut meshes: ResMut<Assets<Mesh>>,
@@ -326,7 +326,7 @@ impl<M: Material> Default for Text3dBundle<M> {
 }
 
 impl Text3d {
-	pub fn sync(
+	pub fn sync_mesh(
 		mut cmds: Commands,
 		mut q: Query<(&Text3d, &mut AKNode)>,
 		changed_text: Query<Entity, Changed<Text3d>>,
@@ -1227,8 +1227,9 @@ pub struct CuboidContainer {
 }
 
 impl CuboidContainer {
-	pub fn sync(mut cmds: Commands, q: Query<(Entity, &Self), Changed<Self>>) {
+	pub fn sync_shape(mut cmds: Commands, q: Query<(Entity, &Self), Changed<Self>>) {
 		for (id, this) in &q {
+			debug!(?id, "Syncing WidgetShape");
 			let h_size = this.size * 0.5;
 			let pos = Vector::from(this.translation);
 			cmds.entity(id).insert(WidgetShape {
