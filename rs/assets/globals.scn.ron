@@ -164,8 +164,8 @@
                 ({ "KeyCode": F11 }): "ui/Kenney/input-prompts/Keyboard & Mouse/Vector/keyboard_f11_outline.svg",
                 ({ "KeyCode": F12 }): "ui/Kenney/input-prompts/Keyboard & Mouse/Vector/keyboard_f12_outline.svg",
 
-        		({ "KeyCode": Backspace }): "ui/Kenney/input-prompts/Keyboard & Mouse/Vector/kebyoard_backspace_icon_outline.svg",
-        		({ "KeyCode": Backspace }, Mac): "ui/Kenney/input-prompts/Keyboard & Mouse/Vector/kebyoard_backspace_icon_alternative_outline.svg",
+        		({ "KeyCode": Backspace }): "ui/Kenney/input-prompts/Keyboard & Mouse/Vector/keyboard_backspace_icon_outline.svg",
+        		({ "KeyCode": Backspace }, Mac): "ui/Kenney/input-prompts/Keyboard & Mouse/Vector/keyboard_backspace_icon_alternative_outline.svg",
 
         		({ "KeyCode": AltLeft }): "ui/Kenney/input-prompts/Keyboard & Mouse/Vector/keyboard_alt_outline.svg",
         		({ "KeyCode": AltRight }): "ui/Kenney/input-prompts/Keyboard & Mouse/Vector/keyboard_alt_outline.svg",

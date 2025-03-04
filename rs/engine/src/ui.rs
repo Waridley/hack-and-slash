@@ -125,7 +125,7 @@ impl Plugin for UiPlugin {
 			(
 				layout::apply_constraints,
 				layout::RadialChildren::apply,
-				CuboidContainer::sync,
+				CuboidContainer::sync_shape,
 				ExpandToFitChildren::apply::<CuboidPanel>,
 				ExpandToFitChildren::apply::<CylinderPanel>,
 				ExpandToFitChildren::apply::<CuboidContainer>,
@@ -139,9 +139,9 @@ impl Plugin for UiPlugin {
 				propagate_fade::<UiMat>.before(Fade::hide_faded_out),
 				Fade::hide_faded_out,
 				anchor_follow_menu,
-				CuboidPanel::sync,
-				CylinderPanel::sync,
-				Text3d::sync,
+				CuboidPanel::sync_mesh,
+				CylinderPanel::sync_mesh,
+				Text3d::sync_mesh,
 			),
 		);
 	}
