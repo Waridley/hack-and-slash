@@ -185,11 +185,12 @@ impl ViewNode for SkyNode {
 		let pipeline_cache = world.resource::<PipelineCache>();
 
 		let pipeline = match pipeline_cache.get_render_pipeline_state(pipeline_id.0) {
-			CachedPipelineState::Queued | CachedPipelineState::Creating(_) => return Ok(()),
 			CachedPipelineState::Ok(Pipeline::RenderPipeline(pipeline)) => pipeline,
 			CachedPipelineState::Ok(_) => unreachable!("SkyPipeline is a RenderPipeline"),
-			CachedPipelineState::Err(e) => {
-				error!("{e}");
+			CachedPipelineState::Queued
+			| CachedPipelineState::Creating(_)
+			| CachedPipelineState::Err(_) => {
+				// `PipelineCache::process_pipeline` will print irrecoverable errors and retry others
 				return Ok(());
 			}
 		};

@@ -3,9 +3,7 @@ use crate::{
 	ui::settings_menu::SettingsSubMenus,
 };
 use bevy::{
-	color::palettes::{
-		basic::{GRAY, GREEN},
-	},
+	color::palettes::basic::{GRAY, GREEN},
 	prelude::*,
 };
 use engine::{

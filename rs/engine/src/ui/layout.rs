@@ -99,7 +99,6 @@ impl Default for SiblingConstraint {
 }
 
 pub fn apply_constraints(
-	mut cmds: Commands,
 	child_constraints: Query<(Entity, &LineUpChildren, &Children)>,
 	sibling_constraints: Query<&SiblingConstraint>,
 	mut shapes: Query<(Entity, &mut Transform, Option<&Parent>, &WidgetShape)>,
@@ -124,13 +123,16 @@ pub fn apply_constraints(
 		for pair in children
 			.iter()
 			.copied()
-			.filter(|child| shapes.get(*child)
-				.inspect_err(|e| trace!(?container, "Get children for separation: {e}"))
-				.is_ok()
-			)
+			.filter(|child| {
+				shapes
+					.get(*child)
+					.inspect_err(|e| trace!(?container, "Get children for separation: {e}"))
+					.is_ok()
+			})
 			.tuple_windows::<(_, _)>()
 		{
-			let [a, b] = shapes.get_many([pair.0, pair.1])
+			let [a, b] = shapes
+				.get_many([pair.0, pair.1])
 				.expect("pairs are filtered for entities that already match `shapes`");
 
 			let sep = compute_separation(constraint.relative_positions, a.3, b.3);
@@ -139,13 +141,15 @@ pub fn apply_constraints(
 		let sep_sum = separations.iter().map(|(_, sep)| sep).sum::<Vec3>();
 		let offset = sep_sum * ((-constraint.align + Vec3::ONE) * 0.5);
 		let Some(&((first_child, _), _)) = separations.get(0) else {
-			continue
+			continue;
 		};
-		let mut first_child = shapes.get_mut(first_child)
+		let mut first_child = shapes
+			.get_mut(first_child)
 			.expect("already got this entity when computing separation");
 		first_child.1.translation = -offset + constraint.offset;
 		for ((a, b), sep) in separations {
-			let [mut a, mut b] = shapes.get_many_mut([a, b])
+			let [a, mut b] = shapes
+				.get_many_mut([a, b])
 				.expect("already got these entities when computing separation");
 			b.1.translation = a.1.translation + sep;
 		}

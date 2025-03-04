@@ -8,6 +8,7 @@ use crate::{
 	},
 };
 use atomicow::CowArc;
+use bevy::render::mesh::MeshAabb;
 use bevy::{
 	a11y::AccessibilityNode,
 	color::palettes::basic::PURPLE,
@@ -36,9 +37,6 @@ use std::{
 	ops::ControlFlow,
 	sync::Arc,
 };
-use bevy::math::Vec3A;
-use bevy::render::mesh::MeshAabb;
-use bevy::render::primitives::Aabb;
 use tiny_bail::prelude::r;
 use web_time::Duration;
 

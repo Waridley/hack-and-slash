@@ -1,10 +1,10 @@
 use super::icons::Icon;
 use crate::ui::{
 	a11y::AKNode,
-	widgets::{Node3d, Text3d, WidgetShape, UNLIT_MATERIAL_ID},
+	widgets::{Node3d, Text3d, WidgetShape},
 	UiMat,
 };
-use bevy::{ecs::system::EntityCommands, prelude::*, render::view::RenderLayers};
+use bevy::{ecs::system::EntityCommands, prelude::*};
 use bevy_rapier3d::parry::{math::Isometry, shape::SharedShape};
 use bevy_svg::prelude::{Origin, Svg, SvgMesh3d, SvgMesh3dBundle};
 

@@ -1,5 +1,4 @@
 use bevy::{
-	color::palettes::basic::GRAY,
 	pbr::{ExtendedMaterial, MaterialExtension},
 	prelude::*,
 	render::render_resource::{AsBindGroup, ShaderRef},

@@ -1,8 +1,6 @@
 use crate::player::input::PlayerAction;
 use bevy::{
-	color::palettes::{
-		basic::{AQUA, BLUE, FUCHSIA, GRAY, GREEN, RED, YELLOW},
-	},
+	color::palettes::basic::{AQUA, BLUE, FUCHSIA, GRAY, GREEN, RED, YELLOW},
 	prelude::*,
 };
 use engine::{
@@ -75,8 +73,7 @@ pub fn setup(
 			.collect(),
 	};
 	let text_material = MeshMaterial3d(mats.add(new_unlit_material()));
-	let blue_green_mat =
-		MeshMaterial3d(mats.add(UiMatBuilder::from(Color::srgb(0.5, 0.8, 0.7))));
+	let blue_green_mat = MeshMaterial3d(mats.add(UiMatBuilder::from(Color::srgb(0.5, 0.8, 0.7))));
 	let button_focus_border_bundle = (
 		Node3d,
 		Transform {

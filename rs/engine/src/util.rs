@@ -1091,7 +1091,6 @@ pub fn error_component_names(In((id, msg)): In<(Entity, String)>, world: &mut Wo
 	error!(?components, "{msg}");
 }
 
-
 #[macro_export]
 macro_rules! todo_warn {
 	() => {
