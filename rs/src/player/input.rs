@@ -122,7 +122,7 @@ impl ActionExt for PlayerAction {
 			(FireA, MouseButton::Left),
 			(FireB, MouseButton::Right),
 			(FireC, MouseButton::Middle),
-			(Dash, MouseButton::Other(9)),
+			(Dash, MouseButton::Forward),
 		])
 		.with_multiple([
 			(Jump, GamepadButton::South),

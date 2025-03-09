@@ -13,8 +13,8 @@ use engine::{
 		text::UiFonts,
 		widgets::{
 			borders::Border, dbg_event, focus_toggle_border, new_unlit_material, on_ok,
-			CuboidPanel, CuboidPanelBundle, CylinderPanel, CylinderPanelBundle, InteractHandlers,
-			Node3d, Text3d, Text3dBundle, WidgetShape,
+			CuboidPanel, CylinderPanel, InteractHandlers,
+			Node3d, Text3d, WidgetShape,
 		},
 		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiAction, UiMat, UiMatBuilder,
 		GLOBAL_UI_RENDER_LAYERS,
@@ -92,21 +92,18 @@ pub fn setup(
 	entity_tree!(cmds; (
 		Name::new("SettingsMenu"),
 		SettingsMenu,
-		CylinderPanelBundle {
-			panel: CylinderPanel {
-				radius: 10.0,
-				length: 6.0,
-				..default()
-			},
-			material: MeshMaterial3d(mats.add(UiMatBuilder::from(StandardMaterial {
-				base_color: Srgba::new(0.1, 0.1, 0.1, 0.8).into(),
-				alpha_mode: AlphaMode::Blend,
-				double_sided: true,
-				cull_mode: None,
-				..default()
-			}))),
+		CylinderPanel {
+			radius: 10.0,
+			length: 6.0,
 			..default()
 		},
+		MeshMaterial3d(mats.add(UiMatBuilder::from(StandardMaterial {
+			base_color: Srgba::new(0.1, 0.1, 0.1, 0.8).into(),
+			alpha_mode: AlphaMode::Blend,
+			double_sided: true,
+			cull_mode: None,
+			..default()
+		}))),
 		Transform {
 			translation: Vec3::new(0.0, -32.0, -24.0),
 			..default()
@@ -115,16 +112,13 @@ pub fn setup(
 		Fade::ZERO;
 		#children: [
 			(
-				Text3dBundle {
-					text_3d: Text3d {
-						text: "Settings".into(),
-						font: ui_fonts.mono.clone(),
-						flat: false,
-						..default()
-					},
-					material: blue_green_mat.clone(),
+				Text3d {
+					text: "Settings".into(),
+					font: ui_fonts.mono.clone(),
+					flat: false,
 					..default()
 				},
+				blue_green_mat.clone(),
 				Transform {
 					translation: Vec3::new(0.0, -3.5, 0.0),
 					..default()
@@ -165,14 +159,11 @@ pub fn setup(
 				}
 				#children: [
 					(
-						CuboidPanelBundle {
-							panel: CuboidPanel {
-								size: Vec3::new(5.0, 1.0, 1.5),
-								..default()
-							},
-							material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(AQUA.with_alpha(0.4))))),
+						CuboidPanel {
+							size: Vec3::new(5.0, 1.0, 1.5),
 							..default()
 						},
+						MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(AQUA.with_alpha(0.4))))),
 						adjacent.clone(),
 						focus_toggle_border.clone(),
 						ExpandToFitChildren {
@@ -182,29 +173,23 @@ pub fn setup(
 						};
 						#children: [
 							(
-								Text3dBundle {
-									text_3d: Text3d {
-										text: "Gameplay".into(),
-										font: ui_fonts.mono.clone(),
-										..default()
-									},
-									material: text_material.clone(),
+								Text3d {
+									text: "Gameplay".into(),
+									font: ui_fonts.mono.clone(),
 									..default()
 								},
+								text_material.clone(),
 								Transform::from_translation(Vec3::NEG_Y * 0.5),
 							),
 							(button_focus_border_bundle.clone()),
 						]
 					),
 					(
-						CuboidPanelBundle {
-							panel: CuboidPanel {
-								size: Vec3::new(5.0, 1.0, 1.5),
-								..default()
-							},
-							material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(YELLOW.with_alpha(0.4))))),
+						CuboidPanel {
+							size: Vec3::new(5.0, 1.0, 1.5),
 							..default()
 						},
+						MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(YELLOW.with_alpha(0.4))))),
 						adjacent.clone(),
 						focus_toggle_border.clone(),
 						ExpandToFitChildren {
@@ -214,29 +199,23 @@ pub fn setup(
 						};
 						#children: [
 							(
-								Text3dBundle {
-									text_3d: Text3d {
-										text: "Graphics".into(),
-										font: ui_fonts.mono.clone(),
-										..default()
-									},
-									material: text_material.clone(),
+								Text3d {
+									text: "Graphics".into(),
+									font: ui_fonts.mono.clone(),
 									..default()
 								},
+								text_material.clone(),
 								Transform::from_translation(Vec3::NEG_Y * 0.5),
 							),
 							(button_focus_border_bundle.clone()),
 						]
 					),
 					(
-						CuboidPanelBundle {
-							panel: CuboidPanel {
-								size: Vec3::new(5.0, 1.0, 1.5),
-								..default()
-							},
-							material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(FUCHSIA.with_alpha(0.40))))),
+						CuboidPanel {
+							size: Vec3::new(5.0, 1.0, 1.5),
 							..default()
 						},
+						MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(FUCHSIA.with_alpha(0.40))))),
 						adjacent.clone(),
 						focus_toggle_border.clone(),
 						ExpandToFitChildren {
@@ -246,29 +225,23 @@ pub fn setup(
 						};
 						#children: [
 							(
-								Text3dBundle {
-									text_3d: Text3d {
-										text: "Accessibility".into(),
-										font: ui_fonts.mono.clone(),
-										..default()
-									},
-									material: text_material.clone(),
+								Text3d {
+									text: "Accessibility".into(),
+									font: ui_fonts.mono.clone(),
 									..default()
 								},
+								text_material.clone(),
 								Transform::from_translation(Vec3::NEG_Y * 0.5),
 							),
 							(button_focus_border_bundle.clone()),
 						]
 					),
 					(
-						CuboidPanelBundle {
-							panel: CuboidPanel {
-								size: Vec3::new(5.0, 1.0, 1.5),
-								..default()
-							},
-							material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(RED.with_alpha(0.4))))),
+						CuboidPanel {
+							size: Vec3::new(5.0, 1.0, 1.5),
 							..default()
 						},
+						MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(RED.with_alpha(0.4))))),
 						adjacent.clone(),
 						focus_toggle_border.clone(),
 						ExpandToFitChildren {
@@ -278,29 +251,23 @@ pub fn setup(
 						};
 						#children: [
 							(
-								Text3dBundle {
-									text_3d: Text3d {
-										text: "Sound".into(),
-										font: ui_fonts.mono.clone(),
-										..default()
-									},
-									material: text_material.clone(),
+								Text3d {
+									text: "Sound".into(),
+									font: ui_fonts.mono.clone(),
 									..default()
 								},
+								text_material.clone(),
 								Transform::from_translation(Vec3::NEG_Y * 0.5),
 							),
 							(button_focus_border_bundle.clone()),
 						]
 					),
 					(
-						CuboidPanelBundle {
-							panel: CuboidPanel {
-								size: Vec3::new(5.0, 1.0, 1.5),
-								..default()
-							},
-							material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(GREEN.with_alpha(0.4))))),
+						CuboidPanel {
+							size: Vec3::new(5.0, 1.0, 1.5),
 							..default()
 						},
+						MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(GREEN.with_alpha(0.4))))),
 						focus_toggle_border.clone()
 							.and([on_ok(|cmds| {
 								cmds.commands().queue(|world: &mut World| {
@@ -319,29 +286,23 @@ pub fn setup(
 						};
 						#children: [
 							(
-								Text3dBundle {
-									text_3d: Text3d {
-										text: "Controls".into(),
-										font: ui_fonts.mono.clone(),
-										..default()
-									},
-									material: text_material.clone(),
+								Text3d {
+									text: "Controls".into(),
+									font: ui_fonts.mono.clone(),
 									..default()
 								},
+								text_material.clone(),
 								Transform::from_translation(Vec3::NEG_Y * 0.5),
 							),
 							(button_focus_border_bundle.clone()),
 						]
 					),
 					(
-						CuboidPanelBundle {
-							panel: CuboidPanel {
-								size: Vec3::new(5.0, 1.0, 1.5),
-								..default()
-							},
-							material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(BLUE.with_alpha(0.4))))),
+						CuboidPanel {
+							size: Vec3::new(5.0, 1.0, 1.5),
 							..default()
 						},
+						MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(BLUE.with_alpha(0.4))))),
 						adjacent.clone(),
 						focus_toggle_border.clone(),
 						ExpandToFitChildren {
@@ -351,15 +312,12 @@ pub fn setup(
 						};
 						#children: [
 							(
-								Text3dBundle {
-									text_3d: Text3d {
-										text: "Kumquats".into(),
-										font: ui_fonts.mono.clone(),
-										..default()
-									},
-									material: text_material.clone(),
+								Text3d {
+									text: "Kumquats".into(),
+									font: ui_fonts.mono.clone(),
 									..default()
 								},
+								text_material.clone(),
 								Transform::from_translation(Vec3::NEG_Y * 0.5),
 							),
 							(button_focus_border_bundle.clone()),

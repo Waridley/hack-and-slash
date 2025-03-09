@@ -16,12 +16,13 @@ use crate::{
 	ui::{
 		layout::LineUpChildren,
 		text::UiFonts,
-		widgets::{CuboidPanel, CuboidPanelBundle, Node3d, Text3d, Text3dBundle},
+		widgets::{CuboidPanel, Node3d, Text3d},
 		GlobalUi, Popup, PopupsRoot, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
 	},
 };
 use bevy::{color::palettes::css::AQUAMARINE, prelude::*, utils::HashMap};
 use smallvec::{smallvec, SmallVec};
+use crate::util::MeshOutline;
 
 pub struct DetectBindingPopupPlugin;
 
@@ -35,7 +36,12 @@ impl Plugin for DetectBindingPopupPlugin {
 					display_curr_chord.run_if(resource_exists::<InputIconFileMap>),
 				),
 			)
-			.add_systems(Last, InputIcon::sync::<UiMat>);
+			.add_systems(Last, InputIcon::sync::<UiMat>
+				.before(Text3d::sync_mesh)
+				.before(bevy_svg::prelude::svg_mesh_3d_generator)
+				.before(bevy_svg::prelude::svg_mesh_2d_generator)
+			)
+			.configure_sets(Last, bevy_svg::prelude::Set::SVG.before(crate::util::MeshOutline::sync));
 	}
 }
 
@@ -53,23 +59,20 @@ pub fn setup(
 				let size = Vec3::new(8.0, 1.0, 6.0);
 				let mut cmds = cmds.spawn((
 					Popup,
-					CuboidPanelBundle {
-						panel: CuboidPanel { size, ..default() },
-						material: MeshMaterial3d(mats.add(ExtMat {
-							extension: default(),
-							base: Matter {
-								extension: DistanceDither::ui(),
-								base: StandardMaterial {
-									base_color: Color::srgba(0.0, 0.001, 0.001, 0.6),
-									alpha_mode: AlphaMode::Blend,
-									double_sided: true,
-									cull_mode: None,
-									..default()
-								},
+					CuboidPanel { size, ..default() },
+					MeshMaterial3d(mats.add(ExtMat {
+						extension: default(),
+						base: Matter {
+							extension: DistanceDither::ui(),
+							base: StandardMaterial {
+								base_color: Color::srgba(0.0, 0.001, 0.001, 0.6),
+								alpha_mode: AlphaMode::Blend,
+								double_sided: true,
+								cull_mode: None,
+								..default()
 							},
-						})),
-						..default()
-					},
+						},
+					})),
 					Visibility::Hidden,
 					DetectBindingPopup,
 				));
@@ -110,23 +113,20 @@ pub fn setup(
 						})),
 					));
 					cmds.spawn((
-						Text3dBundle {
-							text_3d: Text3d {
-								text: "Press input(s) to bind...".into(),
-								font: ui_fonts.mono.clone(),
-								flat: false,
-								vertex_scale: Vec3::splat(0.45),
-								..default()
-							},
-							material: MeshMaterial3d(mats.add(ExtMat {
-								extension: default(),
-								base: Matter {
-									extension: DistanceDither::ui(),
-									base: Color::from(AQUAMARINE).into(),
-								},
-							})),
+						Text3d {
+							text: "Press input(s) to bind...".into(),
+							font: ui_fonts.mono.clone(),
+							flat: false,
+							vertex_scale: Vec3::splat(0.45),
 							..default()
 						},
+						MeshMaterial3d(mats.add(ExtMat {
+							extension: default(),
+							base: Matter {
+								extension: DistanceDither::ui(),
+								base: Color::from(AQUAMARINE).into(),
+							},
+						})),
 						Transform {
 							translation: Vec3::new(0.0, -1.0, 2.0),
 							..default()
@@ -195,6 +195,7 @@ pub fn display_curr_chord(
 	icon_map: Res<InputIconFileMap>,
 ) {
 	let icon_mat = icon_mat.get_or_insert_with(|| mats.add(UiMatBuilder::default()));
+	let outline_mat = mats.add(MeshOutline::default_material());
 	let Ok((id, mut icons)) = q.get_single_mut() else {
 		return;
 	};
@@ -239,6 +240,12 @@ pub fn display_curr_chord(
 							size: Vec3::splat(1.0),
 							flat: false,
 							tolerance: 0.1,
+							outline: Some(MeshOutline {
+								thickness: Vec3::new(0.1, 0.0, 0.1),
+								offset: Vec3::Y * 0.1,
+								..default()
+							}),
+							outline_material: outline_mat.clone().untyped(),
 							..default()
 						},
 						material: MeshMaterial3d(icon_mat.clone()),

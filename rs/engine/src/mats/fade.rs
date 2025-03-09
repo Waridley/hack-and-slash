@@ -1,12 +1,16 @@
 use bevy::{
+	asset::{ReflectAsset, ReflectHandle},
 	pbr::{ExtendedMaterial, MaterialExtension},
 	prelude::*,
 	render::render_resource::{AsBindGroup, ShaderRef},
 };
+use bevy::pbr::{MaterialExtensionKey, MaterialExtensionPipeline};
+use bevy::render::mesh::MeshVertexBufferLayoutRef;
+use bevy::render::render_resource::{RenderPipelineDescriptor, SpecializedMeshPipelineError};
 use serde::{Deserialize, Serialize};
 
 #[derive(Asset, AsBindGroup, Debug, Clone, Serialize, Deserialize, Reflect)]
-#[reflect(Default)]
+#[reflect(Default, Asset)]
 pub struct DitherFade {
 	#[uniform(200)]
 	pub fade: f32,
@@ -52,6 +56,15 @@ impl DitherFade {
 impl MaterialExtension for DitherFade {
 	fn fragment_shader() -> ShaderRef {
 		"shaders/dither_fade.wgsl".into()
+	}
+	fn specialize(
+		pipeline: &MaterialExtensionPipeline,
+		descriptor: &mut RenderPipelineDescriptor,
+		layout: &MeshVertexBufferLayoutRef,
+		key: MaterialExtensionKey<Self>
+	) -> Result<(), SpecializedMeshPipelineError> {
+		
+		Ok(())
 	}
 }
 

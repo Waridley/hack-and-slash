@@ -24,7 +24,7 @@ use engine::{
 		text::UiFonts,
 		widgets::{
 			borders::Border, dbg_event, focus_state_colors, focus_state_emissive, on_ok,
-			CuboidPanel, CuboidPanelBundle, InteractHandlers, Node3d, Text3d, Text3dBundle,
+			CuboidPanel, InteractHandlers, Node3d, Text3d,
 			WidgetShape,
 		},
 		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiMat, UiMatBuilder,
@@ -37,6 +37,9 @@ use rapier3d::geometry::SharedShape;
 use smallvec::smallvec;
 use std::ops::ControlFlow;
 use tiny_bail::prelude::r;
+use engine::ui::GLOBAL_UI_RENDER_LAYERS;
+use engine::ui::widgets::new_unlit_material;
+use engine::util::MeshOutline;
 
 pub struct PauseMenuPlugin;
 
@@ -81,17 +84,14 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 
 	entity_tree!(cmds; (
 		Name::new("PauseMenu"),
-		CuboidPanelBundle {
-			panel: CuboidPanel {
-				size: Vec3::new(12.0, 12.0, 12.0),
-				..default()
-			},
-			material: MeshMaterial3d(mats.add(UiMatBuilder {
-				std: Color::srgba(0.3, 0.3, 0.3, 0.3).into(),
-				..default()
-			})),
+		CuboidPanel {
+			size: Vec3::new(12.0, 12.0, 12.0),
 			..default()
 		},
+		MeshMaterial3d(mats.add(UiMatBuilder {
+			std: Color::srgba(0.3, 0.3, 0.3, 0.3).into(),
+			..default()
+		})),
 		AdjacentWidgets::all(FocusTarget::ChildN(0)),
 		Fade::ZERO;
 		#children: [
@@ -107,16 +107,13 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 			),
 			(
 				Name::new("game_paused_txt"),
-				Text3dBundle {
-					text_3d: Text3d {
-						text: "Game Paused".into(),
-						font: ui_fonts.mono.clone(),
-						flat: false,
-						..default()
-					},
-					material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::WHITE))),
+				Text3d {
+					text: "Game Paused".into(),
+					font: ui_fonts.mono.clone(),
+					flat: false,
 					..default()
 				},
+				MeshMaterial3d(mats.add(UiMatBuilder::from(Color::WHITE))),
 				Transform {
 					translation: Vec3::new(0.0, -6.5, 5.0),
 					..default()
@@ -134,17 +131,15 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 				#children: [
 					(
 						Name::new("resume_btn"),
-						CuboidPanelBundle {
-							material: MeshMaterial3d(mats.add(UiMatBuilder {
-								std: StandardMaterial {
-									base_color: Color::BLACK,
-									emissive: LinearRgba::from(LIMEGREEN) * 3.0,
-									..default()
-								},
+						CuboidPanel::default(),
+						MeshMaterial3d(mats.add(UiMatBuilder {
+							std: StandardMaterial {
+								base_color: Color::BLACK,
+								emissive: LinearRgba::from(LIMEGREEN) * 3.0,
 								..default()
-							})),
+							},
 							..default()
-						},
+						})),
 						InteractHandlers(smallvec![
 							dbg_event(),
 							on_ok(|cmds| {
@@ -163,15 +158,12 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 						}
 						#children: [(
 							Name::new("resume_btn_txt"),
-							Text3dBundle {
-								text_3d: Text3d {
-									text: "Resume Game".into(),
-									font: ui_fonts.mono.clone(),
-									..default()
-								},
-								material: btn_txt_mat.clone(),
+							Text3d {
+								text: "Resume Game".into(),
+								font: ui_fonts.mono.clone(),
 								..default()
 							},
+							btn_txt_mat.clone(),
 							Transform {
 								translation: Vec3::NEG_Y * 0.61,
 								..default()
@@ -180,17 +172,15 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 					),
 					(
 						Name::new("prefs_btn"),
-						CuboidPanelBundle {
-							material: MeshMaterial3d(mats.add(UiMatBuilder {
-								std: StandardMaterial {
-									base_color: Color::BLACK,
-									emissive: LinearRgba::from(TEAL) * 4.0,
-									..default()
-								},
+						CuboidPanel::default(),
+						MeshMaterial3d(mats.add(UiMatBuilder {
+							std: StandardMaterial {
+								base_color: Color::BLACK,
+								emissive: LinearRgba::from(TEAL) * 4.0,
 								..default()
-							})),
+							},
 							..default()
-						},
+						})),
 						InteractHandlers(smallvec![
 							dbg_event(),
 							on_ok(|cmds| {
@@ -217,15 +207,12 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 						#children: [
 							(
 								Name::new("prefs_btn_txt"),
-								Text3dBundle {
-									text_3d: Text3d {
-										text: "Preferences...".into(),
-										font: ui_fonts.mono.clone(),
-										..default()
-									},
-									material: btn_txt_mat.clone(),
+								Text3d {
+									text: "Preferences...".into(),
+									font: ui_fonts.mono.clone(),
 									..default()
 								},
+								btn_txt_mat.clone(),
 								Transform {
 									translation: Vec3::NEG_Y * 0.61,
 									..default()
@@ -235,17 +222,15 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 					),
 					(
 						Name::new("settings_btn"),
-						CuboidPanelBundle {
-							material: MeshMaterial3d(mats.add(UiMatBuilder {
-								std: StandardMaterial {
-									base_color: Color::BLACK,
-									emissive: LinearRgba::gray(0.5),
-									..default()
-								},
+						CuboidPanel::default(),
+						MeshMaterial3d(mats.add(UiMatBuilder {
+							std: StandardMaterial {
+								base_color: Color::BLACK,
+								emissive: LinearRgba::gray(0.5),
 								..default()
-							})),
+							},
 							..default()
-						},
+						})),
 						InteractHandlers(smallvec![
 							dbg_event(),
 							on_ok(|cmds| {
@@ -272,15 +257,12 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 						#children: [
 							(
 								Name::new("settings_btn_txt"),
-								Text3dBundle {
-									text_3d: Text3d {
-										text: "Settings...".into(),
-										font: ui_fonts.mono.clone(),
-										..default()
-									},
-									material: btn_txt_mat.clone(),
+								Text3d {
+									text: "Settings...".into(),
+									font: ui_fonts.mono.clone(),
 									..default()
 								},
+								btn_txt_mat.clone(),
 								Transform {
 									translation: Vec3::NEG_Y * 0.61,
 									..default()
@@ -290,17 +272,15 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 					),
 					(
 						Name::new("quit_btn"),
-						CuboidPanelBundle {
-							material: MeshMaterial3d(mats.add(UiMatBuilder {
-								std: StandardMaterial {
-									base_color: Color::BLACK,
-									emissive: LinearRgba::from(ORANGE_RED) * 3.0,
-									..default()
-								},
+						CuboidPanel::default(),
+						MeshMaterial3d(mats.add(UiMatBuilder {
+							std: StandardMaterial {
+								base_color: Color::BLACK,
+								emissive: LinearRgba::from(ORANGE_RED) * 3.0,
 								..default()
-							})),
+							},
 							..default()
-						},
+						})),
 						InteractHandlers(smallvec![
 							dbg_event(),
 							on_ok(|cmds| {
@@ -321,15 +301,12 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 						#children: [
 							(
 								Name::new("quit_btn_txt"),
-								Text3dBundle {
-									text_3d: Text3d {
-										text: "Quit Game".into(),
-										font: ui_fonts.mono.clone(),
-										..default()
-									},
-									material: btn_txt_mat.clone(),
+								Text3d {
+									text: "Quit Game".into(),
+									font: ui_fonts.mono.clone(),
 									..default()
 								},
+								btn_txt_mat.clone(),
 								Transform {
 									translation: Vec3::NEG_Y * 0.61,
 									..default()

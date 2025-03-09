@@ -1,3 +1,4 @@
+use crate::util::MeshOutline;
 use crate::{
 	todo_warn,
 	ui::{
@@ -9,6 +10,7 @@ use crate::{
 };
 use atomicow::CowArc;
 use bevy::render::mesh::MeshAabb;
+use bevy::render::render_resource::Face;
 use bevy::{
 	a11y::AccessibilityNode,
 	color::palettes::basic::PURPLE,
@@ -25,6 +27,7 @@ use bevy_rapier3d::parry::{
 	math::{Isometry, Vector},
 	shape::TypedShape,
 };
+use itertools::Itertools;
 use leafwing_input_manager::{action_state::ActionKindData, prelude::ActionState};
 use lyon_tessellation::{FillOptions, VertexBuffers};
 use rapier3d::parry::shape::SharedShape;
@@ -125,12 +128,6 @@ impl Default for CuboidPanel {
 			mesh_margin: default(),
 		}
 	}
-}
-
-#[derive(Bundle, Default, Debug, Clone, Reflect)]
-pub struct CuboidPanelBundle<M: Material = UiMat> {
-	pub panel: CuboidPanel,
-	pub material: MeshMaterial3d<M>,
 }
 
 impl CuboidPanel {
@@ -249,12 +246,6 @@ impl CylinderPanel {
 	}
 }
 
-#[derive(Bundle, Default, Debug, Clone, Reflect)]
-pub struct CylinderPanelBundle<M: Material = UiMat> {
-	pub panel: CylinderPanel,
-	pub material: MeshMaterial3d<M>,
-}
-
 #[derive(Debug, Default, Clone, Reflect)]
 pub struct CylinderFaces<Ends, Sides> {
 	pub top: Ends,
@@ -277,6 +268,7 @@ pub fn new_unlit_material() -> UiMat {
 		std: StandardMaterial {
 			base_color: Color::WHITE,
 			unlit: true,
+			alpha_mode: AlphaMode::Mask(0.5),
 			..default()
 		},
 		..default()
@@ -294,7 +286,9 @@ pub struct Text3d {
 	pub vertex_rotation: Quat,
 	pub vertex_scale: Vec3,
 	pub align_origin: Vec3,
+	pub color: Color,
 	pub tolerance: f32,
+	pub usages: RenderAssetUsages,
 }
 
 impl Default for Text3d {
@@ -304,25 +298,12 @@ impl Default for Text3d {
 			font: default(),
 			flat: true,
 			vertex_translation: Vec3::ZERO,
-			vertex_rotation: Quat::from_rotation_arc(Vec3::Z, Vec3::NEG_Y),
+			vertex_rotation: Quat::IDENTITY,
 			vertex_scale: Vec3::ONE,
 			align_origin: Vec3::splat(0.5),
-			tolerance: FillOptions::DEFAULT_TOLERANCE * 0.02,
-		}
-	}
-}
-
-#[derive(Bundle, Debug, Clone, Reflect)]
-pub struct Text3dBundle<M: Material = UiMat> {
-	pub text_3d: Text3d,
-	pub material: MeshMaterial3d<M>,
-}
-
-impl<M: Material> Default for Text3dBundle<M> {
-	fn default() -> Self {
-		Self {
-			text_3d: default(),
-			material: default(),
+			color: Color::WHITE,
+			tolerance: 0.002,
+			usages: default(),
 		}
 	}
 }
@@ -357,7 +338,9 @@ impl Text3d {
 				vertex_rotation,
 				vertex_scale,
 				align_origin,
+				color,
 				tolerance,
+				usages,
 			} = *this;
 
 			ak_node.set_value(&**text);
@@ -388,19 +371,19 @@ impl Text3d {
 							mut indices,
 						},
 						bbox,
-					) = r!(tessellator.tessellate(&text, &*font, tolerance, vertex_scale.xy()));
+					) = r!(tessellator.tessellate(&text, &*font, tolerance, vertex_scale.xz()));
 
 					let half_size = Vec3::new(
 						bbox.size().x * 0.5,
-						vertex_scale.z * 0.5,
+						vertex_scale.y * 0.5,
 						bbox.size().y * 0.5,
 					);
 					let center = bbox.center();
 					let origin = Vec3::new(
 						bbox.size().x * align_origin.x,
-						vertex_scale.z * (align_origin.y - 0.5),
+						vertex_scale.y * (align_origin.y - 0.5),
 						bbox.size().y * align_origin.z,
-					);
+					) - vertex_translation;
 					let shape = WidgetShape {
 						shape: SharedShape::cuboid(half_size.x, half_size.y, half_size.z),
 						isometry: Isometry::new(
@@ -411,16 +394,22 @@ impl Text3d {
 
 					let mut verts = vertices
 						.iter()
-						.map(|c| [c.x - origin.x, 0.0 - origin.y, c.y - origin.z])
+						.map(|c| {
+							let c = Vec3::new(c.x, 0.0, c.y);
+							let c = vertex_rotation * c;
+							let c = c - origin;
+							c.to_array()
+						})
 						.collect::<Vec<_>>();
 
 					if !flat {
-						let len = vertices.len();
-						verts.extend(
-							vertices.into_iter().map(|c| {
-								[c.x - origin.x, vertex_scale.z - origin.y, c.y - origin.z]
-							}),
-						);
+						let len = r!(u32::try_from(vertices.len()));
+						verts.extend(vertices.into_iter().map(|c| {
+							let c = Vec3::new(c.x, vertex_scale.y, c.y);
+							let c = vertex_rotation * c;
+							let c = c - origin;
+							c.to_array()
+						}));
 						let edges = || {
 							indices
 								.chunks(3)
@@ -429,41 +418,58 @@ impl Text3d {
 								})
 								.enumerate()
 						};
-						match u16::try_from(len) {
-							Ok(len) => {
-								let mut new_indices =
-									indices.iter().copied().map(|i| i + len).collect::<Vec<_>>();
-								for (i, edge) in edges() {
-									let mut shared = false;
-									for (j, [a, b]) in edges() {
-										if i == j {
-											continue;
-										} else if edge == [a, b] || edge == [b, a] {
-											shared = true;
-											break;
-										}
-									}
-									if !shared {
-										let [a, b] = edge;
-										let [c, d] = [a + len, b + len];
-										new_indices.extend([b, a, c, b, c, d]);
-									}
+						let mut new_indices = indices
+							.chunks(3)
+							.flat_map(|front| {
+								[front[0] + len, front[2] + len, front[1] + len]
+							})
+							.collect::<Vec<_>>();
+						for (i, edge) in edges() {
+							let mut shared = false;
+							for (j, [a, b]) in edges() {
+								if i == j {
+									continue;
+								} else if edge == [a, b] || edge == [b, a] {
+									shared = true;
+									break;
 								}
-								indices.append(&mut new_indices);
 							}
-							Err(e) => {
-								error!("Too many vertices for u16 indices: {e}");
+							if !shared {
+								let [a, b] = edge;
+								let [c, d] = [a + len, b + len];
+								new_indices.extend([b, a, c, b, c, d]);
 							}
-						};
+						}
+						indices.extend(new_indices);
 					}
-
+					
 					let len = verts.len();
-					let mut mesh = Mesh::new(TriangleList, RenderAssetUsages::RENDER_WORLD);
+					let indices = if let Ok(_) = u16::try_from(len) {
+						Indices::U16(indices.into_iter().map(|i| i as u16).collect())
+					} else {
+						if text.len() < 4 {
+							warn!("Mesh indices for short string \"{text}\" do not fit in u16. Try increasing tolerance.");
+						}
+						Indices::U32(indices)
+					};
+					
+					let mut mesh = Mesh::new(TriangleList, usages);
 					mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, verts);
-					mesh.insert_indices(Indices::U16(indices));
+					mesh.insert_indices(indices);
 					mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0.0, 0.0]; len]);
-					mesh.duplicate_vertices();
-					mesh.compute_flat_normals();
+					mesh.insert_attribute(
+						Mesh::ATTRIBUTE_COLOR,
+						vec![color.to_linear().to_f32_array(); len],
+					);
+					if !flat {
+						mesh.duplicate_vertices();
+						mesh.compute_flat_normals();
+					} else {
+						mesh.insert_attribute(
+							Mesh::ATTRIBUTE_NORMAL,
+							vec![vertex_rotation * Vec3::NEG_Y; len],
+						);
+					}
 					Some((meshes.add(mesh), shape))
 				})
 				.clone()

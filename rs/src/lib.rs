@@ -15,7 +15,7 @@ use bevy_pkv::PkvStore;
 use bevy_rapier3d::{plugin::PhysicsSet::StepSimulation, prelude::*};
 use enum_components::WithVariant;
 use particles::{ParticlesPlugin, Spewer};
-
+use tiny_bail::prelude::rq;
 pub use engine::{anim, mats, nav, offloading, planet, settings, util};
 use engine::{
 	planet::frame::Frame,
@@ -95,8 +95,51 @@ pub const UP: Vect = Vect::Z;
 // 	}
 // }
 
-pub fn game_plugin(app: &mut App) -> &mut App {
-	app.world_mut().spawn(RapierConfiguration {
+pub struct GamePlugin;
+
+impl Plugin for GamePlugin {
+	fn build(&self, app: &mut App) {
+		app.add_plugins(EnginePlugin)
+			.register_type::<Angle>()
+			.add_plugins((
+				RapierPhysicsPlugin::<()>::default().in_schedule(FixedUpdate),
+				FrameTimeDiagnosticsPlugin,
+				AudioPlugin,
+			))
+			.add_plugins((
+				ParticlesPlugin,
+				AbilitiesPlugin,
+				OffloadingPlugin,
+				SkyPlugin,
+				MatsPlugin,
+				anim::BuiltinAnimations,
+				anim::AnimationPlugin::<Spewer>::PLUGIN,
+				enemies::plugin.plugfn(),
+				player::plugin.plugfn(),
+				pickups::plugin.plugfn(),
+				settings::plugin.plugfn(),
+				planet::plugin.plugfn(),
+				ui::plugin.plugfn(),
+			))
+			.insert_resource(PkvStore::new_with_qualifier("studio", "sonday", "has"))
+			.add_systems(Startup, startup)
+			.add_systems(
+				First,
+				(shift_frame.before(planet::frame::reframe_all_entities), setup_physics),
+			)
+			.add_systems(
+				Update,
+				(terminal_velocity.before(StepSimulation), fullscreen),
+			)
+			.add_systems(PostUpdate, (despawn_oob,));
+	}
+}
+
+pub fn setup_physics(
+	mut q: Query<&mut RapierConfiguration, Added<RapierConfiguration>>,
+) {
+	let mut cfg = rq!(q.get_single_mut());
+	*cfg = RapierConfiguration {
 		gravity: Vect::new(0.0, 0.0, -9.80665),
 		// timestep_mode: TimestepMode::Interpolated {
 		// 	dt: DT,
@@ -104,42 +147,7 @@ pub fn game_plugin(app: &mut App) -> &mut App {
 		// 	substeps: 1,
 		// },
 		..RapierConfiguration::new(1.0)
-	});
-	app.add_plugins(EnginePlugin)
-		.register_type::<Angle>()
-		.add_plugins((
-			RapierPhysicsPlugin::<()>::default().in_schedule(Update),
-			FrameTimeDiagnosticsPlugin,
-			AudioPlugin,
-		))
-		.add_plugins((
-			ParticlesPlugin,
-			AbilitiesPlugin,
-			OffloadingPlugin,
-			SkyPlugin,
-			MatsPlugin,
-			anim::BuiltinAnimations,
-			anim::AnimationPlugin::<Spewer>::PLUGIN,
-			enemies::plugin.plugfn(),
-			player::plugin.plugfn(),
-			pickups::plugin.plugfn(),
-			settings::plugin.plugfn(),
-			planet::plugin.plugfn(),
-			ui::plugin.plugfn(),
-		))
-		.insert_resource(PkvStore::new_with_qualifier("studio", "sonday", "has"))
-		.add_systems(Startup, startup)
-		.add_systems(
-			First,
-			shift_frame.before(planet::frame::reframe_all_entities),
-		)
-		.add_systems(
-			Update,
-			(terminal_velocity.before(StepSimulation), fullscreen),
-		)
-		.add_systems(PostUpdate, (despawn_oob,));
-
-	app
+	};
 }
 
 /// The absolute furthest any entity can be away from the origin before being forcibly despawned.

@@ -5,7 +5,6 @@
 
 use bevy::{prelude::*, window::PresentMode};
 
-use sond_has::util::IntoFnPlugin;
 pub(crate) use sond_has::*;
 
 #[bevy_main]
@@ -29,7 +28,7 @@ pub fn main() -> AppExit {
 
 	app.add_plugins(default_plugins);
 
-	app.add_plugins(game_plugin.plugfn());
+	app.add_plugins(GamePlugin);
 
 	app.run()
 }

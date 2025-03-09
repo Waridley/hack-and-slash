@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 license = "EUPL-1.2"
 default-run = "sond-has"
+rust-version = "1.83" # f32 const operations
 
 [workspace]
 resolver = "2"
@@ -153,11 +154,6 @@ opt-level = "z"
 lto = "thin"
 strip = true
 
-[lints.clippy]
-needless_update = "allow" # `..default()` used a lot to allow quick adding/removing of fields
-too_many_arguments = "allow" # Systems often need lots of arguments
-type_complexity = "allow" # Queries seem complex to Clippy but are usually easily read
-
 # Helps prevent full rebuild when switching between deskop and WASM due to rustflags
 [profile.desktop]
 inherits = "dev"
@@ -179,3 +175,8 @@ split-debuginfo = "packed"
 # Prevents full rebuild just for profiling when enabling and disabling `bevy/trace_tracy`
 [profile.profiling]
 inherits = "desktop-release"
+
+[lints.clippy]
+needless_update = "allow" # `..default()` used a lot to allow quick adding/removing of fields
+too_many_arguments = "allow" # Systems often need lots of arguments
+type_complexity = "allow" # Queries seem complex to Clippy but are usually easily read
