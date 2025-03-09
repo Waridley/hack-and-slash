@@ -289,12 +289,12 @@
         		({ "MouseScrollAxis": (axis: Y, processors: []) }): "ui/Kenney/input-prompts/Keyboard & Mouse/Vector/mouse_scroll_vertical_outline.svg",
         		({ "MouseScrollAxis": (axis: X, processors: []) }): "ui/Kenney/input-prompts/Keyboard & Mouse/Vector/mouse_scroll.svg", // TODO: Horizontal wheel icons
 
-        		({ "GamepadAxis": LeftStickX }): "ui/input-prompts/Nintendo Switch/Vector/switch_stick_l_horizontal.svg",
-                ({ "GamepadAxis": LeftStickY }): "ui/input-prompts/Nintendo Switch/Vector/switch_stick_l_vertical.svg",
-                ({ "GamepadAxis": LeftZ }): "ui/input-prompts/Nintendo Switch/Vector/switch_sick_side_l.svg",
-                ({ "GamepadAxis": RightStickX }): "ui/input-prompts/Nintendo Switch/Vector/switch_stick_r_horizontal.svg",
-                ({ "GamepadAxis": RightStickY }): "ui/input-prompts/Nintendo Switch/Vector/switch_stick_r_vertical.svg",
-                ({ "GamepadAxis": RightZ }): "ui/input-prompts/Nintendo Switch/Vector/switch_stick_side_r.svg",
+        		({ "GamepadAxis": LeftStickX }): "ui/Kenney/input-prompts/Nintendo Switch/Vector/switch_stick_l_horizontal.svg",
+                ({ "GamepadAxis": LeftStickY }): "ui/Kenney/input-prompts/Nintendo Switch/Vector/switch_stick_l_vertical.svg",
+                ({ "GamepadAxis": LeftZ }): "ui/Kenney/input-prompts/Nintendo Switch/Vector/switch_sick_side_l.svg",
+                ({ "GamepadAxis": RightStickX }): "ui/Kenney/input-prompts/Nintendo Switch/Vector/switch_stick_r_horizontal.svg",
+                ({ "GamepadAxis": RightStickY }): "ui/Kenney/input-prompts/Nintendo Switch/Vector/switch_stick_r_vertical.svg",
+                ({ "GamepadAxis": RightZ }): "ui/Kenney/input-prompts/Nintendo Switch/Vector/switch_stick_side_r.svg",
 
         		({ "GamepadAxis": LeftStickX }, PlayStation): "ui/Kenney/input-prompts/PlayStation Series/Vector/playstation_stick_l_horizontal.svg",
                 ({ "GamepadAxis": LeftStickY }, PlayStation): "ui/Kenney/input-prompts/PlayStation Series/Vector/playstation_stick_l_vertical.svg",
@@ -303,19 +303,19 @@
                 ({ "GamepadAxis": RightStickY }, PlayStation): "ui/Kenney/input-prompts/PlayStation Series/Vector/playstation_stick_r_vertical.svg",
                 ({ "GamepadAxis": RightZ }, PlayStation): "ui/Kenney/input-prompts/PlayStation Series/Vector/playstation_stick_side_r.svg",
 
-        		({ "GamepadAxis": LeftStickX }, SteamController): "ui/input-prompts/Steam Controller/Vector/steam_stick_horizontal.svg",
-                ({ "GamepadAxis": LeftStickY }, SteamController): "ui/input-prompts/Steam Controller/Vector/steam_stick_vertical.svg",
-                ({ "GamepadAxis": LeftZ }, SteamController): "ui/input-prompts/Steam Controller/Vector/steam_sick_side.svg",
-                ({ "GamepadAxis": RightStickX }, SteamController): "ui/input-prompts/Steam Controller/Vector/steam_stick_horizontal.svg",
-                ({ "GamepadAxis": RightStickY }, SteamController): "ui/input-prompts/Steam Controller/Vector/steam_stick_vertical.svg",
-                ({ "GamepadAxis": RightZ }, SteamController): "ui/input-prompts/Steam Controller/Vector/steam_stick_side.svg",
+        		({ "GamepadAxis": LeftStickX }, SteamController): "ui/Kenney/input-prompts/Steam Controller/Vector/steam_stick_horizontal.svg",
+                ({ "GamepadAxis": LeftStickY }, SteamController): "ui/Kenney/input-prompts/Steam Controller/Vector/steam_stick_vertical.svg",
+                ({ "GamepadAxis": LeftZ }, SteamController): "ui/Kenney/input-prompts/Steam Controller/Vector/steam_sick_side.svg",
+                ({ "GamepadAxis": RightStickX }, SteamController): "ui/Kenney/input-prompts/Steam Controller/Vector/steam_stick_horizontal.svg",
+                ({ "GamepadAxis": RightStickY }, SteamController): "ui/Kenney/input-prompts/Steam Controller/Vector/steam_stick_vertical.svg",
+                ({ "GamepadAxis": RightZ }, SteamController): "ui/Kenney/input-prompts/Steam Controller/Vector/steam_stick_side.svg",
 
-        		({ "GamepadAxis": LeftStickX }, SteamDeck): "ui/input-prompts/Steam Dec/Vector/steamdeck_stick_l_horizontal.svg",
-                ({ "GamepadAxis": LeftStickY }, SteamDeck): "ui/input-prompts/Steam Dec/Vector/steamdeck_stick_l_vertical.svg",
-                ({ "GamepadAxis": LeftZ }, SteamDeck): "ui/input-prompts/Steam Dec/Vector/steamdeck_sick_side_l.svg",
-                ({ "GamepadAxis": RightStickX }, SteamDeck): "ui/input-prompts/Steam Dec/Vector/steamdeck_stick_r_horizontal.svg",
-                ({ "GamepadAxis": RightStickY }, SteamDeck): "ui/input-prompts/Steam Dec/Vector/steamdeck_stick_r_vertical.svg",
-                ({ "GamepadAxis": RightZ }, SteamDeck): "ui/input-prompts/Steam Dec/Vector/steamdeck_stick_side_r.svg",
+        		({ "GamepadAxis": LeftStickX }, SteamDeck): "ui/Kenney/input-prompts/Steam Dec/Vector/steamdeck_stick_l_horizontal.svg",
+                ({ "GamepadAxis": LeftStickY }, SteamDeck): "ui/Kenney/input-prompts/Steam Dec/Vector/steamdeck_stick_l_vertical.svg",
+                ({ "GamepadAxis": LeftZ }, SteamDeck): "ui/Kenney/input-prompts/Steam Dec/Vector/steamdeck_sick_side_l.svg",
+                ({ "GamepadAxis": RightStickX }, SteamDeck): "ui/Kenney/input-prompts/Steam Dec/Vector/steamdeck_stick_r_horizontal.svg",
+                ({ "GamepadAxis": RightStickY }, SteamDeck): "ui/Kenney/input-prompts/Steam Dec/Vector/steamdeck_stick_r_vertical.svg",
+                ({ "GamepadAxis": RightZ }, SteamDeck): "ui/Kenney/input-prompts/Steam Dec/Vector/steamdeck_stick_side_r.svg",
 
         		({ "GamepadAxis": LeftStickX }, Xbox): "ui/Kenney/input-prompts/Xbox Series/Vector/xbox_stick_l_horizontal.svg",
                 ({ "GamepadAxis": LeftStickY }, Xbox): "ui/Kenney/input-prompts/Xbox Series/Vector/xbox_stick_l_vertical.svg",
@@ -330,9 +330,6 @@
 
         		({ "GamepadStick": (x: LeftStickX, y: LeftStickY, processors: []) }): "ui/Kenney/input-prompts/Nintendo Switch/Vector/switch_stick_l.svg",
         		({ "GamepadStick": (x: RightStickX, y: RightStickY, processors: []) }): "ui/Kenney/input-prompts/Nintendo Switch/Vector/switch_stick_r.svg",
-
-        		({ "GamepadStick": (x: LeftStickX, y: LeftStickY, processors: []) }, Nintendo): "ui/Kenney/input-prompts/Nintendo Switch/Vector/switch_stick_l.svg",
-                ({ "GamepadStick": (x: RightStickX, y: RightStickY, processors: []) }, Nintendo): "ui/Kenney/input-prompts/Nintendo Switch/Vector/switch_stick_r.svg",
 
         		({ "GamepadStick": (x: LeftStickX, y: LeftStickY, processors: []) }, PlayStation): "ui/Kenney/input-prompts/PlayStation Series/Vector/playstation_stick_l.svg",
                 ({ "GamepadStick": (x: RightStickX, y: RightStickY, processors: []) }, PlayStation): "ui/Kenney/input-prompts/PlayStation Series/Vector/playstation_stick_r.svg",

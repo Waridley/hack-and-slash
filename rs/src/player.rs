@@ -242,7 +242,7 @@ pub fn update_player_spawn_data(
 	if let Some(mut data) = data {
 		data.ship_scene = asset_server.load(ship_scene);
 		*meshes.get_mut(data.antigrav_pulse_mesh.id()).unwrap() =
-			dbg!(TorusMeshBuilder::from(antigrav_pulse_mesh)).build();
+			TorusMeshBuilder::from(antigrav_pulse_mesh).build();
 		*std_mats.get_mut(data.antigrav_pulse_mat.id()).unwrap() = antigrav_pulse_mat;
 		*meshes.get_mut(data.arm_mesh.id()).unwrap() = SphereMeshBuilder::from(arm_mesh).build();
 		*meshes.get_mut(data.arm_particle_mesh.id()).unwrap() =

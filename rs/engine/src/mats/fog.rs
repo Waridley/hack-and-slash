@@ -1,5 +1,5 @@
 use bevy::{
-	asset::Asset,
+	asset::{Asset, ReflectAsset},
 	image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor, ImageType},
 	pbr::{ExtendedMaterial, MaterialExtension},
 	prelude::*,
@@ -85,7 +85,7 @@ impl Plugin for MatterPlugin {
 }
 
 #[derive(Asset, AsBindGroup, Debug, Clone, Serialize, Deserialize, Reflect)]
-#[reflect(Default)]
+#[reflect(Default, Asset)]
 pub struct DistanceDither {
 	/// Distance from the camera at which the mesh starts to fade into the background.
 	#[uniform(100)]

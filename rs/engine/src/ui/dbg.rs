@@ -10,7 +10,7 @@ use bevy_rapier3d::{
 	prelude::{DebugRenderContext, RapierDebugRenderPlugin},
 };
 use egui_plot::{Legend, Line, Plot};
-
+use tiny_bail::prelude::r;
 use crate::{
 	planet::{day_night::DayNightCycle, weather::Weather},
 	util::{Average, History},
@@ -124,9 +124,11 @@ pub fn dbg_single_proxy<
 	mut q: Query<&mut EguiContext, With<PrimaryWindow>>,
 	type_registry: Res<AppTypeRegistry>,
 	mut ui_hovered: ResMut<UiHovered>,
-	mut single: Single<&mut T>,
+	mut single: Query<&mut T>,
 ) {
-	let mut proxy = Proxy::from(&**single);
+	let mut single = r!(single.get_single_mut());
+	
+	let mut proxy = Proxy::from(&*single);
 
 	let egui_context = q.get_single_mut();
 
@@ -150,8 +152,8 @@ pub fn dbg_single_proxy<
 		**ui_hovered |= hovered;
 	}
 
-	if proxy != **single {
-		**single = proxy.into()
+	if proxy != *single {
+		*single = proxy.into()
 	}
 }
 

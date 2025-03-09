@@ -1,13 +1,9 @@
 use crate::ui::widgets::WidgetShape;
 use ab_glyph::{Font as _, OutlineCurve::*};
 use bevy::{prelude::*, utils::HashMap};
-use lyon_tessellation::{
-	geometry_builder::simple_builder,
-	math::{Point, Vector},
-	path::builder::{NoAttributes, PathBuilder},
-	FillOptions, FillRule, FillTessellator, VertexBuffers,
-};
+use lyon_tessellation::{geometry_builder::simple_builder, math::{Point, Vector}, path::builder::{NoAttributes, PathBuilder}, BuffersBuilder, FillOptions, FillRule, FillTessellator, VertexBuffers};
 use std::borrow::Cow;
+use lyon_tessellation::geometry_builder::Positions;
 
 #[derive(Resource, Default)]
 pub struct Tessellator {
@@ -23,12 +19,15 @@ impl Tessellator {
 		Font { data }: &Font,
 		tolerance: f32,
 		scale: Vec2,
-	) -> Result<(VertexBuffers<Point, u16>, Rect), impl std::error::Error> {
+	) -> Result<(VertexBuffers<Point, u32>, Rect), impl std::error::Error> {
 		// TODO: Cache FontArc instead of creating a new one every time? Unless it's cheap.
 		let font = ab_glyph::FontArc::try_from_vec((**data).clone())?;
 		debug!(?font);
 		let mut buffers = VertexBuffers::new();
-		let mut builder = simple_builder(&mut buffers).with_inverted_winding();
+		let mut builder = BuffersBuilder::<Point, u32, Positions>::new(
+			&mut buffers,
+			Positions,
+		).with_inverted_winding();
 		let opts = FILL_OPTS.with_tolerance(tolerance);
 		let mut builder = self.fill_tessellator.builder(&opts, &mut builder);
 		let mut bbox = Rect::new(0.0, 0.0, 0.0, 0.0);

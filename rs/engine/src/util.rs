@@ -1,3 +1,6 @@
+use crate::ui::{UiMat, UiMatBuilder};
+use bevy::render::render_resource::VertexFormat;
+use bevy::utils::{HashMap, HashSet};
 use bevy::{
 	asset::{io::Reader, AssetLoader, LoadContext},
 	ecs::{
@@ -15,6 +18,7 @@ use bevy::{
 	scene::{SceneLoaderError, SceneLoaderError::RonSpannedError},
 	state::state::FreelyMutableState,
 };
+use itertools::Itertools;
 use num_traits::NumCast;
 use ron::Error::InvalidValueForType;
 use serde::{de::DeserializeSeed, Deserialize, Serialize};
@@ -29,7 +33,11 @@ use std::{
 	sync::OnceLock,
 	time::Duration,
 };
-use tiny_bail::prelude::r;
+use std::any::TypeId;
+use bevy::asset::UntypedAssetId;
+use bevy::ecs::component::ComponentId;
+use bevy::ecs::world::DeferredWorld;
+use tiny_bail::prelude::{c, r};
 
 #[inline(always)]
 pub fn quantize<const BITS: u32>(value: f32) -> f32 {
@@ -1062,35 +1070,6 @@ macro_rules! entity_tree {
 	}
 }
 
-/// SystemId's for logging components of an entity
-pub static DEBUG_COMPONENTS: OnceLock<SystemId<In<(Entity, String)>>> = OnceLock::new();
-/// Register this system and call it to print the names of all of an entity's components.
-pub fn debug_component_names(In((id, msg)): In<(Entity, String)>, world: &mut World) {
-	// Note: `inspect_entity` panics if entity does not exist. Not ideal for debugging.
-	let components = r!(world.get_entity(id))
-		.archetype()
-		.components()
-		.filter_map(|id| world.components().get_info(id))
-		.map(ComponentInfo::name)
-		.collect::<Vec<_>>();
-	debug!(target: "dbg_components", ?id, ?components, "{msg}");
-}
-
-/// [error_component_names]
-pub static ERROR_COMPONENTS: OnceLock<SystemId<In<(Entity, String)>>> = OnceLock::new();
-/// Register this system and call it to print the names of all of an entity's components.
-/// Useful when an entity unexpectedly fails to match a query.
-pub fn error_component_names(In((id, msg)): In<(Entity, String)>, world: &mut World) {
-	// Note: `inspect_entity` panics if entity does not exist. Not ideal for debugging.
-	let components = r!(world.get_entity(id))
-		.archetype()
-		.components()
-		.filter_map(|id| world.components().get_info(id))
-		.map(ComponentInfo::name)
-		.collect::<Vec<_>>();
-	error!(?components, "{msg}");
-}
-
 #[macro_export]
 macro_rules! todo_warn {
 	() => {
@@ -1224,5 +1203,539 @@ impl<T: Into<Mesh>> Flat for T {
 		self.into()
 			.with_duplicated_vertices()
 			.with_computed_flat_normals()
+	}
+}
+
+#[derive(Component, Debug, Clone, Copy, Reflect)]
+#[require(Transform, Visibility)]
+pub struct MeshOutline {
+	pub color: Color,
+	pub offset: Vec3,
+	pub thickness: Vec3,
+	pub invert_faces: bool,
+}
+
+impl Default for MeshOutline {
+	fn default() -> Self {
+		Self {
+			color: Color::BLACK,
+			offset: Vec3::ZERO,
+			thickness: Vec3::splat(0.05),
+			invert_faces: true,
+		}
+	}
+}
+
+impl MeshOutline {
+	pub fn default_material() -> UiMat {
+		UiMatBuilder {
+			std: StandardMaterial {
+				// base_color: Color::BLACK,
+				unlit: true,
+				..default()
+			},
+			..default()
+		}
+		.build()
+	}
+
+	pub const fn from_thickness(thickness: f32) -> Self {
+		Self {
+			color: Color::BLACK,
+			offset: Vec3::ZERO,
+			thickness: Vec3::splat(thickness),
+			invert_faces: true,
+		}
+	}
+
+	pub const fn facing(direction: Dir3, thickness: f32, distance_behind_front: f32) -> Self {
+		let direction = direction.as_vec3();
+		Self {
+			color: Color::BLACK,
+			offset: Vec3 {
+				x: direction.x  * -(thickness + distance_behind_front),
+				y: direction.y  * -(thickness + distance_behind_front),
+				z: direction.z  * -(thickness + distance_behind_front),
+			},
+			thickness: Vec3::splat(thickness),
+			invert_faces: false,
+		}
+	}
+
+	pub const fn front_facing(thickness: f32, distance_behind_front: f32) -> Self {
+		Self::facing(Dir3::NEG_Y, thickness, distance_behind_front)
+	}
+
+	pub fn sync(
+		mut cmds: Commands,
+		parents: Query<Ref<Mesh3d>>,
+		outlines: Query<(Entity, Ref<Self>, &Parent, Has<Mesh3d>)>,
+		mut meshes: ResMut<Assets<Mesh>>,
+		mut events: EventReader<AssetEvent<Mesh>>,
+	) {
+		let changed_meshes = events
+			.read()
+			.filter_map(|ev| match ev {
+				AssetEvent::Modified { id } => Some(*id),
+				_ => None,
+			})
+			.collect::<HashSet<_>>();
+
+		for (id, this, parent, has_mesh) in &outlines {
+			let parent_mesh = match parents.get(parent.get()) {
+				Ok(parent_mesh) => parent_mesh,
+				Err(e) => {
+					error!(?id, "couldn't get parent: {e}");
+					continue;
+				}
+			};
+			if parent_mesh.is_changed()
+				|| this.is_changed()
+				|| !has_mesh || changed_meshes.contains(&parent_mesh.id())
+			{
+				let Some(parent_mesh) = meshes.get(parent_mesh.id()) else {
+					error!(?parent_mesh, "couldn't get parent mesh");
+					continue;
+				};
+				let outline_mesh = this.generate_for(parent_mesh);
+				let outline_mesh = meshes.add(outline_mesh);
+				cmds.entity(id).insert(Mesh3d(outline_mesh));
+			}
+		}
+	}
+
+	pub fn generate_for(&self, mesh: &Mesh) -> Mesh {
+		let mut mesh = mesh.clone();
+		deduplicate_vertices(&mut mesh, f32::EPSILON);
+
+		let positions = mesh
+			.attribute(Mesh::ATTRIBUTE_POSITION)
+			.unwrap()
+			.as_float3()
+			.unwrap();
+
+		let Some(indices) = mesh.indices() else {
+			error!("was unable to deduplicate vertices");
+			return mesh;
+		};
+
+		let mut edge_share_counts = HashMap::<(usize, usize), usize>::new();
+		for mut tri in indices.iter().chunks(3).into_iter() {
+			let [a, b, c] = [tri.next().unwrap(), tri.next().unwrap(), tri.next().unwrap()];
+			// Sort for deterministic keys since order doesn't matter
+			let ab = if a > b { (b, a) } else { (a, b) };
+			let bc = if b > c { (c, b) } else { (b, c) };
+			let ca = if c > a { (a, c) } else { (c, a) };
+			*edge_share_counts.entry(ab).or_insert(0) += 1;
+			*edge_share_counts.entry(bc).or_insert(0) += 1;
+			*edge_share_counts.entry(ca).or_insert(0) += 1;
+		}
+		let mut watertight = true;
+		let mut fin_found = false;
+		for &count in edge_share_counts.values() {
+			match count {
+				0 => unreachable!(),
+				1 => watertight = false,
+				2 => (),
+				_ => fin_found = true,
+			}
+		}
+		
+		if fin_found {
+			warn!("Mesh has fins, outline will likely be messy");
+		}
+		
+		if !watertight {
+			// Mesh is likely just flat. We could warn here and have a specific option to solidify the
+			// mesh, but currently I think auto-solidifying is the most useful option.
+			
+			let mut indices = indices.iter().collect::<Vec<_>>();
+			let normals = mesh.attribute(Mesh::ATTRIBUTE_NORMAL).unwrap().as_float3().unwrap();
+			let len = positions.len();
+			let (mut front_verts, back_verts): (Vec<_>, Vec<_>) = positions.into_iter().enumerate().map(|(i, pos)| {
+				let pos = Vec3::from_array(*pos);
+				let norm = Vec3::from_array(normals[i]);
+				((pos + norm).to_array(), (pos - norm).to_array())
+			}).unzip();
+			front_verts.extend(back_verts.into_iter());
+			let mut verts = front_verts;
+			
+			let mut new_indices = indices
+				.chunks_exact(3)
+				.flat_map(|front| {
+					[front[0] + len, front[2] + len, front[1] + len]
+				})
+				.collect::<Vec<_>>();
+			
+			for mut tri in indices.chunks_exact(3) {
+				let [a, b, c] = [tri[0], tri[1], tri[2]];
+				// Sort for deterministic keys since order doesn't matter
+				let ab = if a > b { (b, a) } else { (a, b) };
+				let bc = if b > c { (c, b) } else { (b, c) };
+				let ca = if c > a { (a, c) } else { (c, a) };
+				
+				let mut add_side = |a, b| {
+					let (c, d) = (a + len, b + len);
+					new_indices.extend([b, a, c, b, c, d]);
+				};
+				
+				if edge_share_counts[&ab] == 1 {
+					add_side(a, b);
+				}
+				if edge_share_counts[&bc] == 1 {
+					add_side(b, c);
+				}
+				if edge_share_counts[&ca] == 1 {
+					add_side(c, a);
+				}
+			}
+			let front_indices_len = indices.len();
+			indices.extend(new_indices);
+			
+			let indices = if let Ok(_) = u16::try_from(len) {
+				Indices::U16(indices.into_iter().map(|i| i as u16).collect())
+			} else {
+				Indices::U32(indices.into_iter().map(|i| i as u32).collect())
+			};
+			
+			let mut normals = geometric_normals_impl(&verts, &indices);
+			
+			debug_assert_eq!(verts.len() % 2, 0, "we doubled the length by extending from back_verts");
+			
+			if self.invert_faces {
+				// Normals are now correct, but we don't want to keep the solidified positions before applying offset.
+				let (front_verts, back_verts) = verts.split_at_mut(len);
+				front_verts.clone_from_slice(positions);
+				back_verts.clone_from_slice(positions);
+				mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, verts);
+				mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+				mesh.insert_indices(indices);
+			} else {
+				// Solidified mesh was needed for normal caculation, but not for final outline
+				verts.truncate(len);
+				verts.clone_from_slice(positions);
+				normals.truncate(len);
+				let indices = match indices {
+					Indices::U16(mut indices) => {
+						indices.truncate(front_indices_len);
+						Indices::U16(indices)
+					},
+					Indices::U32(mut indices) => {
+						indices.truncate(front_indices_len);
+						Indices::U32(indices)
+					},
+				};
+				mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, verts);
+				mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+				mesh.insert_indices(indices);
+			}
+		}
+		
+		// Have to re-get these because they may have changed in solidify above
+		let positions = mesh
+			.attribute(Mesh::ATTRIBUTE_POSITION)
+			.unwrap()
+			.as_float3()
+			.unwrap();
+		let indices = mesh.indices().unwrap();
+		
+		// The unnormalized normal directions of all triangles before moving vertices.
+		// In small inside radiuses, verts can end up crossing each other and flipping the
+		// orientation of faces. We simply detect when this happens and flip them back.
+		let scaled_face_normals = indices
+			.iter()
+			.chunks(3)
+			.into_iter()
+			.map(|mut tri| {
+				let a = Vec3::from_array(positions[tri.next().unwrap()]);
+				let b = Vec3::from_array(positions[tri.next().unwrap()]);
+				let c = Vec3::from_array(positions[tri.next().unwrap()]);
+				let ab = b - a;
+				let ac = c - a;
+				// No need to normalize just to compare direction. Actually makes it more precise.
+				ab.cross(ac)
+			})
+			.collect::<Vec<_>>();
+
+		let Some(VertexAttributeValues::Float32x3(normals)) =
+			mesh.attribute_mut(Mesh::ATTRIBUTE_NORMAL)
+		else {
+			unreachable!("normals were just computed");
+		};
+
+		let offsets = normals
+			.iter_mut()
+			.map(|norm| {
+				let n = Vec3::from_array(*norm);
+				if self.invert_faces {
+					*norm = (-n).to_array();
+				}
+				(n * self.thickness) + self.offset
+			})
+			.collect::<Vec<_>>();
+
+		let Some(VertexAttributeValues::Float32x3(positions)) =
+			mesh.attribute_mut(Mesh::ATTRIBUTE_POSITION)
+		else {
+			unreachable!();
+		};
+		let len = positions.len();
+
+		for (pos, offset) in positions.iter_mut().zip(offsets.into_iter()) {
+			*pos = (Vec3::from_array(*pos) + offset).to_array()
+		}
+
+		let positions = positions
+			.iter()
+			.copied()
+			.map(Vec3::from_array)
+			.collect::<Vec<_>>();
+
+		macro_rules! invert_windings {
+			($indices:ident) => {
+				for (i, tri) in $indices.chunks_exact_mut(3).enumerate() {
+					let a = positions[tri[0] as usize];
+					let b = positions[tri[1] as usize];
+					let c = positions[tri[2] as usize];
+					let ab = b - a;
+					let ac = c - a;
+					let prev_norm = scaled_face_normals[i];
+					let norm = ab.cross(ac);
+					let translation_flipped_face = prev_norm.dot(norm) >= 0.0;
+					if !(self.invert_faces ^ translation_flipped_face) {
+						tri.swap(0, 2)
+					}
+				}
+			};
+		}
+
+		match mesh.indices_mut().unwrap() {
+			Indices::U16(indices) => invert_windings!(indices),
+			Indices::U32(indices) => invert_windings!(indices),
+		}
+
+		let colors = vec![self.color.to_linear().to_f32_array(); len];
+		mesh.with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, colors)
+	}
+}
+
+pub fn deduplicate_vertices(mesh: &mut Mesh, max_diff: f32) {
+	if mesh.primitive_topology() != PrimitiveTopology::TriangleList {
+		error!(
+			"Can't merge vertices of topology {:?}",
+			mesh.primitive_topology()
+		);
+		return;
+	}
+	if mesh.indices().is_some() {
+		debug!("Mesh is already merged");
+		return;
+	}
+
+	let unmerged = match mesh.attribute(Mesh::ATTRIBUTE_POSITION) {
+		Some(VertexAttributeValues::Float32x3(positions)) => positions
+			.iter()
+			.map(|pos| Vec3::from_array(*pos))
+			.collect::<Vec<_>>(),
+		Some(other) => {
+			error!(
+				"Expected {:?}, got {:?}",
+				Mesh::ATTRIBUTE_POSITION,
+				VertexFormat::from(other)
+			);
+			return;
+		}
+		None => {
+			error!("Mesh is missing positions");
+			return;
+		}
+	};
+
+	let mut new_verts = Vec::<&Vec3>::new();
+	let mut retain = vec![true; unmerged.len()];
+	let mut indices = Indices::U16(Vec::with_capacity(unmerged.len()));
+
+	for (i, orig) in unmerged.iter().enumerate() {
+		let earlier = new_verts
+			.iter()
+			.copied()
+			.enumerate()
+			.find_map(|(i, earlier)| orig.abs_diff_eq(*earlier, max_diff).then_some(i));
+
+		let i = if let Some(earlier) = earlier {
+			retain[i] = false;
+			earlier
+		} else {
+			let new_i = new_verts.len();
+			new_verts.push(orig);
+			new_i
+		} as u32;
+		indices.push(i);
+	}
+	debug_assert_eq!(indices.len(), unmerged.len());
+
+	let new_verts = new_verts.into_iter().map(Vec3::to_array).collect();
+
+	let had_tangents = mesh.remove_attribute(Mesh::ATTRIBUTE_TANGENT).is_some();
+
+	for (_, values) in mesh.attributes_mut() {
+		let mut i = 0;
+		macro_rules! retain_values {
+			($values:ident) => {
+				$values.retain(|_| {
+					let retain = retain[i];
+					i += 1;
+					retain
+				})
+			};
+		}
+		match values {
+			VertexAttributeValues::Float32(values) => retain_values!(values),
+			VertexAttributeValues::Sint32(values) => retain_values!(values),
+			VertexAttributeValues::Uint32(values) => retain_values!(values),
+			VertexAttributeValues::Float32x2(values) => retain_values!(values),
+			VertexAttributeValues::Sint32x2(values) => retain_values!(values),
+			VertexAttributeValues::Uint32x2(values) => retain_values!(values),
+			VertexAttributeValues::Float32x3(values) => retain_values!(values),
+			VertexAttributeValues::Sint32x3(values) => retain_values!(values),
+			VertexAttributeValues::Uint32x3(values) => retain_values!(values),
+			VertexAttributeValues::Float32x4(values) => retain_values!(values),
+			VertexAttributeValues::Sint32x4(values) => retain_values!(values),
+			VertexAttributeValues::Uint32x4(values) => retain_values!(values),
+			VertexAttributeValues::Sint16x2(values) => retain_values!(values),
+			VertexAttributeValues::Snorm16x2(values) => retain_values!(values),
+			VertexAttributeValues::Uint16x2(values) => retain_values!(values),
+			VertexAttributeValues::Unorm16x2(values) => retain_values!(values),
+			VertexAttributeValues::Sint16x4(values) => retain_values!(values),
+			VertexAttributeValues::Snorm16x4(values) => retain_values!(values),
+			VertexAttributeValues::Uint16x4(values) => retain_values!(values),
+			VertexAttributeValues::Unorm16x4(values) => retain_values!(values),
+			VertexAttributeValues::Sint8x2(values) => retain_values!(values),
+			VertexAttributeValues::Snorm8x2(values) => retain_values!(values),
+			VertexAttributeValues::Uint8x2(values) => retain_values!(values),
+			VertexAttributeValues::Unorm8x2(values) => retain_values!(values),
+			VertexAttributeValues::Sint8x4(values) => retain_values!(values),
+			VertexAttributeValues::Snorm8x4(values) => retain_values!(values),
+			VertexAttributeValues::Uint8x4(values) => retain_values!(values),
+			VertexAttributeValues::Unorm8x4(values) => retain_values!(values),
+		}
+	}
+	mesh.insert_attribute(
+		Mesh::ATTRIBUTE_POSITION,
+		VertexAttributeValues::Float32x3(new_verts),
+	);
+	mesh.insert_indices(indices);
+	compute_geometric_normals(mesh);
+	if had_tangents {
+		if let Err(e) = mesh.generate_tangents() {
+			error!("{e}");
+		}
+	}
+}
+
+/// Like `Mesh::compute_smooth_normals` but does not let multiple co-planar triangles influence
+/// the normal of a vertex disproportionately.
+pub fn compute_geometric_normals(mesh: &mut Mesh) {
+	let Some(VertexAttributeValues::Float32x3(positions)) =
+		mesh.attribute(Mesh::ATTRIBUTE_POSITION)
+	else {
+		unreachable!();
+	};
+	let Some(indices) = mesh.indices() else {
+		error!("Mesh is not indexed");
+		return;
+	};
+	let normals = geometric_normals_impl(positions, indices);
+	mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+}
+
+fn geometric_normals_impl(positions: &[[f32; 3]], indices: &Indices) -> Vec<Vec3> {
+	let mut normals = vec![Vec3::ZERO; positions.len()];
+	
+	for mut tri in &indices.iter().chunks(3) {
+		let [a, b, c] = [
+			tri.next().unwrap(),
+			tri.next().unwrap(),
+			tri.next().unwrap(),
+		];
+		let pa = Vec3::from(positions[a]);
+		let pb = Vec3::from(positions[b]);
+		let pc = Vec3::from(positions[c]);
+		let norm = Triangle3d::new(pa, pb, pc)
+			.normal()
+			.as_ref()
+			.map(Dir3::as_vec3)
+			.unwrap_or(Vec3::ZERO);
+		
+		let wa = (pb - pa).angle_between(pc - pa);
+		let wb = (pa - pb).angle_between(pc - pb);
+		let wc = (pa - pc).angle_between(pb - pc);
+		
+		normals[a] += norm * wa;
+		normals[b] += norm * wb;
+		normals[c] += norm * wc;
+	}
+	
+	normals.iter_mut().for_each(|n| *n = n.normalize_or_zero());
+	normals
+}
+
+#[derive(Component, Debug, Clone)]
+#[component(on_insert = Self::on_insert)]
+pub struct PendingErasedAsset(pub UntypedHandle);
+
+impl PendingErasedAsset {
+	pub fn on_insert(mut world: DeferredWorld, entity: Entity, _id: ComponentId) {
+		let this = world.get::<Self>(entity).unwrap();
+		let handle = this.0.clone();
+		let mut downcasters = world.resource_mut::<ErasedAssetDowncasters>();
+		let ty = handle.type_id();
+		let mut downcaster = if let Some(mut replacer) = downcasters.0.remove(&ty) {
+			replacer
+		} else {
+			error!("Missing downcaster for {handle:?}");
+			return
+		};
+		let mut cmds = world.commands();
+		let cmds = cmds.entity(entity);
+		downcaster(cmds, handle);
+		let mut downcasters = world.resource_mut::<ErasedAssetDowncasters>();
+		downcasters.0.insert(ty, downcaster);
+	}
+}
+
+pub type ErasedAssetDowncaster = Box<dyn FnMut(EntityCommands, UntypedHandle) + Send + Sync>;
+
+#[derive(Resource, Default)]
+pub struct ErasedAssetDowncasters(HashMap<TypeId, ErasedAssetDowncaster>);
+
+impl ErasedAssetDowncasters {
+	pub fn register<A: Asset>(&mut self, replacer: impl FnMut(EntityCommands, UntypedHandle) + Send + Sync + 'static) {
+		if let Err(e) = self.0.try_insert(TypeId::of::<A>(), Box::new(replacer)) {
+			panic!("Replacer already registered for {}", A::type_path());
+		}
+	}
+}
+
+pub trait RegisterUntypedAssetDowncaster {
+	fn register_untyped_asset_downcaster<A: Asset>(&mut self, replacer: impl FnMut(EntityCommands, UntypedHandle) + Send + Sync + 'static) -> &mut Self;
+}
+
+impl RegisterUntypedAssetDowncaster for App {
+	fn register_untyped_asset_downcaster<A: Asset>(&mut self, replacer: impl FnMut(EntityCommands, UntypedHandle) + Send + Sync + 'static) -> &mut Self {
+		let mut replacers = self.world_mut().get_resource_or_init::<ErasedAssetDowncasters>();
+		replacers.register::<A>(replacer);
+		self
+	}
+}
+
+pub fn downcast_material<M: Material>(
+	mut cmds: EntityCommands,
+	handle: UntypedHandle,
+) {
+	if let Ok(typed) = handle.try_typed::<M>() {
+		cmds
+			.remove::<PendingErasedAsset>()
+			.insert(MeshMaterial3d(typed));
 	}
 }

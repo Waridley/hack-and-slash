@@ -4,10 +4,11 @@ use engine::{
 	ui::{
 		layout::ExpandToFitChildren,
 		text::UiFonts,
-		widgets::{new_unlit_material, CuboidPanelBundle, Text3d, Text3dBundle},
+		widgets::{new_unlit_material, Text3d},
 		Fade, MenuStack, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
 	},
 };
+use engine::ui::widgets::CuboidPanel;
 
 pub struct PrefsMenuPlugin;
 
@@ -21,10 +22,8 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, fonts: Res<UiF
 	entity_tree!(cmds; (
 		Name::new("PrefsMenu"),
 		PrefsMenu,
-		CuboidPanelBundle {
-			material: MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(PURPLE)))),
-			..default()
-		},
+		CuboidPanel::default(),
+		MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(PURPLE)))),
 		Transform {
 			translation: Vec3::new(0.0, -32.0, 24.0),
 			..default()
@@ -38,15 +37,12 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, fonts: Res<UiF
 		;
 		#children: [
 			(
-				Text3dBundle {
-					text_3d: Text3d {
-						text: "Player Preferences".into(),
-						font: fonts.mono.clone(),
-						..default()
-					},
-					material: MeshMaterial3d(mats.add(new_unlit_material())),
+				Text3d {
+					text: "Player Preferences".into(),
+					font: fonts.mono.clone(),
 					..default()
-				}
+				},
+				MeshMaterial3d(mats.add(new_unlit_material())),
 			)
 		]
 	));

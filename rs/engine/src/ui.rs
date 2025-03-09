@@ -11,8 +11,8 @@ use crate::{
 		focus::{AdjacentWidgets, FocusTarget},
 		layout::LineUpChildren,
 		widgets::{
-			draw_widget_shape_gizmos, CuboidFaces, CuboidPanel, CuboidPanelBundle, Text3d,
-			Text3dBundle, WidgetShape,
+			draw_widget_shape_gizmos, CuboidFaces, CuboidPanel, Text3d,
+			WidgetShape,
 		},
 	},
 	util::{Diff, LerpSlerp, StateStack},
@@ -44,6 +44,7 @@ use std::{
 	fmt::Formatter,
 	ops::{Add, ControlFlow::Break, Mul},
 };
+use bevy::utils::{HashMap, HashSet};
 
 pub mod a11y;
 #[cfg(feature = "debugging")]
@@ -65,6 +66,8 @@ impl Plugin for UiPlugin {
 	fn build(&self, app: &mut App) {
 		#[cfg(feature = "debugging")]
 		app.add_plugins(dbg::DebugUiPlugin)
+			.register_asset_reflect::<UiMat>()
+			.register_untyped_asset_downcaster::<UiMat>(downcast_material::<UiMat>)
 			.add_systems(PreUpdate, spawn_test_menu)
 			.add_systems(Update, toggle_test_menu)
 			.add_systems(
@@ -141,7 +144,7 @@ impl Plugin for UiPlugin {
 				anchor_follow_menu,
 				CuboidPanel::sync_mesh,
 				CylinderPanel::sync_mesh,
-				Text3d::sync_mesh,
+				Text3d::sync_mesh.before(crate::util::MeshOutline::sync),
 			),
 		);
 	}
@@ -222,8 +225,7 @@ pub fn spawn_ui_camera<ID: Bundle + Clone>(
 				),
 				..default()
 			},
-			TemporalAntiAliasing::default(),
-			Fxaa::default(),
+			Msaa::Sample4,
 			layers.clone(),
 		));
 
@@ -712,6 +714,7 @@ use bevy_inspector_egui::{
 use layout::ExpandToFitChildren;
 use text::{TextMeshCache, UiFonts};
 use web_time::Duration;
+use crate::util::{downcast_material, RegisterUntypedAssetDowncaster};
 
 /// Component that starts a new branch of a tree of entities that can be
 /// faded in an out together.
@@ -790,22 +793,23 @@ pub fn propagate_fade<M: Material + AsMut<DitherFade>>(
 	roots: Query<(Entity, Ref<Fade>)>,
 	children_q: Query<&Children>,
 	mut mats: ResMut<Assets<M>>,
+	mut to_set: Local<HashMap<AssetId<M>, f32>>,
 ) {
 	for (root, fade) in &roots {
 		if !fade.is_changed() {
 			continue;
 		}
-
-		let mut set_fade = |handle: &Handle<M>| {
-			let Some(mat) = mats.get_mut(handle) else {
-				warn!("missing {handle:?}");
-				return;
-			};
-			mat.as_mut().fade = **fade;
+		
+		let mut defer = |id| {
+			if let Err(e) = to_set.try_insert(id, **fade) {
+				if cfg!(debug_assertions) && e.value != **fade {
+					error!("Separate `Fade` tree branches are sharing a material");
+				}
+			}
 		};
 
 		if let Ok(mat) = q.get(root) {
-			set_fade(&mat.0)
+			defer(mat.id())
 		}
 
 		let Ok(children) = children_q.get(root) else {
@@ -825,7 +829,7 @@ pub fn propagate_fade<M: Material + AsMut<DitherFade>>(
 				break;
 			};
 			if let Ok(mat) = q.get(child) {
-				set_fade(mat);
+				defer(mat.id())
 			}
 			if let Ok(children) = children_q.get(child) {
 				queue.extend(
@@ -836,6 +840,14 @@ pub fn propagate_fade<M: Material + AsMut<DitherFade>>(
 				);
 			}
 		}
+	}
+	
+	for (id, fade) in to_set.drain() {
+		let Some(mat) = mats.get_mut(id) else {
+			warn!("missing {id:?}");
+			return;
+		};
+		mat.as_mut().fade = fade;
 	}
 }
 
@@ -944,7 +956,10 @@ impl Default for UiMatBuilder {
 			far_end,
 			near_start,
 			near_end,
-			std: default(),
+			std: StandardMaterial {
+				alpha_mode: AlphaMode::Mask(0.5),
+				..default()
+			},
 		}
 	}
 }
@@ -1013,6 +1028,10 @@ fn spawn_test_menu(
 	let border_mat = mats.add(UiMatBuilder::default());
 	let size = Vec3::new(16.0, 16.0, 9.0);
 	let mut faces = [Entity::PLACEHOLDER; 6];
+	let text_mat = mats.add(UiMatBuilder::from(StandardMaterial {
+		..default()
+	}).build());
+	let unlit_mat = mats.add(new_unlit_material());
 	for (i, transform) in CuboidFaces::origins(size + Vec3::ONE)
 		.into_iter()
 		.enumerate()
@@ -1053,13 +1072,10 @@ fn spawn_test_menu(
 						};
 						#children:[
 							( // "Testing..." text
-								Text3dBundle::<UiMat> {
-									text_3d: Text3d {
-										text: "Testing...".into(),
-										font: ui_fonts.mono.clone(),
-										..default()
-									},
-									material: MeshMaterial3d(mats.add(new_unlit_material())),
+								Text3d {
+									text: "Testing...".into(),
+									font: ui_fonts.mono.clone(),
+									flat: false,
 									..default()
 								},
 								Transform::from_translation(Vec3::NEG_Y),
@@ -1083,15 +1099,12 @@ fn spawn_test_menu(
 								AdjacentWidgets::vertical_siblings(),
 								;
 								#children: [( // Test button text
-									Text3dBundle::<UiMat> {
-										text_3d: Text3d {
-											text: "Test button".into(),
-											font: ui_fonts.mono.clone(),
-											..default()
-										},
-										material: MeshMaterial3d(mats.add(new_unlit_material())),
+									Text3d {
+										text: "Test button".into(),
+										font: ui_fonts.mono.clone(),
 										..default()
 									},
+									MeshMaterial3d(unlit_mat.clone()),
 									Transform {
 										translation: Vec3::X,
 										rotation: Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
@@ -1109,21 +1122,18 @@ fn spawn_test_menu(
 
 	let mut test_menu = cmds.spawn((
 		Name::new("TestMenu"),
-		CuboidPanelBundle {
-			panel: CuboidPanel { size, ..default() },
-			material: MeshMaterial3d(mats.add(UiMatBuilder {
-				std: StandardMaterial {
-					base_color: Color::srgba(0.1, 0.1, 0.1, 0.8),
-					reflectance: 0.0,
-					alpha_mode: AlphaMode::Blend,
-					double_sided: true,
-					cull_mode: None,
-					..default()
-				},
+		CuboidPanel { size, ..default() },
+		MeshMaterial3d(mats.add(UiMatBuilder {
+			std: StandardMaterial {
+				base_color: Color::srgba(0.1, 0.1, 0.1, 0.8),
+				reflectance: 0.0,
+				alpha_mode: AlphaMode::Blend,
+				double_sided: true,
+				cull_mode: None,
 				..default()
-			})),
+			},
 			..default()
-		},
+		})),
 		Transform {
 			translation: Vec3::new(6900.0, 4200.0, 0.0),
 			..default()
