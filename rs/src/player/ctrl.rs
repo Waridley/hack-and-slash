@@ -170,7 +170,7 @@ pub fn reset_jump_on_ground(
 pub fn gravity(mut q: Query<(&mut CtrlVel, &CtrlState)>, params: Res<PlayerParams>, t: Res<Time>) {
 	for (mut ctrl_vel, state) in q.iter_mut() {
 		if state.bottomed_out {
-			debug!("Bottomed out, resetting gravity");
+			trace!("Bottomed out, resetting gravity");
 			// Only when actual collider is grounded, not the antigrav pulses.
 			// Let `repel_ground` handle counteracting gravity when hovering.
 			ctrl_vel.linvel.z = f32::max(ctrl_vel.linvel.z, 0.0)
@@ -311,7 +311,7 @@ pub fn move_player(
 						let angle = hit.normal1.angle_between(UP);
 						if angle < params.phys.slide_angle.rad() {
 							// Can slide up slope
-							debug!(attempt=?(8 - attempts), ?dir, ?slide_dir, ?hit.normal1, rem, toi);
+							trace!(attempt=?(8 - attempts), ?dir, ?slide_dir, ?hit.normal1, rem, toi);
 							ctrl_state.bottom_out();
 							// Let player slide like normal
 							result += dir * safe_toi;
@@ -325,10 +325,10 @@ pub fn move_player(
 							// Can't slide up slope unless we already have positive vertical velocity
 							ctrl_state.bottomed_out = false;
 
-							let already_moving_up = vel.z > BUFFER;
+							let already_moving_up = vel.z > crate::EPS;
 
 							let v_dot_norm = dir.dot(hit.normal1);
-							debug!(attempt=?(8 - attempts), ?already_moving_up, ?v_dot_norm);
+							trace!(attempt=?(8 - attempts), ?already_moving_up, ?v_dot_norm);
 							if v_dot_norm <= 0.0 {
 								// Player is moving "into" the slope
 
@@ -358,7 +358,6 @@ pub fn move_player(
 							..
 						},
 					)) => {
-						debug!("Penetrating");
 						let q = DefaultQueryDispatcher;
 						contacts.clear();
 						let pos = body_global.translation + result;
@@ -428,7 +427,8 @@ pub fn move_player(
 							// Even if individual surfaces were all too steep, getting stuck in a V should still bottom us out.
 							ctrl_state.bottom_out()
 						}
-						result += dbg!(fix);
+						trace!(?fix);
+						result += fix;
 					}
 					toi => {
 						trace!(attempt=?(8 - attempts), ?dir, rem, ?toi);

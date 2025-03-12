@@ -134,26 +134,26 @@ where
 	<Self as Sub<Self>>::Output: Mul<f32>,
 	<<Self as Sub<Self>>::Output as Mul<f32>>::Output: Add<Self, Output = Self>,
 {
-	/// Calculate the value after `dt` seconds if self is decaying towards `rhs` with exponential
+	/// Calculate the value after `dt` seconds if self is decaying towards `to` with exponential
 	/// decay constant `λ`, which is equivalent to `ln(2) / t½` where `t½` is the half-life of self.
 	#[inline(always)]
 	fn exp_decay(self, to: Self, λ: f32, dt: f32) -> Self {
-		let t = (-λ * dt).exp();
+		let t = exp_decay_factor(λ, dt);
 		((self - to.clone()) * t) + to
 	}
 	
-	/// Calculate the value after `dt` seconds if self is decaying towards `rhs` with the given
+	/// Calculate the value after `dt` seconds if self is decaying towards `to` with the given
 	/// `half_life` (`t½`) in seconds.
 	#[inline(always)]
 	fn decay(self, to: Self, half_life: f32, dt: f32) -> Self {
-		let t = (-dt / half_life).exp2();
+		let t = decay_factor(dt, half_life);
 		((self - to.clone()) * t) + to
 	}
 	
-	/// Calculate the value after `dt` seconds if self is decaying towards `rhs` with the given
+	/// Calculate the value after `dt` seconds if self is decaying towards `to` with the given
 	/// remainder after 1 second.
 	///
-	/// This could be written as `self.lerp(rhs, rem_frac_after_1s.pow(dt))`, however since
+	/// This could be written as `self.lerp(to, rem_frac_after_1s.pow(dt))`, however since
 	/// the `pow` function is significantly more expensive than `exp`, and `dt` changing every frame
 	/// theoretically makes optimizations much more difficult, this is implemented in terms of
 	/// [`exp_decay`](Self::exp_decay) instead, in hopes that `const` values for
@@ -166,6 +166,42 @@ where
 	fn frac_decay(self, to: Self, rem_frac_after_1s: f32, dt: f32) -> Self {
 		to.exp_decay(self, -rem_frac_after_1s.ln(), dt)
 	}
+}
+
+/// The lerp factor for [LerpSmoothing::exp_decay]. Useful if you need to use a non-standard lerp
+/// function, like [Quat::slerp] for example.
+///
+/// <u>**Note</u>:**
+/// If the intent is to lerp smooth from `a` to `b`, this factor needs to either be used to lerp
+/// from `b` to `a` instead (`to.lerp(from, factor)`), or be subtracted from `1.0`,
+/// e.g. `from.lerp(to, 1.0 - factor)`.
+#[inline(always)]
+pub fn exp_decay_factor(λ: f32, dt: f32) -> f32 {
+	(-λ * dt).exp()
+}
+
+/// The lerp factor for [LerpSmoothing::decay]. Useful if you need to use a non-standard lerp
+/// function, like [Quat::slerp] for example.
+///
+/// <u>**Note</u>:**
+/// If the intent is to lerp smooth from `a` to `b`, this factor needs to either be used to lerp
+/// from `b` to `a` instead (`to.lerp(from, factor)`), or be subtracted from `1.0`,
+/// e.g. `from.lerp(to, 1.0 - factor)`.
+#[inline(always)]
+pub fn decay_factor(half_life: f32, dt: f32) -> f32 {
+	(-dt / half_life).exp2()
+}
+
+/// The lerp factor for [LerpSmoothing::frac_decay]. Useful if you need to use a non-standard lerp
+/// function, like [Quat::slerp] for example.
+///
+/// <u>**Note</u>:**
+/// If the intent is to lerp smooth from `a` to `b`, this factor needs to either be used to lerp
+/// from `b` to `a` instead (`to.lerp(from, factor)`), or be subtracted from `1.0`,
+/// e.g. `from.lerp(to, 1.0 - factor)`.
+#[inline(always)]
+pub fn frac_decay_factor(rem_frac_after_1s: f32, dt: f32) -> f32 {
+	exp_decay_factor(-rem_frac_after_1s.ln(), dt)
 }
 
 impl<T> LerpSmoothing for T
@@ -428,8 +464,29 @@ impl<T: Reflect + FromReflect + Asset> AssetLoader for RonReflectAssetLoader<T> 
 	}
 }
 
-pub trait LerpSlerp<Rhs = Self, T = f32> {
-	fn lerp_slerp(self, rhs: Rhs, t: T) -> Self;
+pub trait LerpSlerp: Sized {
+	fn lerp_slerp(self, rhs: Self, t: f32) -> Self;
+	
+	/// Spherical version of [LerpSmoothing::exp_decay].
+	#[inline(always)]
+	fn sph_exp_decay(self, to: Self, λ: f32, dt: f32) -> Self {
+		let t = exp_decay_factor(λ, dt);
+		to.lerp_slerp(self, t)
+	}
+	
+	/// Spherical version of [LerpSmoothing::decay].
+	#[inline(always)]
+	fn sph_decay(self, to: Self, half_life: f32, dt: f32) -> Self {
+		let t = decay_factor(half_life, dt);
+		to.lerp_slerp(self, t)
+	}
+	
+	/// Spherical version of [LerpSmoothing::frac_decay].
+	#[inline(always)]
+	fn sph_frac_decay(self, to: Self, rem_frac_after_1s: f32, dt: f32) -> Self {
+		let t = frac_decay_factor(rem_frac_after_1s, dt);
+		to.lerp_slerp(self, t)
+	}
 }
 
 impl LerpSlerp for Transform {

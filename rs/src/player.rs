@@ -42,7 +42,7 @@ use std::{
 	ops::{Add, RangeInclusive},
 	time::Duration,
 };
-
+use std::fmt::Formatter;
 use crate::{
 	anim::ComponentDelta,
 	pickups::MissSfx,
@@ -447,7 +447,7 @@ impl PlayerSpawnData {
 		} = self.clone_weak();
 
 		let owner = BelongsToPlayer::with_id(id);
-		let username = format!("Player{}.Body", id.get());
+		let username = format!("{}.Body", owner);
 
 		PlayerBundles {
 			root: (
@@ -513,18 +513,20 @@ impl PlayerSpawnData {
 	}
 }
 
+pub type PlayerRootBundle = (
+	Name,
+	BelongsToPlayer,
+	TerminalVelocity,
+	RigidBody,
+	Transform,
+	Velocity,
+	Friction,
+	Visibility,
+	NeedsTerrain,
+);
+
 struct PlayerBundles {
-	root: (
-		Name,
-		BelongsToPlayer,
-		TerminalVelocity,
-		RigidBody,
-		Transform,
-		Velocity,
-		Friction,
-		Visibility,
-		NeedsTerrain,
-	),
+	root: PlayerRootBundle,
 	vis: SceneRoot,
 	antigrav_pulse: (Mesh3d, MeshMaterial3d<StandardMaterial>),
 	glow_color: Color,
@@ -564,6 +566,12 @@ pub type PlayerId = NonZeroU8;
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Deref)]
 pub struct BelongsToPlayer(PlayerId);
 
+impl std::fmt::Display for BelongsToPlayer {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		write!(f, "Player{}", self.0)
+	}
+}
+
 impl BelongsToPlayer {
 	pub fn new(id: u8) -> Self {
 		Self(PlayerId::new(id).unwrap())
@@ -602,7 +610,7 @@ pub fn spawn_players(
 
 		let id = event.id;
 		let owner = BelongsToPlayer::with_id(id);
-		let username = format!("Player{}", id.get());
+		let username = format!("{}", owner);
 
 		let PlayerBundles {
 			root,
@@ -622,8 +630,6 @@ pub fn spawn_players(
 
 		let char_collider = params.phys.collider.into();
 		let antigrav_collider = AntigravCollider(params.phys.antigrav_collider.into());
-		let mut root = cmds.spawn(root).with_enum(Root);
-
 		let prefs_key = format!("{username}.prefs");
 		let prefs = match pkv.get(&prefs_key) {
 			Ok(prefs) => prefs,
@@ -639,8 +645,9 @@ pub fn spawn_players(
 		info!("Loaded: {prefs:#?}");
 
 		populate_player_scene(
-			&mut root,
+			cmds.reborrow(),
 			owner,
+			root,
 			vis,
 			char_collider,
 			antigrav_collider,
@@ -658,8 +665,9 @@ pub fn spawn_players(
 }
 
 fn populate_player_scene(
-	root: &mut EntityCommands,
+	mut cmds: Commands,
 	owner: BelongsToPlayer,
+	root: PlayerRootBundle,
 	vis: SceneRoot,
 	char_collider: Collider,
 	antigrav_collider: AntigravCollider,
@@ -673,7 +681,9 @@ fn populate_player_scene(
 	crosshair: (Mesh3d, MeshMaterial3d<StandardMaterial>, Transform),
 	prefs: PlayerPrefs,
 ) {
-	player_controller(root, owner, char_collider, antigrav_collider, prefs);
+	camera::spawn_pivot(&mut cmds, owner, crosshair);
+	let mut root = cmds.spawn(root).with_enum(Root);
+	player_controller(root.reborrow(), owner, char_collider, antigrav_collider, prefs);
 	player_vis(
 		root,
 		owner,
@@ -682,12 +692,11 @@ fn populate_player_scene(
 		glow_color,
 		arm_meshes,
 		arm_particle_mesh,
-		crosshair,
 	);
 }
 
 fn player_controller(
-	root: &mut EntityCommands,
+	mut root: EntityCommands,
 	owner: BelongsToPlayer,
 	char_collider: Collider,
 	antigrav_collider: AntigravCollider,
@@ -701,7 +710,7 @@ fn player_controller(
 		} = prefs;
 		builder
 			.spawn((
-				Name::new(format!("Player{}.Controller", owner.0.get())),
+				Name::new(format!("{}.Controller", owner)),
 				owner,
 				char_collider,
 				antigrav_collider,
@@ -721,7 +730,7 @@ fn player_controller(
 			))
 			.with_enum(Controller);
 		builder.spawn((
-			Name::new(format!("Player{}.UiController", owner.0.get())),
+			Name::new(format!("{}.UiController", owner)),
 			owner,
 			InputManagerBundle {
 				input_map: ui_input_map,
@@ -733,7 +742,7 @@ fn player_controller(
 }
 
 fn player_vis(
-	root: &mut EntityCommands,
+	mut root: EntityCommands,
 	owner: BelongsToPlayer,
 	vis: SceneRoot,
 	antigrave_pulse: (Mesh3d, MeshMaterial3d<StandardMaterial>),
@@ -743,15 +752,13 @@ fn player_vis(
 		PlayerArm,
 	); 3],
 	arm_particle_mesh: Handle<Mesh>,
-	crosshair: (Mesh3d, MeshMaterial3d<StandardMaterial>, Transform),
 ) {
 	let mut cmds = root.commands();
-	let camera_pivot = camera::spawn_pivot(&mut cmds, owner, crosshair).id();
 	let root_id = root.id();
 	let ship_center = root
 		.commands()
 		.spawn((
-			Name::new(format!("Player{}.ShipCenter", owner.0.get())),
+			Name::new(format!("{}.ShipCenter", owner)),
 			owner,
 			Transform::from_translation(Vec3::NEG_Z * 0.64),
 			TransformInterpolation {
@@ -765,7 +772,7 @@ fn player_vis(
 			// Mesh is a child so we can apply transform independent of collider to align them
 			builder
 				.spawn((
-					Name::new(format!("Player{}.ShipCenter.Ship", owner.0.get())),
+					Name::new(format!("{}.ShipCenter.Ship", owner)),
 					owner,
 					Transform::from_rotation(Quat::from_rotation_x(FRAC_PI_2)),
 					Visibility::default(),
@@ -773,7 +780,7 @@ fn player_vis(
 				.set_enum(Ship)
 				.with_children(|builder| {
 					builder.spawn((
-						Name::new(format!("Player{}.ShipCenter.Ship.Vis", owner.0.get())),
+						Name::new(format!("{}.ShipCenter.Ship.Vis", owner)),
 						owner,
 						vis,
 					));
@@ -785,7 +792,7 @@ fn player_vis(
 						.spawn((
 							Name::new(format!(
 								"Player{}.ShipCenter.Ship.AntigravParticles",
-								owner.0.get()
+								owner.0
 							)),
 							owner,
 							SpewerBundle {
@@ -835,7 +842,7 @@ fn player_vis(
 						.set_enum(AntigravParticles);
 
 					builder.spawn((
-						Name::new(format!("Player{}.ShipCenter.Ship.Glow", owner.0.get())),
+						Name::new(format!("{}.ShipCenter.Ship.Glow", owner)),
 						PointLight {
 							color: glow_color.into(),
 							intensity: 2_000_000.0,
@@ -850,7 +857,7 @@ fn player_vis(
 			let mut arms = builder
 				.spawn((
 					owner,
-					Name::new(format!("Player{}.ShipCenter.Arms", owner.0.get())),
+					Name::new(format!("{}.ShipCenter.Arms", owner)),
 					Transform::from_translation(Vec3::Z * 0.64),
 					Visibility::default(),
 					RotVel::new(8.0),
@@ -858,7 +865,6 @@ fn player_vis(
 				.with_enum(Arms);
 			player_arms(root_id, &mut arms, owner, arm_meshes, arm_particle_mesh);
 		})
-		// .add_child(camera_pivot)
 		.id();
 	root.add_child(ship_center);
 }
@@ -983,7 +989,7 @@ fn player_arms(
 			.spawn((
 				Name::new(format!(
 					"Player{}.Orb{which:?}",
-					owner.0.get()
+					owner.0
 				)),
 				owner,
 				arm,
@@ -1057,7 +1063,7 @@ pub fn idle(
 ) {
 	let s = t.elapsed_secs_wrapped();
 	for mut xform in &mut vis_q {
-		xform.translation.y = (s * 3.0).sin() * 0.24;
+		xform.translation.z = (s * 3.0).sin() * 0.24;
 		xform.rotate_local_y(-2.0 * t.delta_secs());
 	}
 	for (mut xform, rvel) in &mut arms_q {
