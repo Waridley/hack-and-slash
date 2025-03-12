@@ -8,10 +8,11 @@ use std::{
 	fmt::Formatter,
 	time::Duration,
 };
-
+use leafwing_input_manager::action_diff::{ActionDiff, ActionDiffEvent};
+use leafwing_input_manager::systems::generate_action_diffs;
 use crate::{
 	player::{
-		camera::CameraVertSlider, ctrl::CtrlVel, player_entity::CamPivot, prefs::LookSensitivity,
+		ctrl::CtrlVel, player_entity::CamPivot, prefs::AimSensitivity,
 		tune::PlayerParams, BelongsToPlayer,
 	},
 	terminal_velocity,
@@ -22,6 +23,7 @@ pub struct InputSystems;
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_plugins((InputManagerPlugin::<PlayerAction>::default(),))
+		.add_event::<ActionDiffEvent<PlayerAction>>()
 		.add_systems(First, setup)
 		.add_systems(
 			Update,
@@ -32,6 +34,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 				.before(terminal_velocity)
 				.in_set(InputSystems),),
 		)
+		.add_systems(PostUpdate, generate_action_diffs::<PlayerAction>)
 }
 
 fn setup(
@@ -64,7 +67,9 @@ pub enum PlayerAction {
 	#[actionlike(DualAxis)]
 	Move,
 	#[actionlike(DualAxis)]
-	Look,
+	MotionAim,
+	#[actionlike(DualAxis)]
+	StickAim,
 	Jump,
 	FireA,
 	FireB,
@@ -75,9 +80,10 @@ pub enum PlayerAction {
 }
 
 impl PlayerAction {
-	pub const ALL: [Self; 9] = [
+	pub const ALL: [Self; 10] = [
 		Self::Move,
-		Self::Look,
+		Self::MotionAim,
+		Self::StickAim,
 		Self::Jump,
 		Self::FireA,
 		Self::FireB,
@@ -92,7 +98,8 @@ impl ActionExt for PlayerAction {
 	fn display_name(&self) -> &'static str {
 		match self {
 			Self::Move => "Move",
-			Self::Look => "Look",
+			Self::MotionAim => "Mouse/motion aiming",
+			Self::StickAim => "Control stick aiming",
 			Self::Jump => "Jump",
 			Self::FireA => "Fire A",
 			Self::FireB => "Fire B",
@@ -134,10 +141,10 @@ impl ActionExt for PlayerAction {
 			(PauseGame, GamepadButton::Start),
 		])
 		.with_dual_axis(Move, VirtualDPad::wasd())
-		.with_dual_axis(Look, VirtualDPad::arrow_keys())
-		.with_dual_axis(Move, GamepadStick::LEFT)
-		.with_dual_axis(Look, GamepadStick::RIGHT)
-		.with_dual_axis(Look, MouseMove::default())
+		.with_dual_axis(StickAim, VirtualDPad::arrow_keys())
+		.with_dual_axis(Move, GamepadStick::LEFT.with_circle_deadzone(0.1))
+		.with_dual_axis(StickAim, GamepadStick::RIGHT.with_circle_deadzone(0.1))
+		.with_dual_axis(MotionAim, MouseMove::default())
 	}
 
 	fn all() -> impl Iterator<Item = Self> {
@@ -156,44 +163,81 @@ pub struct InputStorageTimer(Timer);
 
 pub fn look_input(
 	mut player_q: Query<(
+		Entity,
 		&ActionState<PlayerAction>,
 		&mut CtrlVel,
 		&BelongsToPlayer,
-		&LookSensitivity,
+		&AimSensitivity,
 	)>,
+	mut events: EventReader<ActionDiffEvent<PlayerAction>>,
 	mut camera_pivot_q: Query<
-		(&mut Transform, &mut CameraVertSlider, &BelongsToPlayer),
+		(&mut Transform, &BelongsToPlayer),
 		WithVariant<CamPivot>,
 	>,
 	t: Res<Time>,
 ) {
-	let dt = (TAU / 0.5/* seconds to max angvel */) * t.delta_secs();
-	for (action_state, mut vel, player_id, sens) in player_q.iter_mut() {
-		let mut input = Vec2::ZERO;
-		if let Some(look) = action_state.dual_axis_data(&PlayerAction::Look) {
-			input += look.pair;
+	let dt = t.delta_secs();
+	for (entity, action_state, mut vel, player_id, sens) in player_q.iter_mut() {
+		let mut stick_input = Vec2::ZERO;
+		if let Some(look) = action_state.dual_axis_data(&PlayerAction::StickAim) {
+			stick_input += look.pair;
 		};
-		input = input.clamp_length_max(1.0);
-
-		if input.x.abs() > f32::EPSILON {
-			vel.angvel.z = (vel.angvel.z - (input.x * sens.x * dt)).clamp(
-				-std::f32::consts::PI / crate::DT,
-				std::f32::consts::PI / crate::DT,
-			);
-		} else {
-			vel.angvel.z *= 0.8
-		}
-
-		let (mut xform, mut slider) = camera_pivot_q
+		stick_input = stick_input.clamp_length_max(1.0);
+		
+		let motion_input = events.read()
+			.filter(|ev| ev.owner == Some(entity))
+			.flat_map(|ev| &ev.action_diffs)
+			.filter_map(|diff|
+				{
+					if let ActionDiff::DualAxisChanged {
+						action: PlayerAction::MotionAim,
+						axis_pair,
+					} = diff {
+						Some(*axis_pair)
+					} else {
+						None
+					}
+				}
+			)
+			.sum::<Vec2>();
+		
+		let mut xform = camera_pivot_q
 			.iter_mut()
-			.find_map(|(xform, slider, owner)| (owner == player_id).then_some((xform, slider)))
+			.find_map(|(xform, owner)| (owner == player_id).then_some(xform))
 			.unwrap();
-
-		if input.y.abs() > f32::EPSILON {
-			slider.0 = (slider.0 + input.y * sens.y * dt).clamp(0.0, 1.0);
+		
+		let (yaw, pitch, _) = xform.rotation.to_euler(EulerRot::ZXY);
+		
+		let yaw_delta = if motion_input.x.abs() > 0.0 {
+			// right-hand rule => + is CCW .: + turns "left" .: needs inverted to make physical sense
+			-motion_input.x * sens.motion.x
+		} else if stick_input.x.abs() > f32::EPSILON {
+			(-stick_input.x * sens.stick.x * dt).clamp(
+				-std::f32::consts::PI + crate::EPS,
+				std::f32::consts::PI - crate::EPS,
+			)
+		} else {
+			0.0
+		};
+		
+		let pitch_delta = if motion_input.y.abs() > 0.0 {
+			-motion_input.y * sens.motion.y
+		} else if stick_input.y.abs() > f32::EPSILON {
+			stick_input.y * sens.stick.y * dt
+		} else {
+			0.0
+		};
+		
+		let yaw = yaw + yaw_delta;
+		let pitch = (pitch + pitch_delta).clamp(
+			-FRAC_PI_2,
+			FRAC_PI_2 * 0.9,
+		);
+		
+		let new_rot = Quat::from_euler(EulerRot::ZXY, yaw, pitch, 0.0);
+		if xform.rotation != new_rot {
+			xform.rotation = new_rot;
 		}
-		let angle = (-FRAC_PI_2).lerp(FRAC_PI_2 * 0.9, slider.0);
-		xform.rotation = xform.rotation.slerp(Quat::from_rotation_x(angle), dt);
 	}
 }
 

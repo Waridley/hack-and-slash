@@ -14,7 +14,7 @@ impl Plugin for PrefsPlugin {
 	fn build(&self, app: &mut App) {
 		app.register_type::<InvertCamera>()
 			.register_type::<Fov>()
-			.register_type::<LookSensitivity>()
+			.register_type::<AimSensitivity>()
 			.register_type::<CamSmoothing>()
 			.add_systems(Last, save);
 	}
@@ -57,7 +57,7 @@ pub type ChangedPrefs = Or<(
 pub type ChangedCameraPrefs = Or<(
 	Changed<InvertCamera>,
 	Changed<Fov>,
-	Changed<LookSensitivity>,
+	Changed<AimSensitivity>,
 	Changed<CamSmoothing>,
 )>;
 
@@ -66,7 +66,7 @@ pub type ChangedCameraPrefs = Or<(
 pub struct CameraPrefs {
 	pub invert_camera: InvertCamera,
 	pub fov: Fov,
-	pub sens: LookSensitivity,
+	pub sens: AimSensitivity,
 	pub smoothing: CamSmoothing,
 }
 
@@ -107,7 +107,7 @@ pub struct PlayerPrefsQuery<'w> {
 	pub fov: &'w mut Fov,
 	pub input_map: &'w mut InputMap<PlayerAction>,
 	pub ui_input_map: &'w mut InputMap<UiAction>,
-	pub sens: &'w mut LookSensitivity,
+	pub sens: &'w mut AimSensitivity,
 	pub cam_smoothing: &'w mut CamSmoothing,
 }
 
@@ -145,14 +145,17 @@ impl Default for Fov {
 }
 
 #[derive(
-	Component, Debug, Clone, Copy, PartialEq, Deref, DerefMut, Serialize, Deserialize, Reflect,
+	Component, Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Reflect,
 )]
 #[serde(default)]
-pub struct LookSensitivity(Vec2);
+pub struct AimSensitivity {
+	pub motion: Vec2,
+	pub stick: Vec2,
+}
 
-impl Default for LookSensitivity {
+impl Default for AimSensitivity {
 	fn default() -> Self {
-		Self(Vec2::new(-0.05, -0.05))
+		Self { stick: Vec2::new(-2.0, -2.0), motion: Vec2::new(0.001, 0.001) }
 	}
 }
 
@@ -164,6 +167,6 @@ pub struct CamSmoothing(f32);
 
 impl Default for CamSmoothing {
 	fn default() -> Self {
-		Self(0.25)
+		Self(0.1)
 	}
 }

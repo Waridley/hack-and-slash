@@ -43,6 +43,7 @@ use crate::{
 };
 
 pub mod noise;
+pub mod physics;
 
 pub type Noise = ChooseAndSmooth<4>;
 

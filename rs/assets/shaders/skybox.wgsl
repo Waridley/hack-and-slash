@@ -50,7 +50,7 @@ fn vertex(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
 	let ray_dir = ray_dir(in.position.xy);
 	let sample_dir = cube.rotation * ray_dir;
-	let dl = (pow(cube.daylight, 12.0) * 8.0 + 0.001); // Full black consumes bloom color
+	let dl = (pow(cube.daylight, 12.0) * 6.0 + 0.001); // Full black consumes bloom color
 	let sample_color = vec4(normalize((sample_dir + vec3(1.0))) * dl, 1.0);
 
 	return sample_color;

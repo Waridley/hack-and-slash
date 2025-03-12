@@ -22,6 +22,7 @@ use engine::{
 	util::{Angle, Prev},
 	EnginePlugin,
 };
+use engine::planet::terrain::physics::OneWayHeightFieldFilter;
 use offloading::OffloadingPlugin;
 use planet::sky::SkyPlugin;
 use player::{abilities::AbilitiesPlugin, ctrl::CtrlVel};
@@ -102,7 +103,7 @@ impl Plugin for GamePlugin {
 		app.add_plugins(EnginePlugin)
 			.register_type::<Angle>()
 			.add_plugins((
-				RapierPhysicsPlugin::<()>::default().in_schedule(FixedUpdate),
+				RapierPhysicsPlugin::<OneWayHeightFieldFilter>::default(),
 				FrameTimeDiagnosticsPlugin,
 				AudioPlugin,
 			))
@@ -122,6 +123,11 @@ impl Plugin for GamePlugin {
 				ui::plugin.plugfn(),
 			))
 			.insert_resource(PkvStore::new_with_qualifier("studio", "sonday", "has"))
+			.insert_resource(TimestepMode::Interpolated {
+				dt: DT,
+				time_scale: 1.0,
+				substeps: 1,
+			})
 			.add_systems(Startup, startup)
 			.add_systems(
 				First,
@@ -141,11 +147,6 @@ pub fn setup_physics(
 	let mut cfg = rq!(q.get_single_mut());
 	*cfg = RapierConfiguration {
 		gravity: Vect::new(0.0, 0.0, -9.80665),
-		// timestep_mode: TimestepMode::Interpolated {
-		// 	dt: DT,
-		// 	time_scale: 1.0,
-		// 	substeps: 1,
-		// },
 		..RapierConfiguration::new(1.0)
 	};
 }

@@ -20,6 +20,7 @@ accesskit = { workspace = true }
 bevy = { workspace = true, features = ["bevy_ui"] }
 bevy_rapier3d = { workspace = true }
 rapier3d = { workspace = true }
+bevy_mod_speedup = "0.6.0"
 
 # Util
 atomicow = { workspace = true }

@@ -9,6 +9,7 @@ use bevy_kira_audio::{Audio, AudioControl};
 use bevy_rapier3d::{
 	dynamics::LockedAxes, math::Vect, na::Vector3, plugin::RapierContext, prelude::Collider,
 };
+use bevy_rapier3d::prelude::RigidBody;
 use enum_components::{EntityEnumCommands, WithVariant};
 use rand::{prelude::IteratorRandom, Rng};
 
@@ -46,10 +47,11 @@ fn setup(
 ) {
 	let mesh = Mesh3d(meshes.add(Capsule3d {
 		radius: 2.0,
-		half_length: 4.0,
+		half_length: 2.0,
 		..default()
 	}));
 	let material = MeshMaterial3d(materials.add(Color::from(YELLOW)));
+	let body = RigidBody::Dynamic;
 	let collider = Collider::capsule(Vect::NEG_Y * 2.0, Vect::Y * 2.0, 2.0);
 	let locked_axes = LockedAxes::ROTATION_LOCKED
 		| LockedAxes::TRANSLATION_LOCKED_X
@@ -57,8 +59,10 @@ fn setup(
 	cmds.insert_resource(DummyTemplate {
 		mesh,
 		material,
+		body,
 		collider,
 		locked_axes,
+		alive: Alive,
 	});
 }
 
@@ -74,10 +78,12 @@ impl Spawnable for Dummy {
 		let DummyTemplate {
 			mesh,
 			material,
+			body,
 			collider,
 			locked_axes,
+			alive,
 		} = params.clone();
-		let mut cmds = cmds.spawn((mesh, material, transform, collider, locked_axes));
+		let mut cmds = cmds.spawn((mesh, material, transform, body, collider, locked_axes, alive));
 		cmds.set_enum(Dummy);
 		cmds
 	}
@@ -87,8 +93,10 @@ impl Spawnable for Dummy {
 pub struct DummyTemplate {
 	mesh: Mesh3d,
 	material: MeshMaterial3d<StandardMaterial>,
+	body: RigidBody,
 	collider: Collider,
 	locked_axes: LockedAxes,
+	alive: Alive,
 }
 
 #[derive(Event, Default, Debug, Clone)]
@@ -156,6 +164,8 @@ pub fn handle_hits(
 					toi.witness1.into(),
 					true,
 				);
+			} else {
+				error!("Why doesn't dummy exist in ctx.entity2body?");
 			}
 			let mut cmds = cmds.entity(id);
 			cmds.insert(LockedAxes::empty());

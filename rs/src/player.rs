@@ -143,6 +143,8 @@ pub fn plugin(app: &mut App) -> &mut App {
 				.run_if(resource_exists::<PlayerParams>),
 			camera::position_target.after(terminal_velocity),
 			camera::follow_target.after(camera::position_target),
+			camera::pivot_follow_avatar.after(ctrl::move_player),
+			camera::avatar_rotation_follow_pivot,
 			ctrl::reset_jump_on_ground
 				.before(input::InputSystems)
 				.run_if(resource_exists::<PlayerParams>),
@@ -445,7 +447,7 @@ impl PlayerSpawnData {
 		} = self.clone_weak();
 
 		let owner = BelongsToPlayer::with_id(id);
-		let username = format!("Player{}", id.get());
+		let username = format!("Player{}.Body", id.get());
 
 		PlayerBundles {
 			root: (
@@ -539,8 +541,8 @@ struct PlayerBundles {
 pub enum PlayerEntity {
 	Root,
 	Controller,
-	Ship,
 	ShipCenter,
+	Ship,
 	CamPivot,
 	Cam,
 	Crosshair,
@@ -619,6 +621,7 @@ pub fn spawn_players(
 		);
 
 		let char_collider = params.phys.collider.into();
+		let antigrav_collider = AntigravCollider(params.phys.antigrav_collider.into());
 		let mut root = cmds.spawn(root).with_enum(Root);
 
 		let prefs_key = format!("{username}.prefs");
@@ -640,6 +643,7 @@ pub fn spawn_players(
 			owner,
 			vis,
 			char_collider,
+			antigrav_collider,
 			antigrav_pulse,
 			glow_color,
 			arms,
@@ -658,6 +662,7 @@ fn populate_player_scene(
 	owner: BelongsToPlayer,
 	vis: SceneRoot,
 	char_collider: Collider,
+	antigrav_collider: AntigravCollider,
 	antigrav_pulse: (Mesh3d, MeshMaterial3d<StandardMaterial>),
 	glow_color: Color,
 	arm_meshes: [(
@@ -668,7 +673,7 @@ fn populate_player_scene(
 	crosshair: (Mesh3d, MeshMaterial3d<StandardMaterial>, Transform),
 	prefs: PlayerPrefs,
 ) {
-	player_controller(root, owner, char_collider, prefs);
+	player_controller(root, owner, char_collider, antigrav_collider, prefs);
 	player_vis(
 		root,
 		owner,
@@ -685,6 +690,7 @@ fn player_controller(
 	root: &mut EntityCommands,
 	owner: BelongsToPlayer,
 	char_collider: Collider,
+	antigrav_collider: AntigravCollider,
 	prefs: PlayerPrefs,
 ) {
 	root.with_children(|builder| {
@@ -698,6 +704,7 @@ fn player_controller(
 				Name::new(format!("Player{}.Controller", owner.0.get())),
 				owner,
 				char_collider,
+				antigrav_collider,
 				Restitution::new(0.5),
 				Ccd::enabled(),
 				Transform::default(),
@@ -746,7 +753,7 @@ fn player_vis(
 		.spawn((
 			Name::new(format!("Player{}.ShipCenter", owner.0.get())),
 			owner,
-			(Transform::from_translation(Vec3::NEG_Z * 0.64)),
+			Transform::from_translation(Vec3::NEG_Z * 0.64),
 			TransformInterpolation {
 				start: None,
 				end: Some(Isometry::translation(0.0, 0.0, -0.64)),
@@ -839,23 +846,25 @@ fn player_vis(
 						Transform::from_xyz(0.0, -0.5, 0.0),
 					));
 				});
-		})
-		.with_children(|builder| {
+			
 			let mut arms = builder
 				.spawn((
 					owner,
 					Name::new(format!("Player{}.ShipCenter.Arms", owner.0.get())),
-					(Transform::from_translation(Vec3::Z * 0.64)),
+					Transform::from_translation(Vec3::Z * 0.64),
 					Visibility::default(),
 					RotVel::new(8.0),
 				))
 				.with_enum(Arms);
 			player_arms(root_id, &mut arms, owner, arm_meshes, arm_particle_mesh);
 		})
-		.add_child(camera_pivot)
+		// .add_child(camera_pivot)
 		.id();
 	root.add_child(ship_center);
 }
+
+#[derive(Component, Debug, Clone, Deref, DerefMut)]
+pub struct AntigravCollider(pub Collider);
 
 #[derive(Component, Debug, Default, Copy, Clone, PartialEq, Reflect, Deref, DerefMut)]
 pub struct RotVel {
@@ -973,7 +982,7 @@ fn player_arms(
 		let mut orb = cmds
 			.spawn((
 				Name::new(format!(
-					"Player{}.ShipCenter.Arms.{which:?}.Orb",
+					"Player{}.Orb{which:?}",
 					owner.0.get()
 				)),
 				owner,

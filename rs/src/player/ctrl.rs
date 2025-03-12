@@ -13,7 +13,8 @@ use rapier3d::{
 	parry::query::ContactManifold,
 	prelude::{ContactData, ContactManifoldData},
 };
-
+use engine::planet::terrain::physics::OneWayHeightFieldFilter;
+use engine::util::LerpSmoothing;
 use crate::{
 	player::{
 		abilities::BoosterCharge,
@@ -43,35 +44,7 @@ pub struct CtrlVel {
 	pub angvel: Vect,
 }
 
-// pub fn repel_ground(
-// 	mut ctx: ResMut<RapierContext>,
-// 	mut q: Query<
-// 		(
-// 			&Parent,
-// 			&GlobalTransform,
-// 			&Collider,
-// 			&mut CtrlVel,
-// 			&mut CtrlState,
-// 		),
-// 		ERef<Controller>,
-// 	>,
-// 	params: Res<PlayerParams>,
-// ) {
-// 	for (body_id, global, col, ctrl_vel, ctrl_state) in &mut q {
-// 		player_repel_ground(
-// 			ctx.reborrow(),
-// 			body_id,
-// 			global,
-// 			col,
-// 			ctrl_vel,
-// 			ctrl_state,
-// 			&*params,
-// 			crate::DT,
-// 		)
-// 	}
-// }
-
-pub fn player_repel_ground(
+pub fn antigrav(
 	mut ctx: Mut<RapierContext>,
 	body_id: &Parent,
 	global: &GlobalTransform,
@@ -79,8 +52,9 @@ pub fn player_repel_ground(
 	mut ctrl_vel: Mut<CtrlVel>,
 	mut ctrl_state: Mut<CtrlState>,
 	params: &PlayerParams,
-	dt: f32,
 ) {
+	use crate::DT;
+	
 	let global = global.compute_transform();
 
 	let max_toi = params.phys.hover_height;
@@ -98,7 +72,15 @@ pub fn player_repel_ground(
 			.exclude_rigid_body(**body_id)
 			.groups(CollisionGroups::new(G1, !G1)),
 	);
-
+	
+	// Think of the antigrav spring as radiating out in a spherical cone (sector),
+	// so the spring coefficient for a constant-area contact patch follows the inverse square law,
+	// not a constant like typical hooke's law springs.
+	// This function returns the acceleration at compression distance `x` without incorporating mass.
+	fn f(x: f32) -> f32 {
+		x * x
+	}
+	
 	if let Some((
 		id,
 		ShapeCastHit {
@@ -109,29 +91,45 @@ pub fn player_repel_ground(
 	)) = result
 	{
 		let angle = details.normal1.angle_between(UP);
-		let x = max_toi - toi; // Spring compression distance
-		let body = ctx.entity2body()[&id];
+		let x0 = (max_toi - toi).clamp(0.0, max_toi); // Initial spring compression distance
+		let Some(&body) = ctx.entity2body().get(&id) else {
+			error!(?id, "body hit by antigrav missing from ctx.entity2body");
+			return;
+		};
 		ctx.bodies.get_mut(body).unwrap().apply_impulse_at_point(
-			Vector3::from(global.rotation * details.normal2) * x * 100.0,
+			Vector3::from(global.rotation * details.normal2) * x0 * 100.0,
 			details.witness1.into(),
 			true,
 		);
 		if angle < params.phys.slide_angle.rad() {
 			ctrl_state.touching_ground = true;
 
-			// Empirically decided
-			let stiffness = 256.0;
-			let damping = 4.0;
+			let stiffness = params.phys.antigrav_stiffness;
+			let damping = params.phys.antigrav_spring_damping;
+			
+			// Midpoint approximation of integral of acceleration over the predicted distance.
+			let dx_dt = -ctrl_vel.linvel.z; // moving downwards increases compression of spring
+			let x1 = x0 + (dx_dt * DT);
+			let (x1, t_used) = if dx_dt.abs() <= crate::EPS {
+				(x0, DT)
+			} else if x1 < crate::EPS {
+				(0.0, (x0 / -dx_dt) * DT)
+			} else if x1 > max_toi {
+				(max_toi, ((max_toi - x0) / (x1 - x0)) * DT)
+			} else {
+				(x1, DT)
+			};
+			let integral = (f(x0) + f(x1)) * 0.5;
+			let repel_accel = integral * stiffness;
+			debug_assert!(t_used >= 0.0);
+			
+			// ctrl_vel.linvel.z += (params.phys.gravity * DT); // Resist gravity for this frame
+			ctrl_vel.linvel.z += repel_accel * t_used;
 
-			// Think of the antigrav spring as radiating out in a spherical cone (sector),
-			// so the spring coefficient for a constant-area contact patch follows the inverse square law,
-			// not a constant like typical hooke's law springs.
-			let repel_accel = x * x * stiffness;
-
-			ctrl_vel.linvel.z += (params.phys.gravity * dt) // Resist gravity for this frame
-				+ repel_accel * f32::min(dt, 0.125); // don't let low framerate eject player
-
-			ctrl_vel.linvel.z *= 1.0 - (damping * dt);
+			ctrl_vel.linvel.z = ctrl_vel.linvel.z.exp_decay(0.0, damping, DT);
+		} else if angle > std::f32::consts::FRAC_PI_2 + crate::EPS {
+			error!(?details, "Downward shape cast shouldn't hit downward-facing surfaces");
+			return;
 		} else {
 			ctrl_state.touching_ground = false;
 
@@ -172,6 +170,7 @@ pub fn reset_jump_on_ground(
 pub fn gravity(mut q: Query<(&mut CtrlVel, &CtrlState)>, params: Res<PlayerParams>, t: Res<Time>) {
 	for (mut ctrl_vel, state) in q.iter_mut() {
 		if state.bottomed_out {
+			debug!("Bottomed out, resetting gravity");
 			// Only when actual collider is grounded, not the antigrav pulses.
 			// Let `repel_ground` handle counteracting gravity when hovering.
 			ctrl_vel.linvel.z = f32::max(ctrl_vel.linvel.z, 0.0)
@@ -185,6 +184,7 @@ pub fn gravity(mut q: Query<(&mut CtrlVel, &CtrlState)>, params: Res<PlayerParam
 
 pub fn move_player(
 	mut ctx: Single<&mut RapierContext>,
+	heightfield_filter: OneWayHeightFieldFilter,
 	mut body_q: Query<
 		(Entity, &mut Transform, &GlobalTransform, &BelongsToPlayer),
 		WithVariant<Root>,
@@ -213,11 +213,11 @@ pub fn move_player(
 	sim_to_render: Single<&SimulationToRenderTime>,
 	t: Res<Time>,
 ) {
-	let dt = crate::DT;
+	use crate::DT;
 	let mut diff = sim_to_render.diff + t.delta_secs();
 	let mut iters = 4;
 	while diff > 0.0 && iters > 0 {
-		diff -= dt;
+		diff -= DT;
 		iters -= 1;
 
 		for (col_id, body_id, global, mut ctrl_vel, col, ctrl_owner, mut ctrl_state) in &mut ctrl_q
@@ -225,7 +225,7 @@ pub fn move_player(
 			let Some(&body_handle) = ctx.entity2body().get(body_id) else {
 				continue;
 			};
-			player_repel_ground(
+			antigrav(
 				ctx.reborrow(),
 				body_id,
 				global,
@@ -233,7 +233,6 @@ pub fn move_player(
 				ctrl_vel.reborrow(),
 				ctrl_state.reborrow(),
 				&params,
-				dt,
 			);
 
 			let Some((body_id, mut body_xform, body_global)) =
@@ -248,7 +247,7 @@ pub fn move_player(
 				.find_map(|(xform, interp, owner)| (owner == ctrl_owner).then_some((xform, interp)))
 				.unwrap();
 
-			let rot = ctrl_vel.angvel * dt;
+			let rot = ctrl_vel.angvel * DT;
 			let rot = Quat::from_euler(EulerRot::ZXY, rot.z, rot.x, rot.y);
 			body_xform.rotate_local(rot);
 
@@ -264,51 +263,72 @@ pub fn move_player(
 
 			const BUFFER: f32 = 0.1;
 
-			let mut rem = dt;
+			let mut rem = DT;
 			let mut result = Vec3::ZERO;
 			let mut dir = vel;
 			let mut manifolds: Vec<ContactManifold<ContactManifoldData, ContactData>> = vec![];
 			let mut contacts = vec![];
-			let mut pen_fix_iters = 20;
-			while rem > dt * BUFFER {
-				// Using custom shape casting because of too many bugs/design choices I don't want with rapier's character controller.
+			let mut attempts = 8;
+			while rem > DT * BUFFER {
+				if attempts <= 0 {
+					break;
+				}
+				attempts -= 1;
+				// Using custom shape casting because of too many bugs/design choices I dislike in rapier's character controller.
 				match ctx.cast_shape(
 					body_global.translation + result,
 					body_global.rotation,
 					dir,
 					col,
 					ShapeCastOptions {
-						max_time_of_impact: rem * (1.0 + BUFFER),
+						max_time_of_impact: rem,
 						..default()
 					},
 					filter,
 				) {
 					Some((
-						_,
+						hit_collider,
 						ShapeCastHit {
 							time_of_impact: toi,
-							details: Some(hit),
+							details: Some(mut hit),
 							status: _status,
 						},
 					)) => {
-						let safe_toi = (toi - (dt * BUFFER)).clamp(0.0, rem);
+						if heightfield_filter.should_flip_normal(
+							hit_collider,
+							&hit.normal1.into(),
+							&UP.into(),
+						) {
+							hit.normal1 = -hit.normal1;
+							hit.normal2 = -hit.normal2;
+						}
+						
+						let safe_toi = (toi - (DT * BUFFER)).clamp(-BUFFER, rem);
 						let penetrating_part = dir * ((rem - toi) / rem);
-						let reaction = -penetrating_part.dot(hit.normal1) * (hit.normal1 * 1.01);
+						let reaction = -penetrating_part.dot(hit.normal1) * (hit.normal1 * (1.0 + BUFFER));
 						let slide_dir = penetrating_part + reaction;
 
 						let angle = hit.normal1.angle_between(UP);
 						if angle < params.phys.slide_angle.rad() {
+							// Can slide up slope
+							debug!(attempt=?(8 - attempts), ?dir, ?slide_dir, ?hit.normal1, rem, toi);
 							ctrl_state.bottom_out();
 							// Let player slide like normal
 							result += dir * safe_toi;
 							dir = slide_dir;
 							rem -= toi;
+							// Gravity system isn't always seeing `bottomed_out`, probably due to fixed timestep.
+							// Maybe it should be an event instead?
+							// TODO: IF I ever want bouncy objects, this might need to take restitution into account.
+							ctrl_vel.linvel.z = f32::max(ctrl_vel.linvel.z, BUFFER);
 						} else {
+							// Can't slide up slope unless we already have positive vertical velocity
 							ctrl_state.bottomed_out = false;
 
 							let already_moving_up = vel.z > BUFFER;
 
 							let v_dot_norm = dir.dot(hit.normal1);
+							debug!(attempt=?(8 - attempts), ?already_moving_up, ?v_dot_norm);
 							if v_dot_norm <= 0.0 {
 								// Player is moving "into" the slope
 
@@ -324,13 +344,10 @@ pub fn move_player(
 								dir = slide_dir;
 								rem -= toi;
 							} else {
-								// I don't think this can happen if `details` exists, but if it does, it means the Player is moving
-								// away from the slope, probably penetrating, and so we want to get out of that state.
-								#[cfg(debug_assertions)]
-								warn!("I thought this was unreachable. Status: {_status:?}");
+								// Player is moving away from the slope, probably penetrating, so we want to get out
+								// of that state.
 								result += dir * rem;
 								rem = 0.0;
-								dir = Vec3::ZERO;
 							}
 						}
 					}
@@ -341,17 +358,18 @@ pub fn move_player(
 							..
 						},
 					)) => {
+						debug!("Penetrating");
 						let q = DefaultQueryDispatcher;
 						contacts.clear();
 						let pos = body_global.translation + result;
 						let iso = Isometry::new(pos.into(), UP.into());
 						let ball = col.as_ball().unwrap();
-						let aabb = BoundingSphere::new(pos, ball.raw.radius + (vel * dt).length())
+						let aabb = BoundingSphere::new(pos, ball.raw.radius + (vel * DT).length())
 							.aabb_3d();
 
 						// Attempt to prevent tunnelling by using an extruded sphere (capsule) instead
 						let capsule =
-							Capsule::new((-vel * dt).into(), Vec3::ZERO.into(), ball.raw.radius);
+							Capsule::new((-vel * DT).into(), Vec3::ZERO.into(), ball.raw.radius);
 
 						ctx.colliders_with_aabb_intersecting_aabb(aabb, |handle| {
 							if handle == col_id {
@@ -404,22 +422,16 @@ pub fn move_player(
 						});
 						let mut fix = Vec3::ZERO;
 						for (dir, dist) in contacts.drain(..) {
-							fix += dir * f32::min(dt, dist * (1.0 + BUFFER));
+							fix += dir * f32::min(DT, dist * (1.0 + BUFFER));
 						}
 						if fix.angle_between(UP) < params.phys.slide_angle.rad() {
 							// Even if individual surfaces were all too steep, getting stuck in a V should still bottom us out.
 							ctrl_state.bottom_out()
 						}
 						result += dbg!(fix);
-						pen_fix_iters -= 1;
-						if pen_fix_iters == 0 {
-							rem = 0.0;
-						}
 					}
 					toi => {
-						if let Some(toi) = toi {
-							dbg!(toi);
-						}
+						trace!(attempt=?(8 - attempts), ?dir, rem, ?toi);
 						ctrl_state.bottomed_out = false;
 						result += dir * rem;
 						rem = 0.0;
@@ -445,7 +457,7 @@ pub fn move_player(
 	}
 	for (mut xform, interp, _) in &mut vis_q {
 		let new = interp
-			.lerp_slerp(1.0 + diff / dt)
+			.lerp_slerp(1.0 + diff / DT)
 			.unwrap_or_else(|| interp.end.unwrap());
 		xform.translation = new.translation.into();
 		xform.rotation = new.rotation.into();

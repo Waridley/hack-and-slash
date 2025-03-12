@@ -17,6 +17,7 @@ use bevy::{
 use leafwing_input_manager::prelude::*;
 use serde::{Deserialize, Serialize};
 use tiny_bail::prelude::r;
+use map::detect;
 
 pub mod map;
 
@@ -34,12 +35,12 @@ impl Plugin for InputPlugin {
 				First, // Consume inputs while detecting bindings
 				(
 					#[cfg(feature = "debugging")]
-					dbg_set_detect_binding_state.before(detect_bindings),
-					detect_bindings.run_if(in_state(DetectingBinding)),
+					detect::dbg_set_detect_binding_state.before(detect::detect_bindings),
+					detect::detect_bindings.run_if(in_state(DetectingBinding)),
 					#[cfg(feature = "debugging")]
-					dbg_detect_bindings
+					detect::dbg_detect_bindings
 						.run_if(resource_exists::<InputIconFileMap>)
-						.after(detect_bindings),
+						.after(detect::detect_bindings),
 				),
 			);
 	}
@@ -141,220 +142,6 @@ impl From<SerializableUserInputWrapper> for UserInputWrapper {
 }
 
 pub type ChordEntry = (SerializableUserInputWrapper, Option<Entity>);
-
-pub fn detect_bindings(
-	mut gamepad_buttons: ResMut<Events<GamepadButtonChangedEvent>>,
-	mut gamepad_axes: ResMut<Events<GamepadAxisChangedEvent>>,
-	mut keys: ResMut<Events<KeyboardInput>>,
-	mut mouse_buttons: ResMut<Events<MouseButtonInput>>,
-	mut mouse_wheel: ResMut<Events<MouseWheel>>,
-	mut mouse_motion: ResMut<Events<MouseMotion>>,
-	mut tx: EventWriter<ToBind>,
-	mut curr_chord: ResMut<CurrentChord>,
-	mut mouse_accum: Local<Vec2>,
-	mut wheel_accum: Local<Vec2>,
-) {
-	let mut finalize = |chord: &mut CurrentChord, m: &mut Vec2, w: &mut Vec2| {
-		*m = Vec2::ZERO;
-		*w = Vec2::ZERO;
-		let binding = ToBind(std::mem::take(chord));
-		info!("{binding:?}");
-		tx.send(binding);
-	};
-
-	// Only finalize binding when the user *releases* at least one button.
-	// This allows chords to be bound, whether physically input by the user,
-	// or automatically sent by macro keys for example.
-
-	for ev in gamepad_buttons.drain() {
-		let entry = (
-			UserInputWrapper::Button(Box::new(ev.button)).into(),
-			Some(ev.entity),
-		);
-		trace!("{entry:?}");
-		if ev.state.is_pressed() {
-			curr_chord.insert(entry, None);
-		} else if curr_chord.contains_key(&entry.into()) {
-			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
-		}
-	}
-
-	// Thresholds are higher than usual to make sure the user really wants the given input.
-
-	for axis in gamepad_axes.drain() {
-		let entry = (
-			UserInputWrapper::Axis(Box::new(axis.axis)).into(),
-			Some(axis.entity),
-		);
-		trace!("{entry:?}");
-		if axis.value.abs() > 0.7 {
-			curr_chord.insert(entry, None);
-		} else if curr_chord.contains_key(&entry) {
-			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
-		}
-	}
-
-	for key in keys.drain() {
-		let entry = (
-			UserInputWrapper::Button(Box::new(key.key_code)).into(),
-			None,
-		);
-		trace!("{entry:?}");
-		if key.state.is_pressed() {
-			curr_chord.insert(entry, Some(key.logical_key));
-		} else if curr_chord.contains_key(&entry) {
-			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
-		}
-	}
-
-	for btn in mouse_buttons.drain() {
-		let entry = (UserInputWrapper::Button(Box::new(btn.button)).into(), None);
-		trace!("{entry:?}");
-		if btn.state.is_pressed() {
-			curr_chord.insert(entry, None);
-		} else if curr_chord.contains_key(&entry) {
-			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
-		}
-	}
-
-	for wheel in mouse_wheel.drain() {
-		wheel_accum.x += wheel.x;
-		wheel_accum.y += wheel.y;
-		trace!("{wheel_accum:?}");
-		if wheel_accum.x >= 3.0 {
-			curr_chord.insert(
-				(
-					UserInputWrapper::Button(Box::new(MouseScrollDirection::RIGHT)).into(),
-					None,
-				),
-				None,
-			);
-			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
-		} else if wheel_accum.x <= -3.0 {
-			curr_chord.insert(
-				(
-					UserInputWrapper::Button(Box::new(MouseScrollDirection::LEFT)).into(),
-					None,
-				),
-				None,
-			);
-			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
-		}
-		if wheel_accum.y >= 3.0 {
-			curr_chord.insert(
-				(
-					UserInputWrapper::Button(Box::new(MouseScrollDirection::UP)).into(),
-					None,
-				),
-				None,
-			);
-			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
-		} else if wheel_accum.y <= -3.0 {
-			curr_chord.insert(
-				(
-					UserInputWrapper::Button(Box::new(MouseScrollDirection::DOWN)).into(),
-					None,
-				),
-				None,
-			);
-			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
-		}
-	}
-
-	for motion in mouse_motion.drain() {
-		*mouse_accum += motion.delta;
-		trace!("{mouse_accum:?}");
-		// FIXME: Probably scale by sensitivity
-		if mouse_accum.x > 500.0 {
-			curr_chord.insert(
-				(
-					UserInputWrapper::Button(Box::new(MouseMoveDirection::RIGHT)).into(),
-					None,
-				),
-				None,
-			);
-			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
-		} else if mouse_accum.x < -500.0 {
-			curr_chord.insert(
-				(
-					UserInputWrapper::Button(Box::new(MouseMoveDirection::LEFT)).into(),
-					None,
-				),
-				None,
-			);
-			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
-		}
-		if mouse_accum.y > 500.0 {
-			curr_chord.insert(
-				(
-					UserInputWrapper::Button(Box::new(MouseMoveDirection::DOWN)).into(),
-					None,
-				),
-				None,
-			);
-			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
-		} else if mouse_accum.y < -500.0 {
-			curr_chord.insert(
-				(
-					UserInputWrapper::Button(Box::new(MouseMoveDirection::UP)).into(),
-					None,
-				),
-				None,
-			);
-			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
-		}
-	}
-}
-
-#[cfg(feature = "debugging")]
-pub fn dbg_set_detect_binding_state(
-	mut stack: ResMut<StateStack<InputState>>,
-	mut keys: EventReader<KeyboardInput>,
-	mut curr_chord: ResMut<CurrentChord>,
-) {
-	for key in keys.read() {
-		if key.key_code == KeyCode::KeyB && key.state == ButtonState::Released {
-			match stack.last() {
-				Some(DetectingBinding) => {
-					stack.pop();
-				}
-				Some(_) => stack.push(DetectingBinding),
-				None => {
-					error!("InputState stack was somehow empty.");
-					stack.push(InputState::default());
-				}
-			}
-			curr_chord.clear()
-		}
-	}
-}
-
-#[cfg(feature = "debugging")]
-pub fn dbg_detect_bindings(
-	mut rx: EventReader<ToBind>,
-	gamepads: Query<(Option<&Name>, &Gamepad)>,
-	icon_map: Res<InputIconFileMap>,
-) {
-	use crate::input::map::{icons::*, Platform};
-	for event in rx.read() {
-		for ((input, gp), logical_key) in event.0.iter() {
-			let icons = if let Some(icon) = logical_key.as_ref() {
-				key(icon).map(UserInputIcons::simple).unwrap_or_default()
-			} else {
-				UserInputIcons::from_user_input(
-					input.clone().into(),
-					gp.and_then(|gp| gamepads.get(gp).ok())
-						.and_then(|(name, _)| name)
-						.map(Name::as_str)
-						.and_then(Platform::guess_gamepad),
-					&*icon_map,
-				)
-			};
-
-			info!(input = ?input, gamepad = ?gp, icons = ?icons);
-		}
-	}
-}
 
 pub trait ActionExt: Actionlike {
 	fn display_name(&self) -> &'static str;
