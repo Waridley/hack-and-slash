@@ -163,12 +163,14 @@ split-debuginfo = "packed"
 inherits = "release"
 opt-level = 3
 lto = true
+codegen-units = 1
 strip = true
 
 [profile.desktop-release-debug]
 inherits = "release"
 opt-level = 3
 lto = true
+codegen-units = 1
 debug = true
 split-debuginfo = "packed"
 

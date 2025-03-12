@@ -23,7 +23,7 @@ use bevy_rapier3d::{
 };
 use engine::ui::spawn_ui_camera;
 use enum_components::{EntityEnumCommands, WithVariant};
-
+use engine::util::LerpSmoothing;
 use crate::{
 	anim::ComponentDelta,
 	planet::sky::SkyShader,
@@ -32,9 +32,8 @@ use crate::{
 	util::LerpSlerp,
 	NeverDespawn,
 };
-
 use super::{
-	player_entity::{Cam, CamPivot},
+	player_entity::{Root, Cam, CamPivot, ShipCenter},
 	player_ui_layer, BelongsToPlayer, G1,
 };
 
@@ -181,7 +180,6 @@ pub fn spawn_pivot<'a>(
 	let mut cmds = cmds
 		.spawn((
 			owner,
-			CameraVertSlider(0.125),
 			Transform {
 				translation: Vect::new(0.0, 0.0, MIN_CAM_DIST),
 				..default()
@@ -194,9 +192,6 @@ pub fn spawn_pivot<'a>(
 	});
 	cmds
 }
-
-#[derive(Component, Debug, Default, Copy, Clone, Reflect)]
-pub struct CameraVertSlider(pub f32);
 
 #[derive(Debug, Default, Component, Deref, DerefMut)]
 pub struct CamTarget(pub Transform);
@@ -286,5 +281,35 @@ pub fn follow_target(
 		};
 		let new = cam_xform.lerp_slerp(**target_xform, s);
 		sender.send(ComponentDelta::<Transform>::default_diffable(id, new));
+	}
+}
+
+pub fn pivot_follow_avatar(
+	player_q: Query<(&GlobalTransform, &BelongsToPlayer), WithVariant<ShipCenter>>,
+	mut cam_q: Query<(&mut Transform, &BelongsToPlayer), WithVariant<CamPivot>>,
+) {
+	for (mut xform, owner) in &mut cam_q {
+		if let Some((player_xform, _)) = player_q.iter()
+			.find(|(_, player)| **player == *owner)
+		{
+			xform.translation = player_xform.translation() + (Vec3::Z * MIN_CAM_DIST + 0.64);
+		};
+	}
+}
+
+pub fn avatar_rotation_follow_pivot(
+	mut player_q: Query<(&mut Transform, &BelongsToPlayer), WithVariant<Root>>,
+	cam_q: Query<(&Transform, &BelongsToPlayer), WithVariant<CamPivot>>,
+	t: Res<Time>,
+) {
+	for (mut xform, player) in &mut player_q {
+		if let Some((cam_xform, _)) = cam_q.iter()
+			.find(|(_, owner)| **owner == *player)
+		{
+			let (yaw, pitch, roll) = xform.rotation.to_euler(EulerRot::ZXY);
+			let cam_yaw = cam_xform.rotation.to_euler(EulerRot::ZXY).0;
+			let target = Quat::from_euler(EulerRot::ZXY, cam_yaw, pitch, roll);
+			xform.rotation = xform.rotation.slerp(target, 10.0 * t.delta_secs());
+		}
 	}
 }

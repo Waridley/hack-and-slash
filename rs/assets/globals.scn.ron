@@ -21,6 +21,11 @@
 				collider: (
 					radius: 1.2,
 				),
+				antigrav_collider: (
+					radius: 1.0,
+				),
+				antigrav_stiffness: 256.0,
+				antigrav_spring_damping: 0.02,
 			),
 		),
 		"sond_has::player::PlayerAssets": (

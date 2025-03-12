@@ -67,7 +67,6 @@ impl Plugin for UiPlugin {
 		#[cfg(feature = "debugging")]
 		app.add_plugins(dbg::DebugUiPlugin)
 			.register_asset_reflect::<UiMat>()
-			.register_untyped_asset_downcaster::<UiMat>(downcast_material::<UiMat>)
 			.add_systems(PreUpdate, spawn_test_menu)
 			.add_systems(Update, toggle_test_menu)
 			.add_systems(
@@ -101,6 +100,7 @@ impl Plugin for UiPlugin {
 			AnimationPlugin::<Fade>::default(),
 			widgets::borders::WidgetBordersPlugin,
 		))
+		.register_untyped_asset_downcaster::<UiMat>(downcast_material::<UiMat>)
 		.register_type::<MenuStack>()
 		.register_type::<UiCam>()
 		.register_type::<Fade>()

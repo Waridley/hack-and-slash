@@ -105,7 +105,7 @@ pub fn consume_spawn_events<T: Spawnable>(
 
 pub trait Lerp<Rhs, T = f32> {
 	type Output;
-
+	
 	fn lerp(self, rhs: Rhs, t: T) -> Self::Output;
 }
 
@@ -126,6 +126,53 @@ where
 		((rhs - self.clone()) * t) + self
 	}
 }
+
+/// See [Lerp smoothing is broken — Freya Holmér](https://youtu.be/LSNQuFEDOyQ?si=5Nhoe4BP6J-xr0wT)
+pub trait LerpSmoothing
+where
+	Self: Clone + Sized + Sub<Self>,
+	<Self as Sub<Self>>::Output: Mul<f32>,
+	<<Self as Sub<Self>>::Output as Mul<f32>>::Output: Add<Self, Output = Self>,
+{
+	/// Calculate the value after `dt` seconds if self is decaying towards `rhs` with exponential
+	/// decay constant `λ`, which is equivalent to `ln(2) / t½` where `t½` is the half-life of self.
+	#[inline(always)]
+	fn exp_decay(self, to: Self, λ: f32, dt: f32) -> Self {
+		let t = (-λ * dt).exp();
+		((self - to.clone()) * t) + to
+	}
+	
+	/// Calculate the value after `dt` seconds if self is decaying towards `rhs` with the given
+	/// `half_life` (`t½`) in seconds.
+	#[inline(always)]
+	fn decay(self, to: Self, half_life: f32, dt: f32) -> Self {
+		let t = (-dt / half_life).exp2();
+		((self - to.clone()) * t) + to
+	}
+	
+	/// Calculate the value after `dt` seconds if self is decaying towards `rhs` with the given
+	/// remainder after 1 second.
+	///
+	/// This could be written as `self.lerp(rhs, rem_frac_after_1s.pow(dt))`, however since
+	/// the `pow` function is significantly more expensive than `exp`, and `dt` changing every frame
+	/// theoretically makes optimizations much more difficult, this is implemented in terms of
+	/// [`exp_decay`](Self::exp_decay) instead, in hopes that `const` values for
+	/// `rem_frac_after_1s` might have their `ln` calculated at compile time if `f32::ln` is
+	/// ever made `const` or the compiler is able to make such an optimization automatically.
+	///
+	/// Still, [`decay`](Self::decay) and [`exp_decay`](Self::exp_decay)
+	/// should be preferred if at all convenient.
+	#[inline(always)]
+	fn frac_decay(self, to: Self, rem_frac_after_1s: f32, dt: f32) -> Self {
+		to.exp_decay(self, -rem_frac_after_1s.ln(), dt)
+	}
+}
+
+impl<T> LerpSmoothing for T
+where
+	T: Clone + Sized + Sub<T>,
+	<T as Sub<T>>::Output: Mul<f32>,
+	<<T as Sub<T>>::Output as Mul<f32>>::Output: Add<T, Output = T>, {}
 
 #[derive(Resource, Component)]
 pub struct History<T> {

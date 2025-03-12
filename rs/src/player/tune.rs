@@ -7,6 +7,7 @@ use crate::{
 	player::abilities::{BoosterCharge, WeaponCharge},
 	util::Angle,
 };
+use crate::player::AntigravCollider;
 
 /// Global game tuning parameters that will be effectively constant in releases.
 /// Implemented as an Asset for easy reloading during development.
@@ -37,6 +38,9 @@ pub struct PlayerPhysicsParams {
 	pub slide_angle: Angle,
 	pub hover_height: f32,
 	pub collider: PlayerCollider,
+	pub antigrav_collider: PlayerCollider,
+	pub antigrav_stiffness: f32,
+	pub antigrav_spring_damping: f32,
 }
 
 /// Reflect Proxy for Rapier collider.
