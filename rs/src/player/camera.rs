@@ -23,7 +23,7 @@ use bevy_rapier3d::{
 };
 use engine::ui::spawn_ui_camera;
 use enum_components::{EntityEnumCommands, WithVariant};
-use engine::util::LerpSmoothing;
+use engine::util::{decay_factor, exp_decay_factor};
 use crate::{
 	anim::ComponentDelta,
 	planet::sky::SkyShader,
@@ -179,6 +179,7 @@ pub fn spawn_pivot<'a>(
 ) -> EntityCommands<'a> {
 	let mut cmds = cmds
 		.spawn((
+			Name::new(format!("Player{}.CamPivot", owner.0)),
 			owner,
 			Transform {
 				translation: Vect::new(0.0, 0.0, MIN_CAM_DIST),
@@ -274,12 +275,7 @@ pub fn follow_target(
 		else {
 			continue;
 		};
-		let s = if *smoothing <= dt {
-			1.0
-		} else {
-			(1.0 / *smoothing) * dt
-		};
-		let new = cam_xform.lerp_slerp(**target_xform, s);
+		let new = cam_xform.sph_exp_decay(**target_xform, *smoothing, dt);
 		sender.send(ComponentDelta::<Transform>::default_diffable(id, new));
 	}
 }
@@ -292,7 +288,7 @@ pub fn pivot_follow_avatar(
 		if let Some((player_xform, _)) = player_q.iter()
 			.find(|(_, player)| **player == *owner)
 		{
-			xform.translation = player_xform.translation() + (Vec3::Z * MIN_CAM_DIST + 0.64);
+			xform.translation = player_xform.translation() + (Vec3::Z * (MIN_CAM_DIST + 0.64));
 		};
 	}
 }
@@ -309,7 +305,9 @@ pub fn avatar_rotation_follow_pivot(
 			let (yaw, pitch, roll) = xform.rotation.to_euler(EulerRot::ZXY);
 			let cam_yaw = cam_xform.rotation.to_euler(EulerRot::ZXY).0;
 			let target = Quat::from_euler(EulerRot::ZXY, cam_yaw, pitch, roll);
-			xform.rotation = xform.rotation.slerp(target, 10.0 * t.delta_secs());
+			let t = decay_factor(0.05, t.delta_secs());
+			// Either need 1.0 - decay_factor or just slerp the other way.
+			xform.rotation = target.slerp(xform.rotation, t);
 		}
 	}
 }

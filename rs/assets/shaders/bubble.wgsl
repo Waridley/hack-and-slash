@@ -33,6 +33,8 @@ fn fragment(
 	var NdotV = max(dot(N, V), 0.0001);
 	let glow = pow(1.0 + material.color.a - pow(NdotV, 0.3), 4.0);
 
+	pbr_in.material.thickness = pbr_in.material.thickness * NdotV;
+
 	var out: FragmentOutput;
 
 	out.color = apply_pbr_lighting(pbr_in);

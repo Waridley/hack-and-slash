@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 
 use bevy::{prelude::*, window::PrimaryWindow};
+use bevy::window::CursorGrabMode;
 use bevy_inspector_egui::{
 	bevy_egui::EguiContext, egui, egui::Color32, inspector_options::std_options::NumberOptions,
 	prelude::*, quick::WorldInspectorPlugin, reflect_inspector::InspectorUi,
@@ -36,6 +37,7 @@ impl Plugin for DebugUiPlugin {
 		.add_systems(
 			Update,
 			(
+				keep_cursor_unlocked.run_if(input_toggle_active(false, KeyCode::Backquote)),
 				update_fps,
 				History::<Fps>::track_resource,
 				dbg_fps.run_if(dbg_window_toggled(true, KeyCode::KeyT)),
@@ -47,6 +49,19 @@ impl Plugin for DebugUiPlugin {
 				.chain() // Just to keep display order consistent
 				.in_set(ShowDebugWindows),
 		);
+	}
+}
+
+pub fn keep_cursor_unlocked(
+	mut windows: Query<&mut Window>,
+) {
+	for mut window in &mut windows {
+		if window.cursor_options.grab_mode != CursorGrabMode::None {
+			window.cursor_options.grab_mode = CursorGrabMode::None;
+		}
+		if !window.cursor_options.visible {
+			window.cursor_options.visible = true;
+		}
 	}
 }
 

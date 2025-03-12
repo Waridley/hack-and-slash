@@ -5,7 +5,7 @@
     <option name="workingDirectory" value="file://$PROJECT_DIR$/rs" />
     <envs>
       <env name="RUSTFLAGS" value="-Zthreads=16 -Clink-arg=-fuse-ld=mold -Zshare-generics=y" />
-      <env name="RUST_LOG" value="info,sond_has=debug,sond_has_engine=debug" />
+      <env name="RUST_LOG" value="info,sond_has=debug,sond_has_engine=debug,wgpu_hal::vulkan=error" />
     </envs>
     <option name="emulateTerminal" value="false" />
     <option name="channel" value="DEFAULT" />

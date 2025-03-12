@@ -512,6 +512,7 @@ const NEARBY: [(i32, i32); 37] = [
 ];
 
 #[derive(Component, Debug, Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
+#[require(Transform)]
 #[reflect(Component)]
 pub struct NeedsTerrain;
 
