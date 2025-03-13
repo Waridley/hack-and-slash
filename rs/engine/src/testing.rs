@@ -2,7 +2,7 @@ use std::{
 	error::Error,
 	fmt::{Display, Formatter},
 };
-
+use std::num::NonZero;
 use bevy::{
 	app::AppExit,
 	log::{error, info},
@@ -37,18 +37,19 @@ pub fn new_test_app() -> App {
 
 	app.add_event::<TestEvent>()
 		.init_resource::<RunningTests>()
-		.insert_resource(RapierConfiguration {
-			gravity: Vect::NEG_Z * 9.81,
-			timestep_mode: TimestepMode::Fixed {
-				dt: 1.0 / 32.0,
-				substeps: 1,
-			},
-			..default()
+		.insert_resource(TimestepMode::Fixed {
+			dt: 1.0 / 32.0,
+			substeps: 1,
 		})
 		.add_plugins(RapierPhysicsPlugin::<()>::default())
 		.insert_resource(Timeout(Timer::from_seconds(600.0, TimerMode::Once)))
 		.add_systems(Last, (timeout, check_test_results));
 
+	let world = app.world_mut();
+	let mut q = world.query::<&mut RapierConfiguration>();
+	let mut cfg = q.single_mut(world);
+	cfg.gravity = Vect::NEG_Z * 9.81;
+	
 	app
 }
 
@@ -62,7 +63,7 @@ pub fn timeout(mut timer: ResMut<Timeout>, t: Res<Time>) {
 }
 
 pub fn exit_app(mut events: EventWriter<AppExit>) {
-	events.send(AppExit);
+	events.send(AppExit::Success);
 }
 
 #[derive(Event)]
@@ -148,12 +149,14 @@ fn check_test_results(
 	}
 	if failed > 0 {
 		if failed > 1 {
-			panic!("{failed} tests failed");
+			error!("{failed} tests failed");
 		} else {
-			panic!("1 test failed");
+			error!("1 test failed");
 		}
+		exits.send(AppExit::Error(failed.try_into().unwrap_or(NonZero::<u8>::MAX)));
+	} else {
+		exits.send(AppExit::Success);
 	}
-	exits.send(AppExit);
 }
 
 pub trait TestSystem<M>: IntoSystem<(), TestStatus, M> {
@@ -170,7 +173,7 @@ impl<F: IntoSystem<(), TestStatus, M>, M> TestSystem<M> for F {
 			});
 		};
 
-		self.pipe(IntoSystem::into_system(status_to_event))
+		IntoSystem::into_system(self.pipe(IntoSystem::into_system(status_to_event)))
 	}
 }
 
