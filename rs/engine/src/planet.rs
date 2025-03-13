@@ -245,7 +245,6 @@ pub mod seeds {
 		fmt::{Display, Formatter},
 		hash::{BuildHasher, Hasher},
 	};
-	use tiger::{Tiger2, Digest};
 	use tiny_bail::prelude::r;
 	
 	#[derive(Resource, Debug, Clone)]
@@ -299,12 +298,9 @@ pub mod seeds {
 
 			trace!(bytes = format!("{bytes:?}"));
 
-			// Randomly generated during development.
-			// WARNING: Changing these will break compatibility with older seeds.
-			let mut hasher = Tiger2::new();
-			hasher.update(bytes);
-			let result = hasher.finalize();
-			let hash = r!(rand::random::<Self>(), <[u8; 24]>::try_from(&*result));
+			// WARNING: Changing this will break compatibility with older seeds.
+			let result = blake3::hash(bytes);
+			let hash = (&result.as_bytes()[0..24]).try_into().expect("blake3 outputs 32 bytes");
 			
 			trace!(hash = format!("{:?}", hash));
 			Self { string, hash }
@@ -394,7 +390,7 @@ pub mod seeds {
 		#[test]
 		fn version_equivalence() {
 			const S: &str = "This is a test seed for seed consistency across game versions";
-			const CANON: &str = "-RkgyW8I8zv1LJQDAWFqQK_0D_tvUJl7";
+			const CANON: &str = "rpJXxdfel1AHU-BB7Zz8lZdZ1psLiBrU";
 			let seed = PlanetSeed::from(S);
 			let canon = PlanetSeed::from(CANON);
 			assert_eq!(canon.string(), CANON);

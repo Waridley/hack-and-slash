@@ -225,7 +225,7 @@ impl NoiseFn<f64, 2> for SyncWorley {
 			&self.perm_table,
 			&*self.distance_function,
 			self.return_type,
-			[point[0] * self.frequency, point[1] * self.frequency],
+			[point[0] * self.frequency, point[1] * self.frequency].into(),
 		)
 	}
 }
