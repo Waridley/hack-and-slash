@@ -101,6 +101,7 @@ static_assertions = "1.1.0"
 serde = "1"
 smallvec = "*" # same as bevy
 smol_str = "0.2.1"
+tiger = "0.2.1"
 tiny_bail = "0.4.3"
 web-time = "1.0.0"
 

@@ -238,7 +238,6 @@ pub mod seeds {
 	use bevy::{
 		log::trace,
 		prelude::{trace_span, Resource},
-		utils::RandomState,
 	};
 	use rand::{distributions::Standard, prelude::Distribution, Rng};
 	use std::{
@@ -246,7 +245,9 @@ pub mod seeds {
 		fmt::{Display, Formatter},
 		hash::{BuildHasher, Hasher},
 	};
-
+	use tiger::{Tiger2, Digest};
+	use tiny_bail::prelude::r;
+	
 	#[derive(Resource, Debug, Clone)]
 	pub struct PlanetSeed {
 		string: Cow<'static, str>,
@@ -297,29 +298,14 @@ pub mod seeds {
 			};
 
 			trace!(bytes = format!("{bytes:?}"));
-			let mut hash = [0u8; 24];
 
 			// Randomly generated during development.
 			// WARNING: Changing these will break compatibility with older seeds.
-			let mut hasher = RandomState::with_seeds(
-				8171301572015878809,
-				11868435174398743204,
-				12156415504192146545,
-				13548443979666687785,
-			)
-			.build_hasher();
-			hasher.write(bytes);
-			hash[0..8].copy_from_slice(&hasher.finish().to_le_bytes());
-			trace!(bytes_0_8 = format!("{:?}", &hash[0..8]));
-
-			hasher.write(bytes);
-			hash[8..16].copy_from_slice(&hasher.finish().to_le_bytes());
-			trace!(bytes_8_16 = format!("{:?}", &hash[8..16]));
-
-			hasher.write(bytes);
-			hash[16..24].copy_from_slice(&hasher.finish().to_le_bytes());
-			trace!(bytes_16_24 = format!("{:?}", &hash[16..24]));
-
+			let mut hasher = Tiger2::new();
+			hasher.update(bytes);
+			let result = hasher.finalize();
+			let hash = r!(rand::random::<Self>(), <[u8; 24]>::try_from(&*result));
+			
 			trace!(hash = format!("{:?}", hash));
 			Self { string, hash }
 		}
@@ -408,9 +394,10 @@ pub mod seeds {
 		#[test]
 		fn version_equivalence() {
 			const S: &str = "This is a test seed for seed consistency across game versions";
-			const CANON: &str = "EMVUkEmSHysISOFRcpRyoTWjBDYE3IgV";
+			const CANON: &str = "-RkgyW8I8zv1LJQDAWFqQK_0D_tvUJl7";
 			let seed = PlanetSeed::from(S);
 			let canon = PlanetSeed::from(CANON);
+			assert_eq!(canon.string(), CANON);
 			assert_eq!(canon.as_ref(), canon.clone().canonical().as_ref());
 			assert_eq!(seed, canon);
 		}

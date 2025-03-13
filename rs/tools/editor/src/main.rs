@@ -5,14 +5,14 @@ use futures_lite::{io::BufReader, AsyncBufReadExt, StreamExt};
 #[allow(unused_imports, clippy::single_component_path_imports)]
 use bevy_dylib;
 
-fn main() {
+fn main() -> AppExit {
 	let mut app = App::new();
 	app.add_plugins(DefaultPlugins)
 		.init_resource::<RunningGame>()
 		.add_systems(Startup, setup)
 		.add_systems(First, clear_running_game)
 		.add_systems(Update, run_game_btn);
-	let run_game_system = app.world.register_system(run_game_as_child_process);
+	let run_game_system = app.world_mut().register_system(run_game_as_child_process);
 	app.insert_resource(RunGameSystem(run_game_system));
 	app.run()
 }
@@ -20,7 +20,7 @@ fn main() {
 fn setup(mut cmds: Commands) {
 	cmds.spawn(Camera2dBundle::default());
 	cmds.spawn(ButtonBundle {
-		style: Style {
+		node: Node {
 			width: Val::Px(150.0),
 			height: Val::Px(65.0),
 			..default()
@@ -28,7 +28,7 @@ fn setup(mut cmds: Commands) {
 		..default()
 	})
 	.with_children(|btn| {
-		btn.spawn(TextBundle::from_section("Run Game", TextStyle::default()));
+		btn.spawn(Text("Run Game".into()));
 	});
 }
 

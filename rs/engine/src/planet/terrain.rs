@@ -587,16 +587,17 @@ pub fn unload_distant_chunks(
 pub struct UnloadDistance(f32);
 
 mod seeds {
-	use std::hash::{BuildHasher, Hasher};
-
-	use bevy::utils::RandomState;
-
-	use crate::planet::seeds::PlanetSeed;
+	use bevy::log::info;
+	use super::PlanetSeed;
+	use rand::{SeedableRng, RngCore, Rng};
+	use rand::distributions::Standard;
+	use rand::prelude::Distribution;
+	use rand_xorshift::XorShiftRng;
 
 	#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 	#[repr(C)]
 	pub struct TerrainSeeds {
-		base: u64,
+		base: [u32; 2],
 		perlin: HSSeed,
 		worley: HSSeed,
 		billow: HSSeed,
@@ -606,72 +607,75 @@ mod seeds {
 	impl From<&PlanetSeed> for TerrainSeeds {
 		fn from(value: &PlanetSeed) -> Self {
 			let value = value.hash();
+			let value = std::array::from_fn(|i| value[i]);
 
 			// Randomly generated during development.
 			// WARNING: Changing these will break compatibility with older seeds.
-			let mut hasher = RandomState::with_seeds(
-				14290938944643142730,
-				324773583170826462,
-				5391126888610969733,
-				8770814408611468823,
-			)
-			.build_hasher();
+			let mut rng = XorShiftRng::from_seed(value.into());
 
-			hasher.write(value);
-			let base = hasher.finish();
-			hasher.write(value);
-			let perlin = bytemuck::cast::<_, [u32; 2]>(hasher.finish());
-			hasher.write(value);
-			let mut worley = bytemuck::cast::<_, [u32; 2]>(hasher.finish());
-			for _ in 0..1024 {
+			let base = rng.gen();
+			
+			let perlin = rng.gen::<HSSeed>();
+			
+			let mut worley = rng.gen::<HSSeed>();
+			let mut attempt = 0;
+			while attempt < 1024 {
 				// Best effort at avoiding strength collisions.
-				if perlin[1] == worley[1] {
-					hasher.write(value);
-					worley = bytemuck::cast(hasher.finish());
+				if perlin.strength == worley.strength {
+					worley = rng.gen();
 				} else {
 					break;
 				}
+				attempt += 1;
 			}
-
-			hasher.write(value);
-			let mut billow = bytemuck::cast::<_, [u32; 2]>(hasher.finish());
-			for _ in 0..1024 {
-				// Best effort at avoiding strength collisions.
-				if [perlin[1], worley[1]].contains(&billow[1]) {
-					hasher.write(value);
-					billow = bytemuck::cast(hasher.finish());
-				} else {
-					break;
-				}
+			if attempt > 0 {
+				info!(?perlin, "Worley clashed with Perlin {attempt} time(s)");
 			}
-
-			hasher.write(value);
-			let mut ridged = bytemuck::cast::<_, [u32; 2]>(hasher.finish());
-			for _ in 0..1024 {
+			
+			let mut billow = rng.gen::<HSSeed>();
+			let mut attempt = 0;
+			while attempt < 1024 {
 				// Best effort at avoiding strength collisions.
-				if [perlin[1], worley[1], billow[1]].contains(&ridged[1]) {
-					hasher.write(value);
-					ridged = bytemuck::cast(hasher.finish());
+				if [perlin.strength, worley.strength].contains(&billow.strength) {
+					billow = rng.gen();
 				} else {
 					break;
 				}
+				attempt += 1;
+			}
+			if attempt > 0 {
+				info!(?perlin, ?worley, "Billow clashed with Perlin or Worley {attempt} time(s)");
+			}
+			
+			let mut ridged = rng.gen::<HSSeed>();
+			let mut attempt = 0;
+			while attempt < 1024 {
+				// Best effort at avoiding strength collisions.
+				if [perlin.strength, worley.strength, billow.strength].contains(&ridged.strength) {
+					ridged = rng.gen();
+				} else {
+					break;
+				}
+				attempt += 1;
+			}
+			if attempt > 0 {
+				info!(?perlin, ?worley, ?billow, "Ridged clashed with Perlin, Worley, or Billow {attempt} time(s)");
 			}
 
 			Self {
 				base,
-				perlin: HSSeed::new(perlin[0], perlin[1]),
-				worley: HSSeed::new(worley[0], worley[1]),
-				billow: HSSeed::new(billow[0], billow[1]),
-				ridged: HSSeed::new(ridged[0], ridged[1]),
+				perlin,
+				worley,
+				billow,
+				ridged,
 			}
 		}
 	}
 
 	impl TerrainSeeds {
-		pub fn base(&self) -> u64 {
+		pub fn base(&self) -> [u32; 2] {
 			self.base
 		}
-
 		pub fn perlin(&self) -> HSSeed {
 			self.perlin
 		}
@@ -692,6 +696,15 @@ mod seeds {
 	pub struct HSSeed {
 		heights: u32,
 		strength: u32,
+	}
+	
+	impl Distribution<HSSeed> for Standard {
+		fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> HSSeed {
+			HSSeed {
+				heights: rng.next_u32(),
+				strength: rng.next_u32(),
+			}
+		}
 	}
 
 	impl HSSeed {
@@ -729,26 +742,15 @@ mod seeds {
 			let seed = PlanetSeed::from(
 				"This is a PlanetSeed for testing TerrainSeed equivalence across versions.",
 			);
+			assert_eq!(seed.clone().canonical().string(), "iqnpdVi78vsOxAt6PLYo-mWQXGgGW7dd");
 			assert_eq!(
 				TerrainSeeds::from(&seed),
 				TerrainSeeds {
-					base: 7920230168977959780,
-					perlin: HSSeed {
-						heights: 2685576922,
-						strength: 1151182273
-					},
-					worley: HSSeed {
-						heights: 895711232,
-						strength: 484265962
-					},
-					billow: HSSeed {
-						heights: 3037546005,
-						strength: 57840775
-					},
-					ridged: HSSeed {
-						heights: 401089611,
-						strength: 2179398915
-					}
+					base: [3266704650, 2901655167],
+					perlin: HSSeed { heights: 2298229851, strength: 937093678 },
+					worley: HSSeed { heights: 1521112186, strength: 1805326614 },
+					billow: HSSeed { heights: 44869330, strength: 3804739379 },
+					ridged: HSSeed { heights: 3938854549, strength: 1495712114 },
 				},
 			);
 		}
