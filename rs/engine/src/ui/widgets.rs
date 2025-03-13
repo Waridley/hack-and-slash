@@ -372,7 +372,11 @@ impl Text3d {
 						},
 						bbox,
 					) = r!(tessellator.tessellate(&text, &*font, tolerance, vertex_scale.xz()));
-
+					
+					if vertices.len() == 0 {
+						return Some((meshes.add(Rectangle::default()), WidgetShape::default()));
+					}
+					
 					let half_size = Vec3::new(
 						bbox.size().x * 0.5,
 						vertex_scale.y * 0.5,
