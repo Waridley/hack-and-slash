@@ -247,9 +247,6 @@ fn startup(
 	cmds.insert_resource(GlobalsScene(globals_scene.clone()));
 	scene_spawner.spawn_dynamic(globals_scene);
 
-	#[cfg(target_family = "wasm")]
-	cmds.insert_resource(Msaa::Off);
-
 	#[cfg(all(feature = "debugging", feature = "render"))]
 	{
 		dbg_render_ctx.enabled = false;

@@ -71,7 +71,7 @@ bevy_dylib = "0.15.0"
 bevy_rapier3d = { version = "0.28.0", default-features = false, features = ["dim3"] }
 rapier3d = { version = "0.22.0", features = ["wasm-bindgen", "serde-serialize"] }
 bevy_kira_audio = "0.21.0"
-leafwing-input-manager = { version = "0.16.0", features = ["timing"] }
+leafwing-input-manager = { git = "https://github.com/Leafwing-Studios/leafwing-input-manager.git", version = "0.16.0", features = ["timing"] }
 bevy_quickmenu = "0.2.0"
 bevy_common_assets = { version = "0.10.0", features = ["ron"] }
 
@@ -105,8 +105,8 @@ tiny_bail = "0.4.3"
 web-time = "1.0.0"
 
 # Debugging/Editor
-bevy-inspector-egui = {  version = "0.28.1", default-features = false }
-egui_plot = "0.29.0"
+bevy-inspector-egui = {  version = "0.29.1", default-features = false }
+egui_plot = "0.30.0"
 
 # Testing
 linkme = "0.3.22"
@@ -177,6 +177,12 @@ split-debuginfo = "packed"
 # Prevents full rebuild just for profiling when enabling and disabling `bevy/trace_tracy`
 [profile.profiling]
 inherits = "desktop-release"
+
+# In case debugger/backtrace is skipping too much
+[profile.no-opt]
+inherits = "dev"
+opt-level = 0
+package."*".opt-level = 0
 
 [lints.clippy]
 needless_update = "allow" # `..default()` used a lot to allow quick adding/removing of fields
