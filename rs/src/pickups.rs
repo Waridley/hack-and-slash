@@ -12,8 +12,7 @@ use bevy_rapier3d::{
 };
 use engine::mats::ExtMat;
 use enum_components::{EntityEnumCommands, EnumComponent};
-use rand::{Rng, SeedableRng};
-use rand_xorshift::XorShiftRng;
+use rand::{Rng, SeedableRng, rngs::SmallRng};
 
 use pickup::WithPickup;
 
@@ -32,7 +31,7 @@ pub static SHIELD: AtomicI64 = AtomicI64::new(0);
 
 pub fn plugin(app: &mut App) -> &mut App {
 	app.add_systems(Startup, setup)
-		.insert_resource(PickupRng(XorShiftRng::from_entropy()))
+		.insert_resource(PickupRng(SmallRng::from_entropy()))
 		.add_systems(Update, (collect, spawn_pickups, movement, miss))
 }
 
@@ -69,7 +68,7 @@ pub struct PickupAssets {
 }
 
 #[derive(Debug, Clone, Resource, Deref, DerefMut)]
-pub struct PickupRng(XorShiftRng);
+pub struct PickupRng(SmallRng);
 
 #[derive(Resource, Debug, Clone, Deref, DerefMut)]
 pub struct SpawnTimer(Timer);

@@ -587,13 +587,14 @@ pub fn unload_distant_chunks(
 pub struct UnloadDistance(f32);
 
 mod seeds {
+	use std::io::Write;
 	use bevy::log::info;
 	use super::PlanetSeed;
 	use rand::{SeedableRng, RngCore, Rng};
 	use rand::distributions::Standard;
 	use rand::prelude::Distribution;
-	use rand_xorshift::XorShiftRng;
-
+	use rand_chacha::ChaCha8Rng;
+	
 	#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 	#[repr(C)]
 	pub struct TerrainSeeds {
@@ -606,12 +607,12 @@ mod seeds {
 
 	impl From<&PlanetSeed> for TerrainSeeds {
 		fn from(value: &PlanetSeed) -> Self {
-			let value = value.hash();
-			let value = std::array::from_fn(|i| value[i]);
-
-			// Randomly generated during development.
+			let mut seed = [0; 32];
+			seed[0..24].copy_from_slice(value.hash());
+			
+			
 			// WARNING: Changing these will break compatibility with older seeds.
-			let mut rng = XorShiftRng::from_seed(value.into());
+			let mut rng = ChaCha8Rng::from_seed(seed);
 
 			let base = rng.gen();
 			
@@ -742,15 +743,15 @@ mod seeds {
 			let seed = PlanetSeed::from(
 				"This is a PlanetSeed for testing TerrainSeed equivalence across versions.",
 			);
-			assert_eq!(seed.clone().canonical().string(), "iqnpdVi78vsOxAt6PLYo-mWQXGgGW7dd");
+			assert_eq!(seed.clone().canonical().string(), "dif3XzLPR0QkeiIeiDUZS_fAfVYwGsLv");
 			assert_eq!(
 				TerrainSeeds::from(&seed),
 				TerrainSeeds {
-					base: [3266704650, 2901655167],
-					perlin: HSSeed { heights: 2298229851, strength: 937093678 },
-					worley: HSSeed { heights: 1521112186, strength: 1805326614 },
-					billow: HSSeed { heights: 44869330, strength: 3804739379 },
-					ridged: HSSeed { heights: 3938854549, strength: 1495712114 },
+					base: [3921923909, 2705971270],
+					perlin: HSSeed { heights: 2112551709, strength: 1762326461 },
+					worley: HSSeed { heights: 2032743752, strength: 3889465128 },
+					billow: HSSeed { heights: 1264812115, strength: 391812050 },
+					ridged: HSSeed { heights: 2995831856, strength: 2095380095 },
 				},
 			);
 		}
