@@ -12,7 +12,7 @@ use bevy_rapier3d::{
 };
 use engine::mats::ExtMat;
 use enum_components::{EntityEnumCommands, EnumComponent};
-use rand::{Rng, SeedableRng, rngs::SmallRng};
+use rand::{rngs::SmallRng, Rng, SeedableRng};
 
 use pickup::WithPickup;
 

@@ -13,22 +13,21 @@ use bevy_dylib;
 use bevy_kira_audio::AudioPlugin;
 use bevy_pkv::PkvStore;
 use bevy_rapier3d::{plugin::PhysicsSet::StepSimulation, prelude::*};
-use enum_components::WithVariant;
-use particles::{ParticlesPlugin, Spewer};
-use tiny_bail::prelude::rq;
 pub use engine::{anim, mats, nav, offloading, planet, settings, util};
 use engine::{
-	planet::frame::Frame,
+	planet::{frame::Frame, terrain::physics::OneWayHeightFieldFilter},
 	util::{Angle, Prev},
 	EnginePlugin,
 };
-use engine::planet::terrain::physics::OneWayHeightFieldFilter;
+use enum_components::WithVariant;
 use offloading::OffloadingPlugin;
+use particles::{ParticlesPlugin, Spewer};
 use planet::sky::SkyPlugin;
 use player::{abilities::AbilitiesPlugin, ctrl::CtrlVel};
 #[allow(unused_imports, clippy::single_component_path_imports)]
 #[cfg(all(feature = "dylib", not(target_arch = "wasm32")))]
 use sond_has_engine_dylib;
+use tiny_bail::prelude::{r, rq};
 use util::IntoFnPlugin;
 
 use crate::{mats::MatsPlugin, player::player_entity::Root};
@@ -111,6 +110,7 @@ impl Plugin for GamePlugin {
 				ParticlesPlugin,
 				AbilitiesPlugin,
 				OffloadingPlugin,
+				#[cfg(feature = "render")]
 				SkyPlugin,
 				MatsPlugin,
 				anim::BuiltinAnimations,
@@ -131,7 +131,10 @@ impl Plugin for GamePlugin {
 			.add_systems(Startup, startup)
 			.add_systems(
 				First,
-				(shift_frame.before(planet::frame::reframe_all_entities), setup_physics),
+				(
+					shift_frame.before(planet::frame::reframe_all_entities),
+					setup_physics,
+				),
 			)
 			.add_systems(
 				Update,
@@ -141,9 +144,7 @@ impl Plugin for GamePlugin {
 	}
 }
 
-pub fn setup_physics(
-	mut q: Query<&mut RapierConfiguration, Added<RapierConfiguration>>,
-) {
+pub fn setup_physics(mut q: Query<&mut RapierConfiguration, Added<RapierConfiguration>>) {
 	let mut cfg = rq!(q.get_single_mut());
 	*cfg = RapierConfiguration {
 		gravity: Vect::new(0.0, 0.0, -9.80665),
@@ -260,7 +261,7 @@ fn startup(
 		..default()
 	});
 
-	let mut window = windows.single_mut();
+	let mut window = r!(windows.get_single_mut());
 	window.cursor_options.visible = false;
 	window.cursor_options.grab_mode = CursorGrabMode::Locked;
 }

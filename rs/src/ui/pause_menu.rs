@@ -23,13 +23,13 @@ use engine::{
 		layout::{ExpandToFitChildren, LineUpChildren},
 		text::UiFonts,
 		widgets::{
-			borders::Border, dbg_event, focus_state_colors, focus_state_emissive, on_ok,
-			CuboidPanel, InteractHandlers, Node3d, Text3d,
-			WidgetShape,
+			borders::Border, dbg_event, focus_state_colors, focus_state_emissive,
+			new_unlit_material, on_ok, CuboidPanel, InteractHandlers, Node3d, Text3d, WidgetShape,
 		},
 		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiMat, UiMatBuilder,
+		GLOBAL_UI_RENDER_LAYERS,
 	},
-	util::StateStack,
+	util::{MeshOutline, StateStack},
 };
 use enum_components::{EntityEnumCommands, EnumComponent, WithVariant};
 use leafwing_input_manager::action_state::ActionState;
@@ -37,9 +37,6 @@ use rapier3d::geometry::SharedShape;
 use smallvec::smallvec;
 use std::ops::ControlFlow;
 use tiny_bail::prelude::r;
-use engine::ui::GLOBAL_UI_RENDER_LAYERS;
-use engine::ui::widgets::new_unlit_material;
-use engine::util::MeshOutline;
 
 pub struct PauseMenuPlugin;
 

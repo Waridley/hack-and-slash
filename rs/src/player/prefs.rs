@@ -144,9 +144,7 @@ impl Default for Fov {
 	}
 }
 
-#[derive(
-	Component, Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Reflect,
-)]
+#[derive(Component, Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Reflect)]
 #[serde(default)]
 pub struct AimSensitivity {
 	pub motion: Vec2,
@@ -155,7 +153,10 @@ pub struct AimSensitivity {
 
 impl Default for AimSensitivity {
 	fn default() -> Self {
-		Self { stick: Vec2::new(-2.0, -2.0), motion: Vec2::new(0.001, 0.001) }
+		Self {
+			stick: Vec2::new(-2.0, -2.0),
+			motion: Vec2::new(0.001, 0.001),
+		}
 	}
 }
 

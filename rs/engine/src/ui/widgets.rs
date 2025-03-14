@@ -1,4 +1,3 @@
-use crate::util::MeshOutline;
 use crate::{
 	todo_warn,
 	ui::{
@@ -7,18 +6,18 @@ use crate::{
 		widgets::borders::Border,
 		MenuStack, UiAction, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
 	},
+	util::MeshOutline,
 };
 use atomicow::CowArc;
-use bevy::render::mesh::MeshAabb;
-use bevy::render::render_resource::Face;
 use bevy::{
 	a11y::AccessibilityNode,
 	color::palettes::basic::PURPLE,
 	ecs::system::EntityCommands,
 	prelude::*,
 	render::{
-		mesh::{Indices, PrimitiveTopology::TriangleList, VertexAttributeValues},
+		mesh::{Indices, MeshAabb, PrimitiveTopology::TriangleList, VertexAttributeValues},
 		render_asset::RenderAssetUsages,
+		render_resource::Face,
 		view::{Layer, RenderLayers},
 	},
 	utils::HashSet,
@@ -372,11 +371,11 @@ impl Text3d {
 						},
 						bbox,
 					) = r!(tessellator.tessellate(&text, &*font, tolerance, vertex_scale.xz()));
-					
+
 					if vertices.len() == 0 {
 						return Some((meshes.add(Rectangle::default()), WidgetShape::default()));
 					}
-					
+
 					let half_size = Vec3::new(
 						bbox.size().x * 0.5,
 						vertex_scale.y * 0.5,
@@ -446,7 +445,7 @@ impl Text3d {
 						}
 						indices.extend(new_indices);
 					}
-					
+
 					let len = verts.len();
 					let indices = if let Ok(_) = u16::try_from(len) {
 						Indices::U16(indices.into_iter().map(|i| i as u16).collect())
@@ -456,7 +455,7 @@ impl Text3d {
 						}
 						Indices::U32(indices)
 					};
-					
+
 					let mut mesh = Mesh::new(TriangleList, usages);
 					mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, verts);
 					mesh.insert_indices(indices);

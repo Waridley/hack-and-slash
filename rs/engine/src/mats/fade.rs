@@ -1,12 +1,14 @@
 use bevy::{
 	asset::{ReflectAsset, ReflectHandle},
-	pbr::{ExtendedMaterial, MaterialExtension},
+	pbr::{ExtendedMaterial, MaterialExtension, MaterialExtensionKey, MaterialExtensionPipeline},
 	prelude::*,
-	render::render_resource::{AsBindGroup, ShaderRef},
+	render::{
+		mesh::MeshVertexBufferLayoutRef,
+		render_resource::{
+			AsBindGroup, RenderPipelineDescriptor, ShaderRef, SpecializedMeshPipelineError,
+		},
+	},
 };
-use bevy::pbr::{MaterialExtensionKey, MaterialExtensionPipeline};
-use bevy::render::mesh::MeshVertexBufferLayoutRef;
-use bevy::render::render_resource::{RenderPipelineDescriptor, SpecializedMeshPipelineError};
 use serde::{Deserialize, Serialize};
 
 #[derive(Asset, AsBindGroup, Debug, Clone, Serialize, Deserialize, Reflect)]
@@ -61,9 +63,8 @@ impl MaterialExtension for DitherFade {
 		pipeline: &MaterialExtensionPipeline,
 		descriptor: &mut RenderPipelineDescriptor,
 		layout: &MeshVertexBufferLayoutRef,
-		key: MaterialExtensionKey<Self>
+		key: MaterialExtensionKey<Self>,
 	) -> Result<(), SpecializedMeshPipelineError> {
-		
 		Ok(())
 	}
 }

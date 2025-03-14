@@ -1,13 +1,15 @@
 use crate::input::map::{icons::kenney::generic_base_dir, Platform};
-use bevy::{asset::AssetPath, input::keyboard::Key, prelude::*, utils::HashMap};
+use bevy::{
+	asset::AssetPath,
+	input::keyboard::Key,
+	prelude::*,
+	utils::{HashMap, HashSet},
+};
 use leafwing_input_manager::{clashing_inputs::BasicInputs, prelude::*};
 use serde::{Deserialize, Serialize};
 use smallvec::{smallvec, SmallVec};
 use smol_str::{SmolStr, ToSmolStr};
-use std::{hash::Hash, ops::Index, path::PathBuf};
-use std::any::Any;
-use std::sync::Arc;
-use bevy::utils::HashSet;
+use std::{any::Any, hash::Hash, ops::Index, path::PathBuf, sync::Arc};
 
 pub fn default_icon() -> AssetPath<'static> {
 	PathBuf::from("ui/Kenney/input-prompts/Flairs/Vector/flair_circle_red_8.svg").into()
@@ -35,18 +37,25 @@ impl ButtonIcons {
 	) -> Option<Self> {
 		if let Some(modifier) = <dyn Any>::downcast_ref::<ModifierKey>(&*btn) {
 			// Avoid decomposing into [left + right]
-			return Some(Self::Simple(Icon::from_path(map.get_button_icon(&(Box::new(match modifier {
-				ModifierKey::Alt => KeyCode::AltLeft,
-				ModifierKey::Control => KeyCode::ControlLeft,
-				ModifierKey::Shift => KeyCode::ShiftLeft,
-				ModifierKey::Super => KeyCode::SuperLeft,
-			}) as Box<dyn Buttonlike>).into())?)))
+			return Some(Self::Simple(Icon::from_path(
+				map.get_button_icon(
+					&(Box::new(match modifier {
+						ModifierKey::Alt => KeyCode::AltLeft,
+						ModifierKey::Control => KeyCode::ControlLeft,
+						ModifierKey::Shift => KeyCode::ShiftLeft,
+						ModifierKey::Super => KeyCode::SuperLeft,
+					}) as Box<dyn Buttonlike>)
+						.into(),
+				)?,
+			)));
 		}
-		
+
 		if let Some(mouse_btn) = <dyn Any>::downcast_ref::<MouseButton>(&*btn) {
 			if let MouseButton::Other(i) = mouse_btn {
 				// TODO: Device icon map (this is a hack using the fact that I mapped `Back` to the mouse outline)
-				if let Some(path) = map.get_button_icon(&IconPathKey(Box::new(MouseButton::Back), None)) {
+				if let Some(path) =
+					map.get_button_icon(&IconPathKey(Box::new(MouseButton::Back), None))
+				{
 					return Some(Self::Simple(Icon {
 						image: path.clone(),
 						text: Some(i.to_smolstr()),
@@ -54,7 +63,7 @@ impl ButtonIcons {
 				}
 			}
 		}
-		
+
 		Some(match btn.decompose() {
 			BasicInputs::None => return None,
 			BasicInputs::Simple(btn) => Self::Simple(Icon::from_path(
@@ -70,17 +79,22 @@ impl ButtonIcons {
 				Self::Chord(
 					btns.into_iter()
 						.filter_map(|btn| {
-							if let Some(modifier) = <dyn Any>::downcast_ref::<KeyCode>(&*btn).map(|key| {
-								match key {
+							if let Some(modifier) =
+								<dyn Any>::downcast_ref::<KeyCode>(&*btn).map(|key| match key {
 									KeyCode::AltLeft | KeyCode::AltRight => Some(ModifierKey::Alt),
-									KeyCode::ControlLeft | KeyCode::ControlRight => Some(ModifierKey::Control),
-									KeyCode::ShiftLeft | KeyCode::ShiftRight => Some(ModifierKey::Shift),
-									KeyCode::SuperLeft | KeyCode::SuperRight => Some(ModifierKey::Super),
+									KeyCode::ControlLeft | KeyCode::ControlRight => {
+										Some(ModifierKey::Control)
+									}
+									KeyCode::ShiftLeft | KeyCode::ShiftRight => {
+										Some(ModifierKey::Shift)
+									}
+									KeyCode::SuperLeft | KeyCode::SuperRight => {
+										Some(ModifierKey::Super)
+									}
 									_ => None,
-								}
-							}) {
+								}) {
 								if collected_modifiers.contains(&modifier) {
-									return None
+									return None;
 								}
 								collected_modifiers.insert(modifier);
 							}
@@ -88,7 +102,7 @@ impl ButtonIcons {
 						})
 						.collect(),
 				)
-			},
+			}
 		})
 	}
 }
@@ -118,7 +132,7 @@ pub enum AxisIcons {
 	Chord {
 		button: ButtonIcons,
 		axis: Arc<AxisIcons>,
-	}
+	},
 }
 
 impl Default for AxisIcons {
@@ -138,8 +152,11 @@ impl AxisIcons {
 				Self::Single(Icon::from_path(path))
 			} else if let Some(chord) = <dyn Any>::downcast_ref::<AxislikeChord>(&*axis) {
 				Self::Chord {
-					button: ButtonIcons::from_button(chord.button.clone(), platform, map).unwrap_or_default(),
-					axis: Arc::new(Self::from_axis(chord.axis.clone(), platform, map).unwrap_or_default()),
+					button: ButtonIcons::from_button(chord.button.clone(), platform, map)
+						.unwrap_or_default(),
+					axis: Arc::new(
+						Self::from_axis(chord.axis.clone(), platform, map).unwrap_or_default(),
+					),
 				}
 			} else {
 				match axis.decompose() {
@@ -181,7 +198,11 @@ impl AxisIcons {
 						}
 					}
 					BasicInputs::Chord(btns) => {
-						error!(?axis, ?btns, "should be an AxislikeChord, not a BasicInputs::Chord");
+						error!(
+							?axis,
+							?btns,
+							"should be an AxislikeChord, not a BasicInputs::Chord"
+						);
 						return None;
 					}
 				}
@@ -201,10 +222,11 @@ impl IntoIterator for AxisIcons {
 				.flatten()
 				.collect::<SmallVec<_>>()
 				.into_iter(),
-			AxisIcons::Chord { button, axis } => button.into_iter()
+			AxisIcons::Chord { button, axis } => button
+				.into_iter()
 				.chain((*axis).clone().into_iter())
 				.collect::<SmallVec<_>>()
-				.into_iter()
+				.into_iter(),
 		}
 	}
 }
@@ -219,7 +241,7 @@ pub enum DualAxisIcons {
 	Chord {
 		button: ButtonIcons,
 		dual_axis: Arc<DualAxisIcons>,
-	}
+	},
 }
 
 impl Default for DualAxisIcons {
@@ -239,8 +261,12 @@ impl DualAxisIcons {
 				Self::Single(Icon::from_path(path))
 			} else if let Some(chord) = <dyn Any>::downcast_ref::<DualAxislikeChord>(&*dual_axis) {
 				Self::Chord {
-					button: ButtonIcons::from_button(chord.button.clone(), platform, map).unwrap_or_default(),
-					dual_axis: Arc::new(Self::from_dual_axis(chord.dual_axis.clone(), platform, map).unwrap_or_default()),
+					button: ButtonIcons::from_button(chord.button.clone(), platform, map)
+						.unwrap_or_default(),
+					dual_axis: Arc::new(
+						Self::from_dual_axis(chord.dual_axis.clone(), platform, map)
+							.unwrap_or_default(),
+					),
 				}
 			} else {
 				match dual_axis.decompose() {
@@ -677,12 +703,15 @@ macro_rules! unprocessed {
 	($key:ident $map:expr => $T:ident $Trait:ident $fallback:ident) => {
 		if let Some(val) = <dyn Any>::downcast_ref::<$T>(&*$key.0) {
 			let key = IconPathKey(
-				Box::new($T { processors: Vec::new(), ..val.clone() }) as Box<dyn $Trait>,
+				Box::new($T {
+					processors: Vec::new(),
+					..val.clone()
+				}) as Box<dyn $Trait>,
 				$key.1,
 			);
-			return $map.get(&key).or_else(|| $fallback(key.0.clone()))
+			return $map.get(&key).or_else(|| $fallback(key.0.clone()));
 		}
-	}
+	};
 }
 
 impl InputIconFileMap {
@@ -754,24 +783,30 @@ impl InputIconFileMap {
 		macro_rules! zero_threshold {
 			($T:ident) => {
 				if let Some(val) = <dyn Any>::downcast_ref::<$T>(&*button) {
-					return self.button_map.get(&IconPathKey(
-						Box::new($T { threshold: 0.0, ..val.clone() }) as Box<dyn Buttonlike>,
-						button.1,
-					)).or_else(fallback)
+					return self
+						.button_map
+						.get(&IconPathKey(
+							Box::new($T {
+								threshold: 0.0,
+								..val.clone()
+							}) as Box<dyn Buttonlike>,
+							button.1,
+						))
+						.or_else(fallback);
 				}
-			}
+			};
 		}
 		zero_threshold!(MouseMoveDirection);
 		zero_threshold!(MouseScrollDirection);
 		zero_threshold!(GamepadControlDirection);
-		
+
 		if let Some(val) = <dyn Any>::downcast_ref::<SpecificGamepadButton>(&*button) {
 			return self.get_button_icon(&IconPathKey(
 				Box::new(val.button) as Box<dyn Buttonlike>,
 				button.1,
-			))
+			));
 		}
-		
+
 		self.button_map.get(button).or_else(fallback)
 	}
 
@@ -780,27 +815,21 @@ impl InputIconFileMap {
 		axis: &IconPathKey<Box<dyn Axislike>>,
 	) -> Option<&AssetPath<'static>> {
 		let fallback = |input| self.axis_map.get(&IconPathKey(input, None));
-		
+
 		unprocessed!(axis self.axis_map => MouseMoveAxis Axislike fallback);
 		unprocessed!(axis self.axis_map => MouseScrollAxis Axislike fallback);
 		unprocessed!(axis self.axis_map => VirtualAxis Axislike fallback);
-		
+
 		if let Some(val) = <dyn Any>::downcast_ref::<GamepadControlAxis>(&*axis.0) {
-			let key = IconPathKey(
-				Box::new(val.axis) as Box<dyn Axislike>,
-				axis.1,
-			);
-			return self.get_axis_icon(&key).or_else(|| fallback(key.0.clone()))
+			let key = IconPathKey(Box::new(val.axis) as Box<dyn Axislike>, axis.1);
+			return self.get_axis_icon(&key).or_else(|| fallback(key.0.clone()));
 		}
-		
+
 		if let Some(val) = <dyn Any>::downcast_ref::<SpecificGamepadAxis>(&*axis.0) {
-			let key = IconPathKey(
-				Box::new(val.axis) as Box<dyn Axislike>,
-				axis.1,
-			);
-			return self.get_axis_icon(&key).or_else(|| fallback(key.0.clone()))
+			let key = IconPathKey(Box::new(val.axis) as Box<dyn Axislike>, axis.1);
+			return self.get_axis_icon(&key).or_else(|| fallback(key.0.clone()));
 		}
-		
+
 		self.axis_map.get(axis).or_else(|| fallback(axis.0.clone()))
 	}
 
@@ -809,13 +838,15 @@ impl InputIconFileMap {
 		da: &IconPathKey<Box<dyn DualAxislike>>,
 	) -> Option<&AssetPath<'static>> {
 		let fallback = |input| self.dual_axis_map.get(&IconPathKey(input, None));
-		
+
 		unprocessed!(da self.dual_axis_map => GamepadStick DualAxislike fallback);
 		unprocessed!(da self.dual_axis_map => MouseMove DualAxislike fallback);
 		unprocessed!(da self.dual_axis_map => MouseScroll DualAxislike fallback);
 		unprocessed!(da self.dual_axis_map => VirtualDPad DualAxislike fallback);
-		
-		self.dual_axis_map.get(da).or_else(|| fallback(da.0.clone()))
+
+		self.dual_axis_map
+			.get(da)
+			.or_else(|| fallback(da.0.clone()))
 	}
 
 	pub fn get_triple_axis_icon(

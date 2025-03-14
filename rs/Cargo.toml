@@ -15,7 +15,8 @@ dylib = ["bevy_dylib", "sond-has-engine-dylib"]
 debugging = ["engine/debugging", "bevy-inspector-egui", "egui_plot", "leafwing-input-manager/egui"]
 vis_test = ["testing", "render", "engine/vis_test"]
 testing = ["engine/testing"]
-render = ["engine/render"]
+render = ["engine/render", "bevy/bevy_core_pipeline", "bevy/bevy_sprite"]
+import_assets = ["bevy/asset_processor"]
 default = [
     "render",
 ]
@@ -31,11 +32,11 @@ features = [
     "bevy_gilrs",
     "bevy_scene",
 #    "bevy_winit", # not in CI
-    "bevy_core_pipeline",
+#    "bevy_core_pipeline", # only with "render"
     "bevy_pbr",
     "bevy_gltf",
 #    "bevy_render", # not in CI
-    "bevy_sprite",
+#    "bevy_sprite",
     "bevy_text",
 #    "bevy_ui", # Will be making my own game UI
     "multi_threaded",

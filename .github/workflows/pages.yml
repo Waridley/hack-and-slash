@@ -28,7 +28,7 @@ jobs:
           lfs: true
 
       - name: Install alsa and udev
-        run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
+        run: sudo apt-get update; sudo apt-get install -y --no-install-recommends libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
 
       - uses: actions/cache@v3
         with:
@@ -51,7 +51,12 @@ jobs:
 
       - name: Run tests
         working-directory: ./rs
-        run: cargo test --features="testing"
+        run: cargo test --package sond-has-engine --no-default-features --features=testing\
+          && cargo test --package sond-has --no-default-features --features=testing,import_assets
+
+      - name: Import assets
+        working-directory: ./rs
+        run: cargo run --profile test --no-default-features --features=testing,import_assets -- --just-import-assets
 
       - name: Install Trunk
         uses: jetli/trunk-action@v0.1.0

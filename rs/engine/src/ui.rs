@@ -10,10 +10,7 @@ use crate::{
 	ui::{
 		focus::{AdjacentWidgets, FocusTarget},
 		layout::LineUpChildren,
-		widgets::{
-			draw_widget_shape_gizmos, CuboidFaces, CuboidPanel, Text3d,
-			WidgetShape,
-		},
+		widgets::{draw_widget_shape_gizmos, CuboidFaces, CuboidPanel, Text3d, WidgetShape},
 	},
 	util::{Diff, LerpSlerp, StateStack},
 };
@@ -33,6 +30,7 @@ use bevy::{
 		view::{Layer, RenderLayers, VisibilitySystems::CheckVisibility},
 	},
 	ui::FocusPolicy,
+	utils::{HashMap, HashSet},
 };
 use leafwing_input_manager::{prelude::*, Actionlike};
 use rapier3d::{geometry::SharedShape, math::Point};
@@ -44,7 +42,6 @@ use std::{
 	fmt::Formatter,
 	ops::{Add, ControlFlow::Break, Mul},
 };
-use bevy::utils::{HashMap, HashSet};
 
 pub mod a11y;
 #[cfg(feature = "debugging")]
@@ -705,6 +702,7 @@ use crate::{
 			PanelBundle, PrevFocus,
 		},
 	},
+	util::{downcast_material, RegisterUntypedAssetDowncaster},
 };
 #[cfg(feature = "debugging")]
 use bevy_inspector_egui::{
@@ -714,7 +712,6 @@ use bevy_inspector_egui::{
 use layout::ExpandToFitChildren;
 use text::{TextMeshCache, UiFonts};
 use web_time::Duration;
-use crate::util::{downcast_material, RegisterUntypedAssetDowncaster};
 
 /// Component that starts a new branch of a tree of entities that can be
 /// faded in an out together.
@@ -799,7 +796,7 @@ pub fn propagate_fade<M: Material + AsMut<DitherFade>>(
 		if !fade.is_changed() {
 			continue;
 		}
-		
+
 		let mut defer = |id| {
 			if let Err(e) = to_set.try_insert(id, **fade) {
 				if cfg!(debug_assertions) && e.value != **fade {
@@ -841,7 +838,7 @@ pub fn propagate_fade<M: Material + AsMut<DitherFade>>(
 			}
 		}
 	}
-	
+
 	for (id, fade) in to_set.drain() {
 		let Some(mat) = mats.get_mut(id) else {
 			warn!("missing {id:?}");
@@ -1028,9 +1025,7 @@ fn spawn_test_menu(
 	let border_mat = mats.add(UiMatBuilder::default());
 	let size = Vec3::new(16.0, 16.0, 9.0);
 	let mut faces = [Entity::PLACEHOLDER; 6];
-	let text_mat = mats.add(UiMatBuilder::from(StandardMaterial {
-		..default()
-	}).build());
+	let text_mat = mats.add(UiMatBuilder::from(StandardMaterial { ..default() }).build());
 	let unlit_mat = mats.add(new_unlit_material());
 	for (i, transform) in CuboidFaces::origins(size + Vec3::ONE)
 		.into_iter()
