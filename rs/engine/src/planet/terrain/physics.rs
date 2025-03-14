@@ -1,7 +1,5 @@
-use bevy::ecs::system::SystemParam;
-use bevy::prelude::*;
-use bevy_rapier3d::parry::math::Vector;
-use bevy_rapier3d::prelude::*;
+use bevy::{ecs::system::SystemParam, prelude::*};
+use bevy_rapier3d::{parry::math::Vector, prelude::*};
 use rapier3d::prelude::ShapeType::HeightField;
 
 #[derive(SystemParam)]
@@ -10,21 +8,22 @@ pub struct OneWayHeightFieldFilter<'w, 's> {
 }
 
 impl OneWayHeightFieldFilter<'_, '_> {
-	pub fn should_flip_normal(&self,
+	pub fn should_flip_normal(
+		&self,
 		collider: Entity,
 		local_norm: &Vector<f32>,
 		up: &Vector<f32>,
 	) -> bool {
-		if self.colliders.get(collider)
-			.map(|col| col.raw.shape_type()) == Ok(HeightField) {
+		if self.colliders.get(collider).map(|col| col.raw.shape_type()) == Ok(HeightField) {
 			if local_norm.dot(up) < 0.0 {
 				return true;
 			}
 		}
 		false
 	}
-	
-	pub fn filter(&self,
+
+	pub fn filter(
+		&self,
 		collider1: Entity,
 		collider2: Entity,
 		local_n1: &Vector<f32>,
@@ -32,7 +31,9 @@ impl OneWayHeightFieldFilter<'_, '_> {
 		up: &Vector<f32>,
 		normal: &mut Vector<f32>,
 	) {
-		if self.should_flip_normal(collider1, local_n1, up) || self.should_flip_normal(collider2, local_n2, up) {
+		if self.should_flip_normal(collider1, local_n1, up)
+			|| self.should_flip_normal(collider2, local_n2, up)
+		{
 			*normal = -*normal;
 		}
 	}

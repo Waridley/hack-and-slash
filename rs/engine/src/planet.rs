@@ -246,7 +246,7 @@ pub mod seeds {
 		hash::{BuildHasher, Hasher},
 	};
 	use tiny_bail::prelude::r;
-	
+
 	#[derive(Resource, Debug, Clone)]
 	pub struct PlanetSeed {
 		string: Cow<'static, str>,
@@ -300,8 +300,10 @@ pub mod seeds {
 
 			// WARNING: Changing this will break compatibility with older seeds.
 			let result = blake3::hash(bytes);
-			let hash = (&result.as_bytes()[0..24]).try_into().expect("blake3 outputs 32 bytes");
-			
+			let hash = (&result.as_bytes()[0..24])
+				.try_into()
+				.expect("blake3 outputs 32 bytes");
+
 			trace!(hash = format!("{:?}", hash));
 			Self { string, hash }
 		}

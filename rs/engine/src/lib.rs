@@ -1,10 +1,6 @@
 #![warn(unused_crate_dependencies)]
 
 use bevy::app::{App, Plugin};
-#[allow(unused_imports, clippy::single_component_path_imports)]
-#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
-use bevy_dylib;
-use bevy_mod_speedup::SpeedupPlugin;
 use bevy_svg::SvgPlugin;
 
 pub mod anim;
@@ -25,7 +21,7 @@ pub struct EnginePlugin;
 
 impl Plugin for EnginePlugin {
 	fn build(&self, app: &mut App) {
-		app.add_plugins((ui::UiPlugin, input::InputPlugin, SvgPlugin, SpeedupPlugin))
+		app.add_plugins((ui::UiPlugin, input::InputPlugin, SvgPlugin))
 			.register_type::<util::MeshOutline>()
 			.add_systems(bevy::prelude::Last, util::MeshOutline::sync);
 	}

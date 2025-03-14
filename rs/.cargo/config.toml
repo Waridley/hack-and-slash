@@ -5,7 +5,7 @@
 linker = "clang"
 rustflags = ["-Clink-arg=-fuse-ld=mold", "-Zshare-generics=y"]
 
-# NOTE: you must manually install https://github.com/michaeleisel/zld on mac. you can easily do this with the "brew" package manager:
+# NOTE: you must manually install https://github.com/michaeleisel/zld on Mac. you can easily do this with the "brew" package manager:
 # `brew install michaeleisel/zld/zld`
 [target.x86_64-apple-darwin]
 rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/zld", "-Zshare-generics=y"]
@@ -18,6 +18,6 @@ linker = "rust-lld.exe"
 rustflags = ["-Zshare-generics=n"]
 
 # Optional: Uncommenting the following improves compile times, but reduces the amount of debug info to 'line number tables only'
-# In most cases the gains are negligible, but if you are on macos and have slow compile times you should see significant gains.
+# In most cases the gains are negligible, but if you are on macOS and have slow compile times you should see significant gains.
 #[profile.dev]
 #debug = 1

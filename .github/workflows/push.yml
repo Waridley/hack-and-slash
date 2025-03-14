@@ -19,7 +19,7 @@ jobs:
           submodules: recursive
 
       - name: Install alsa and udev
-        run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
+        run: sudo apt-get update; sudo apt-get install -y --no-install-recommends libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
 
       - uses: actions/cache@v3
         with:
@@ -47,7 +47,7 @@ jobs:
 
       - name: Linux Build
         working-directory: ./rs
-        run: cargo build --features="vis_test"
+        run: cargo build --features="debugging,vis_test"
 
       - name: WASM Check
         working-directory: ./rs
@@ -55,7 +55,7 @@ jobs:
 
       - name: Windows Check
         working-directory: ./rs
-        run: cargo check --target x86_64-pc-windows-gnu --features="vis_test"
+        run: cargo check --target x86_64-pc-windows-gnu --all-features
 
 #      - name: MacOS Check
 #        working-directory: ./rs

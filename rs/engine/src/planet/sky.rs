@@ -30,6 +30,7 @@ use bevy::{
 		Render, RenderApp, RenderSet,
 	},
 };
+use tiny_bail::prelude::r;
 
 pub struct SkyPlugin;
 
@@ -43,7 +44,7 @@ impl Plugin for SkyPlugin {
 			ExtractResourcePlugin::<DayNightCycle>::default(),
 		));
 
-		let render_app = app.get_sub_app_mut(RenderApp).unwrap();
+		let render_app = r!(app.get_sub_app_mut(RenderApp));
 		render_app
 			.add_render_graph_node::<ViewNodeRunner<SkyNode>>(Core3d, SkyGeneratorNode)
 			.add_render_graph_edge(Core3d, SkyGeneratorNode, Node3d::MainOpaquePass)
@@ -58,7 +59,7 @@ impl Plugin for SkyPlugin {
 	}
 
 	fn finish(&self, app: &mut App) {
-		let render_app = app.get_sub_app_mut(RenderApp).unwrap();
+		let render_app = r!(app.get_sub_app_mut(RenderApp));
 		render_app.init_resource::<SkyPipeline>();
 	}
 }

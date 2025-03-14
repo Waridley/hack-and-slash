@@ -1,3 +1,12 @@
+use crate::{
+	player::{
+		abilities::BoosterCharge,
+		player_entity::{Controller, Root, ShipCenter},
+		tune::PlayerParams,
+		BelongsToPlayer, G1,
+	},
+	UP,
+};
 use bevy::{math::bounding::BoundingSphere, prelude::*};
 use bevy_rapier3d::{
 	na::Vector3,
@@ -7,22 +16,12 @@ use bevy_rapier3d::{
 	},
 	prelude::*,
 };
+use engine::{planet::terrain::physics::OneWayHeightFieldFilter, util::LerpSmoothing};
 use enum_components::WithVariant;
 use rapier3d::{
 	math::Isometry,
 	parry::query::ContactManifold,
 	prelude::{ContactData, ContactManifoldData},
-};
-use engine::planet::terrain::physics::OneWayHeightFieldFilter;
-use engine::util::LerpSmoothing;
-use crate::{
-	player::{
-		abilities::BoosterCharge,
-		player_entity::{Controller, Root, ShipCenter},
-		tune::PlayerParams,
-		BelongsToPlayer, G1,
-	},
-	UP,
 };
 
 #[derive(Component, Default, Clone, Debug, Reflect)]
@@ -54,7 +53,7 @@ pub fn antigrav(
 	params: &PlayerParams,
 ) {
 	use crate::DT;
-	
+
 	let global = global.compute_transform();
 
 	let max_toi = params.phys.hover_height;
@@ -72,7 +71,7 @@ pub fn antigrav(
 			.exclude_rigid_body(**body_id)
 			.groups(CollisionGroups::new(G1, !G1)),
 	);
-	
+
 	// Think of the antigrav spring as radiating out in a spherical cone (sector),
 	// so the spring coefficient for a constant-area contact patch follows the inverse square law,
 	// not a constant like typical hooke's law springs.
@@ -80,7 +79,7 @@ pub fn antigrav(
 	fn f(x: f32) -> f32 {
 		x * x
 	}
-	
+
 	if let Some((
 		id,
 		ShapeCastHit {
@@ -106,7 +105,7 @@ pub fn antigrav(
 
 			let stiffness = params.phys.antigrav_stiffness;
 			let damping = params.phys.antigrav_spring_damping;
-			
+
 			// Midpoint approximation of integral of acceleration over the predicted distance.
 			let dx_dt = -ctrl_vel.linvel.z; // moving downwards increases compression of spring
 			let x1 = x0 + (dx_dt * DT);
@@ -122,13 +121,16 @@ pub fn antigrav(
 			let integral = (f(x0) + f(x1)) * 0.5;
 			let repel_accel = integral * stiffness;
 			debug_assert!(t_used >= 0.0);
-			
+
 			// ctrl_vel.linvel.z += (params.phys.gravity * DT); // Resist gravity for this frame
 			ctrl_vel.linvel.z += repel_accel * t_used;
 
 			ctrl_vel.linvel.z = ctrl_vel.linvel.z.exp_decay(0.0, damping, DT);
 		} else if angle > std::f32::consts::FRAC_PI_2 + crate::EPS {
-			error!(?details, "Downward shape cast shouldn't hit downward-facing surfaces");
+			error!(
+				?details,
+				"Downward shape cast shouldn't hit downward-facing surfaces"
+			);
 			return;
 		} else {
 			ctrl_state.touching_ground = false;
@@ -302,10 +304,11 @@ pub fn move_player(
 							hit.normal1 = -hit.normal1;
 							hit.normal2 = -hit.normal2;
 						}
-						
+
 						let safe_toi = (toi - (DT * BUFFER)).clamp(-BUFFER, rem);
 						let penetrating_part = dir * ((rem - toi) / rem);
-						let reaction = -penetrating_part.dot(hit.normal1) * (hit.normal1 * (1.0 + BUFFER));
+						let reaction =
+							-penetrating_part.dot(hit.normal1) * (hit.normal1 * (1.0 + BUFFER));
 						let slide_dir = penetrating_part + reaction;
 
 						let angle = hit.normal1.angle_between(UP);

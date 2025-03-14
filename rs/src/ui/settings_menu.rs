@@ -13,8 +13,7 @@ use engine::{
 		text::UiFonts,
 		widgets::{
 			borders::Border, dbg_event, focus_toggle_border, new_unlit_material, on_ok,
-			CuboidPanel, CylinderPanel, InteractHandlers,
-			Node3d, Text3d, WidgetShape,
+			CuboidPanel, CylinderPanel, InteractHandlers, Node3d, Text3d, WidgetShape,
 		},
 		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiAction, UiMat, UiMatBuilder,
 		GLOBAL_UI_RENDER_LAYERS,

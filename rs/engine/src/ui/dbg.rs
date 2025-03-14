@@ -1,21 +1,20 @@
 use std::cmp::Ordering;
 
-use bevy::{prelude::*, window::PrimaryWindow};
-use bevy::window::CursorGrabMode;
-use bevy_inspector_egui::{
-	bevy_egui::EguiContext, egui, egui::Color32, inspector_options::std_options::NumberOptions,
-	prelude::*, quick::WorldInspectorPlugin, reflect_inspector::InspectorUi,
-};
-use bevy_rapier3d::{
-	plugin::{RapierConfiguration, TimestepMode},
-	prelude::{DebugRenderContext, RapierDebugRenderPlugin},
-};
-use egui_plot::{Legend, Line, Plot};
-use tiny_bail::prelude::r;
 use crate::{
 	planet::{day_night::DayNightCycle, weather::Weather},
 	util::{Average, History},
 };
+use bevy::{
+	prelude::*,
+	window::{CursorGrabMode, PrimaryWindow},
+};
+use bevy_inspector_egui::{
+	bevy_egui::EguiContext, egui, egui::Color32, inspector_options::std_options::NumberOptions,
+	prelude::*, quick::WorldInspectorPlugin, reflect_inspector::InspectorUi,
+};
+use bevy_rapier3d::plugin::{RapierConfiguration, TimestepMode};
+use egui_plot::{Legend, Line, Plot};
+use tiny_bail::prelude::r;
 
 use super::*;
 
@@ -25,7 +24,7 @@ pub struct DebugUiPlugin;
 impl Plugin for DebugUiPlugin {
 	fn build(&self, app: &mut App) {
 		#[cfg(feature = "render")]
-		app.add_plugins(RapierDebugRenderPlugin::default())
+		app.add_plugins(bevy_rapier3d::prelude::RapierDebugRenderPlugin::default())
 			.add_systems(Update, toggle_physics_wireframes);
 
 		app.add_plugins(
@@ -52,9 +51,7 @@ impl Plugin for DebugUiPlugin {
 	}
 }
 
-pub fn keep_cursor_unlocked(
-	mut windows: Query<&mut Window>,
-) {
+pub fn keep_cursor_unlocked(mut windows: Query<&mut Window>) {
 	for mut window in &mut windows {
 		if window.cursor_options.grab_mode != CursorGrabMode::None {
 			window.cursor_options.grab_mode = CursorGrabMode::None;
@@ -66,9 +63,11 @@ pub fn keep_cursor_unlocked(
 }
 
 pub fn set_egui_style(mut egui_contexts: Query<&mut EguiContext, With<PrimaryWindow>>) {
-	egui_contexts.single_mut().get_mut().style_mut(|style| {
-		style.visuals.window_fill = Color32::from_black_alpha(128);
-	});
+	r!(egui_contexts.get_single_mut())
+		.get_mut()
+		.style_mut(|style| {
+			style.visuals.window_fill = Color32::from_black_alpha(128);
+		});
 }
 
 pub fn dbg_res<T: Resource + Reflect>(
@@ -142,7 +141,7 @@ pub fn dbg_single_proxy<
 	mut single: Query<&mut T>,
 ) {
 	let mut single = r!(single.get_single_mut());
-	
+
 	let mut proxy = Proxy::from(&*single);
 
 	let egui_context = q.get_single_mut();
@@ -315,8 +314,9 @@ pub fn dbg_fps(
 	}
 }
 
+#[cfg(feature = "render")]
 pub fn toggle_physics_wireframes(
-	mut ctx: ResMut<DebugRenderContext>,
+	mut ctx: ResMut<bevy_rapier3d::prelude::DebugRenderContext>,
 	input: Res<ButtonInput<KeyCode>>,
 ) {
 	if input.just_pressed(KeyCode::KeyP) {

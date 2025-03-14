@@ -7,6 +7,8 @@ use crate::{
 			Platform,
 		},
 		ChordEntry, CurrentChord, InputState,
+		InputState::DetectingBinding,
+		ToBind,
 	},
 	mats::{
 		fade::DitherFade,
@@ -19,17 +21,21 @@ use crate::{
 		widgets::{CuboidPanel, Node3d, Text3d},
 		GlobalUi, Popup, PopupsRoot, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
 	},
+	util::{MeshOutline, StateStack},
 };
-use bevy::{color::palettes::css::AQUAMARINE, prelude::*, utils::HashMap};
-use smallvec::{smallvec, SmallVec};
-use bevy::input::gamepad::{GamepadAxisChangedEvent, GamepadButtonChangedEvent};
-use bevy::input::keyboard::KeyboardInput;
-use bevy::input::mouse::{MouseButtonInput, MouseMotion, MouseWheel};
+use bevy::{
+	color::palettes::css::AQUAMARINE,
+	input::{
+		gamepad::{GamepadAxisChangedEvent, GamepadButtonChangedEvent},
+		keyboard::KeyboardInput,
+		mouse::{MouseButtonInput, MouseMotion, MouseWheel},
+		ButtonState,
+	},
+	prelude::*,
+	utils::HashMap,
+};
 use leafwing_input_manager::prelude::{MouseMoveDirection, MouseScrollDirection, UserInputWrapper};
-use bevy::input::ButtonState;
-use crate::input::InputState::DetectingBinding;
-use crate::input::ToBind;
-use crate::util::{MeshOutline, StateStack};
+use smallvec::{smallvec, SmallVec};
 
 pub struct DetectBindingPopupPlugin;
 
@@ -43,12 +49,17 @@ impl Plugin for DetectBindingPopupPlugin {
 					display_curr_chord.run_if(resource_exists::<InputIconFileMap>),
 				),
 			)
-			.add_systems(Last, InputIcon::sync::<UiMat>
-				.before(Text3d::sync_mesh)
-				.before(bevy_svg::prelude::svg_mesh_3d_generator)
-				.before(bevy_svg::prelude::svg_mesh_2d_generator)
+			.add_systems(
+				Last,
+				InputIcon::sync::<UiMat>
+					.before(Text3d::sync_mesh)
+					.before(bevy_svg::prelude::svg_mesh_3d_generator)
+					.before(bevy_svg::prelude::svg_mesh_2d_generator),
 			)
-			.configure_sets(Last, bevy_svg::prelude::Set::SVG.before(crate::util::MeshOutline::sync));
+			.configure_sets(
+				Last,
+				bevy_svg::prelude::Set::SVG.before(crate::util::MeshOutline::sync),
+			);
 	}
 }
 

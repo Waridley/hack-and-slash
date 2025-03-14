@@ -1,3 +1,16 @@
+use crate::{
+	anim::ComponentDelta,
+	pickups::MissSfx,
+	planet::{chunks::ChunkFinder, frame::Frame, PlanetVec2},
+	player::{
+		abilities::{BoosterCharge, HurtboxFilter, Sfx, WeaponCharge},
+		tune::{AbilityParams, PlayerParams, PlayerPhysicsParams},
+	},
+	settings::Settings,
+	terminal_velocity,
+	util::{Diff, IntoFnPlugin, Prev, TransformDelta},
+	NeverDespawn, TerminalVelocity,
+};
 use bevy::{
 	asset::AssetPath,
 	ecs::system::EntityCommands,
@@ -38,23 +51,10 @@ use rapier3d::{math::Point, prelude::Aabb};
 use serde::{Deserialize, Serialize};
 use std::{
 	f32::consts::*,
+	fmt::Formatter,
 	num::NonZeroU8,
 	ops::{Add, RangeInclusive},
 	time::Duration,
-};
-use std::fmt::Formatter;
-use crate::{
-	anim::ComponentDelta,
-	pickups::MissSfx,
-	planet::{chunks::ChunkFinder, frame::Frame, PlanetVec2},
-	player::{
-		abilities::{BoosterCharge, HurtboxFilter, Sfx, WeaponCharge},
-		tune::{AbilityParams, PlayerParams, PlayerPhysicsParams},
-	},
-	settings::Settings,
-	terminal_velocity,
-	util::{Diff, IntoFnPlugin, Prev, TransformDelta},
-	NeverDespawn, TerminalVelocity,
 };
 
 pub mod abilities;
@@ -683,7 +683,13 @@ fn populate_player_scene(
 ) {
 	camera::spawn_pivot(&mut cmds, owner, crosshair);
 	let mut root = cmds.spawn(root).with_enum(Root);
-	player_controller(root.reborrow(), owner, char_collider, antigrav_collider, prefs);
+	player_controller(
+		root.reborrow(),
+		owner,
+		char_collider,
+		antigrav_collider,
+		prefs,
+	);
 	player_vis(
 		root,
 		owner,
@@ -853,7 +859,7 @@ fn player_vis(
 						Transform::from_xyz(0.0, -0.5, 0.0),
 					));
 				});
-			
+
 			let mut arms = builder
 				.spawn((
 					owner,
@@ -987,10 +993,7 @@ fn player_arms(
 		let mut cmds = arms_pivot.commands();
 		let mut orb = cmds
 			.spawn((
-				Name::new(format!(
-					"Player{}.Orb{which:?}",
-					owner.0
-				)),
+				Name::new(format!("Player{}.Orb{which:?}", owner.0)),
 				owner,
 				arm,
 				spewer,

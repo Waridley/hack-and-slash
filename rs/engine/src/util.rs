@@ -1,12 +1,11 @@
 use crate::ui::{UiMat, UiMatBuilder};
-use bevy::render::render_resource::VertexFormat;
-use bevy::utils::{HashMap, HashSet};
 use bevy::{
-	asset::{io::Reader, AssetLoader, LoadContext},
+	asset::{io::Reader, AssetLoader, LoadContext, UntypedAssetId},
 	ecs::{
-		component::ComponentInfo,
+		component::{ComponentId, ComponentInfo},
 		query::QueryFilter,
 		system::{EntityCommands, StaticSystemParam, SystemId, SystemParam, SystemParamItem},
+		world::DeferredWorld,
 	},
 	math::Dir2,
 	prelude::*,
@@ -14,15 +13,18 @@ use bevy::{
 	render::{
 		mesh::{Indices, PrimitiveTopology, VertexAttributeValues},
 		render_asset::RenderAssetUsages,
+		render_resource::VertexFormat,
 	},
 	scene::{SceneLoaderError, SceneLoaderError::RonSpannedError},
 	state::state::FreelyMutableState,
+	utils::{HashMap, HashSet},
 };
 use itertools::Itertools;
 use num_traits::NumCast;
 use ron::Error::InvalidValueForType;
 use serde::{de::DeserializeSeed, Deserialize, Serialize};
 use std::{
+	any::TypeId,
 	cmp::Ordering,
 	collections::VecDeque,
 	f32::consts::{PI, TAU},
@@ -33,10 +35,6 @@ use std::{
 	sync::OnceLock,
 	time::Duration,
 };
-use std::any::TypeId;
-use bevy::asset::UntypedAssetId;
-use bevy::ecs::component::ComponentId;
-use bevy::ecs::world::DeferredWorld;
 use tiny_bail::prelude::{c, r};
 
 #[inline(always)]
@@ -105,7 +103,7 @@ pub fn consume_spawn_events<T: Spawnable>(
 
 pub trait Lerp<Rhs, T = f32> {
 	type Output;
-	
+
 	fn lerp(self, rhs: Rhs, t: T) -> Self::Output;
 }
 
@@ -141,7 +139,7 @@ where
 		let t = exp_decay_factor(λ, dt);
 		((self - to.clone()) * t) + to
 	}
-	
+
 	/// Calculate the value after `dt` seconds if self is decaying towards `to` with the given
 	/// `half_life` (`t½`) in seconds.
 	#[inline(always)]
@@ -149,7 +147,7 @@ where
 		let t = decay_factor(dt, half_life);
 		((self - to.clone()) * t) + to
 	}
-	
+
 	/// Calculate the value after `dt` seconds if self is decaying towards `to` with the given
 	/// remainder after 1 second.
 	///
@@ -208,7 +206,9 @@ impl<T> LerpSmoothing for T
 where
 	T: Clone + Sized + Sub<T>,
 	<T as Sub<T>>::Output: Mul<f32>,
-	<<T as Sub<T>>::Output as Mul<f32>>::Output: Add<T, Output = T>, {}
+	<<T as Sub<T>>::Output as Mul<f32>>::Output: Add<T, Output = T>,
+{
+}
 
 #[derive(Resource, Component)]
 pub struct History<T> {
@@ -466,21 +466,21 @@ impl<T: Reflect + FromReflect + Asset> AssetLoader for RonReflectAssetLoader<T> 
 
 pub trait LerpSlerp: Sized {
 	fn lerp_slerp(self, rhs: Self, t: f32) -> Self;
-	
+
 	/// Spherical version of [LerpSmoothing::exp_decay].
 	#[inline(always)]
 	fn sph_exp_decay(self, to: Self, λ: f32, dt: f32) -> Self {
 		let t = exp_decay_factor(λ, dt);
 		to.lerp_slerp(self, t)
 	}
-	
+
 	/// Spherical version of [LerpSmoothing::decay].
 	#[inline(always)]
 	fn sph_decay(self, to: Self, half_life: f32, dt: f32) -> Self {
 		let t = decay_factor(half_life, dt);
 		to.lerp_slerp(self, t)
 	}
-	
+
 	/// Spherical version of [LerpSmoothing::frac_decay].
 	#[inline(always)]
 	fn sph_frac_decay(self, to: Self, rem_frac_after_1s: f32, dt: f32) -> Self {
@@ -1357,9 +1357,9 @@ impl MeshOutline {
 		Self {
 			color: Color::BLACK,
 			offset: Vec3 {
-				x: direction.x  * -(thickness + distance_behind_front),
-				y: direction.y  * -(thickness + distance_behind_front),
-				z: direction.z  * -(thickness + distance_behind_front),
+				x: direction.x * -(thickness + distance_behind_front),
+				y: direction.y * -(thickness + distance_behind_front),
+				z: direction.z * -(thickness + distance_behind_front),
 			},
 			thickness: Vec3::splat(thickness),
 			invert_faces: false,
@@ -1425,7 +1425,11 @@ impl MeshOutline {
 
 		let mut edge_share_counts = HashMap::<(usize, usize), usize>::new();
 		for mut tri in indices.iter().chunks(3).into_iter() {
-			let [a, b, c] = [tri.next().unwrap(), tri.next().unwrap(), tri.next().unwrap()];
+			let [a, b, c] = [
+				tri.next().unwrap(),
+				tri.next().unwrap(),
+				tri.next().unwrap(),
+			];
 			// Sort for deterministic keys since order doesn't matter
 			let ab = if a > b { (b, a) } else { (a, b) };
 			let bc = if b > c { (c, b) } else { (b, c) };
@@ -1444,45 +1448,51 @@ impl MeshOutline {
 				_ => fin_found = true,
 			}
 		}
-		
+
 		if fin_found {
 			warn!("Mesh has fins, outline will likely be messy");
 		}
-		
+
 		if !watertight {
 			// Mesh is likely just flat. We could warn here and have a specific option to solidify the
 			// mesh, but currently I think auto-solidifying is the most useful option.
-			
+
 			let mut indices = indices.iter().collect::<Vec<_>>();
-			let normals = mesh.attribute(Mesh::ATTRIBUTE_NORMAL).unwrap().as_float3().unwrap();
+			let normals = mesh
+				.attribute(Mesh::ATTRIBUTE_NORMAL)
+				.unwrap()
+				.as_float3()
+				.unwrap();
 			let len = positions.len();
-			let (mut front_verts, back_verts): (Vec<_>, Vec<_>) = positions.into_iter().enumerate().map(|(i, pos)| {
-				let pos = Vec3::from_array(*pos);
-				let norm = Vec3::from_array(normals[i]);
-				((pos + norm).to_array(), (pos - norm).to_array())
-			}).unzip();
+			let (mut front_verts, back_verts): (Vec<_>, Vec<_>) = positions
+				.into_iter()
+				.enumerate()
+				.map(|(i, pos)| {
+					let pos = Vec3::from_array(*pos);
+					let norm = Vec3::from_array(normals[i]);
+					((pos + norm).to_array(), (pos - norm).to_array())
+				})
+				.unzip();
 			front_verts.extend(back_verts.into_iter());
 			let mut verts = front_verts;
-			
+
 			let mut new_indices = indices
 				.chunks_exact(3)
-				.flat_map(|front| {
-					[front[0] + len, front[2] + len, front[1] + len]
-				})
+				.flat_map(|front| [front[0] + len, front[2] + len, front[1] + len])
 				.collect::<Vec<_>>();
-			
+
 			for mut tri in indices.chunks_exact(3) {
 				let [a, b, c] = [tri[0], tri[1], tri[2]];
 				// Sort for deterministic keys since order doesn't matter
 				let ab = if a > b { (b, a) } else { (a, b) };
 				let bc = if b > c { (c, b) } else { (b, c) };
 				let ca = if c > a { (a, c) } else { (c, a) };
-				
+
 				let mut add_side = |a, b| {
 					let (c, d) = (a + len, b + len);
 					new_indices.extend([b, a, c, b, c, d]);
 				};
-				
+
 				if edge_share_counts[&ab] == 1 {
 					add_side(a, b);
 				}
@@ -1495,17 +1505,21 @@ impl MeshOutline {
 			}
 			let front_indices_len = indices.len();
 			indices.extend(new_indices);
-			
+
 			let indices = if let Ok(_) = u16::try_from(len) {
 				Indices::U16(indices.into_iter().map(|i| i as u16).collect())
 			} else {
 				Indices::U32(indices.into_iter().map(|i| i as u32).collect())
 			};
-			
+
 			let mut normals = geometric_normals_impl(&verts, &indices);
-			
-			debug_assert_eq!(verts.len() % 2, 0, "we doubled the length by extending from back_verts");
-			
+
+			debug_assert_eq!(
+				verts.len() % 2,
+				0,
+				"we doubled the length by extending from back_verts"
+			);
+
 			if self.invert_faces {
 				// Normals are now correct, but we don't want to keep the solidified positions before applying offset.
 				let (front_verts, back_verts) = verts.split_at_mut(len);
@@ -1523,18 +1537,18 @@ impl MeshOutline {
 					Indices::U16(mut indices) => {
 						indices.truncate(front_indices_len);
 						Indices::U16(indices)
-					},
+					}
 					Indices::U32(mut indices) => {
 						indices.truncate(front_indices_len);
 						Indices::U32(indices)
-					},
+					}
 				};
 				mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, verts);
 				mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
 				mesh.insert_indices(indices);
 			}
 		}
-		
+
 		// Have to re-get these because they may have changed in solidify above
 		let positions = mesh
 			.attribute(Mesh::ATTRIBUTE_POSITION)
@@ -1542,7 +1556,7 @@ impl MeshOutline {
 			.as_float3()
 			.unwrap();
 		let indices = mesh.indices().unwrap();
-		
+
 		// The unnormalized normal directions of all triangles before moving vertices.
 		// In small inside radiuses, verts can end up crossing each other and flipping the
 		// orientation of faces. We simply detect when this happens and flip them back.
@@ -1755,7 +1769,7 @@ pub fn compute_geometric_normals(mesh: &mut Mesh) {
 
 fn geometric_normals_impl(positions: &[[f32; 3]], indices: &Indices) -> Vec<Vec3> {
 	let mut normals = vec![Vec3::ZERO; positions.len()];
-	
+
 	for mut tri in &indices.iter().chunks(3) {
 		let [a, b, c] = [
 			tri.next().unwrap(),
@@ -1770,16 +1784,16 @@ fn geometric_normals_impl(positions: &[[f32; 3]], indices: &Indices) -> Vec<Vec3
 			.as_ref()
 			.map(Dir3::as_vec3)
 			.unwrap_or(Vec3::ZERO);
-		
+
 		let wa = (pb - pa).angle_between(pc - pa);
 		let wb = (pa - pb).angle_between(pc - pb);
 		let wc = (pa - pc).angle_between(pb - pc);
-		
+
 		normals[a] += norm * wa;
 		normals[b] += norm * wb;
 		normals[c] += norm * wc;
 	}
-	
+
 	normals.iter_mut().for_each(|n| *n = n.normalize_or_zero());
 	normals
 }
@@ -1798,7 +1812,7 @@ impl PendingErasedAsset {
 			replacer
 		} else {
 			error!("Missing downcaster for {handle:?}");
-			return
+			return;
 		};
 		let mut cmds = world.commands();
 		let cmds = cmds.entity(entity);
@@ -1814,7 +1828,10 @@ pub type ErasedAssetDowncaster = Box<dyn FnMut(EntityCommands, UntypedHandle) + 
 pub struct ErasedAssetDowncasters(HashMap<TypeId, ErasedAssetDowncaster>);
 
 impl ErasedAssetDowncasters {
-	pub fn register<A: Asset>(&mut self, replacer: impl FnMut(EntityCommands, UntypedHandle) + Send + Sync + 'static) {
+	pub fn register<A: Asset>(
+		&mut self,
+		replacer: impl FnMut(EntityCommands, UntypedHandle) + Send + Sync + 'static,
+	) {
 		if let Err(e) = self.0.try_insert(TypeId::of::<A>(), Box::new(replacer)) {
 			panic!("Replacer already registered for {}", A::type_path());
 		}
@@ -1822,24 +1839,28 @@ impl ErasedAssetDowncasters {
 }
 
 pub trait RegisterUntypedAssetDowncaster {
-	fn register_untyped_asset_downcaster<A: Asset>(&mut self, replacer: impl FnMut(EntityCommands, UntypedHandle) + Send + Sync + 'static) -> &mut Self;
+	fn register_untyped_asset_downcaster<A: Asset>(
+		&mut self,
+		replacer: impl FnMut(EntityCommands, UntypedHandle) + Send + Sync + 'static,
+	) -> &mut Self;
 }
 
 impl RegisterUntypedAssetDowncaster for App {
-	fn register_untyped_asset_downcaster<A: Asset>(&mut self, replacer: impl FnMut(EntityCommands, UntypedHandle) + Send + Sync + 'static) -> &mut Self {
-		let mut replacers = self.world_mut().get_resource_or_init::<ErasedAssetDowncasters>();
+	fn register_untyped_asset_downcaster<A: Asset>(
+		&mut self,
+		replacer: impl FnMut(EntityCommands, UntypedHandle) + Send + Sync + 'static,
+	) -> &mut Self {
+		let mut replacers = self
+			.world_mut()
+			.get_resource_or_init::<ErasedAssetDowncasters>();
 		replacers.register::<A>(replacer);
 		self
 	}
 }
 
-pub fn downcast_material<M: Material>(
-	mut cmds: EntityCommands,
-	handle: UntypedHandle,
-) {
+pub fn downcast_material<M: Material>(mut cmds: EntityCommands, handle: UntypedHandle) {
 	if let Ok(typed) = handle.try_typed::<M>() {
-		cmds
-			.remove::<PendingErasedAsset>()
+		cmds.remove::<PendingErasedAsset>()
 			.insert(MeshMaterial3d(typed));
 	}
 }

@@ -6,7 +6,6 @@ use bevy::{
 	color::palettes::basic::{GRAY, GREEN},
 	prelude::*,
 };
-use engine::util::MeshOutline;
 use engine::{
 	draw::square_points,
 	entity_tree,
@@ -31,6 +30,7 @@ use engine::{
 		},
 		Fade, GlobalUi, MenuStack, UiAction, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
 	},
+	util::MeshOutline,
 };
 use leafwing_input_manager::{prelude::InputMap, Actionlike};
 use serde::{Deserialize, Serialize};
@@ -512,7 +512,8 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 								..default()
 							},
 							MeshMaterial3d(text_mat.clone()),
-						)).with_child((
+						))
+						.with_child((
 							OUTLINE,
 							MeshMaterial3d(outline_mat),
 							GLOBAL_UI_RENDER_LAYERS,
@@ -542,19 +543,40 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 								let btn = btns.next();
 
 								// TODO: Use panel/border instead of brackets
-								separator(cmds, "[", scale * 1.1, font.clone(), text_mat.clone(), outline_mat.clone());
+								separator(
+									cmds,
+									"[",
+									scale * 1.1,
+									font.clone(),
+									text_mat.clone(),
+									outline_mat.clone(),
+								);
 
 								// Manual intersperse to avoid mutably borrowing cmds twice
 								if let Some(btn) = btn {
 									basic_icons(cmds, btn, scale, font, text_mat, outline_mat);
 
 									for btn in btns {
-										separator(cmds, "|", scale, font.clone(), text_mat.clone(), outline_mat.clone());
+										separator(
+											cmds,
+											"|",
+											scale,
+											font.clone(),
+											text_mat.clone(),
+											outline_mat.clone(),
+										);
 										basic_icons(cmds, btn, scale, font, text_mat, outline_mat);
 									}
 								}
 
-								separator(cmds, "]", scale * 1.1, font.clone(), text_mat.clone(), outline_mat.clone());
+								separator(
+									cmds,
+									"]",
+									scale * 1.1,
+									font.clone(),
+									text_mat.clone(),
+									outline_mat.clone(),
+								);
 							}
 							ButtonIcons::Chord(btns) => {
 								let mut btns = btns.into_iter();
@@ -565,7 +587,14 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 									basic_icons(cmds, btn, scale, font, text_mat, outline_mat);
 
 									for btn in btns {
-										separator(cmds, "+", scale, font.clone(), text_mat.clone(), outline_mat.clone());
+										separator(
+											cmds,
+											"+",
+											scale,
+											font.clone(),
+											text_mat.clone(),
+											outline_mat.clone(),
+										);
 										basic_icons(cmds, btn, scale, font, text_mat, outline_mat);
 									}
 								}
@@ -593,16 +622,51 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 							}
 							AxisIcons::Composite { positive, negative } => {
 								// TODO: Use panel/border instead of brackets
-								separator(cmds, "[", scale * 1.1, font.clone(), text_mat.clone(), outline_mat.clone());
+								separator(
+									cmds,
+									"[",
+									scale * 1.1,
+									font.clone(),
+									text_mat.clone(),
+									outline_mat.clone(),
+								);
 								basic_icons(cmds, positive, scale, font, text_mat, outline_mat);
-								separator(cmds, "|", scale, font.clone(), text_mat.clone(), outline_mat.clone());
+								separator(
+									cmds,
+									"|",
+									scale,
+									font.clone(),
+									text_mat.clone(),
+									outline_mat.clone(),
+								);
 								basic_icons(cmds, negative, scale, font, text_mat, outline_mat);
-								separator(cmds, "]", scale * 1.1, font.clone(), text_mat.clone(), outline_mat.clone());
+								separator(
+									cmds,
+									"]",
+									scale * 1.1,
+									font.clone(),
+									text_mat.clone(),
+									outline_mat.clone(),
+								);
 							}
 							AxisIcons::Chord { button, axis } => {
 								basic_icons(cmds, button, scale, font, text_mat, outline_mat);
-								separator(cmds, "+", scale, font.clone(), text_mat.clone(), outline_mat.clone());
-								axis_icons(cmds, (*axis).clone(), scale, font, text_mat, outline_mat)
+								separator(
+									cmds,
+									"+",
+									scale,
+									font.clone(),
+									text_mat.clone(),
+									outline_mat.clone(),
+								);
+								axis_icons(
+									cmds,
+									(*axis).clone(),
+									scale,
+									font,
+									text_mat,
+									outline_mat,
+								)
 							}
 						}
 					}
@@ -647,10 +711,31 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 								))
 								.with_children(|cmds| {
 									// Slightly oversized for readability.
-									basic_icons(cmds, right, scale / 2.4, font, text_mat, outline_mat);
+									basic_icons(
+										cmds,
+										right,
+										scale / 2.4,
+										font,
+										text_mat,
+										outline_mat,
+									);
 									basic_icons(cmds, up, scale / 2.4, font, text_mat, outline_mat);
-									basic_icons(cmds, left, scale / 2.4, font, text_mat, outline_mat);
-									basic_icons(cmds, down, scale / 2.4, font, text_mat, outline_mat);
+									basic_icons(
+										cmds,
+										left,
+										scale / 2.4,
+										font,
+										text_mat,
+										outline_mat,
+									);
+									basic_icons(
+										cmds,
+										down,
+										scale / 2.4,
+										font,
+										text_mat,
+										outline_mat,
+									);
 								});
 							}
 							DualAxisIcons::Composite {
@@ -659,13 +744,34 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 							} => {
 								// TODO: Layout vertical icons vertically?
 								axis_icons(cmds, horizontal, scale, font, text_mat, outline_mat);
-								separator(cmds, "|", scale, font.clone(), text_mat.clone(), outline_mat.clone());
+								separator(
+									cmds,
+									"|",
+									scale,
+									font.clone(),
+									text_mat.clone(),
+									outline_mat.clone(),
+								);
 								axis_icons(cmds, vertical, scale, font, text_mat, outline_mat);
 							}
 							DualAxisIcons::Chord { button, dual_axis } => {
 								basic_icons(cmds, button, scale, font, text_mat, outline_mat);
-								separator(cmds, "+", scale, font.clone(), text_mat.clone(), outline_mat.clone());
-								dual_axis_icons(cmds, (*dual_axis).clone(), scale, font, text_mat, outline_mat);
+								separator(
+									cmds,
+									"+",
+									scale,
+									font.clone(),
+									text_mat.clone(),
+									outline_mat.clone(),
+								);
+								dual_axis_icons(
+									cmds,
+									(*dual_axis).clone(),
+									scale,
+									font,
+									text_mat,
+									outline_mat,
+								);
 							}
 						}
 					}
@@ -685,15 +791,30 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 					.with_children(|cmds| {
 						const FULL_SIZE: f32 = 1.2;
 						match icons {
-							UserInputIcons::Button(icons) => {
-								basic_icons(cmds, icons, FULL_SIZE, &fonts.mono, &text_mat, &outline_mat)
-							}
-							UserInputIcons::Axis(icons) => {
-								axis_icons(cmds, icons, FULL_SIZE, &fonts.mono, &text_mat, &outline_mat)
-							}
-							UserInputIcons::DualAxis(icons) => {
-								dual_axis_icons(cmds, icons, FULL_SIZE, &fonts.mono, &text_mat, &outline_mat)
-							}
+							UserInputIcons::Button(icons) => basic_icons(
+								cmds,
+								icons,
+								FULL_SIZE,
+								&fonts.mono,
+								&text_mat,
+								&outline_mat,
+							),
+							UserInputIcons::Axis(icons) => axis_icons(
+								cmds,
+								icons,
+								FULL_SIZE,
+								&fonts.mono,
+								&text_mat,
+								&outline_mat,
+							),
+							UserInputIcons::DualAxis(icons) => dual_axis_icons(
+								cmds,
+								icons,
+								FULL_SIZE,
+								&fonts.mono,
+								&text_mat,
+								&outline_mat,
+							),
 							UserInputIcons::TripleAxis(icons) => match icons {
 								TripleAxisIcons::Single(icon) => {
 									cmds.spawn(icon_bundle(
@@ -705,7 +826,14 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 									));
 								}
 								TripleAxisIcons::Composite { x, y, z } => {
-									axis_icons(cmds, x, FULL_SIZE, &fonts.mono, &text_mat, &outline_mat);
+									axis_icons(
+										cmds,
+										x,
+										FULL_SIZE,
+										&fonts.mono,
+										&text_mat,
+										&outline_mat,
+									);
 									separator(
 										cmds,
 										"|",
@@ -714,7 +842,14 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 										text_mat.clone(),
 										outline_mat.clone(),
 									);
-									axis_icons(cmds, y, FULL_SIZE, &fonts.mono, &text_mat, &outline_mat);
+									axis_icons(
+										cmds,
+										y,
+										FULL_SIZE,
+										&fonts.mono,
+										&text_mat,
+										&outline_mat,
+									);
 									separator(
 										cmds,
 										"|",
@@ -723,7 +858,14 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 										text_mat.clone(),
 										outline_mat.clone(),
 									);
-									axis_icons(cmds, z, FULL_SIZE, &fonts.mono, &text_mat, &outline_mat);
+									axis_icons(
+										cmds,
+										z,
+										FULL_SIZE,
+										&fonts.mono,
+										&text_mat,
+										&outline_mat,
+									);
 								}
 							},
 						}

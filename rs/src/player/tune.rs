@@ -4,10 +4,12 @@ use rapier3d::prelude::Ball;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-	player::abilities::{BoosterCharge, WeaponCharge},
+	player::{
+		abilities::{BoosterCharge, WeaponCharge},
+		AntigravCollider,
+	},
 	util::Angle,
 };
-use crate::player::AntigravCollider;
 
 /// Global game tuning parameters that will be effectively constant in releases.
 /// Implemented as an Asset for easy reloading during development.

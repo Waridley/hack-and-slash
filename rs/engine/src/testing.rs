@@ -1,8 +1,3 @@
-use std::{
-	error::Error,
-	fmt::{Display, Formatter},
-};
-use std::num::NonZero;
 use bevy::{
 	app::AppExit,
 	log::{error, info},
@@ -15,6 +10,11 @@ use bevy_rapier3d::{
 };
 use colored::Colorize;
 pub use linkme::distributed_slice as __static_register_test;
+use std::{
+	error::Error,
+	fmt::{Display, Formatter},
+	num::NonZero,
+};
 
 #[__static_register_test]
 pub static TESTS: [fn(&mut App) -> &'static str] = [..];
@@ -23,13 +23,31 @@ pub fn new_test_app() -> App {
 	let mut app = App::new();
 
 	#[cfg(feature = "vis_test")]
-	app.add_plugins(DefaultPlugins)
-		.add_systems(bevy::app::Update, bevy::window::close_on_esc)
-		.insert_resource(bevy::winit::WinitSettings { ..default() })
-		.add_plugins(bevy_rapier3d::render::RapierDebugRenderPlugin {
-			enabled: true,
-			..default()
-		});
+	{
+		pub fn close_on_esc(
+			mut commands: Commands,
+			focused_windows: Query<(Entity, &Window)>,
+			input: Res<ButtonInput<KeyCode>>,
+		) {
+			for (window, focus) in focused_windows.iter() {
+				if !focus.focused {
+					continue;
+				}
+
+				if input.just_pressed(KeyCode::Escape) {
+					commands.entity(window).despawn();
+				}
+			}
+		}
+
+		app.add_plugins(DefaultPlugins)
+			.add_systems(bevy::app::Update, close_on_esc)
+			.insert_resource(bevy::winit::WinitSettings { ..default() })
+			.add_plugins(bevy_rapier3d::render::RapierDebugRenderPlugin {
+				enabled: true,
+				..default()
+			});
+	}
 
 	#[cfg(not(feature = "vis_test"))]
 	app.add_plugins(MinimalPlugins)
@@ -45,11 +63,12 @@ pub fn new_test_app() -> App {
 		.insert_resource(Timeout(Timer::from_seconds(600.0, TimerMode::Once)))
 		.add_systems(Last, (timeout, check_test_results));
 
-	let world = app.world_mut();
-	let mut q = world.query::<&mut RapierConfiguration>();
-	let mut cfg = q.single_mut(world);
-	cfg.gravity = Vect::NEG_Z * 9.81;
-	
+	fn setup(mut cfg: Single<&mut RapierConfiguration>) {
+		cfg.gravity = Vect::NEG_Z * 9.81;
+	}
+
+	app.add_systems(Startup, setup);
+
 	app
 }
 
@@ -153,7 +172,9 @@ fn check_test_results(
 		} else {
 			error!("1 test failed");
 		}
-		exits.send(AppExit::Error(failed.try_into().unwrap_or(NonZero::<u8>::MAX)));
+		exits.send(AppExit::Error(
+			failed.try_into().unwrap_or(NonZero::<u8>::MAX),
+		));
 	} else {
 		exits.send(AppExit::Success);
 	}
@@ -210,8 +231,8 @@ impl<F: IntoSystem<(), TestStatus, M>, M> TestSystem<M> for F {
 /// # use sond_has_engine::{bevy_test, testing::*};
 /// bevy_test!(fn annotated(app: &mut App, test_id: &'static str) { });
 /// ```
-/// The identifier for `test_id` will be part of a `let` binding, so it cannot be `_`, even
-/// if you do not use it. It will be set to the `stringify`'d function name provided. Thus
+/// The identifier for `test_id` will be part of a `let` binding and returned, so it cannot be `_`,
+/// even if you do not use it. It will be set to the `stringify`'d function name provided. Thus
 /// the `test_plugin` above could be written with this instead:
 /// ```ignore
 /// app.add_systems(Startup, check_app_started.test("test_plugin"));
@@ -232,7 +253,7 @@ macro_rules! bevy_test {
 
 		#[cfg(all(not(feature = "render"), feature = "testing"))]
 		#[test]
-		fn $name() {
+		fn $name() -> ::bevy::prelude::AppExit {
 			let mut $app = $crate::testing::new_test_app();
 			let $test_id = stringify!($name);
 			$body

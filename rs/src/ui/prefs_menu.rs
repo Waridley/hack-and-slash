@@ -4,11 +4,10 @@ use engine::{
 	ui::{
 		layout::ExpandToFitChildren,
 		text::UiFonts,
-		widgets::{new_unlit_material, Text3d},
+		widgets::{new_unlit_material, CuboidPanel, Text3d},
 		Fade, MenuStack, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
 	},
 };
-use engine::ui::widgets::CuboidPanel;
 
 pub struct PrefsMenuPlugin;
 

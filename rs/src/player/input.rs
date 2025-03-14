@@ -1,21 +1,23 @@
+use crate::{
+	player::{
+		ctrl::CtrlVel, player_entity::CamPivot, prefs::AimSensitivity, tune::PlayerParams,
+		BelongsToPlayer,
+	},
+	terminal_velocity,
+};
 use bevy::prelude::*;
 use engine::input::ActionExt;
 use enum_components::WithVariant;
-use leafwing_input_manager::prelude::*;
+use leafwing_input_manager::{
+	action_diff::{ActionDiff, ActionDiffEvent},
+	prelude::*,
+	systems::generate_action_diffs,
+};
 use serde::{Deserialize, Serialize};
 use std::{
 	f32::consts::{FRAC_PI_2, TAU},
 	fmt::Formatter,
 	time::Duration,
-};
-use leafwing_input_manager::action_diff::{ActionDiff, ActionDiffEvent};
-use leafwing_input_manager::systems::generate_action_diffs;
-use crate::{
-	player::{
-		ctrl::CtrlVel, player_entity::CamPivot, prefs::AimSensitivity,
-		tune::PlayerParams, BelongsToPlayer,
-	},
-	terminal_velocity,
 };
 
 #[derive(SystemSet, Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -170,10 +172,7 @@ pub fn look_input(
 		&AimSensitivity,
 	)>,
 	mut events: EventReader<ActionDiffEvent<PlayerAction>>,
-	mut camera_pivot_q: Query<
-		(&mut Transform, &BelongsToPlayer),
-		WithVariant<CamPivot>,
-	>,
+	mut camera_pivot_q: Query<(&mut Transform, &BelongsToPlayer), WithVariant<CamPivot>>,
 	t: Res<Time>,
 ) {
 	let dt = t.delta_secs();
@@ -183,31 +182,31 @@ pub fn look_input(
 			stick_input += look.pair;
 		};
 		stick_input = stick_input.clamp_length_max(1.0);
-		
-		let motion_input = events.read()
+
+		let motion_input = events
+			.read()
 			.filter(|ev| ev.owner == Some(entity))
 			.flat_map(|ev| &ev.action_diffs)
-			.filter_map(|diff|
+			.filter_map(|diff| {
+				if let ActionDiff::DualAxisChanged {
+					action: PlayerAction::MotionAim,
+					axis_pair,
+				} = diff
 				{
-					if let ActionDiff::DualAxisChanged {
-						action: PlayerAction::MotionAim,
-						axis_pair,
-					} = diff {
-						Some(*axis_pair)
-					} else {
-						None
-					}
+					Some(*axis_pair)
+				} else {
+					None
 				}
-			)
+			})
 			.sum::<Vec2>();
-		
+
 		let mut xform = camera_pivot_q
 			.iter_mut()
 			.find_map(|(xform, owner)| (owner == player_id).then_some(xform))
 			.unwrap();
-		
+
 		let (yaw, pitch, _) = xform.rotation.to_euler(EulerRot::ZXY);
-		
+
 		let yaw_delta = if motion_input.x.abs() > 0.0 {
 			// right-hand rule => + is CCW .: + turns "left" .: needs inverted to make physical sense
 			-motion_input.x * sens.motion.x
@@ -219,7 +218,7 @@ pub fn look_input(
 		} else {
 			0.0
 		};
-		
+
 		let pitch_delta = if motion_input.y.abs() > 0.0 {
 			-motion_input.y * sens.motion.y
 		} else if stick_input.y.abs() > f32::EPSILON {
@@ -227,13 +226,10 @@ pub fn look_input(
 		} else {
 			0.0
 		};
-		
+
 		let yaw = yaw + yaw_delta;
-		let pitch = (pitch + pitch_delta).clamp(
-			-FRAC_PI_2,
-			FRAC_PI_2 * 0.9,
-		);
-		
+		let pitch = (pitch + pitch_delta).clamp(-FRAC_PI_2, FRAC_PI_2 * 0.9);
+
 		let new_rot = Quat::from_euler(EulerRot::ZXY, yaw, pitch, 0.0);
 		if xform.rotation != new_rot {
 			xform.rotation = new_rot;

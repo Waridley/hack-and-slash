@@ -1,17 +1,18 @@
 use super::icons::Icon;
-use crate::ui::{
-	a11y::AKNode,
-	widgets::{Node3d, Text3d, WidgetShape},
-	UiMat,
+use crate::{
+	ui::{
+		a11y::AKNode,
+		widgets::{new_unlit_material, Node3d, Text3d, WidgetShape},
+		UiMat,
+	},
+	util::{MeshOutline, PendingErasedAsset},
 };
-use bevy::{ecs::system::EntityCommands, prelude::*};
-use bevy::asset::UntypedAssetId;
-use bevy::render::view::RenderLayers;
-use bevy::utils::HashSet;
+use bevy::{
+	asset::UntypedAssetId, ecs::system::EntityCommands, prelude::*, render::view::RenderLayers,
+	utils::HashSet,
+};
 use bevy_rapier3d::parry::{math::Isometry, shape::SharedShape};
 use bevy_svg::prelude::{Origin, Svg, SvgMesh3d, SvgMesh3dBundle};
-use crate::ui::widgets::new_unlit_material;
-use crate::util::{MeshOutline, PendingErasedAsset};
 
 #[derive(Component, Debug, Clone)]
 #[require(Node3d)]
@@ -53,7 +54,16 @@ pub struct InputIconBundle<M: Material = UiMat> {
 impl InputIcon {
 	pub fn sync<M: Material>(
 		mut cmds: Commands,
-		mut q: Query<(Entity, &mut InputIcon, &mut AKNode, &MeshMaterial3d<M>, &RenderLayers), Changed<InputIcon>>,
+		mut q: Query<
+			(
+				Entity,
+				&mut InputIcon,
+				&mut AKNode,
+				&MeshMaterial3d<M>,
+				&RenderLayers,
+			),
+			Changed<InputIcon>,
+		>,
 		asset_server: Res<AssetServer>,
 		mut mats: ResMut<Assets<UiMat>>,
 	) {
@@ -107,20 +117,19 @@ impl InputIcon {
 					// Avoid re-triggering sync every frame.
 					let this = this.bypass_change_detection();
 					const TEXT_SCALE: f32 = 0.5;
-					let mut cmds = cmds
-						.spawn((
-							Text3d {
-								text: text.to_string().into(),
-								font,
-								flat,
-								// Basically sets `depth_bias` without changing material
-								vertex_translation: Vec3::NEG_Y * 0.1,
-								vertex_scale: size * TEXT_SCALE,
-								vertex_rotation: Quat::IDENTITY,
-								..default()
-							},
-							mat.clone(),
-						));
+					let mut cmds = cmds.spawn((
+						Text3d {
+							text: text.to_string().into(),
+							font,
+							flat,
+							// Basically sets `depth_bias` without changing material
+							vertex_translation: Vec3::NEG_Y * 0.1,
+							vertex_scale: size * TEXT_SCALE,
+							vertex_rotation: Quat::IDENTITY,
+							..default()
+						},
+						mat.clone(),
+					));
 					if let Some(outline) = outline {
 						cmds.with_child((outline, outline_mat, layers.clone()));
 					}

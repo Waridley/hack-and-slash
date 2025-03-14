@@ -7,9 +7,12 @@ use bevy::{
 };
 use bevy_kira_audio::{Audio, AudioControl};
 use bevy_rapier3d::{
-	dynamics::LockedAxes, math::Vect, na::Vector3, plugin::RapierContext, prelude::Collider,
+	dynamics::LockedAxes,
+	math::Vect,
+	na::Vector3,
+	plugin::RapierContext,
+	prelude::{Collider, RigidBody},
 };
-use bevy_rapier3d::prelude::RigidBody;
 use enum_components::{EntityEnumCommands, WithVariant};
 use rand::{prelude::IteratorRandom, Rng};
 
@@ -83,7 +86,15 @@ impl Spawnable for Dummy {
 			locked_axes,
 			alive,
 		} = params.clone();
-		let mut cmds = cmds.spawn((mesh, material, transform, body, collider, locked_axes, alive));
+		let mut cmds = cmds.spawn((
+			mesh,
+			material,
+			transform,
+			body,
+			collider,
+			locked_axes,
+			alive,
+		));
 		cmds.set_enum(Dummy);
 		cmds
 	}

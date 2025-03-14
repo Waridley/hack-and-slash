@@ -13,7 +13,7 @@ pub fn main() {
 				status: TestStatus::Running
 			}
 		);
-		app.world
+		app.world_mut()
 			.resource_mut::<RunningTests>()
 			.insert(name, TestStatus::Running);
 	}

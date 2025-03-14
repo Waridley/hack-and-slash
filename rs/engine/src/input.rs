@@ -15,9 +15,9 @@ use bevy::{
 	utils::HashMap,
 };
 use leafwing_input_manager::prelude::*;
+use map::detect;
 use serde::{Deserialize, Serialize};
 use tiny_bail::prelude::r;
-use map::detect;
 
 pub mod map;
 

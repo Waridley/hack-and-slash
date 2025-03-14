@@ -8,7 +8,13 @@ description = "Things that will rarely change during development."
 debugging = ["bevy-inspector-egui", "egui_plot"]
 vis_test = ["testing", "render"]
 testing = ["colored", "linkme"]
-render = ["bevy/bevy_render", "bevy/bevy_winit", "bevy_rapier3d/debug-render", "bevy_rapier3d/async-collider", "bevy-inspector-egui/bevy_render"]
+render = [
+    "bevy/bevy_render",
+    "bevy/bevy_winit",
+    "bevy_rapier3d/debug-render",
+    "bevy_rapier3d/async-collider",
+    "bevy-inspector-egui/bevy_render",
+]
 
 [dependencies]
 # Mine
@@ -20,7 +26,6 @@ accesskit = { workspace = true }
 bevy = { workspace = true, features = ["bevy_ui"] }
 bevy_rapier3d = { workspace = true }
 rapier3d = { workspace = true }
-bevy_mod_speedup = "0.6.0"
 
 # Util
 atomicow = { workspace = true }
@@ -55,9 +60,6 @@ egui_plot = { workspace = true, optional = true }
 # Testing
 colored = { version = "2", optional = true }
 linkme = { workspace = true, optional = true }
-
-[target.'cfg(not(target_arch="wasm32"))'.dependencies]
-bevy_dylib = { workspace = true }
 
 [target.'cfg(target_arch="wasm32")'.dependencies]
 web-sys = "0.3"

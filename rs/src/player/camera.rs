@@ -1,5 +1,17 @@
 use std::f32::consts::FRAC_PI_2;
 
+use super::{
+	player_entity::{Cam, CamPivot, Root, ShipCenter},
+	player_ui_layer, BelongsToPlayer, G1,
+};
+use crate::{
+	anim::ComponentDelta,
+	planet::sky::SkyShader,
+	player::{prefs::CamSmoothing, PlayerId},
+	settings::Settings,
+	util::LerpSlerp,
+	NeverDespawn,
+};
 use bevy::{
 	color::palettes::basic::FUCHSIA,
 	core_pipeline::{bloom::Bloom, fxaa::Fxaa, tonemapping::Tonemapping, Skybox},
@@ -21,21 +33,11 @@ use bevy_rapier3d::{
 	plugin::RapierContext,
 	prelude::ShapeCastOptions,
 };
-use engine::ui::spawn_ui_camera;
+use engine::{
+	ui::spawn_ui_camera,
+	util::{decay_factor, exp_decay_factor},
+};
 use enum_components::{EntityEnumCommands, WithVariant};
-use engine::util::{decay_factor, exp_decay_factor};
-use crate::{
-	anim::ComponentDelta,
-	planet::sky::SkyShader,
-	player::{prefs::CamSmoothing, PlayerId},
-	settings::Settings,
-	util::LerpSlerp,
-	NeverDespawn,
-};
-use super::{
-	player_entity::{Root, Cam, CamPivot, ShipCenter},
-	player_ui_layer, BelongsToPlayer, G1,
-};
 
 const MAX_CAM_DIST: f32 = 32.0;
 const MIN_CAM_DIST: f32 = 9.6;
@@ -285,9 +287,7 @@ pub fn pivot_follow_avatar(
 	mut cam_q: Query<(&mut Transform, &BelongsToPlayer), WithVariant<CamPivot>>,
 ) {
 	for (mut xform, owner) in &mut cam_q {
-		if let Some((player_xform, _)) = player_q.iter()
-			.find(|(_, player)| **player == *owner)
-		{
+		if let Some((player_xform, _)) = player_q.iter().find(|(_, player)| **player == *owner) {
 			xform.translation = player_xform.translation() + (Vec3::Z * (MIN_CAM_DIST + 0.64));
 		};
 	}
@@ -299,9 +299,7 @@ pub fn avatar_rotation_follow_pivot(
 	t: Res<Time>,
 ) {
 	for (mut xform, player) in &mut player_q {
-		if let Some((cam_xform, _)) = cam_q.iter()
-			.find(|(_, owner)| **owner == *player)
-		{
+		if let Some((cam_xform, _)) = cam_q.iter().find(|(_, owner)| **owner == *player) {
 			let (yaw, pitch, roll) = xform.rotation.to_euler(EulerRot::ZXY);
 			let cam_yaw = cam_xform.rotation.to_euler(EulerRot::ZXY).0;
 			let target = Quat::from_euler(EulerRot::ZXY, cam_yaw, pitch, roll);

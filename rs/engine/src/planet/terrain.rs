@@ -587,14 +587,12 @@ pub fn unload_distant_chunks(
 pub struct UnloadDistance(f32);
 
 mod seeds {
-	use std::io::Write;
-	use bevy::log::info;
 	use super::PlanetSeed;
-	use rand::{SeedableRng, RngCore, Rng};
-	use rand::distributions::Standard;
-	use rand::prelude::Distribution;
+	use bevy::log::info;
+	use rand::{distributions::Standard, prelude::Distribution, Rng, RngCore, SeedableRng};
 	use rand_chacha::ChaCha8Rng;
-	
+	use std::io::Write;
+
 	#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 	#[repr(C)]
 	pub struct TerrainSeeds {
@@ -609,15 +607,14 @@ mod seeds {
 		fn from(value: &PlanetSeed) -> Self {
 			let mut seed = [0; 32];
 			seed[0..24].copy_from_slice(value.hash());
-			
-			
+
 			// WARNING: Changing these will break compatibility with older seeds.
 			let mut rng = ChaCha8Rng::from_seed(seed);
 
 			let base = rng.gen();
-			
+
 			let perlin = rng.gen::<HSSeed>();
-			
+
 			let mut worley = rng.gen::<HSSeed>();
 			let mut attempt = 0;
 			while attempt < 1024 {
@@ -632,7 +629,7 @@ mod seeds {
 			if attempt > 0 {
 				info!(?perlin, "Worley clashed with Perlin {attempt} time(s)");
 			}
-			
+
 			let mut billow = rng.gen::<HSSeed>();
 			let mut attempt = 0;
 			while attempt < 1024 {
@@ -645,9 +642,13 @@ mod seeds {
 				attempt += 1;
 			}
 			if attempt > 0 {
-				info!(?perlin, ?worley, "Billow clashed with Perlin or Worley {attempt} time(s)");
+				info!(
+					?perlin,
+					?worley,
+					"Billow clashed with Perlin or Worley {attempt} time(s)"
+				);
 			}
-			
+
 			let mut ridged = rng.gen::<HSSeed>();
 			let mut attempt = 0;
 			while attempt < 1024 {
@@ -660,7 +661,12 @@ mod seeds {
 				attempt += 1;
 			}
 			if attempt > 0 {
-				info!(?perlin, ?worley, ?billow, "Ridged clashed with Perlin, Worley, or Billow {attempt} time(s)");
+				info!(
+					?perlin,
+					?worley,
+					?billow,
+					"Ridged clashed with Perlin, Worley, or Billow {attempt} time(s)"
+				);
 			}
 
 			Self {
@@ -698,7 +704,7 @@ mod seeds {
 		heights: u32,
 		strength: u32,
 	}
-	
+
 	impl Distribution<HSSeed> for Standard {
 		fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> HSSeed {
 			HSSeed {
@@ -743,15 +749,30 @@ mod seeds {
 			let seed = PlanetSeed::from(
 				"This is a PlanetSeed for testing TerrainSeed equivalence across versions.",
 			);
-			assert_eq!(seed.clone().canonical().string(), "dif3XzLPR0QkeiIeiDUZS_fAfVYwGsLv");
+			assert_eq!(
+				seed.clone().canonical().string(),
+				"dif3XzLPR0QkeiIeiDUZS_fAfVYwGsLv"
+			);
 			assert_eq!(
 				TerrainSeeds::from(&seed),
 				TerrainSeeds {
 					base: [3921923909, 2705971270],
-					perlin: HSSeed { heights: 2112551709, strength: 1762326461 },
-					worley: HSSeed { heights: 2032743752, strength: 3889465128 },
-					billow: HSSeed { heights: 1264812115, strength: 391812050 },
-					ridged: HSSeed { heights: 2995831856, strength: 2095380095 },
+					perlin: HSSeed {
+						heights: 2112551709,
+						strength: 1762326461
+					},
+					worley: HSSeed {
+						heights: 2032743752,
+						strength: 3889465128
+					},
+					billow: HSSeed {
+						heights: 1264812115,
+						strength: 391812050
+					},
+					ridged: HSSeed {
+						heights: 2995831856,
+						strength: 2095380095
+					},
 				},
 			);
 		}
