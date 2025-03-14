@@ -1,6 +1,9 @@
 #![warn(unused_crate_dependencies)]
 
 use bevy::app::{App, Plugin};
+#[allow(unused_imports, clippy::single_component_path_imports)]
+#[cfg(all(feature = "bevy_dylib", not(target_arch = "wasm32")))]
+use bevy_dylib;
 use bevy_svg::SvgPlugin;
 
 pub mod anim;
