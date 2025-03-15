@@ -84,9 +84,10 @@ base64 = "0.21.7"
 bevy_pkv = "0.12.0" # settings
 bevy_svg = { version = "0.13.0", path = "../vend/bevy_svg" }
 bimap = "0.6.3"
-blake3 = "1.6.1"
+blake3 = "1.6.1" # already in upstream deps, decent performance despite good security, only used at startup anyway
 bytemuck = "1.14.1" # mostly for seeds
 crossbeam = "0.8.2"
+dyn-clone = "1.0.17"
 fixedbitset = "0.4.2" # navigation graph edge storage
 futures-lite = "2.1.0" # especially for `yield_now()`
 itertools = "0.13.0"
@@ -97,7 +98,7 @@ noise = "0.9.0"
 num-traits = "0.2.17"
 ordered-float = "4.2.0"
 rand = "0.8.5"
-rand_chacha = "0.3.1"
+rand_chacha = "0.3.1" # already in upstream deps, decent performance despite good security, only used at startup anyway
 ron = "0.8.1"
 static_assertions = "1.1.0"
 serde = "1"
@@ -128,10 +129,8 @@ leafwing-input-manager = { workspace = true }
 
 # Util
 bevy_pkv = { workspace = true }
-itertools = { workspace = true }
 nanorand = { workspace = true }
 rand = { workspace = true, features = ["small_rng"] }
-rand_chacha = { workspace = true } # already in deps, decent performance despite good security
 serde = { workspace = true }
 smallvec = { workspace = true }
 tiny_bail = { workspace = true }

@@ -1,10 +1,6 @@
-use crate::ui::{widgets::WidgetShape, MenuRef, MenuStack, UiAction, GLOBAL_UI_RENDER_LAYERS};
+use crate::ui::{MenuRef, MenuStack, UiAction, GLOBAL_UI_RENDER_LAYERS};
 use bevy::{
-	a11y::Focus,
-	color::palettes::css::SEA_GREEN,
-	ecs::identifier::error::IdentifierError,
-	prelude::*,
-	render::view::{Layer, RenderLayers},
+	a11y::Focus, ecs::identifier::error::IdentifierError, prelude::*, render::view::RenderLayers,
 };
 use leafwing_input_manager::prelude::ActionState;
 use serde::{Deserialize, Serialize};
@@ -84,7 +80,7 @@ impl FromStr for FocusTarget {
 		let entries = s
 			.split('/')
 			.map(|seg| {
-				Ok(if seg == "" {
+				Ok(if seg.is_empty() {
 					Self::MenuRoot
 				} else if seg == ".." {
 					Self::ToParent
@@ -399,12 +395,12 @@ pub fn handle_focus_actions(
 }
 
 #[cfg(feature = "debugging")]
-pub fn highlight_focus<const LAYER: Layer>(
+pub fn highlight_focus<const LAYER: bevy::render::view::Layer>(
 	mut gizmos: Gizmos<FocusGizmos<LAYER>>,
 	q: Query<(
 		Entity,
 		&GlobalTransform,
-		&WidgetShape,
+		&super::widgets::WidgetShape,
 		&ViewVisibility,
 		&RenderLayers,
 	)>,
@@ -442,7 +438,13 @@ pub fn highlight_focus<const LAYER: Layer>(
 					"widgets should have a uniform scale -- only drawing using `scale.x`"
 				)
 			}
-			shape.draw_gizmo(&mut gizmos, pos, rot, scale.x, SEA_GREEN);
+			shape.draw_gizmo(
+				&mut gizmos,
+				pos,
+				rot,
+				scale.x,
+				bevy::color::palettes::css::SEA_GREEN,
+			);
 		}
 		Err(e) => {
 			error!("couldn't get focused entity: {e}");
@@ -452,4 +454,4 @@ pub fn highlight_focus<const LAYER: Layer>(
 
 #[cfg(feature = "debugging")]
 #[derive(Default, Debug, GizmoConfigGroup, Reflect)]
-pub struct FocusGizmos<const LAYER: Layer>;
+pub struct FocusGizmos<const LAYER: bevy::render::view::Layer>;

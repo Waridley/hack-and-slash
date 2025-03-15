@@ -202,9 +202,9 @@ impl<F: IntoSystem<(), TestStatus, M>, M> TestSystem<M> for F {
 ///
 /// Graphical tests cannot use the normal Rust test harness because
 ///   1) It runs tests off of the main thread, and Bevy's rendering backends can only be
-///       started on the main thread.
+///      started on the main thread.
 ///   2) The Winit EventLoop cannot be instantiated more than once per process, so separate
-///       tests cannot have their own app.
+///      tests cannot have their own app.
 ///
 /// This macro handles registering test plugins to be run with the `visual` integration test,
 /// as well as regular `#[test]` functions when the `render` feature is not enabled.

@@ -1,10 +1,10 @@
 use crate::ui::{UiMat, UiMatBuilder};
 use bevy::{
-	asset::{io::Reader, AssetLoader, LoadContext, UntypedAssetId},
+	asset::{io::Reader, AssetLoader, LoadContext},
 	ecs::{
-		component::{ComponentId, ComponentInfo},
+		component::ComponentId,
 		query::QueryFilter,
-		system::{EntityCommands, StaticSystemParam, SystemId, SystemParam, SystemParamItem},
+		system::{EntityCommands, StaticSystemParam, SystemParam, SystemParamItem},
 		world::DeferredWorld,
 	},
 	math::Dir2,
@@ -32,10 +32,8 @@ use std::{
 	iter::Sum,
 	marker::PhantomData,
 	ops::{Add, Div, Index, IndexMut, Mul, Sub},
-	sync::OnceLock,
 	time::Duration,
 };
-use tiny_bail::prelude::{c, r};
 
 #[inline(always)]
 pub fn quantize<const BITS: u32>(value: f32) -> f32 {
@@ -83,7 +81,7 @@ pub struct Factory<'w, 's, P: Spawnable + 'static> {
 	pub params: StaticSystemParam<'w, 's, <P as Spawnable>::Params>,
 }
 
-impl<'w, 's, T: Spawnable> Factory<'w, 's, T> {
+impl<T: Spawnable> Factory<'_, '_, T> {
 	pub fn spawn(&mut self, data: T::InstanceData) -> EntityCommands {
 		let Self { cmds, params } = self;
 		T::spawn(cmds, params, data)
@@ -1166,7 +1164,7 @@ macro_rules! entity_tree {
 				};)?
 				#[allow(unused_mut)]
 				$($cmds.with_children(|mut $cmds| {
-			    $(entity_tree!($cmds; $children);)*
+			    $($crate::entity_tree!($cmds; $children);)*
 			  });)?
 			)*
 			$cmds
@@ -1261,17 +1259,14 @@ impl CompassDirection {
 	#[inline]
 	pub const fn radians(self) -> f32 {
 		use std::f32::consts::{FRAC_PI_2, FRAC_PI_4};
-		const FRAC_PI_3_4: f32 = 2.35619449615478515625;
-		const NEG_FRAC_PI_3_4: f32 = -2.35619449615478515625;
-		const NEG_FRAC_PI_4: f32 = -0.785398163397448309615660845819875721;
-		const NEG_FRAC_PI_2: f32 = -1.57079632679489661923132169163975144;
+		const FRAC_PI_3_4: f32 = 2.356_194_5;
 		match self {
 			Self::North => FRAC_PI_2,
 			Self::NorthEast => FRAC_PI_4,
 			Self::East => 0.0,
-			Self::SouthEast => NEG_FRAC_PI_4,
-			Self::South => NEG_FRAC_PI_2,
-			Self::SouthWest => NEG_FRAC_PI_3_4,
+			Self::SouthEast => -FRAC_PI_4,
+			Self::South => -FRAC_PI_2,
+			Self::SouthWest => -FRAC_PI_3_4,
 			Self::West => PI,
 			Self::NorthWest => FRAC_PI_3_4,
 		}
@@ -1465,7 +1460,7 @@ impl MeshOutline {
 				.unwrap();
 			let len = positions.len();
 			let (mut front_verts, back_verts): (Vec<_>, Vec<_>) = positions
-				.into_iter()
+				.iter()
 				.enumerate()
 				.map(|(i, pos)| {
 					let pos = Vec3::from_array(*pos);
@@ -1473,7 +1468,7 @@ impl MeshOutline {
 					((pos + norm).to_array(), (pos - norm).to_array())
 				})
 				.unzip();
-			front_verts.extend(back_verts.into_iter());
+			front_verts.extend(back_verts);
 			let mut verts = front_verts;
 
 			let mut new_indices = indices
@@ -1481,7 +1476,7 @@ impl MeshOutline {
 				.flat_map(|front| [front[0] + len, front[2] + len, front[1] + len])
 				.collect::<Vec<_>>();
 
-			for mut tri in indices.chunks_exact(3) {
+			for tri in indices.chunks_exact(3) {
 				let [a, b, c] = [tri[0], tri[1], tri[2]];
 				// Sort for deterministic keys since order doesn't matter
 				let ab = if a > b { (b, a) } else { (a, b) };
@@ -1506,7 +1501,7 @@ impl MeshOutline {
 			let front_indices_len = indices.len();
 			indices.extend(new_indices);
 
-			let indices = if let Ok(_) = u16::try_from(len) {
+			let indices = if u16::try_from(len).is_ok() {
 				Indices::U16(indices.into_iter().map(|i| i as u16).collect())
 			} else {
 				Indices::U32(indices.into_iter().map(|i| i as u32).collect())
@@ -1808,8 +1803,8 @@ impl PendingErasedAsset {
 		let handle = this.0.clone();
 		let mut downcasters = world.resource_mut::<ErasedAssetDowncasters>();
 		let ty = handle.type_id();
-		let mut downcaster = if let Some(mut replacer) = downcasters.0.remove(&ty) {
-			replacer
+		let mut downcaster = if let Some(downcaster) = downcasters.0.remove(&ty) {
+			downcaster
 		} else {
 			error!("Missing downcaster for {handle:?}");
 			return;
@@ -1832,7 +1827,11 @@ impl ErasedAssetDowncasters {
 		&mut self,
 		replacer: impl FnMut(EntityCommands, UntypedHandle) + Send + Sync + 'static,
 	) {
-		if let Err(e) = self.0.try_insert(TypeId::of::<A>(), Box::new(replacer)) {
+		if self
+			.0
+			.try_insert(TypeId::of::<A>(), Box::new(replacer))
+			.is_err()
+		{
 			panic!("Replacer already registered for {}", A::type_path());
 		}
 	}

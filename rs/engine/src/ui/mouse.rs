@@ -82,24 +82,24 @@ pub fn mouse_picks_focus(
 						.map(|toi| (entity, toi))
 				})
 				.collect::<Vec<_>>();
-			all_intersections
+			if let Some((id, _)) = all_intersections
 				.iter()
 				.filter(|(id, _toi)| {
-					descendant_q
+					!descendant_q
 						// If no descendants exist, this will automatically be a leaf.
 						.iter_descendants(*id)
 						// But if the entity has descendants, it could still be a leaf for the purpose
 						// of mouse picking if no children are intersected by the ray.
-						.filter(|descendant|
-						// If any descendant is intersected by the ray, do not count this as a leaf
-						all_intersections.iter().any(|(intersected, _)| *intersected == *descendant))
-						// If no descendant is intersected by the ray, this is a leaf.
-						.next()
-						.is_none()
+						.any(|descendant|
+							// If any descendant is intersected by the ray, do not count this as a leaf
+							all_intersections.iter().any(|(intersected, _)| *intersected == descendant))
+					// If no descendant is intersected by the ray, this is a leaf for picking.
 				})
 				// Only check the closest leaf
 				.min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(Ordering::Equal))
-				.map(|(id, _)| menu.focus = *id);
+			{
+				menu.focus = *id;
+			}
 		}
 	}
 }

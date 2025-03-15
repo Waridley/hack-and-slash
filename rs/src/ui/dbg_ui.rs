@@ -7,7 +7,6 @@ use bevy_inspector_egui::{
 	bevy_egui::EguiContext,
 	egui,
 	egui::{Color32, Ui},
-	DefaultInspectorConfigPlugin,
 };
 use egui_plot::{Legend, Line, Plot, PlotResponse};
 use enum_components::WithVariant;

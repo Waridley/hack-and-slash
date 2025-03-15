@@ -22,7 +22,6 @@ use engine::{
 use enum_components::WithVariant;
 use offloading::OffloadingPlugin;
 use particles::{ParticlesPlugin, Spewer};
-use planet::sky::SkyPlugin;
 use player::{abilities::AbilitiesPlugin, ctrl::CtrlVel};
 #[allow(unused_imports, clippy::single_component_path_imports)]
 #[cfg(all(feature = "dylib", not(target_arch = "wasm32")))]
@@ -111,7 +110,7 @@ impl Plugin for GamePlugin {
 				AbilitiesPlugin,
 				OffloadingPlugin,
 				#[cfg(feature = "render")]
-				SkyPlugin,
+				engine::planet::sky::SkyPlugin,
 				MatsPlugin,
 				anim::BuiltinAnimations,
 				anim::AnimationPlugin::<Spewer>::PLUGIN,

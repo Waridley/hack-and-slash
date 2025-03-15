@@ -125,7 +125,7 @@ pub fn apply_animations<T: Component>(
 	mut q: Query<&mut T>,
 	mut ticks: ResMut<Events<ComponentDelta<T>>>,
 ) {
-	if ticks.len() == 0 {
+	if ticks.is_empty() {
 		return;
 	}
 	let mut blendable = HashMap::new();
@@ -165,7 +165,7 @@ pub fn apply_animations<T: Component>(
 }
 
 pub fn apply_res_animations<T: Resource>(mut val: ResMut<T>, mut ticks: ResMut<Events<Delta<T>>>) {
-	if ticks.len() == 0 {
+	if ticks.is_empty() {
 		return;
 	}
 	let mut blendable_ticks = Vec::new();

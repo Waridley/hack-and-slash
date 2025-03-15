@@ -1,13 +1,16 @@
-use crate::input::map::{icons::kenney::generic_base_dir, Platform};
+use crate::input::{
+	map::{icons::kenney::generic_base_dir, Platform},
+	SerializableUserInputWrapper,
+};
 use bevy::{
 	asset::AssetPath,
 	input::keyboard::Key,
 	prelude::*,
 	utils::{HashMap, HashSet},
 };
+use dyn_clone::clone_box;
 use leafwing_input_manager::{clashing_inputs::BasicInputs, prelude::*};
 use serde::{Deserialize, Serialize};
-use smallvec::{smallvec, SmallVec};
 use smol_str::{SmolStr, ToSmolStr};
 use std::{any::Any, hash::Hash, ops::Index, path::PathBuf, sync::Arc};
 
@@ -31,11 +34,11 @@ impl Default for ButtonIcons {
 
 impl ButtonIcons {
 	pub fn from_button(
-		btn: Box<dyn Buttonlike>,
+		btn: &dyn Buttonlike,
 		platform: Option<Platform>,
 		map: &InputIconFileMap,
 	) -> Option<Self> {
-		if let Some(modifier) = <dyn Any>::downcast_ref::<ModifierKey>(&*btn) {
+		if let Some(modifier) = <dyn Any>::downcast_ref::<ModifierKey>(btn) {
 			// Avoid decomposing into [left + right]
 			return Some(Self::Simple(Icon::from_path(
 				map.get_button_icon(
@@ -50,17 +53,16 @@ impl ButtonIcons {
 			)));
 		}
 
-		if let Some(mouse_btn) = <dyn Any>::downcast_ref::<MouseButton>(&*btn) {
-			if let MouseButton::Other(i) = mouse_btn {
+		if let Some(mouse_btn) = <dyn Any>::downcast_ref::<MouseButton>(btn) {
+			if let (MouseButton::Other(i), Some(path)) = (
+				mouse_btn,
+				map.get_button_icon(&IconPathKey(Box::new(MouseButton::Back), None)),
+			) {
 				// TODO: Device icon map (this is a hack using the fact that I mapped `Back` to the mouse outline)
-				if let Some(path) =
-					map.get_button_icon(&IconPathKey(Box::new(MouseButton::Back), None))
-				{
-					return Some(Self::Simple(Icon {
-						image: path.clone(),
-						text: Some(i.to_smolstr()),
-					}));
-				}
+				return Some(Self::Simple(Icon {
+					image: path.clone(),
+					text: Some(i.to_smolstr()),
+				}));
 			}
 		}
 
@@ -70,17 +72,17 @@ impl ButtonIcons {
 				map.get_button_icon(&(btn, platform).into())?,
 			)),
 			BasicInputs::Composite(btns) => Self::Composite(
-				btns.into_iter()
-					.map(|btn| Self::from_button(btn, platform, map).unwrap_or_default())
+				btns.iter()
+					.map(|btn| Self::from_button(&**btn, platform, map).unwrap_or_default())
 					.collect(),
 			),
 			BasicInputs::Chord(btns) => {
 				let mut collected_modifiers = HashSet::new();
 				Self::Chord(
-					btns.into_iter()
+					btns.iter()
 						.filter_map(|btn| {
 							if let Some(modifier) =
-								<dyn Any>::downcast_ref::<KeyCode>(&*btn).map(|key| match key {
+								<dyn Any>::downcast_ref::<KeyCode>(&**btn).map(|key| match key {
 									KeyCode::AltLeft | KeyCode::AltRight => Some(ModifierKey::Alt),
 									KeyCode::ControlLeft | KeyCode::ControlRight => {
 										Some(ModifierKey::Control)
@@ -98,26 +100,44 @@ impl ButtonIcons {
 								}
 								collected_modifiers.insert(modifier);
 							}
-							Some(Self::from_button(btn, platform, map).unwrap_or_default())
+							Some(Self::from_button(&**btn, platform, map).unwrap_or_default())
 						})
 						.collect(),
 				)
 			}
 		})
 	}
+
+	pub fn iter(&self) -> ButtonIconsIter {
+		self.into_iter()
+	}
 }
 
-impl IntoIterator for ButtonIcons {
-	type Item = Icon;
-	type IntoIter = smallvec::IntoIter<[Self::Item; 1]>;
+impl<'a> IntoIterator for &'a ButtonIcons {
+	type Item = &'a Icon;
+	type IntoIter = ButtonIconsIter<'a>;
 	fn into_iter(self) -> Self::IntoIter {
 		match self {
-			ButtonIcons::Simple(icon) => smallvec![icon].into_iter(),
-			ButtonIcons::Composite(icons) | ButtonIcons::Chord(icons) => icons
-				.into_iter()
-				.flatten()
-				.collect::<SmallVec<_>>()
-				.into_iter(),
+			ButtonIcons::Simple(icon) => ButtonIconsIter::Single(Some(icon).into_iter()),
+			ButtonIcons::Composite(icons) | ButtonIcons::Chord(icons) => {
+				ButtonIconsIter::Multi(Box::new(icons.iter().flatten()))
+			}
+		}
+	}
+}
+
+pub enum ButtonIconsIter<'a> {
+	Single(std::option::IntoIter<&'a Icon>),
+	Multi(Box<std::iter::Flatten<std::slice::Iter<'a, ButtonIcons>>>),
+}
+
+impl<'a> Iterator for ButtonIconsIter<'a> {
+	type Item = &'a Icon;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		match self {
+			ButtonIconsIter::Single(icon) => icon.next(),
+			ButtonIconsIter::Multi(icons) => icons.next(),
 		}
 	}
 }
@@ -143,19 +163,19 @@ impl Default for AxisIcons {
 
 impl AxisIcons {
 	pub fn from_axis(
-		axis: Box<dyn Axislike>,
+		axis: &dyn Axislike,
 		platform: Option<Platform>,
 		map: &InputIconFileMap,
 	) -> Option<Self> {
 		Some(
-			if let Some(path) = map.get_axis_icon(&(axis.clone(), platform).into()) {
+			if let Some(path) = map.get_axis_icon(&(clone_box(axis), platform).into()) {
 				Self::Single(Icon::from_path(path))
-			} else if let Some(chord) = <dyn Any>::downcast_ref::<AxislikeChord>(&*axis) {
+			} else if let Some(chord) = <dyn Any>::downcast_ref::<AxislikeChord>(axis) {
 				Self::Chord {
-					button: ButtonIcons::from_button(chord.button.clone(), platform, map)
+					button: ButtonIcons::from_button(&*chord.button, platform, map)
 						.unwrap_or_default(),
 					axis: Arc::new(
-						Self::from_axis(chord.axis.clone(), platform, map).unwrap_or_default(),
+						Self::from_axis(&*chord.axis, platform, map).unwrap_or_default(),
 					),
 				}
 			} else {
@@ -163,8 +183,7 @@ impl AxisIcons {
 					BasicInputs::None => return None,
 					BasicInputs::Simple(btn) => {
 						warn!("Expected {btn:?} to have AxisIcons path");
-						let Some(basic_icons) =
-							ButtonIcons::from_button(btn.clone(), platform, map)
+						let Some(basic_icons) = ButtonIcons::from_button(&*btn, platform, map)
 						else {
 							error!("Missing icon for {btn:?}");
 							return None;
@@ -191,9 +210,9 @@ impl AxisIcons {
 							}
 						};
 						Self::Composite {
-							positive: ButtonIcons::from_button(positive.clone(), platform, map)
+							positive: ButtonIcons::from_button(&**positive, platform, map)
 								.unwrap_or_default(),
-							negative: ButtonIcons::from_button(negative.clone(), platform, map)
+							negative: ButtonIcons::from_button(&**negative, platform, map)
 								.unwrap_or_default(),
 						}
 					}
@@ -209,28 +228,51 @@ impl AxisIcons {
 			},
 		)
 	}
+
+	pub fn iter(&self) -> AxisIconsIter {
+		self.into_iter()
+	}
 }
 
-impl IntoIterator for AxisIcons {
-	type Item = Icon;
-	type IntoIter = smallvec::IntoIter<[Self::Item; 2]>;
+impl<'a> IntoIterator for &'a AxisIcons {
+	type Item = &'a Icon;
+	type IntoIter = AxisIconsIter<'a>;
 	fn into_iter(self) -> Self::IntoIter {
 		match self {
-			AxisIcons::Single(icon) => smallvec![icon].into_iter(),
-			AxisIcons::Composite { positive, negative } => [positive, negative]
-				.into_iter()
-				.flatten()
-				.collect::<SmallVec<_>>()
-				.into_iter(),
-			AxisIcons::Chord { button, axis } => button
-				.into_iter()
-				.chain((*axis).clone().into_iter())
-				.collect::<SmallVec<_>>()
-				.into_iter(),
+			AxisIcons::Single(icon) => AxisIconsIter::Single(Some(icon).into_iter()),
+			AxisIcons::Composite { positive, negative } => AxisIconsIter::Composite(
+				[positive.into_iter(), negative.into_iter()]
+					.into_iter()
+					.flatten(),
+			),
+			AxisIcons::Chord { button, axis } => {
+				AxisIconsIter::Chord(button.into_iter().chain(Box::new((&**axis).into_iter())))
+			}
 		}
 	}
 }
 
+pub enum AxisIconsIter<'a> {
+	Single(std::option::IntoIter<&'a Icon>),
+	Composite(std::iter::Flatten<std::array::IntoIter<ButtonIconsIter<'a>, 2>>),
+	Chord(std::iter::Chain<ButtonIconsIter<'a>, Box<Self>>),
+}
+
+impl<'a> Iterator for AxisIconsIter<'a> {
+	type Item = &'a Icon;
+	fn next(&mut self) -> Option<Self::Item> {
+		match self {
+			Self::Single(icon) => icon.next(),
+			Self::Composite(icons) => icons.next(),
+			Self::Chord(icons) => icons.next(),
+		}
+	}
+}
+
+// `Icon`s are never stored long-term, `Box` doesn't yet impl Reflect, and matching on an `Arc`
+// would be incredibly annoying. Making `Icon` not store an owned `AssetPath` is also problematic
+// for various reasons, though it might be the best alternative.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Reflect)]
 pub enum DualAxisIcons {
 	Single(Icon),
@@ -252,20 +294,19 @@ impl Default for DualAxisIcons {
 
 impl DualAxisIcons {
 	pub fn from_dual_axis(
-		dual_axis: Box<dyn DualAxislike>,
+		dual_axis: &dyn DualAxislike,
 		platform: Option<Platform>,
 		map: &InputIconFileMap,
 	) -> Option<Self> {
 		Some(
-			if let Some(path) = map.get_dual_axis_icon(&(dual_axis.clone(), platform).into()) {
+			if let Some(path) = map.get_dual_axis_icon(&(clone_box(dual_axis), platform).into()) {
 				Self::Single(Icon::from_path(path))
-			} else if let Some(chord) = <dyn Any>::downcast_ref::<DualAxislikeChord>(&*dual_axis) {
+			} else if let Some(chord) = <dyn Any>::downcast_ref::<DualAxislikeChord>(dual_axis) {
 				Self::Chord {
-					button: ButtonIcons::from_button(chord.button.clone(), platform, map)
+					button: ButtonIcons::from_button(&*chord.button, platform, map)
 						.unwrap_or_default(),
 					dual_axis: Arc::new(
-						Self::from_dual_axis(chord.dual_axis.clone(), platform, map)
-							.unwrap_or_default(),
+						Self::from_dual_axis(&*chord.dual_axis, platform, map).unwrap_or_default(),
 					),
 				}
 			} else {
@@ -273,8 +314,7 @@ impl DualAxisIcons {
 					BasicInputs::None => return None,
 					BasicInputs::Simple(btn) => {
 						warn!("Expected {btn:?} to have AxisIcons path");
-						let Some(basic_icons) =
-							ButtonIcons::from_button(btn.clone(), platform, map)
+						let Some(basic_icons) = ButtonIcons::from_button(&*btn, platform, map)
 						else {
 							error!("Missing icon for {btn:?}");
 							return None;
@@ -315,15 +355,15 @@ impl DualAxisIcons {
 						};
 						Self::Composite {
 							horizontal: AxisIcons::Composite {
-								positive: ButtonIcons::from_button(hp.clone(), platform, map)
+								positive: ButtonIcons::from_button(&**hp, platform, map)
 									.unwrap_or_default(),
-								negative: ButtonIcons::from_button(hn.clone(), platform, map)
+								negative: ButtonIcons::from_button(&**hn, platform, map)
 									.unwrap_or_default(),
 							},
 							vertical: AxisIcons::Composite {
-								positive: ButtonIcons::from_button(vp.clone(), platform, map)
+								positive: ButtonIcons::from_button(&**vp, platform, map)
 									.unwrap_or_default(),
-								negative: ButtonIcons::from_button(vn.clone(), platform, map)
+								negative: ButtonIcons::from_button(&**vn, platform, map)
 									.unwrap_or_default(),
 							},
 						}
@@ -336,31 +376,50 @@ impl DualAxisIcons {
 			},
 		)
 	}
+
+	pub fn iter(&self) -> DualAxisIconsIter {
+		self.into_iter()
+	}
 }
 
-impl IntoIterator for DualAxisIcons {
-	type Item = Icon;
-	type IntoIter = smallvec::IntoIter<[Self::Item; 4]>;
+impl<'a> IntoIterator for &'a DualAxisIcons {
+	type Item = &'a Icon;
+	type IntoIter = DualAxisIconsIter<'a>;
 	fn into_iter(self) -> Self::IntoIter {
 		match self {
-			DualAxisIcons::Single(icon) => smallvec![icon].into_iter(),
+			DualAxisIcons::Single(icon) => DualAxisIconsIter::Single(Some(icon).into_iter()),
 			DualAxisIcons::Composite {
 				horizontal,
 				vertical,
-			} => [horizontal, vertical]
-				.into_iter()
-				.flatten()
-				.collect::<SmallVec<_>>()
-				.into_iter(),
-			DualAxisIcons::Chord { button, dual_axis } => button
-				.into_iter()
-				.chain((*dual_axis).clone().into_iter())
-				.collect::<SmallVec<_>>()
-				.into_iter(),
+			} => DualAxisIconsIter::Composite(
+				[horizontal.iter(), vertical.iter()].into_iter().flatten(),
+			),
+			DualAxisIcons::Chord { button, dual_axis } => {
+				DualAxisIconsIter::Chord(button.iter().chain(Box::new(dual_axis.iter())))
+			}
 		}
 	}
 }
 
+#[allow(clippy::large_enum_variant)] // See comment on DualAxisIcons
+pub enum DualAxisIconsIter<'a> {
+	Single(std::option::IntoIter<&'a Icon>),
+	Composite(std::iter::Flatten<std::array::IntoIter<AxisIconsIter<'a>, 2>>),
+	Chord(std::iter::Chain<ButtonIconsIter<'a>, Box<Self>>),
+}
+
+impl<'a> Iterator for DualAxisIconsIter<'a> {
+	type Item = &'a Icon;
+	fn next(&mut self) -> Option<Self::Item> {
+		match self {
+			Self::Single(icon) => icon.next(),
+			Self::Composite(icons) => icons.next(),
+			Self::Chord(icons) => icons.next(),
+		}
+	}
+}
+
+#[allow(clippy::large_enum_variant)] // See comment on DualAxisIcons
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Reflect)]
 pub enum TripleAxisIcons {
 	Single(Icon),
@@ -379,7 +438,7 @@ impl Default for TripleAxisIcons {
 
 impl TripleAxisIcons {
 	pub fn from_triple_axis(
-		_triple_axis: Box<dyn TripleAxislike>,
+		_triple_axis: &dyn TripleAxislike,
 		_platform: Option<Platform>,
 		_map: &InputIconFileMap,
 	) -> Option<Self> {
@@ -387,20 +446,21 @@ impl TripleAxisIcons {
 	}
 }
 
-impl IntoIterator for TripleAxisIcons {
-	type Item = Icon;
-	type IntoIter = smallvec::IntoIter<[Self::Item; 6]>;
-	fn into_iter(self) -> Self::IntoIter {
-		match self {
-			TripleAxisIcons::Single(icon) => smallvec![icon].into_iter(),
-			TripleAxisIcons::Composite { x, y, z } => [x, y, z]
-				.into_iter()
-				.flatten()
-				.collect::<SmallVec<_>>()
-				.into_iter(),
-		}
-	}
-}
+// // TODO
+// impl IntoIterator for TripleAxisIcons {
+// 	type Item = Icon;
+// 	type IntoIter = smallvec::IntoIter<[Self::Item; 6]>;
+// 	fn into_iter(self) -> Self::IntoIter {
+// 		match self {
+// 			TripleAxisIcons::Single(icon) => smallvec![icon].into_iter(),
+// 			TripleAxisIcons::Composite { x, y, z } => [x, y, z]
+// 				.into_iter()
+// 				.flatten()
+// 				.collect::<SmallVec<_>>()
+// 				.into_iter(),
+// 		}
+// 	}
+// }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Reflect)]
 #[reflect(no_field_bounds)]
@@ -417,40 +477,58 @@ impl UserInputIcons {
 	}
 
 	pub fn from_user_input(
-		input: UserInputWrapper,
+		input: &SerializableUserInputWrapper,
 		platform: Option<Platform>,
 		map: &InputIconFileMap,
 	) -> UserInputIcons {
 		match input {
-			UserInputWrapper::Button(btn) => {
-				Self::Button(ButtonIcons::from_button(btn, platform, map).unwrap_or_default())
+			SerializableUserInputWrapper::Button(btn) => {
+				Self::Button(ButtonIcons::from_button(&**btn, platform, map).unwrap_or_default())
 			}
-			UserInputWrapper::Axis(axis) => {
-				Self::Axis(AxisIcons::from_axis(axis, platform, map).unwrap_or_default())
+			SerializableUserInputWrapper::Axis(axis) => {
+				Self::Axis(AxisIcons::from_axis(&**axis, platform, map).unwrap_or_default())
 			}
-			UserInputWrapper::DualAxis(da) => {
-				Self::DualAxis(DualAxisIcons::from_dual_axis(da, platform, map).unwrap_or_default())
-			}
-			UserInputWrapper::TripleAxis(ta) => Self::TripleAxis(
-				TripleAxisIcons::from_triple_axis(ta, platform, map).unwrap_or_default(),
+			SerializableUserInputWrapper::DualAxis(da) => Self::DualAxis(
+				DualAxisIcons::from_dual_axis(&**da, platform, map).unwrap_or_default(),
 			),
+			SerializableUserInputWrapper::TripleAxis(ta) => Self::TripleAxis(
+				TripleAxisIcons::from_triple_axis(&**ta, platform, map).unwrap_or_default(),
+			),
+		}
+	}
+
+	pub fn iter(&self) -> UserInputIconsIter {
+		self.into_iter()
+	}
+}
+
+impl<'a> IntoIterator for &'a UserInputIcons {
+	type Item = &'a Icon;
+	type IntoIter = UserInputIconsIter<'a>;
+	fn into_iter(self) -> Self::IntoIter {
+		match self {
+			UserInputIcons::Button(icons) => UserInputIconsIter::Button(icons.into_iter()),
+			UserInputIcons::Axis(icons) => UserInputIconsIter::Axis(icons.into_iter()),
+			UserInputIcons::DualAxis(icons) => UserInputIconsIter::DualAxis(icons.into_iter()),
+			UserInputIcons::TripleAxis(_) => todo!(),
 		}
 	}
 }
 
-impl IntoIterator for UserInputIcons {
-	type Item = Icon;
-	type IntoIter = smallvec::IntoIter<[Self::Item; 6]>;
-	fn into_iter(self) -> Self::IntoIter {
+#[allow(clippy::large_enum_variant)] // See comment on DualAxisIcons
+pub enum UserInputIconsIter<'a> {
+	Button(ButtonIconsIter<'a>),
+	Axis(AxisIconsIter<'a>),
+	DualAxis(DualAxisIconsIter<'a>),
+}
+
+impl<'a> Iterator for UserInputIconsIter<'a> {
+	type Item = &'a Icon;
+	fn next(&mut self) -> Option<Self::Item> {
 		match self {
-			UserInputIcons::Button(icons) => icons.into_iter().collect::<SmallVec<_>>().into_iter(),
-			UserInputIcons::Axis(icons) => icons.into_iter().collect::<SmallVec<_>>().into_iter(),
-			UserInputIcons::DualAxis(icons) => {
-				icons.into_iter().collect::<SmallVec<_>>().into_iter()
-			}
-			UserInputIcons::TripleAxis(icons) => {
-				icons.into_iter().collect::<SmallVec<_>>().into_iter()
-			}
+			Self::Button(icons) => icons.next(),
+			Self::Axis(icons) => icons.next(),
+			Self::DualAxis(icons) => icons.next(),
 		}
 	}
 }
@@ -800,7 +878,7 @@ impl InputIconFileMap {
 		zero_threshold!(MouseScrollDirection);
 		zero_threshold!(GamepadControlDirection);
 
-		if let Some(val) = <dyn Any>::downcast_ref::<SpecificGamepadButton>(&*button) {
+		if let Some(val) = <dyn Any>::downcast_ref::<SpecificGamepadButton>(button) {
 			return self.get_button_icon(&IconPathKey(
 				Box::new(val.button) as Box<dyn Buttonlike>,
 				button.1,

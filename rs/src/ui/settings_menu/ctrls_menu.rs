@@ -37,8 +37,8 @@ use serde::{Deserialize, Serialize};
 use smallvec::smallvec;
 use std::{borrow::Cow, ops::ControlFlow::Break};
 
-const GAME_BINDINGS_CONTAINER_NAME: &'static str = "GameBindingsContainer";
-const UI_BINDINGS_CONTAINER_NAME: &'static str = "UiBindingsContainer";
+const GAME_BINDINGS_CONTAINER_NAME: &str = "GameBindingsContainer";
+const UI_BINDINGS_CONTAINER_NAME: &str = "UiBindingsContainer";
 
 pub fn setup(
 	mut cmds: Commands,
@@ -775,8 +775,8 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 							}
 						}
 					}
-
-					let icons = UserInputIcons::from_user_input(binding.clone(), gp, &*icon_map);
+					let binding = binding.into();
+					let icons = UserInputIcons::from_user_input(&binding, gp, &icon_map);
 					debug!(?action, ?binding, ?icons);
 
 					cmds.spawn((

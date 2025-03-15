@@ -4,10 +4,7 @@ use rapier3d::prelude::Ball;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-	player::{
-		abilities::{BoosterCharge, WeaponCharge},
-		AntigravCollider,
-	},
+	player::abilities::{BoosterCharge, WeaponCharge},
 	util::Angle,
 };
 

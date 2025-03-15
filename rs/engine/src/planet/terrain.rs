@@ -4,7 +4,6 @@ use ::noise::{
 	Add, Billow, Fbm, HybridMulti, MultiFractal, Perlin, RidgedMulti, ScaleBias, Seedable, Value,
 };
 use bevy::{
-	ecs::system::{EntityCommands, SystemParamItem},
 	prelude::*,
 	render::{
 		batching::NoAutomaticBatching,
@@ -39,11 +38,12 @@ use crate::{
 		},
 		PlanetVec2,
 	},
-	util::{Diff, Factory, Spawnable},
+	util::Diff,
 };
 
 pub mod noise;
 pub mod physics;
+pub mod seeds;
 
 pub type Noise = ChooseAndSmooth<4>;
 
@@ -52,7 +52,6 @@ pub fn plugin(app: &mut App) -> &mut App {
 	let diameter = (CHUNK_SCALE.x * CHUNK_SCALE.x + CHUNK_SCALE.y * CHUNK_SCALE.y).sqrt();
 
 	app.add_systems(Startup, setup)
-		.add_systems(PostStartup, spawn_boxes)
 		.init_resource::<ChunkLoadingTasks>()
 		.insert_resource(UnloadDistance(5.0 * diameter))
 		.add_systems(PreUpdate, spawn_loaded_chunks)
@@ -99,28 +98,6 @@ pub fn setup(
 		mesh,
 		material,
 		collider,
-	});
-}
-
-pub fn spawn_boxes(mut factory: Factory<TerrainObject>) {
-	factory.spawn(Transform::from_translation(Vec3::new(0.0, 0.0, -48.0)));
-	factory.spawn(Transform {
-		translation: Vec3::new(-40.0, -8.0, -44.0),
-		rotation: Quat::from_euler(EulerRot::ZXY, 0.0, 0.0, -FRAC_PI_3),
-		..default()
-	});
-	factory.spawn(Transform {
-		translation: Vec3::new(42.0, 24.0, -36.0),
-		rotation: Quat::from_rotation_y(FRAC_PI_4),
-		..default()
-	});
-	factory.spawn(Transform::from_translation(Vec3::new(-32.0, 42.0, -44.0)));
-	factory.spawn(Transform::from_translation(Vec3::new(-64.0, 72.0, -32.0)));
-	factory.spawn(Transform::from_translation(Vec3::new(-96.0, 0.0, -64.0)));
-	factory.spawn(Transform {
-		translation: Vec3::new(-24.0, 96.0, 16.0),
-		rotation: Quat::from_rotation_x(FRAC_PI_3),
-		..default()
 	});
 }
 
@@ -191,51 +168,6 @@ pub struct TerrainTemplate {
 	pub mesh: Mesh3d,
 	pub material: MeshMaterial3d<Matter>,
 	pub collider: Collider,
-}
-
-impl Spawnable for TerrainObject {
-	type Params = Res<'static, TerrainTemplate>;
-	type InstanceData = Transform;
-
-	fn spawn<'w, 's, 'a>(
-		cmds: &'a mut Commands<'w, 's>,
-		params: &mut SystemParamItem<'w, 's, Self::Params>,
-		transform: Transform,
-	) -> EntityCommands<'a> {
-		cmds.spawn(TerrainObject {
-			pbr: MaterialMeshBundle {
-				mesh: params.mesh.clone(),
-				material: params.material.clone(),
-				transform,
-				..default()
-			},
-			collider: params.collider.clone(),
-			..default()
-		})
-	}
-}
-
-#[derive(Bundle)]
-pub struct TerrainObject {
-	pub pbr: MaterialMeshBundle<Matter>,
-	pub rigid_body: RigidBody,
-	pub collider: Collider,
-	pub restitution: Restitution,
-	pub friction: Friction,
-	pub ccd: Ccd,
-}
-
-impl Default for TerrainObject {
-	fn default() -> Self {
-		Self {
-			pbr: MaterialMeshBundle::default(),
-			rigid_body: RigidBody::Fixed,
-			collider: Collider::default(),
-			restitution: Restitution::new(0.5),
-			friction: Friction::new(0.01),
-			ccd: Ccd::enabled(),
-		}
-	}
 }
 
 #[derive(Component, Debug, Clone)]
@@ -467,19 +399,17 @@ pub fn spawn_loaded_chunks(
 					builder.spawn((
 						*index,
 						*center,
-						TerrainObject {
-							pbr: MaterialMeshBundle {
-								mesh: Mesh3d(mesh),
-								transform: Transform {
-									rotation: Quat::from_rotation_x(FRAC_PI_2),
-									..default()
-								},
-								material: MeshMaterial3d(mat.0.clone()),
-								..default()
-							},
-							collider: Collider::from(SharedShape(heights.clone())),
+						Mesh3d(mesh),
+						Transform {
+							rotation: Quat::from_rotation_x(FRAC_PI_2),
 							..default()
 						},
+						MeshMaterial3d(mat.0.clone()),
+						RigidBody::Fixed,
+						Collider::from(SharedShape(heights.clone())),
+						Restitution::new(0.5),
+						Friction::new(0.01),
+						Ccd::enabled(),
 						Ground {
 							heights: heights.clone(),
 						},
@@ -585,196 +515,3 @@ pub fn unload_distant_chunks(
 
 #[derive(Resource, Deref, DerefMut, Debug, Reflect)]
 pub struct UnloadDistance(f32);
-
-mod seeds {
-	use super::PlanetSeed;
-	use bevy::log::info;
-	use rand::{distributions::Standard, prelude::Distribution, Rng, RngCore, SeedableRng};
-	use rand_chacha::ChaCha8Rng;
-	use std::io::Write;
-
-	#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-	#[repr(C)]
-	pub struct TerrainSeeds {
-		base: [u32; 2],
-		perlin: HSSeed,
-		worley: HSSeed,
-		billow: HSSeed,
-		ridged: HSSeed,
-	}
-
-	impl From<&PlanetSeed> for TerrainSeeds {
-		fn from(value: &PlanetSeed) -> Self {
-			let mut seed = [0; 32];
-			seed[0..24].copy_from_slice(value.hash());
-
-			// WARNING: Changing these will break compatibility with older seeds.
-			let mut rng = ChaCha8Rng::from_seed(seed);
-
-			let base = rng.gen();
-
-			let perlin = rng.gen::<HSSeed>();
-
-			let mut worley = rng.gen::<HSSeed>();
-			let mut attempt = 0;
-			while attempt < 1024 {
-				// Best effort at avoiding strength collisions.
-				if perlin.strength == worley.strength {
-					worley = rng.gen();
-				} else {
-					break;
-				}
-				attempt += 1;
-			}
-			if attempt > 0 {
-				info!(?perlin, "Worley clashed with Perlin {attempt} time(s)");
-			}
-
-			let mut billow = rng.gen::<HSSeed>();
-			let mut attempt = 0;
-			while attempt < 1024 {
-				// Best effort at avoiding strength collisions.
-				if [perlin.strength, worley.strength].contains(&billow.strength) {
-					billow = rng.gen();
-				} else {
-					break;
-				}
-				attempt += 1;
-			}
-			if attempt > 0 {
-				info!(
-					?perlin,
-					?worley,
-					"Billow clashed with Perlin or Worley {attempt} time(s)"
-				);
-			}
-
-			let mut ridged = rng.gen::<HSSeed>();
-			let mut attempt = 0;
-			while attempt < 1024 {
-				// Best effort at avoiding strength collisions.
-				if [perlin.strength, worley.strength, billow.strength].contains(&ridged.strength) {
-					ridged = rng.gen();
-				} else {
-					break;
-				}
-				attempt += 1;
-			}
-			if attempt > 0 {
-				info!(
-					?perlin,
-					?worley,
-					?billow,
-					"Ridged clashed with Perlin, Worley, or Billow {attempt} time(s)"
-				);
-			}
-
-			Self {
-				base,
-				perlin,
-				worley,
-				billow,
-				ridged,
-			}
-		}
-	}
-
-	impl TerrainSeeds {
-		pub fn base(&self) -> [u32; 2] {
-			self.base
-		}
-		pub fn perlin(&self) -> HSSeed {
-			self.perlin
-		}
-		pub fn worley(&self) -> HSSeed {
-			self.worley
-		}
-		pub fn billow(&self) -> HSSeed {
-			self.billow
-		}
-		pub fn ridged(&self) -> HSSeed {
-			self.ridged
-		}
-	}
-
-	/// Combined heights and strength seed for [ChooseAndSmooth](terrain::noise::ChooseAndSmooth)
-	#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-	#[repr(C)]
-	pub struct HSSeed {
-		heights: u32,
-		strength: u32,
-	}
-
-	impl Distribution<HSSeed> for Standard {
-		fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> HSSeed {
-			HSSeed {
-				heights: rng.next_u32(),
-				strength: rng.next_u32(),
-			}
-		}
-	}
-
-	impl HSSeed {
-		fn new(heights: u32, strength: u32) -> Self {
-			Self { heights, strength }
-		}
-
-		pub fn heights(&self) -> u32 {
-			self.heights
-		}
-		pub fn strength(&self) -> u32 {
-			self.strength
-		}
-	}
-
-	#[cfg(test)]
-	mod tests {
-		use crate::planet::{
-			seeds::PlanetSeed,
-			terrain::seeds::{HSSeed, TerrainSeeds},
-		};
-
-		#[test]
-		fn seed_equivalence() {
-			let seed = rand::random::<PlanetSeed>();
-			let a = TerrainSeeds::from(&seed);
-			let b = TerrainSeeds::from(&seed);
-			assert_eq!(a, b);
-		}
-
-		#[test]
-		fn version_equivalence() {
-			// Note: If sources are added or removed, the sources from the previous version should remain equivalent,
-			// but it is fine to add the values for the new sources or remove old ones here.
-			let seed = PlanetSeed::from(
-				"This is a PlanetSeed for testing TerrainSeed equivalence across versions.",
-			);
-			assert_eq!(
-				seed.clone().canonical().string(),
-				"dif3XzLPR0QkeiIeiDUZS_fAfVYwGsLv"
-			);
-			assert_eq!(
-				TerrainSeeds::from(&seed),
-				TerrainSeeds {
-					base: [3921923909, 2705971270],
-					perlin: HSSeed {
-						heights: 2112551709,
-						strength: 1762326461
-					},
-					worley: HSSeed {
-						heights: 2032743752,
-						strength: 3889465128
-					},
-					billow: HSSeed {
-						heights: 1264812115,
-						strength: 391812050
-					},
-					ridged: HSSeed {
-						heights: 2995831856,
-						strength: 2095380095
-					},
-				},
-			);
-		}
-	}
-}

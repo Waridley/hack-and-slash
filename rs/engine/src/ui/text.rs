@@ -2,12 +2,14 @@ use crate::ui::widgets::WidgetShape;
 use ab_glyph::{Font as _, OutlineCurve::*};
 use bevy::{prelude::*, utils::HashMap};
 use lyon_tessellation::{
-	geometry_builder::{simple_builder, Positions},
+	geometry_builder::Positions,
 	math::{Point, Vector},
 	path::builder::{NoAttributes, PathBuilder},
 	BuffersBuilder, FillOptions, FillRule, FillTessellator, VertexBuffers,
 };
 use std::borrow::Cow;
+
+pub const DIGIT_STRS: [&str; 10] = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
 
 #[derive(Resource, Default)]
 pub struct Tessellator {
@@ -75,7 +77,7 @@ impl Tessellator {
 				last: &mut Point,
 			) {
 				if from != *last {
-					if *last == *last {
+					if last.is_finite() && from.is_finite() {
 						builder.close();
 					}
 					builder.begin(from);

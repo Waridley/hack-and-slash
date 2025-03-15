@@ -18,15 +18,15 @@ fn main() -> AppExit {
 }
 
 fn setup(mut cmds: Commands) {
-	cmds.spawn(Camera2dBundle::default());
-	cmds.spawn(ButtonBundle {
-		node: Node {
+	cmds.spawn(Camera2d);
+	cmds.spawn((
+		Button,
+		Node {
 			width: Val::Px(150.0),
 			height: Val::Px(65.0),
 			..default()
 		},
-		..default()
-	})
+	))
 	.with_children(|btn| {
 		btn.spawn(Text("Run Game".into()));
 	});

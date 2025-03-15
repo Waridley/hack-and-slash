@@ -2,15 +2,12 @@ use super::icons::Icon;
 use crate::{
 	ui::{
 		a11y::AKNode,
-		widgets::{new_unlit_material, Node3d, Text3d, WidgetShape},
+		widgets::{Node3d, Text3d, WidgetShape},
 		UiMat,
 	},
 	util::{MeshOutline, PendingErasedAsset},
 };
-use bevy::{
-	asset::UntypedAssetId, ecs::system::EntityCommands, prelude::*, render::view::RenderLayers,
-	utils::HashSet,
-};
+use bevy::{prelude::*, render::view::RenderLayers};
 use bevy_rapier3d::parry::{math::Isometry, shape::SharedShape};
 use bevy_svg::prelude::{Origin, Svg, SvgMesh3d, SvgMesh3dBundle};
 
@@ -65,7 +62,6 @@ impl InputIcon {
 			Changed<InputIcon>,
 		>,
 		asset_server: Res<AssetServer>,
-		mut mats: ResMut<Assets<UiMat>>,
 	) {
 		for (id, mut this, mut ak_node, mat, layers) in &mut q {
 			let Self {
@@ -82,8 +78,9 @@ impl InputIcon {
 				outline,
 				ref outline_material,
 			} = *this;
-			cmds.get_entity(text_entity)
-				.map(EntityCommands::despawn_recursive);
+			if let Some(text_entity) = cmds.get_entity(text_entity) {
+				text_entity.despawn_recursive();
+			}
 			let mut cmds = cmds.entity(id);
 			let svg = asset_server.load::<Svg>(image);
 			let outline_mat = PendingErasedAsset(outline_material.clone());

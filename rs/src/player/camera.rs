@@ -13,7 +13,6 @@ use crate::{
 	NeverDespawn,
 };
 use bevy::{
-	color::palettes::basic::FUCHSIA,
 	core_pipeline::{bloom::Bloom, fxaa::Fxaa, tonemapping::Tonemapping, Skybox},
 	ecs::system::EntityCommands,
 	prelude::*,
@@ -33,10 +32,7 @@ use bevy_rapier3d::{
 	plugin::RapierContext,
 	prelude::ShapeCastOptions,
 };
-use engine::{
-	ui::spawn_ui_camera,
-	util::{decay_factor, exp_decay_factor},
-};
+use engine::{ui::spawn_ui_camera, util::decay_factor};
 use enum_components::{EntityEnumCommands, WithVariant};
 
 const MAX_CAM_DIST: f32 = 32.0;
@@ -103,7 +99,8 @@ pub fn spawn_cameras(
 		for chunk in tex.data.chunks_mut(16) {
 			// Displays fuchsia if shader/custom pipeline aren't working
 			chunk.copy_from_slice(unsafe {
-				&*(&FUCHSIA.to_f32_array() as *const [f32; 4] as *const [u8; 16])
+				&*(&bevy::color::palettes::basic::FUCHSIA.to_f32_array() as *const [f32; 4]
+					as *const [u8; 16])
 			});
 		}
 
@@ -300,7 +297,7 @@ pub fn avatar_rotation_follow_pivot(
 ) {
 	for (mut xform, player) in &mut player_q {
 		if let Some((cam_xform, _)) = cam_q.iter().find(|(_, owner)| **owner == *player) {
-			let (yaw, pitch, roll) = xform.rotation.to_euler(EulerRot::ZXY);
+			let (_yaw, pitch, roll) = xform.rotation.to_euler(EulerRot::ZXY);
 			let cam_yaw = cam_xform.rotation.to_euler(EulerRot::ZXY).0;
 			let target = Quat::from_euler(EulerRot::ZXY, cam_yaw, pitch, roll);
 			let t = decay_factor(0.05, t.delta_secs());

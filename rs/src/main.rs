@@ -3,8 +3,7 @@
 	windows_subsystem = "windows"
 )]
 
-use bevy::{prelude::*, window, window::PresentMode};
-use itertools::Itertools;
+use bevy::{prelude::*, window::PresentMode};
 pub(crate) use sond_has::*;
 
 #[bevy_main]

@@ -6,7 +6,6 @@ use crate::{
 		widgets::borders::Border,
 		MenuStack, UiAction, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
 	},
-	util::MeshOutline,
 };
 use atomicow::CowArc;
 use bevy::{
@@ -17,7 +16,6 @@ use bevy::{
 	render::{
 		mesh::{Indices, MeshAabb, PrimitiveTopology::TriangleList, VertexAttributeValues},
 		render_asset::RenderAssetUsages,
-		render_resource::Face,
 		view::{Layer, RenderLayers},
 	},
 	utils::HashSet,
@@ -26,9 +24,8 @@ use bevy_rapier3d::parry::{
 	math::{Isometry, Vector},
 	shape::TypedShape,
 };
-use itertools::Itertools;
 use leafwing_input_manager::{action_state::ActionKindData, prelude::ActionState};
-use lyon_tessellation::{FillOptions, VertexBuffers};
+use lyon_tessellation::VertexBuffers;
 use rapier3d::parry::shape::SharedShape;
 use serde::{Deserialize, Serialize};
 use smallvec::{smallvec, SmallVec};
@@ -370,9 +367,9 @@ impl Text3d {
 							mut indices,
 						},
 						bbox,
-					) = r!(tessellator.tessellate(&text, &*font, tolerance, vertex_scale.xz()));
+					) = r!(tessellator.tessellate(text, font, tolerance, vertex_scale.xz()));
 
-					if vertices.len() == 0 {
+					if vertices.is_empty() {
 						return Some((meshes.add(Rectangle::default()), WidgetShape::default()));
 					}
 
@@ -447,7 +444,7 @@ impl Text3d {
 					}
 
 					let len = verts.len();
-					let indices = if let Ok(_) = u16::try_from(len) {
+					let indices = if u16::try_from(len).is_ok() {
 						Indices::U16(indices.into_iter().map(|i| i as u16).collect())
 					} else {
 						if text.len() < 4 {
@@ -723,7 +720,7 @@ pub fn draw_widget_shape_gizmos<const LAYER: Layer>(
 	)>,
 ) {
 	let color = PURPLE;
-	for (id, xform, shape, vis, layers) in &q {
+	for (_id, xform, shape, vis, layers) in &q {
 		if !**vis {
 			continue;
 		}
@@ -734,7 +731,7 @@ pub fn draw_widget_shape_gizmos<const LAYER: Layer>(
 		#[cfg(feature = "debugging")]
 		if (scale.x - scale.y).abs() > 0.000001 || (scale.x - scale.z).abs() > 0.000001 {
 			warn!(
-				?id,
+				?_id,
 				?shape,
 				?scale,
 				"widgets should have a uniform scale -- only drawing using `scale.x`"
@@ -940,7 +937,7 @@ pub fn on_action(
 				source: InteractionSource::Action(action),
 				kind: InteractionKind::Begin,
 			}) {
-			(&handler)(cmds)
+			handler(cmds)
 		} else {
 			ControlFlow::Continue(())
 		}
@@ -954,8 +951,8 @@ pub fn on_focus(
 	CowArc::Owned(Arc::new(move |ev, cmds| {
 		if ev.source == InteractionSource::Focus {
 			match ev.kind {
-				InteractionKind::Begin => (&acquire)(cmds),
-				InteractionKind::Release => (&release)(cmds),
+				InteractionKind::Begin => acquire(cmds),
+				InteractionKind::Release => release(cmds),
 				InteractionKind::Hold(_) => ControlFlow::Continue(()),
 			}
 		} else {

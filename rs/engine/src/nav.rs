@@ -97,7 +97,7 @@ impl<'a, EdgeGen: EdgeVendor + Copy + 'static> NavGraphRef<'a, EdgeGen> {
 // 	}
 // }
 
-impl<'a, EdgeGen: EdgeVendor + Copy + 'static> NavGraphRef<'a, EdgeGen> {
+impl<EdgeGen: EdgeVendor + Copy + 'static> NavGraphRef<'_, EdgeGen> {
 	pub async fn astar(
 		self,
 		start: NavIdx,
