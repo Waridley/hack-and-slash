@@ -1,14 +1,9 @@
 use crate::{
 	input::{map::icons::InputIconFileMap, InputState::DetectingBinding},
-	util::{AppExt, StateStack},
+	util::AppExt,
 };
 use bevy::{
-	input::{
-		gamepad::{GamepadAxisChangedEvent, GamepadButtonChangedEvent},
-		keyboard::{Key, KeyboardInput},
-		mouse::{MouseButtonInput, MouseMotion, MouseWheel},
-		ButtonState,
-	},
+	input::keyboard::Key,
 	prelude::*,
 	reflect::{FromType, TypeRegistration},
 	state::state::States,
@@ -161,7 +156,7 @@ pub trait ActionExt: Actionlike {
 						r!(input_map.get_buttonlike_mut(self))
 					};
 					bindings.clear();
-					bindings.clone_from(&default);
+					bindings.clone_from(default);
 				} else {
 					input_map.clear_action(self);
 				}
@@ -179,7 +174,7 @@ pub trait ActionExt: Actionlike {
 						r!(input_map.get_axislike_mut(self))
 					};
 					bindings.clear();
-					bindings.clone_from(&default);
+					bindings.clone_from(default);
 				} else {
 					input_map.clear_action(self);
 				}
@@ -196,7 +191,7 @@ pub trait ActionExt: Actionlike {
 						r!(input_map.get_dual_axislike_mut(self))
 					};
 					bindings.clear();
-					bindings.clone_from(&default);
+					bindings.clone_from(default);
 				} else {
 					input_map.clear_action(self);
 				}
@@ -223,7 +218,7 @@ pub trait ActionExt: Actionlike {
 						r!(input_map.get_triple_axislike_mut(self))
 					};
 					bindings.clear();
-					bindings.clone_from(&default);
+					bindings.clone_from(default);
 				} else {
 					input_map.clear_action(self);
 				}

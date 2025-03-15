@@ -1,41 +1,28 @@
 use crate::{
 	anim::{AnimationController, AnimationPlugin, ComponentDelta, StartAnimation},
-	entity_tree,
-	input::InputState,
 	mats::{
 		fade::DitherFade,
 		fog::{DistanceDither, Matter},
 		ExtMat,
 	},
-	ui::{
-		focus::{AdjacentWidgets, FocusTarget},
-		layout::LineUpChildren,
-		widgets::{draw_widget_shape_gizmos, CuboidFaces, CuboidPanel, Text3d, WidgetShape},
-	},
-	util::{Diff, LerpSlerp, StateStack},
+	ui::widgets::{CuboidPanel, Text3d},
+	util::{Diff, LerpSlerp},
 };
 use bevy::{
-	a11y::Focus,
-	color::palettes::{
-		basic::{AQUA, BLUE, FUCHSIA, GREEN, RED, WHITE, YELLOW},
-		css::ORANGE,
-	},
-	core_pipeline::{experimental::taa::TemporalAntiAliasing, fxaa::Fxaa},
+	color::palettes::basic::YELLOW,
 	diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
 	ecs::{query::QuerySingleError, schedule::SystemConfigs, system::EntityCommands},
 	input::common_conditions::input_toggle_active,
 	prelude::*,
 	render::{
 		camera::Viewport,
-		view::{Layer, RenderLayers, VisibilitySystems::CheckVisibility},
+		view::{Layer, RenderLayers},
 	},
 	ui::FocusPolicy,
-	utils::{HashMap, HashSet},
+	utils::HashMap,
 };
 use leafwing_input_manager::{prelude::*, Actionlike};
-use rapier3d::{geometry::SharedShape, math::Point};
 use serde::{Deserialize, Serialize};
-use smallvec::smallvec;
 use std::{
 	collections::VecDeque,
 	f64::consts::TAU,
@@ -69,12 +56,12 @@ impl Plugin for UiPlugin {
 			.add_systems(
 				PostUpdate,
 				(
-					draw_widget_shape_gizmos::<GLOBAL_UI_LAYER>,
+					widgets::draw_widget_shape_gizmos::<GLOBAL_UI_LAYER>,
 					focus::highlight_focus::<GLOBAL_UI_LAYER>,
 				)
 					.chain()
 					.run_if(input_toggle_active(false, KeyCode::KeyG))
-					.after(CheckVisibility),
+					.after(bevy::render::view::VisibilitySystems::CheckVisibility),
 			)
 			.insert_gizmo_config(
 				widgets::WidgetGizmos::<GLOBAL_UI_LAYER>,
@@ -200,7 +187,7 @@ pub fn spawn_ui_camera<ID: Bundle + Clone>(
 		let mut cam = cmds.spawn((
 			Name::new(format!("UICam_{}", layer)),
 			identifier,
-			UiCam::default(),
+			UiCam,
 			Camera {
 				hdr: true,
 				order: layer as _,
@@ -391,7 +378,7 @@ impl ActionExt for UiAction {
 			(NextTab, KeyX),
 			(PrevTab, KeyZ),
 			(ResetZoom, Digit0),
-			(ResetPan, Digit0.into()),
+			(ResetPan, Digit0),
 		])
 		.with_multiple([
 			(Ok, MouseButton::Left),
@@ -693,13 +680,11 @@ pub fn anchor_follow_menu(
 
 use crate::{
 	anim::{AnimationHandle, DynAnimation},
-	draw::{polygon_points, PlanarPolyLine},
 	input::ActionExt,
 	ui::{
 		text::Tessellator,
 		widgets::{
-			new_unlit_material, CuboidContainer, CylinderPanel, InteractHandlers, Node3d,
-			PanelBundle, PrevFocus,
+			new_unlit_material, CuboidContainer, CylinderPanel, InteractHandlers, PrevFocus,
 		},
 	},
 	util::{downcast_material, RegisterUntypedAssetDowncaster},
@@ -1006,6 +991,14 @@ fn spawn_test_menu(
 	mut events: EventReader<AssetEvent<Font>>,
 	mut spawned: Local<bool>,
 ) {
+	use crate::draw::{polygon_points, PlanarPolyLine};
+	use bevy::color::palettes::{
+		basic::{AQUA, BLUE, FUCHSIA, GREEN, RED, WHITE},
+		css::ORANGE,
+	};
+	use focus::{AdjacentWidgets, FocusTarget};
+	use smallvec::smallvec;
+	use widgets::{CuboidFaces, WidgetShape};
 	// TODO: Use bevy_asset_loader
 	if *spawned {
 		return;
@@ -1031,11 +1024,11 @@ fn spawn_test_menu(
 		.into_iter()
 		.enumerate()
 	{
-		faces[i] = entity_tree!(cmds;
+		faces[i] = crate::entity_tree!(cmds;
 			( // Face container
 				(
 					WidgetShape {
-						shape: SharedShape::cuboid(6.3, 0.5, 3.0),
+						shape: rapier3d::geometry::SharedShape::cuboid(6.3, 0.5, 3.0),
 						..default()
 					},
 					transform,
@@ -1043,24 +1036,24 @@ fn spawn_test_menu(
 				);
 				#children: [
 					( // Border
-						Node3d,
+						widgets::Node3d,
 						AdjacentWidgets::all(FocusTarget::ChildN(0)),
 						Mesh3d(meshes.add(PlanarPolyLine {
 							points: polygon_points(6, 6.0, i as f32),
 							cross_section: polygon_points(3, 0.25, 0.5),
 							colors: smallvec![
-								smallvec![WHITE.into()],
-								smallvec![RED.into()],
-								smallvec![BLUE.into()],
-								smallvec![GREEN.into()],
-								smallvec![AQUA.into()],
-								smallvec![FUCHSIA.into()],
+								smallvec![WHITE],
+								smallvec![RED],
+								smallvec![BLUE],
+								smallvec![GREEN],
+								smallvec![AQUA],
+								smallvec![FUCHSIA],
 							],
 							closed: false,
 							..default()
 						}.mesh().build().with_duplicated_vertices().with_computed_flat_normals())),
 						MeshMaterial3d(border_mat.clone()),
-						LineUpChildren {
+						crate::ui::layout::LineUpChildren {
 							relative_positions: Vec3::NEG_Z * 1.25,
 							align: Vec3::ZERO,
 							..default()
@@ -1075,12 +1068,13 @@ fn spawn_test_menu(
 								},
 								Transform::from_translation(Vec3::NEG_Y),
 								AdjacentWidgets::vertical_siblings(),
+								MeshMaterial3d(text_mat.clone()),
 							),
 							( // Test button
-								PanelBundle {
-									shape: WidgetShape { shape: SharedShape::capsule(
-										Point::new(0.0, -2.5, 0.0),
-										Point::new(0.0, 2.5, 0.0),
+								widgets::PanelBundle {
+									shape: WidgetShape { shape: rapier3d::geometry::SharedShape::capsule(
+										rapier3d::math::Point::new(0.0, -2.5, 0.0),
+										rapier3d::math::Point::new(0.0, 2.5, 0.0),
 										0.5,
 									), ..default() },
 									mesh: Mesh3d(meshes.add(Capsule3d::new(0.5, 5.0))),
@@ -1154,8 +1148,8 @@ fn toggle_test_menu(
 	mut q: Query<(Entity, &TestMenu)>,
 	mut stack: Query<&mut MenuStack, With<GlobalUi>>,
 	input: Res<ButtonInput<KeyCode>>,
-	mut focus: ResMut<Focus>,
-	mut state: ResMut<StateStack<InputState>>,
+	mut focus: ResMut<bevy::a11y::Focus>,
+	mut state: ResMut<crate::util::StateStack<crate::input::InputState>>,
 	mut i: Local<usize>,
 ) {
 	let Ok((id, info)) = q.get_single_mut() else {
@@ -1172,7 +1166,7 @@ fn toggle_test_menu(
 			Ok(mut stack) => {
 				if *i == 0 {
 					cmds.entity(id).fade_in_secs(0.5);
-					state.push(InputState::InMenu);
+					state.push(crate::input::InputState::InMenu);
 				}
 				stack.push(MenuRef::new(child));
 				*i = usize::min(*i + 1, info.faces.len());

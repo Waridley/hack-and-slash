@@ -13,7 +13,7 @@ render = [
     "bevy/bevy_winit",
     "bevy_rapier3d/debug-render",
     "bevy_rapier3d/async-collider",
-    "bevy-inspector-egui/bevy_render",
+    "bevy-inspector-egui?/bevy_render",
 ]
 
 [dependencies]
@@ -37,6 +37,7 @@ bevy_svg = { workspace = true }
 bimap = { workspace = true }
 blake3 = { workspace = true }
 bytemuck = { workspace = true }
+dyn-clone = { workspace = true }
 futures-lite = { workspace = true }
 itertools = { workspace = true }
 leafwing-input-manager = { workspace = true }

@@ -75,7 +75,7 @@ pub(crate) mod tests {
 				*spawned = true;
 			}
 			running.retain_mut(|handle| handle.check().is_none());
-			if running.len() == 0 {
+			if running.is_empty() {
 				TestStatus::Passed
 			} else {
 				TestStatus::Running

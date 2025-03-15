@@ -21,7 +21,7 @@ use crate::{
 		widgets::{CuboidPanel, Node3d, Text3d},
 		GlobalUi, Popup, PopupsRoot, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
 	},
-	util::{MeshOutline, StateStack},
+	util::MeshOutline,
 };
 use bevy::{
 	color::palettes::css::AQUAMARINE,
@@ -29,7 +29,6 @@ use bevy::{
 		gamepad::{GamepadAxisChangedEvent, GamepadButtonChangedEvent},
 		keyboard::KeyboardInput,
 		mouse::{MouseButtonInput, MouseMotion, MouseWheel},
-		ButtonState,
 	},
 	prelude::*,
 	utils::HashMap,
@@ -185,17 +184,15 @@ pub fn manage_detect_popup(
 		return;
 	};
 	let root = anchor.single();
-	if *state.get() == InputState::DetectingBinding {
+	if *state.get() == DetectingBinding {
 		if parent.is_none() {
 			cmds.entity(id).set_parent(root);
 		} else {
 			debug_assert_eq!(parent.unwrap().get(), root)
 		}
-	} else {
-		if parent.is_some() {
-			debug_assert_eq!(parent.unwrap().get(), root);
-			cmds.entity(id).remove_parent();
-		}
+	} else if parent.is_some() {
+		debug_assert_eq!(parent.unwrap().get(), root);
+		cmds.entity(id).remove_parent();
 	}
 }
 
@@ -236,17 +233,17 @@ pub fn display_curr_chord(
 					.collect()
 			} else {
 				let entry_icons = UserInputIcons::from_user_input(
-					entry.0.clone().into(),
+					&entry.0,
 					entry
 						.1
 						.and_then(|gp| gamepads.get(gp).ok())
 						.and_then(|(name, _)| name)
 						.map(Name::as_str)
 						.and_then(Platform::guess_gamepad),
-					&*icon_map,
+					&icon_map,
 				);
 
-				entry_icons.into_iter().collect()
+				entry_icons.iter().cloned().collect()
 			};
 			let mut ids = SmallVec::new();
 			for icon in entry_icons {
@@ -310,7 +307,7 @@ pub fn detect_bindings(
 		trace!("{entry:?}");
 		if ev.state.is_pressed() {
 			curr_chord.insert(entry, None);
-		} else if curr_chord.contains_key(&entry.into()) {
+		} else if curr_chord.contains_key(&entry) {
 			finalize(&mut curr_chord, &mut mouse_accum, &mut wheel_accum);
 		}
 	}
@@ -444,12 +441,12 @@ pub fn detect_bindings(
 
 #[cfg(feature = "debugging")]
 pub fn dbg_set_detect_binding_state(
-	mut stack: ResMut<StateStack<InputState>>,
+	mut stack: ResMut<crate::util::StateStack<InputState>>,
 	mut keys: EventReader<KeyboardInput>,
 	mut curr_chord: ResMut<CurrentChord>,
 ) {
 	for key in keys.read() {
-		if key.key_code == KeyCode::KeyB && key.state == ButtonState::Released {
+		if key.key_code == KeyCode::KeyB && key.state == bevy::input::ButtonState::Released {
 			match stack.last() {
 				Some(DetectingBinding) => {
 					stack.pop();
@@ -478,12 +475,12 @@ pub fn dbg_detect_bindings(
 				key(icon).map(UserInputIcons::simple).unwrap_or_default()
 			} else {
 				UserInputIcons::from_user_input(
-					input.clone().into(),
+					input,
 					gp.and_then(|gp| gamepads.get(gp).ok())
 						.and_then(|(name, _)| name)
 						.map(Name::as_str)
 						.and_then(Platform::guess_gamepad),
-					&*icon_map,
+					&icon_map,
 				)
 			};
 

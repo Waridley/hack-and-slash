@@ -23,13 +23,12 @@ use engine::{
 		layout::{ExpandToFitChildren, LineUpChildren},
 		text::UiFonts,
 		widgets::{
-			borders::Border, dbg_event, focus_state_colors, focus_state_emissive,
-			new_unlit_material, on_ok, CuboidPanel, InteractHandlers, Node3d, Text3d, WidgetShape,
+			borders::Border, dbg_event, focus_state_colors, focus_state_emissive, on_ok,
+			CuboidPanel, InteractHandlers, Node3d, Text3d, WidgetShape,
 		},
 		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiMat, UiMatBuilder,
-		GLOBAL_UI_RENDER_LAYERS,
 	},
-	util::{MeshOutline, StateStack},
+	util::StateStack,
 };
 use enum_components::{EntityEnumCommands, EnumComponent, WithVariant};
 use leafwing_input_manager::action_state::ActionState;

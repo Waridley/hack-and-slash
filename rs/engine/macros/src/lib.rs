@@ -90,9 +90,10 @@ enum KernelKind {
 impl Kernel {
 	fn get_baseline_curve(self) -> Vec<f64> {
 		match self.kind {
-			KernelKind::Mean => std::iter::repeat(1.0 / (self.size * self.size) as f64)
-				.take(self.size * self.size)
-				.collect(),
+			KernelKind::Mean => {
+				std::iter::repeat_n(1.0 / (self.size * self.size) as f64, self.size * self.size)
+					.collect()
+			}
 			KernelKind::Gaussian { sigma } => {
 				let mut ret = Vec::with_capacity(self.size * self.size);
 				let r = (self.size - 1) as f64 * 0.5;

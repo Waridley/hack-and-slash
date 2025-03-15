@@ -138,7 +138,7 @@ impl Meshable for PlanarPolyLine {
 		}
 		let mut verts = Vec::with_capacity(self.points.len() * self.cross_section.len());
 		let mut indices = Vec::new(); // PERF: calculate capacity
-		let mut vert_colors = if self.colors.len() > 0 {
+		let mut vert_colors = if !self.colors.is_empty() {
 			Vec::with_capacity(verts.len())
 		} else {
 			Vec::new()
@@ -178,7 +178,7 @@ impl Meshable for PlanarPolyLine {
 				if let Some(new_color) = colors.next() {
 					color = new_color.to_f32_array();
 				}
-				if self.colors.len() > 0 {
+				if !self.colors.is_empty() {
 					vert_colors.push(color);
 				}
 
@@ -215,7 +215,7 @@ impl Meshable for PlanarPolyLine {
 		mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, verts);
 		mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
 		mesh.insert_indices(Indices::U16(indices));
-		if self.colors.len() > 0 {
+		if !self.colors.is_empty() {
 			mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, vert_colors);
 		}
 		PlanarPolylineMeshBuilder(mesh)

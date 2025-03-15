@@ -14,7 +14,6 @@ use crate::{
 use bevy::{
 	asset::AssetPath,
 	ecs::system::EntityCommands,
-	input::common_conditions::input_toggle_active,
 	prelude::*,
 	render::{
 		mesh::{SphereKind, SphereMeshBuilder, TorusMeshBuilder},
@@ -33,10 +32,7 @@ use bevy_rapier3d::{
 };
 use camera::spawn_cameras;
 use ctrl::{CtrlState, CtrlVel};
-use engine::{
-	planet::terrain::NeedsTerrain,
-	ui::{focus, GLOBAL_UI_LAYER},
-};
+use engine::{planet::terrain::NeedsTerrain, ui::GLOBAL_UI_LAYER};
 use enum_components::{ERef, EntityEnumCommands, EnumComponent, WithVariant};
 use leafwing_input_manager::prelude::*;
 use nanorand::Rng;
@@ -82,10 +78,13 @@ pub fn plugin(app: &mut App) -> &mut App {
 					PostUpdate,
 					(
 						engine::ui::widgets::draw_widget_shape_gizmos::<$i>,
-						focus::highlight_focus::<$i>,
+						engine::ui::focus::highlight_focus::<$i>,
 					)
 						.chain()
-						.run_if(input_toggle_active(false, KeyCode::KeyG))
+						.run_if(bevy::input::common_conditions::input_toggle_active(
+							false,
+							KeyCode::KeyG,
+						))
 						.after(bevy::render::view::VisibilitySystems::CheckVisibility),
 				)
 				.insert_gizmo_config(
@@ -96,7 +95,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 					},
 				)
 				.insert_gizmo_config(
-					focus::FocusGizmos::<$i>,
+					engine::ui::focus::FocusGizmos::<$i>,
 					GizmoConfig {
 						line_width: 6.0,
 						render_layers: layers,
@@ -420,7 +419,7 @@ impl PlayerSpawnData {
 			ship_scene: self.ship_scene.clone_weak(),
 			antigrav_pulse_mesh: self.antigrav_pulse_mesh.clone_weak(),
 			antigrav_pulse_mat: self.antigrav_pulse_mat.clone_weak(),
-			glow_color: self.glow_color.clone(),
+			glow_color: self.glow_color,
 			arm_mesh: self.arm_mesh.clone_weak(),
 			arm_particle_mesh: self.arm_particle_mesh.clone_weak(),
 			arm_mats: [
@@ -472,7 +471,7 @@ impl PlayerSpawnData {
 				Mesh3d(antigrav_pulse_mesh),
 				MeshMaterial3d(antigrav_pulse_mat),
 			),
-			glow_color: glow_color,
+			glow_color,
 			arms: [
 				(
 					(
@@ -759,7 +758,6 @@ fn player_vis(
 	); 3],
 	arm_particle_mesh: Handle<Mesh>,
 ) {
-	let mut cmds = root.commands();
 	let root_id = root.id();
 	let ship_center = root
 		.commands()
@@ -850,7 +848,7 @@ fn player_vis(
 					builder.spawn((
 						Name::new(format!("{}.ShipCenter.Ship.Glow", owner)),
 						PointLight {
-							color: glow_color.into(),
+							color: glow_color,
 							intensity: 2_000_000.0,
 							range: 12.0,
 							shadows_enabled: false,

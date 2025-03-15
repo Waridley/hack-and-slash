@@ -14,11 +14,7 @@ use leafwing_input_manager::{
 	systems::generate_action_diffs,
 };
 use serde::{Deserialize, Serialize};
-use std::{
-	f32::consts::{FRAC_PI_2, TAU},
-	fmt::Formatter,
-	time::Duration,
-};
+use std::{f32::consts::FRAC_PI_2, fmt::Formatter, time::Duration};
 
 #[derive(SystemSet, Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct InputSystems;
@@ -30,7 +26,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 		.add_systems(
 			Update,
 			((
-				look_input.ambiguous_with(movement_input),
+				look_input,
 				movement_input.run_if(resource_exists::<PlayerParams>),
 			)
 				.before(terminal_velocity)
@@ -167,7 +163,6 @@ pub fn look_input(
 	mut player_q: Query<(
 		Entity,
 		&ActionState<PlayerAction>,
-		&mut CtrlVel,
 		&BelongsToPlayer,
 		&AimSensitivity,
 	)>,
@@ -176,7 +171,7 @@ pub fn look_input(
 	t: Res<Time>,
 ) {
 	let dt = t.delta_secs();
-	for (entity, action_state, mut vel, player_id, sens) in player_q.iter_mut() {
+	for (entity, action_state, player_id, sens) in player_q.iter_mut() {
 		let mut stick_input = Vec2::ZERO;
 		if let Some(look) = action_state.dual_axis_data(&PlayerAction::StickAim) {
 			stick_input += look.pair;

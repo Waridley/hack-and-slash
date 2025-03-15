@@ -140,7 +140,7 @@ pub fn apply_constraints(
 		}
 		let sep_sum = separations.iter().map(|(_, sep)| sep).sum::<Vec3>();
 		let offset = sep_sum * ((-constraint.align + Vec3::ONE) * 0.5);
-		let Some(&((first_child, _), _)) = separations.get(0) else {
+		let Some(&((first_child, _), _)) = separations.first() else {
 			continue;
 		};
 		let mut first_child = shapes
@@ -314,9 +314,9 @@ impl ExpandToFitChildren {
 		for (this, desc, kids) in &mut q {
 			let mut aabb = Aabb::new_invalid();
 			if !kids.iter().copied().any(|child| {
-				children.get(child).map_or(false, |(shape, xform)| {
-					shape.is_changed() || xform.is_changed()
-				})
+				children
+					.get(child)
+					.is_ok_and(|(shape, xform)| shape.is_changed() || xform.is_changed())
 			}) {
 				continue;
 			}

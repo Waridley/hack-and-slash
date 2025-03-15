@@ -14,10 +14,10 @@ impl OneWayHeightFieldFilter<'_, '_> {
 		local_norm: &Vector<f32>,
 		up: &Vector<f32>,
 	) -> bool {
-		if self.colliders.get(collider).map(|col| col.raw.shape_type()) == Ok(HeightField) {
-			if local_norm.dot(up) < 0.0 {
-				return true;
-			}
+		if self.colliders.get(collider).map(|col| col.raw.shape_type()) == Ok(HeightField)
+			&& local_norm.dot(up) < 0.0
+		{
+			return true;
 		}
 		false
 	}
@@ -48,7 +48,7 @@ impl BevyPhysicsHooks for OneWayHeightFieldFilter<'_, '_> {
 			&ctx.raw.manifold.local_n2,
 			// Normal in local space means we check against Rapier's default up vector
 			&Vector::y(),
-			&mut ctx.raw.normal,
+			ctx.raw.normal,
 		)
 	}
 }

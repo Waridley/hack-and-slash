@@ -139,7 +139,7 @@ pub fn setup(
 				},
 				Mesh3d(meshes.add(PlanarPolyLine {
 					points: polygon_points(6, 10.5, 0.0),
-					colors: smallvec![smallvec![Srgba::from(GRAY)]],
+					colors: smallvec![smallvec![GRAY]],
 					..default()
 				}.flat())),
 				MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(Srgba::gray(0.05))))),
