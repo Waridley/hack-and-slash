@@ -58,7 +58,7 @@ pub(crate) mod tests {
 		) -> TestStatus {
 			if !*spawned {
 				trace!("Hello from async task!");
-				for task in 0..100 {
+				for task in 0..10_000 {
 					running.push(offloader
 						.start(async move {
 							trace!("Starting task {task}...");

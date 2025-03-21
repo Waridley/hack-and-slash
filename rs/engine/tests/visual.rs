@@ -1,8 +1,7 @@
-use bevy::log::info;
-
+use bevy::{app::AppExit, log::info};
 use sond_has_engine::testing::*;
 
-pub fn main() {
+pub fn main() -> AppExit {
 	let mut app = new_test_app();
 	for plugin in TESTS.iter().copied() {
 		let name = plugin(&mut app);
@@ -17,5 +16,5 @@ pub fn main() {
 			.resource_mut::<RunningTests>()
 			.insert(name, TestStatus::Running);
 	}
-	app.run();
+	app.run()
 }

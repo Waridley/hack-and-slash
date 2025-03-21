@@ -142,7 +142,7 @@ where
 	/// `half_life` (`t½`) in seconds.
 	#[inline(always)]
 	fn decay(self, to: Self, half_life: f32, dt: f32) -> Self {
-		let t = decay_factor(dt, half_life);
+		let t = decay_factor(half_life, dt);
 		((self - to.clone()) * t) + to
 	}
 
@@ -160,12 +160,54 @@ where
 	/// should be preferred if at all convenient.
 	#[inline(always)]
 	fn frac_decay(self, to: Self, rem_frac_after_1s: f32, dt: f32) -> Self {
-		to.exp_decay(self, -rem_frac_after_1s.ln(), dt)
+		self.exp_decay(to, -rem_frac_after_1s.ln(), dt)
 	}
 }
 
-/// The lerp factor for [LerpSmoothing::exp_decay]. Useful if you need to use a non-standard lerp
-/// function, like [Quat::slerp] for example.
+impl<T> LerpSmoothing for T
+where
+	T: Clone + Sized + Sub<T>,
+	<T as Sub<T>>::Output: Mul<f32>,
+	<<T as Sub<T>>::Output as Mul<f32>>::Output: Add<T, Output = T>,
+{
+}
+
+pub trait SlerpSmoothing: Sized {
+	fn sph_exp_decay(&self, to: &Self, λ: f32, dt: f32) -> Self;
+	fn sph_decay(&self, to: &Self, half_life: f32, dt: f32) -> Self;
+	fn sph_frac_decay(&self, to: &Self, rem_frac_after_1s: f32, dt: f32) -> Self;
+}
+
+macro_rules! impl_slerp_smoothing {
+		($T:ty $(, $deref:tt)?) => {
+			impl SlerpSmoothing for $T {
+				#[inline(always)]
+				fn sph_exp_decay(&self, to: &Self, λ: f32, dt: f32) -> Self {
+					let t = exp_decay_factor(λ, dt);
+					to.slerp($($deref)? self, t)
+				}
+
+				#[inline(always)]
+				fn sph_decay(&self, to: &Self, half_life: f32, dt: f32) -> Self {
+					let t = decay_factor(half_life, dt);
+					to.slerp($($deref)? self, t)
+				}
+
+				#[inline(always)]
+				fn sph_frac_decay(&self, to: &Self, rem_frac_after_1s: f32, dt: f32) -> Self {
+					let t = frac_decay_factor(rem_frac_after_1s, dt);
+					to.slerp($($deref)? self, t)
+				}
+			}
+    };
+}
+
+impl_slerp_smoothing!(Quat, *);
+impl_slerp_smoothing!(rapier3d::math::Rotation<f32>);
+
+/// The lerp factor for [LerpSmoothing::exp_decay], [SlerpSmoothing::sph_exp_decay], and
+/// [LerpSlerp::sl_exp_decay]. Useful if you need to use a non-standard (s)lerp
+/// function.
 ///
 /// <u>**Note</u>:**
 /// If the intent is to lerp smooth from `a` to `b`, this factor needs to either be used to lerp
@@ -176,8 +218,9 @@ pub fn exp_decay_factor(λ: f32, dt: f32) -> f32 {
 	(-λ * dt).exp()
 }
 
-/// The lerp factor for [LerpSmoothing::decay]. Useful if you need to use a non-standard lerp
-/// function, like [Quat::slerp] for example.
+/// The lerp factor for [LerpSmoothing::decay], [SlerpSmoothing::sph_decay], and
+/// [LerpSlerp::sl_decay]. Useful if you need to use a non-standard (s)lerp
+/// function.
 ///
 /// <u>**Note</u>:**
 /// If the intent is to lerp smooth from `a` to `b`, this factor needs to either be used to lerp
@@ -188,8 +231,9 @@ pub fn decay_factor(half_life: f32, dt: f32) -> f32 {
 	(-dt / half_life).exp2()
 }
 
-/// The lerp factor for [LerpSmoothing::frac_decay]. Useful if you need to use a non-standard lerp
-/// function, like [Quat::slerp] for example.
+/// The lerp factor for [LerpSmoothing::frac_decay], [SlerpSmoothing::sph_frac_decay], and
+/// [LerpSlerp::sl_frac_decay]. Useful if you need to use a non-standard
+/// (s)lerp function.
 ///
 /// <u>**Note</u>:**
 /// If the intent is to lerp smooth from `a` to `b`, this factor needs to either be used to lerp
@@ -200,13 +244,260 @@ pub fn frac_decay_factor(rem_frac_after_1s: f32, dt: f32) -> f32 {
 	exp_decay_factor(-rem_frac_after_1s.ln(), dt)
 }
 
-impl<T> LerpSmoothing for T
-where
-	T: Clone + Sized + Sub<T>,
-	<T as Sub<T>>::Output: Mul<f32>,
-	<<T as Sub<T>>::Output as Mul<f32>>::Output: Add<T, Output = T>,
-{
+/// Tests that our attempted optimization of frac_decay_factor is at least very close to the actual
+/// value.
+#[cfg(test)]
+#[test]
+fn frac_decay_accuracy() {
+	for i in 0..=1024 {
+		let rem = i as f32 / 1024.0;
+		for fps in 10..=360 {
+			let dt = 1.0 / fps as f32;
+			let actual = rem.powf(dt);
+			let opt = frac_decay_factor(rem, dt);
+			debug_assert!((opt - actual).abs() < 1e-6);
+		}
+	}
 }
+
+#[cfg(feature = "vis_test")]
+crate::bevy_test! {fn decay_framerate_independence(app, test_id) {
+	use bevy_inspector_egui::bevy_egui::{EguiContexts, egui};
+	use egui_plot::{Plot, Line, PlotPoints};
+
+	const FRAMERATES: [f64; 6] = [600.0, 360.0, 120.0, 60.0, 30.0, 15.0];
+	const COLORS: [egui::Rgba; FRAMERATES.len()] = [
+		egui::Rgba::WHITE,
+		egui::Rgba::GREEN,
+		egui::Rgba::from_rgb(0.0, 1.0, 1.0),
+		egui::Rgba::BLUE,
+		egui::Rgba::from_rgb(1.0, 1.0, 0.0),
+		egui::Rgba::RED,
+	];
+
+	#[derive(Component, Clone, Copy)]
+	enum DecayFn {
+		Control,
+		Decay { half_life: f32 },
+		Exp { λ: f32 },
+		Frac { rem: f32 },
+	}
+
+	impl DecayFn {
+		fn eval(self, from: f32, to: f32, dt: f32) -> f32 {
+			use DecayFn::*;
+			match self {
+				Control => to,
+				Decay { half_life } => from.decay(to, half_life, dt),
+				Exp { λ } => from.exp_decay(to, λ, dt),
+				Frac { rem } => from.frac_decay(to, rem, dt),
+			}
+		}
+		fn slerp(self, from: Quat, to: Quat, dt: f32) -> Quat {
+			use DecayFn::*;
+			match self {
+				Control => to,
+				Decay { half_life } => from.sph_decay(&to, half_life, dt),
+				Exp { λ } => from.sph_exp_decay(&to, λ, dt),
+				Frac { rem } => from.sph_frac_decay(&to, rem, dt),
+			}
+		}
+	}
+
+	#[derive(Resource, Debug)]
+	struct PlotData {
+		window: Entity,
+		control: [Vec<[f64; 2]>; FRAMERATES.len()],
+		decay: [Vec<[f64; 2]>; FRAMERATES.len()],
+		exp: [Vec<[f64; 2]>; FRAMERATES.len()],
+		frac: [Vec<[f64; 2]>; FRAMERATES.len()],
+	}
+
+	impl PlotData {
+		fn new(window: Entity) -> Self {
+			Self {
+				window,
+				control: default(),
+				decay: default(),
+				exp: default(),
+				frac: default(),
+			}
+		}
+	}
+
+	impl PlotData {
+		fn ui(&self, ui: &mut egui::Ui) {
+			let rect = ui.max_rect();
+			ui.expand_to_include_rect(rect);
+			egui::ScrollArea::vertical().show(ui, |ui| {
+				ui.vertical(|ui| {
+					for (name, plot) in [
+						("control", &self.control),
+						("decay", &self.decay),
+						("exp", &self.exp),
+						("frac", &self.frac),
+					] {
+						ui.label(name);
+						Plot::new(name)
+							.allow_scroll(false)
+							.height(rect.size().y)
+							.show(ui, |ui| {
+								for (points, color) in plot.iter().zip(COLORS) {
+									let points = points.iter().copied().collect::<PlotPoints>();
+									let line = Line::new(points).color(color);
+									ui.line(line)
+								}
+							});
+					}
+				});
+			});
+		}
+	}
+
+	let draw_plot = |
+		mut ctx: EguiContexts,
+		data: Res<PlotData>,
+	| {
+		let ctx = ctx.ctx_for_entity_mut(data.window);
+		egui::Window::new("Plots").default_open(false).show(ctx, |ui| {
+			data.ui(ui);
+		});
+	};
+
+	fn move_objects(
+		mut q: Query<(&mut Transform, &DecayFn)>,
+		t: Res<Time>,
+	) {
+		use DecayFn::*;
+		let dt = t.delta_secs();
+		let target = ((t.elapsed_secs() % 2.0) * 0.5).round() * 2.0 - 1.0;
+		let target_rot = Quat::from_rotation_z(target * std::f32::consts::FRAC_PI_6);
+		for (mut xform, f) in &mut q {
+			xform.translation.y = f.eval(xform.translation.y, target, dt);
+			xform.rotation = f.slerp(xform.rotation, target_rot, dt);
+		}
+
+	}
+
+	let setup = |
+		mut cmds: Commands,
+		mut meshes: ResMut<Assets<Mesh>>,
+		mut mats: ResMut<Assets<StandardMaterial>>,
+		mut state: ResMut<FramerateState>,
+		mut t: ResMut<Time<Fixed>>,
+	| {
+		use DecayFn::*;
+
+		let window = cmds.spawn(crate::testing::TestWindow::new(test_id)).id();
+
+		let target_at = |t: f32| {
+			((t % 2.0) / 2.0).round()
+		};
+
+		let λ = 4.0;
+		let half_life = 2.0f32.ln() / λ;
+		let rem = (-λ).exp();
+
+		let mut data = PlotData::new(window);
+		for (plot_num, hz) in FRAMERATES.into_iter().enumerate() {
+			let dt = 1.0 / hz;
+			let frames = (hz * 8.0) as usize;
+			let mut curr = rand::random::<f32>();
+			let mut generate = |
+				lines: &mut Vec<[f64; 2]>,
+				f: DecayFn,
+			| {
+				*lines = (0..=frames).map(|frame| {
+					let jitter = dt * ((rand::random::<f64>() * 0.8) - 0.4);
+					let dt = dt + jitter;
+					let t = (frame as f64 / hz) + jitter;
+					let target = target_at(t as f32);
+					curr = f.eval(curr, target, dt as f32);
+					[t, curr as f64]
+				}).collect();
+				curr = rand::random();
+			};
+
+			generate(&mut data.control[plot_num], Control);
+			generate(&mut data.decay[plot_num], Decay { half_life });
+			generate(&mut data.exp[plot_num], Exp { λ });
+			generate(&mut data.frac[plot_num], Frac { rem });
+		}
+
+		cmds.insert_resource(data);
+
+		let hz = state.framerate_queue.pop_front().unwrap();
+		t.set_timestep_hz(hz);
+		state.framerate_queue.push_back(hz);
+		let mesh = Tetrahedron::default().mesh().build();
+		let collider = bevy_rapier3d::geometry::Collider::from_bevy_mesh(&mesh, &default()).unwrap();
+		let mesh = meshes.add(mesh);
+		let mat = mats.add(StandardMaterial::default());
+		for (i, f) in [
+			Control,
+			Decay { half_life }, // Same curve as Exp
+			Exp { λ },
+			Frac { rem }, // Same curve as Exp
+		].into_iter().enumerate() {
+			cmds.spawn((
+				f,
+				Mesh3d(mesh.clone()),
+				MeshMaterial3d(mat.clone()),
+				Transform::from_translation(Vec3::X * ((i * 4) as f32 - 7.0)),
+			));
+			cmds.spawn((
+				f,
+				Mesh3d(mesh.clone()),
+				MeshMaterial3d(mat.clone()),
+				Transform::from_translation(Vec3::X * ((i * 4) as f32 - 5.0)),
+				bevy_rapier3d::dynamics::RigidBody::KinematicPositionBased,
+				collider.clone(),
+			));
+		}
+
+		cmds.spawn((
+			Camera3d::default(),
+			Camera {
+				target: bevy::render::camera::RenderTarget::Window(bevy::window::WindowRef::Entity(window)),
+				..default()
+			},
+			Transform::from_translation(Vec3::Z * 16.0),
+		));
+		cmds.spawn((
+			DirectionalLight::default(),
+			Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_3)),
+		));
+	};
+
+	#[derive(Resource)]
+	struct FramerateState {
+		timer: Timer,
+		framerate_queue: VecDeque<f64>,
+	};
+
+	fn script(
+		mut state: ResMut<FramerateState>,
+		mut t: ResMut<Time<Fixed>>,
+		vt: Res<Time>,
+	) {
+		state.timer.tick(vt.delta());
+		if state.timer.just_finished() {
+			let new_framerate = state.framerate_queue.pop_front().unwrap();
+			info!(new_framerate);
+			t.set_timestep_hz(new_framerate);
+			state.framerate_queue.push_back(new_framerate);
+		}
+	}
+
+	app
+		.insert_resource(FramerateState {
+			timer: Timer::from_seconds(4.0, TimerMode::Repeating),
+			framerate_queue: VecDeque::from(FRAMERATES),
+		})
+		.add_systems(Startup, setup)
+		.add_systems(Update, (script, draw_plot))
+		.add_systems(FixedUpdate, move_objects);
+}}
 
 #[derive(Resource, Component)]
 pub struct History<T> {
@@ -467,21 +758,21 @@ pub trait LerpSlerp: Sized {
 
 	/// Spherical version of [LerpSmoothing::exp_decay].
 	#[inline(always)]
-	fn sph_exp_decay(self, to: Self, λ: f32, dt: f32) -> Self {
+	fn sl_exp_decay(self, to: Self, λ: f32, dt: f32) -> Self {
 		let t = exp_decay_factor(λ, dt);
 		to.lerp_slerp(self, t)
 	}
 
 	/// Spherical version of [LerpSmoothing::decay].
 	#[inline(always)]
-	fn sph_decay(self, to: Self, half_life: f32, dt: f32) -> Self {
+	fn sl_decay(self, to: Self, half_life: f32, dt: f32) -> Self {
 		let t = decay_factor(half_life, dt);
 		to.lerp_slerp(self, t)
 	}
 
 	/// Spherical version of [LerpSmoothing::frac_decay].
 	#[inline(always)]
-	fn sph_frac_decay(self, to: Self, rem_frac_after_1s: f32, dt: f32) -> Self {
+	fn sl_frac_decay(self, to: Self, rem_frac_after_1s: f32, dt: f32) -> Self {
 		let t = frac_decay_factor(rem_frac_after_1s, dt);
 		to.lerp_slerp(self, t)
 	}
@@ -1419,12 +1710,7 @@ impl MeshOutline {
 		};
 
 		let mut edge_share_counts = HashMap::<(usize, usize), usize>::new();
-		for mut tri in indices.iter().chunks(3).into_iter() {
-			let [a, b, c] = [
-				tri.next().unwrap(),
-				tri.next().unwrap(),
-				tri.next().unwrap(),
-			];
+		for [a, b, c] in indices.iter().arr_chunks::<3>().into_iter() {
 			// Sort for deterministic keys since order doesn't matter
 			let ab = if a > b { (b, a) } else { (a, b) };
 			let bc = if b > c { (c, b) } else { (b, c) };
@@ -1472,7 +1758,8 @@ impl MeshOutline {
 			let mut verts = front_verts;
 
 			let mut new_indices = indices
-				.chunks_exact(3)
+				.iter()
+				.arr_chunks::<3>()
 				.flat_map(|front| [front[0] + len, front[2] + len, front[1] + len])
 				.collect::<Vec<_>>();
 
@@ -1749,10 +2036,13 @@ pub fn deduplicate_vertices(mesh: &mut Mesh, max_diff: f32) {
 /// Like `Mesh::compute_smooth_normals` but does not let multiple co-planar triangles influence
 /// the normal of a vertex disproportionately.
 pub fn compute_geometric_normals(mesh: &mut Mesh) {
-	let Some(VertexAttributeValues::Float32x3(positions)) =
-		mesh.attribute(Mesh::ATTRIBUTE_POSITION)
-	else {
-		unreachable!();
+	let Some(positions) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else {
+		error!("Mesh is missing positions");
+		return;
+	};
+	let VertexAttributeValues::Float32x3(positions) = positions else {
+		error!("Positions are not Float32x3");
+		return;
 	};
 	let Some(indices) = mesh.indices() else {
 		error!("Mesh is not indexed");
@@ -1765,12 +2055,7 @@ pub fn compute_geometric_normals(mesh: &mut Mesh) {
 fn geometric_normals_impl(positions: &[[f32; 3]], indices: &Indices) -> Vec<Vec3> {
 	let mut normals = vec![Vec3::ZERO; positions.len()];
 
-	for mut tri in &indices.iter().chunks(3) {
-		let [a, b, c] = [
-			tri.next().unwrap(),
-			tri.next().unwrap(),
-			tri.next().unwrap(),
-		];
+	for [a, b, c] in indices.iter().arr_chunks::<3>() {
 		let pa = Vec3::from(positions[a]);
 		let pb = Vec3::from(positions[b]);
 		let pc = Vec3::from(positions[c]);
@@ -1861,5 +2146,33 @@ pub fn downcast_material<M: Material>(mut cmds: EntityCommands, handle: UntypedH
 	if let Ok(typed) = handle.try_typed::<M>() {
 		cmds.remove::<PendingErasedAsset>()
 			.insert(MeshMaterial3d(typed));
+	}
+}
+
+pub trait ArrayChunks: Iterator {
+	fn arr_chunks<const N: usize>(self) -> ArrayChunksIter<Self, N>
+	where
+		Self: Sized;
+}
+
+impl<T: Iterator> ArrayChunks for T {
+	fn arr_chunks<const N: usize>(self) -> ArrayChunksIter<Self, N>
+	where
+		Self: Sized,
+	{
+		ArrayChunksIter::<_, N>(self, PhantomData)
+	}
+}
+
+pub struct ArrayChunksIter<T, const N: usize>(T, PhantomData<fn() -> [T; N]>);
+
+impl<T: Iterator, const N: usize> Iterator for ArrayChunksIter<T, N> {
+	type Item = [T::Item; N];
+	fn next(&mut self) -> Option<Self::Item> {
+		array_init::try_array_init(|_| match self.0.next() {
+			Some(item) => Ok(item),
+			None => Err(()),
+		})
+		.ok()
 	}
 }

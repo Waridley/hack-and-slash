@@ -670,7 +670,7 @@ pub fn anchor_follow_menu(
 				}
 			};
 
-			let new = xform.lerp_slerp(target.compute_transform(), t.delta_secs() * 4.0);
+			let new = xform.sl_exp_decay(target.compute_transform(), 12.0, t.delta_secs());
 			if *xform != new {
 				*xform = new;
 			}

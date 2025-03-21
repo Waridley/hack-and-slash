@@ -168,6 +168,6 @@ pub struct CamSmoothing(f32);
 
 impl Default for CamSmoothing {
 	fn default() -> Self {
-		Self(8.0)
+		Self(0.125)
 	}
 }

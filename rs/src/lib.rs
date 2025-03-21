@@ -5,7 +5,7 @@ use std::{f32::consts::*, fmt::Debug, time::Duration};
 use bevy::{
 	diagnostic::FrameTimeDiagnosticsPlugin,
 	prelude::*,
-	window::{CursorGrabMode, PrimaryWindow},
+	window::PrimaryWindow,
 };
 #[allow(unused_imports, clippy::single_component_path_imports)]
 #[cfg(all(feature = "dylib", not(target_arch = "wasm32")))]
@@ -26,7 +26,7 @@ use player::{abilities::AbilitiesPlugin, ctrl::CtrlVel};
 #[allow(unused_imports, clippy::single_component_path_imports)]
 #[cfg(all(feature = "dylib", not(target_arch = "wasm32")))]
 use sond_has_engine_dylib;
-use tiny_bail::prelude::{r, rq};
+use tiny_bail::prelude::rq;
 use util::IntoFnPlugin;
 
 use crate::{mats::MatsPlugin, player::player_entity::Root};
@@ -42,8 +42,6 @@ pub mod ui;
 pub const EPS: f32 = 1.0e-5;
 /// Rotational epsilon in radians
 pub const R_EPS: f32 = TAU / 360.0; // 1 degree
-/// Fixed delta time
-pub const DT: f32 = 1.0 / 30.0;
 /// Up vector
 pub const UP: Vect = Vect::Z;
 
@@ -123,7 +121,7 @@ impl Plugin for GamePlugin {
 			))
 			.insert_resource(PkvStore::new_with_qualifier("studio", "sonday", "has"))
 			.insert_resource(TimestepMode::Interpolated {
-				dt: DT,
+				dt: engine::DT,
 				time_scale: 1.0,
 				substeps: 1,
 			})
@@ -241,7 +239,6 @@ fn startup(
 	#[cfg(all(feature = "debugging", feature = "render"))] mut dbg_render_ctx: ResMut<
 		DebugRenderContext,
 	>,
-	mut windows: Query<&mut Window>,
 ) {
 	let globals_scene = assets.load("globals.scn.ron");
 	cmds.insert_resource(GlobalsScene(globals_scene.clone()));
@@ -259,10 +256,6 @@ fn startup(
 		brightness: 50.0,
 		..default()
 	});
-
-	let mut window = r!(windows.get_single_mut());
-	window.cursor_options.visible = false;
-	window.cursor_options.grab_mode = CursorGrabMode::Locked;
 }
 
 fn terminal_velocity(mut q: Query<(&mut CtrlVel, &TerminalVelocity)>, t: Res<Time>) {

@@ -24,29 +24,19 @@ pub fn new_test_app() -> App {
 
 	#[cfg(feature = "vis_test")]
 	{
-		pub fn close_on_esc(
-			mut commands: Commands,
-			focused_windows: Query<(Entity, &Window)>,
-			input: Res<ButtonInput<KeyCode>>,
-		) {
-			for (window, focus) in focused_windows.iter() {
-				if !focus.focused {
-					continue;
-				}
-
-				if input.just_pressed(KeyCode::Escape) {
-					commands.entity(window).despawn();
-				}
-			}
-		}
-
-		app.add_plugins(DefaultPlugins)
-			.add_systems(bevy::app::Update, close_on_esc)
-			.insert_resource(bevy::winit::WinitSettings { ..default() })
-			.add_plugins(bevy_rapier3d::render::RapierDebugRenderPlugin {
-				enabled: true,
-				..default()
-			});
+		app.add_plugins(DefaultPlugins.set(WindowPlugin {
+			exit_condition: bevy::window::ExitCondition::DontExit,
+			close_when_requested: false,
+			..default()
+		}))
+		.add_plugins(bevy_inspector_egui::bevy_egui::EguiPlugin)
+		.insert_resource(bevy::winit::WinitSettings { ..default() })
+		.add_plugins(bevy_rapier3d::render::RapierDebugRenderPlugin {
+			enabled: true,
+			..default()
+		})
+		.add_systems(Startup, vis_setup)
+		.add_systems(Update, pass_fail_keys);
 	}
 
 	#[cfg(not(feature = "vis_test"))]
@@ -55,8 +45,9 @@ pub fn new_test_app() -> App {
 
 	app.add_event::<TestEvent>()
 		.init_resource::<RunningTests>()
-		.insert_resource(TimestepMode::Fixed {
-			dt: 1.0 / 32.0,
+		.insert_resource(TimestepMode::Interpolated {
+			dt: crate::DT,
+			time_scale: 1.0,
 			substeps: 1,
 		})
 		.add_plugins(RapierPhysicsPlugin::<()>::default())
@@ -70,6 +61,12 @@ pub fn new_test_app() -> App {
 	app.add_systems(Startup, setup);
 
 	app
+}
+
+#[cfg(feature = "vis_test")]
+pub fn vis_setup(mut cmds: Commands) {
+	cmds.spawn(Camera2d::default());
+	cmds.spawn(Text::new("Running tests..."));
 }
 
 #[derive(Resource, Deref, DerefMut)]
@@ -109,6 +106,12 @@ impl TestStatus {
 	pub fn failed(&self) -> bool {
 		matches!(self, TestStatus::Failed(_))
 	}
+	pub fn event(self, test_name: &'static str) -> TestEvent {
+		TestEvent {
+			name: test_name,
+			status: self,
+		}
+	}
 }
 
 impl Display for TestStatus {
@@ -139,7 +142,6 @@ fn check_test_results(
 	for event in results.drain() {
 		let name = event.name;
 		let prev = running.entry(name).or_insert_with(|| {
-			// Only print `Running...` the first time
 			info!(
 				"{}",
 				TestEvent {
@@ -150,9 +152,9 @@ fn check_test_results(
 			TestStatus::Running
 		});
 
-		if event.status.failed() {
+		if event.status.failed() && !prev.failed() {
 			error!("{event}");
-		} else if event.status.passed() {
+		} else if event.status.passed() && !prev.passed() {
 			info!("{event}");
 		}
 
@@ -246,6 +248,7 @@ macro_rules! bevy_test {
 		#[allow(unused)]
 		#[$crate::testing::__static_register_test($crate::testing::TESTS)]
 		fn $name($app: &mut ::bevy::prelude::App) -> &'static str {
+			use $crate::testing::TestSystem as _;
 			let $test_id = stringify!($name);
 			$body
 			$test_id
@@ -254,6 +257,7 @@ macro_rules! bevy_test {
 		#[cfg(all(not(feature = "render"), feature = "testing"))]
 		#[test]
 		fn $name() -> ::bevy::prelude::AppExit {
+			use $crate::testing::TestSystem as _;
 			let mut $app = $crate::testing::new_test_app();
 			let $test_id = stringify!($name);
 			$body
@@ -269,3 +273,39 @@ bevy_test!(fn app_started(app, test_id) {
 
 	app.add_systems(bevy::prelude::Startup, check_app_started.test(test_id));
 });
+
+#[cfg(feature = "vis_test")]
+pub fn pass_fail_keys(
+	mut commands: Commands,
+	focused_windows: Query<(Entity, &Window, &TestWindow)>,
+	input: Res<ButtonInput<KeyCode>>,
+	mut events: EventWriter<TestEvent>,
+) {
+	for (entity, window, test_window) in focused_windows.iter() {
+		if !window.focused {
+			continue;
+		}
+
+		if input.just_pressed(KeyCode::KeyF) {
+			commands.entity(entity).despawn();
+			events.send(TestStatus::Failed("user pressed F".into()).event(test_window.test_id));
+		} else if input.just_pressed(KeyCode::KeyP) {
+			commands.entity(entity).despawn();
+			events.send(TestStatus::Passed.event(test_window.test_id));
+		} else {
+			events.send(TestStatus::Running.event(test_window.test_id));
+		}
+	}
+}
+
+#[derive(Component, Debug)]
+#[require(Window)]
+pub struct TestWindow {
+	pub test_id: &'static str,
+}
+
+impl TestWindow {
+	pub fn new(test_id: &'static str) -> Self {
+		Self { test_id }
+	}
+}

@@ -6,7 +6,7 @@ use crate::{
 	terminal_velocity,
 };
 use bevy::prelude::*;
-use engine::input::ActionExt;
+use engine::{input::ActionExt, util::LerpSmoothing};
 use enum_components::WithVariant;
 use leafwing_input_manager::{
 	action_diff::{ActionDiff, ActionDiffEvent},
@@ -25,12 +25,12 @@ pub fn plugin(app: &mut App) -> &mut App {
 		.add_systems(First, setup)
 		.add_systems(
 			Update,
-			((
+			(
 				look_input,
 				movement_input.run_if(resource_exists::<PlayerParams>),
 			)
 				.before(terminal_velocity)
-				.in_set(InputSystems),),
+				.in_set(InputSystems),
 		)
 		.add_systems(PostUpdate, generate_action_diffs::<PlayerAction>)
 }
@@ -202,7 +202,7 @@ pub fn look_input(
 
 		let (yaw, pitch, _) = xform.rotation.to_euler(EulerRot::ZXY);
 
-		let yaw_delta = if motion_input.x.abs() > 0.0 {
+		let yaw_delta = if motion_input.x.abs() > f32::EPSILON {
 			// right-hand rule => + is CCW .: + turns "left" .: needs inverted to make physical sense
 			-motion_input.x * sens.motion.x
 		} else if stick_input.x.abs() > f32::EPSILON {
@@ -214,7 +214,7 @@ pub fn look_input(
 			0.0
 		};
 
-		let pitch_delta = if motion_input.y.abs() > 0.0 {
+		let pitch_delta = if motion_input.y.abs() > f32::EPSILON {
 			-motion_input.y * sens.motion.y
 		} else if stick_input.y.abs() > f32::EPSILON {
 			stick_input.y * sens.stick.y * dt
@@ -246,10 +246,11 @@ pub fn movement_input(
 		}
 		input = input.clamp_length_max(1.0);
 
+		let target = input * params.phys.max_speed;
 		let Vec2 { x, y } = ctrl_vel
 			.linvel
 			.xy()
-			.lerp(input * params.phys.max_speed, params.phys.accel * dt);
+			.exp_decay(target, params.phys.accel, dt);
 
 		// Only trigger change detection if actually changed
 		if ctrl_vel.linvel.x != x {

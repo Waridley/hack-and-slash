@@ -140,18 +140,22 @@ pub fn plugin(app: &mut App) -> &mut App {
 				.ambiguous_with(input::InputSystems) // Gravity only affects z, input only affects xy
 				.before(terminal_velocity)
 				.run_if(resource_exists::<PlayerParams>),
-			camera::position_target.after(terminal_velocity),
-			camera::follow_target.after(camera::position_target),
-			camera::pivot_follow_avatar.after(ctrl::move_player),
-			camera::avatar_rotation_follow_pivot,
 			ctrl::reset_jump_on_ground
 				.before(input::InputSystems)
 				.run_if(resource_exists::<PlayerParams>),
-			ctrl::move_player
-				.before(StepSimulation)
-				.after(terminal_velocity)
-				.after(input::InputSystems)
-				.run_if(resource_exists::<PlayerParams>),
+			(
+				// camera::avatar_rotation_follow_pivot,
+				ctrl::move_player
+					.before(TransformSystem::TransformPropagate)
+					.before(StepSimulation)
+					.after(terminal_velocity)
+					.run_if(resource_exists::<PlayerParams>),
+				camera::pivot_follow_ship,
+				camera::position_target,
+				camera::follow_target,
+			)
+				.chain()
+				.after(input::InputSystems),
 			idle,
 			orbs_follow_arms.after(idle),
 		),
@@ -233,6 +237,7 @@ pub fn update_player_spawn_data(
 		antigrav_pulse_mesh,
 		antigrav_pulse_mat,
 		glow_color,
+		glow_intensity,
 		arm_mesh,
 		arm_particle_radius,
 		arm_mats,
@@ -298,6 +303,7 @@ pub fn update_player_spawn_data(
 		antigrav_pulse_mesh,
 		antigrav_pulse_mat,
 		glow_color,
+		glow_intensity,
 		arm_particle_mesh,
 		arm_mats,
 		crosshair_mesh,
@@ -393,6 +399,7 @@ pub struct PlayerAssets {
 	pub antigrav_pulse_mesh: TorusMeshBuilderReflectable,
 	pub antigrav_pulse_mat: StandardMaterial,
 	pub glow_color: Color,
+	pub glow_intensity: f32,
 	pub arm_mesh: IcosphereMeshBuilderReflectable,
 	pub arm_particle_radius: f32,
 	pub arm_mats: (LinearRgba, LinearRgba, LinearRgba),
@@ -406,6 +413,7 @@ pub struct PlayerSpawnData {
 	pub antigrav_pulse_mesh: Handle<Mesh>,
 	pub antigrav_pulse_mat: Handle<StandardMaterial>,
 	pub glow_color: Color,
+	pub glow_intensity: f32,
 	pub arm_mesh: Handle<Mesh>,
 	pub arm_particle_mesh: Handle<Mesh>,
 	pub arm_mats: [Handle<StandardMaterial>; 3],
@@ -420,6 +428,7 @@ impl PlayerSpawnData {
 			antigrav_pulse_mesh: self.antigrav_pulse_mesh.clone_weak(),
 			antigrav_pulse_mat: self.antigrav_pulse_mat.clone_weak(),
 			glow_color: self.glow_color,
+			glow_intensity: self.glow_intensity,
 			arm_mesh: self.arm_mesh.clone_weak(),
 			arm_particle_mesh: self.arm_particle_mesh.clone_weak(),
 			arm_mats: [
@@ -440,6 +449,7 @@ impl PlayerSpawnData {
 			arm_mesh,
 			arm_particle_mesh,
 			glow_color,
+			glow_intensity,
 			arm_mats: [mat_a, mat_b, mat_c],
 			crosshair_mesh,
 			crosshair_mat,
@@ -454,7 +464,7 @@ impl PlayerSpawnData {
 				owner,
 				TerminalVelocity(Velocity {
 					linvel: Vect::splat(96.0),
-					angvel: Vect::new(0.0, 0.0, PI / crate::DT), // Half a rotation per physics tick
+					angvel: Vect::new(0.0, 0.0, PI / engine::DT), // Half a rotation per physics tick
 				}),
 				KinematicPositionBased,
 				transform,
@@ -472,6 +482,7 @@ impl PlayerSpawnData {
 				MeshMaterial3d(antigrav_pulse_mat),
 			),
 			glow_color,
+			glow_intensity,
 			arms: [
 				(
 					(
@@ -529,6 +540,7 @@ struct PlayerBundles {
 	vis: SceneRoot,
 	antigrav_pulse: (Mesh3d, MeshMaterial3d<StandardMaterial>),
 	glow_color: Color,
+	glow_intensity: f32,
 	arms: [(
 		(Mesh3d, MeshMaterial3d<StandardMaterial>, Transform),
 		PlayerArm,
@@ -538,14 +550,14 @@ struct PlayerBundles {
 }
 
 #[derive(EnumComponent)]
-#[component(mutable, derive(Debug, PartialEq, Eq))]
+#[component(mutable, derive(Debug, PartialEq))]
 pub enum PlayerEntity {
 	Root,
 	Controller,
 	ShipCenter,
 	Ship,
 	CamPivot,
-	Cam,
+	Cam { collider_iso: Isometry3d },
 	Crosshair,
 	AntigravParticles,
 	Arms,
@@ -616,6 +628,7 @@ pub fn spawn_players(
 			vis,
 			antigrav_pulse,
 			glow_color,
+			glow_intensity,
 			arms,
 			arm_particle_mesh,
 			crosshair,
@@ -652,6 +665,7 @@ pub fn spawn_players(
 			antigrav_collider,
 			antigrav_pulse,
 			glow_color,
+			glow_intensity,
 			arms,
 			arm_particle_mesh,
 			crosshair,
@@ -672,6 +686,7 @@ fn populate_player_scene(
 	antigrav_collider: AntigravCollider,
 	antigrav_pulse: (Mesh3d, MeshMaterial3d<StandardMaterial>),
 	glow_color: Color,
+	glow_intensity: f32,
 	arm_meshes: [(
 		(Mesh3d, MeshMaterial3d<StandardMaterial>, Transform),
 		PlayerArm,
@@ -695,6 +710,7 @@ fn populate_player_scene(
 		vis,
 		antigrav_pulse,
 		glow_color,
+		glow_intensity,
 		arm_meshes,
 		arm_particle_mesh,
 	);
@@ -752,6 +768,7 @@ fn player_vis(
 	vis: SceneRoot,
 	antigrave_pulse: (Mesh3d, MeshMaterial3d<StandardMaterial>),
 	glow_color: Color,
+	glow_intensity: f32,
 	arm_meshes: [(
 		(Mesh3d, MeshMaterial3d<StandardMaterial>, Transform),
 		PlayerArm,
@@ -849,8 +866,8 @@ fn player_vis(
 						Name::new(format!("{}.ShipCenter.Ship.Glow", owner)),
 						PointLight {
 							color: glow_color,
-							intensity: 2_000_000.0,
-							range: 12.0,
+							intensity: glow_intensity,
+							range: 16.0,
 							shadows_enabled: false,
 							..default()
 						},
