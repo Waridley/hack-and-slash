@@ -13,7 +13,7 @@
 }
 #endif
 
-#import sond_has::util::{distance_dither, standard_fragment, matrix_texture, matrix_sampler};
+#import sond_has::util::{distance_dither, dither_threshold, standard_fragment, matrix_texture, matrix_sampler};
 
 struct DitherFade {
 	fade: f32,
@@ -32,8 +32,7 @@ fn fragment(
 	in: VertexOutput,
 	@builtin(front_facing) is_front: bool,
 ) -> FragmentOutput {
-	let uv = in.position.xy / 16.0;
-	let thresh = textureSample(matrix_texture, matrix_sampler, uv).x;
+	let thresh = dither_threshold(in.position.xy);
 	// We effectively need one more slot than exists in the grid in order to enable both full transparency
 	// and full opacity. Otherwise one dot per tiling will be either visibile at 0.0 or invisible at 1.0
 	// depending on the conditional operator used.
