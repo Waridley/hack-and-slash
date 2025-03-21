@@ -33,12 +33,13 @@ var matrix_texture: texture_2d<f32>;
 @group(2) @binding(102)
 var matrix_sampler: sampler;
 
+const DESIGN_RES: f32 = 1080.0;
+
 fn distance_dither(
 	in: VertexOutput,
 ) {
 	let world_dist = length(view.world_position.xyz - in.world_position.xyz);
-	let uv = in.position.xy / 16.0;
-	let thresh = textureSample(matrix_texture, matrix_sampler, uv).x;
+	let thresh = dither_threshold(in.position.xy);
 
 	let d_far = world_dist - material.far_start;
 	let far_range = material.far_end - material.far_start;
@@ -51,6 +52,14 @@ fn distance_dither(
 	if d_near < thresh * near_range {
 		discard;
 	}
+}
+
+fn dither_threshold(position: vec2<f32>) -> f32 {
+	let vh = view.viewport[3];
+	let scale = ceil(vh / DESIGN_RES);
+	let matrix_size = f32(textureDimensions(matrix_texture).y);
+	let uv = position / (matrix_size * scale);
+	return textureSample(matrix_texture, matrix_sampler, uv).x;
 }
 
 fn standard_fragment(
