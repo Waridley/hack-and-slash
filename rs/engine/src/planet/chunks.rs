@@ -3,6 +3,7 @@ use crate::{nav::heightmap::TriId, planet::PlanetVec2, util::Diff};
 use bevy::{ecs::system::SystemParam, prelude::*};
 use bevy_rapier3d::{na::Vector3, parry::shape::Triangle};
 use bimap::BiMap;
+use std::fmt::Display;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub const CHUNK_ROWS: usize = 64;
@@ -62,6 +63,12 @@ impl From<PlanetVec2> for ChunkIndex {
 			(value.x / (CHUNK_COLS as f64 * TERRAIN_CELL_SIZE as f64)).round() as i32,
 			(value.y / (CHUNK_ROWS as f64 * TERRAIN_CELL_SIZE as f64)).round() as i32,
 		)
+	}
+}
+
+impl Display for ChunkIndex {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		<IVec2 as Display>::fmt(&IVec2::new(self.x, self.y), f)
 	}
 }
 

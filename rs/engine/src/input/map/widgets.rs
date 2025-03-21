@@ -9,7 +9,7 @@ use crate::{
 };
 use bevy::{prelude::*, render::view::RenderLayers};
 use bevy_rapier3d::parry::{math::Isometry, shape::SharedShape};
-use bevy_svg::prelude::{Origin, Svg, SvgMesh3d, SvgMesh3dBundle};
+use bevy_svg::prelude::{Origin, Svg, SvgMesh3d};
 
 #[derive(Component, Debug, Clone)]
 #[require(Node3d)]
@@ -84,8 +84,8 @@ impl InputIcon {
 			let mut cmds = cmds.entity(id);
 			let svg = asset_server.load::<Svg>(image);
 			let outline_mat = PendingErasedAsset(outline_material.clone());
-			cmds.insert(SvgMesh3dBundle {
-				mesh_settings: SvgMesh3d {
+			cmds.insert((
+				SvgMesh3d {
 					svg,
 					size: Some(size.xz()),
 					depth: (!flat).then_some(size.y),
@@ -95,9 +95,8 @@ impl InputIcon {
 					tolerance,
 					..default()
 				},
-				material: mat.clone(),
-				..default()
-			});
+				mat.clone(),
+			));
 			let half_size = size * 0.5;
 			cmds.insert(WidgetShape {
 				shape: SharedShape::cuboid(half_size.x, half_size.y, half_size.z),

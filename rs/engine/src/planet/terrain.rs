@@ -464,7 +464,7 @@ pub fn load_nearby_chunks(
 			);
 			let chunk = sample.into();
 			if !loaded_chunks.contains_left(&chunk) && !tasks.contains_key(&chunk) {
-				info!("Loading {chunk:?}");
+				info!("Loading chunk {chunk}");
 				generate_chunk(
 					chunk,
 					assets.clone(),

@@ -10,18 +10,18 @@ use bevy_rapier3d::{
 	geometry::Collider,
 	prelude::{RigidBody::KinematicPositionBased, Sensor},
 };
-use engine::mats::ExtMat;
+use engine::{
+	mats::ExtMat,
+	planet::{chunks::ChunkCenter, terrain::Ground},
+};
 use enum_components::{EntityEnumCommands, EnumComponent};
-use rand::{rngs::SmallRng, Rng, SeedableRng};
-
 use pickup::WithPickup;
+use rand::{rngs::SmallRng, Rng, SeedableRng};
 
 use crate::{
 	mats::BubbleMaterial,
 	pickups::pickup::PickupItem,
-	planet::{chunks::ChunkFinder, frame::Frame},
 	player::abilities::Hurt,
-	util::Diff,
 };
 
 pub const RADIUS: f32 = 8.0;
@@ -39,10 +39,10 @@ pub fn plugin(app: &mut App) -> &mut App {
 pub struct PopSfx(pub Handle<AudioSource>);
 
 pub fn setup(mut cmds: Commands, mut meshes: ResMut<Assets<Mesh>>, asset_server: Res<AssetServer>) {
-	cmds.insert_resource(SpawnTimer(Timer::new(
-		Duration::from_secs(30),
-		TimerMode::Repeating,
-	)));
+	const SPAWN_INTERVAL: u64 = 30;
+	let mut timer = Timer::new(Duration::from_secs(SPAWN_INTERVAL), TimerMode::Repeating);
+	timer.set_elapsed(Duration::from_secs(SPAWN_INTERVAL - 1));
+	cmds.insert_resource(SpawnTimer(timer));
 
 	cmds.insert_resource(MissSfx(asset_server.load("sfx/SFX_-_negative_09.ogg")));
 	cmds.insert_resource(PopSfx(asset_server.load("sfx/SFX_-_hit_big_02.ogg")));
@@ -78,47 +78,50 @@ pub fn spawn_pickups(
 	handles: Res<PickupAssets>,
 	mut rng: ResMut<PickupRng>,
 	mut timer: ResMut<SpawnTimer>,
-	chunks: ChunkFinder,
-	frame: Res<Frame>,
+	chunks: Query<(Entity, &Ground), With<ChunkCenter>>,
 	t: Res<Time>,
 ) {
+	// Spawns shouldn't be closer together on WASM
+	const CHANCE_PER_CHUNK: f32 = crate::planet::chunks::CHUNK_COLS as f32 * 0.002;
+
 	if timer.tick(t.delta()).finished() {
 		let bounds = crate::planet::chunks::CHUNK_SCALE.xz();
-		let x = rng.gen_range(-bounds.x..=bounds.x);
-		let y = rng.gen_range(-bounds.y..=bounds.y);
-		let frame_coords = Vec2::new(x, y);
-		let planet_coords = frame.planet_coords_of(frame_coords);
-		let Some((chunk_entity, _, chunk_center, ground)) = chunks.closest_to(planet_coords) else {
-			return;
-		};
-		let rel = planet_coords.delta_from(&*chunk_center);
-		let Some((_, tri)) = ground.tri_at(Vec2::new(rel.x, -rel.y)) else {
-			return;
-		};
-		// Try to avoid spawning in the middle of a wall.
-		// Still won't avoid spawning skewered by spikes.
-		// Could either do more checks or just have the bubbles grow from 0 scale before moving up.
-		let point = tri.center() - (*tri.normal().unwrap() * RADIUS * 2.0);
-		let transform = Transform::from_translation(Vec3::new(point.x, -point.z, point.y));
-		let points = rng.gen_range(10.0..=100.0);
+		for (chunk_entity, ground) in &chunks {
+			if rng.gen::<f32>() > CHANCE_PER_CHUNK {
+				continue;
+			}
+			let x = rng.gen_range(-bounds.x..=bounds.x);
+			let y = rng.gen_range(-bounds.y..=bounds.y);
 
-		info!("{:?}", &transform.translation);
+			let Some((_, tri)) = ground.tri_at(Vec2::new(x * 0.5, y * 0.5)) else {
+				error!(?bounds, "no triangle at [{x}, -{y}]");
+				continue;
+			};
+			// Try to avoid spawning in the middle of a wall.
+			// Still won't avoid spawning skewered by spikes.
+			// Could either do more checks or just have the bubbles grow from 0 scale before moving up.
+			let point = tri.center() - (*tri.normal().unwrap() * RADIUS * 2.0);
+			let transform = Transform::from_translation(Vec3::new(point.x, -point.z, point.y));
+			let points = rng.gen_range(10.0..=100.0);
 
-		let mut cmds = cmds.spawn((
-			Mesh3d(handles.mesh.clone()),
-			MeshMaterial3d(handles.material.clone()),
-			transform,
-			Collider::ball(8.0),
-			Sensor,
-			KinematicPositionBased,
-		));
-		if rng.gen::<bool>() {
-			cmds.set_enum(pickup::Health(points));
-		} else {
-			cmds.set_enum(pickup::Shield(points));
-		};
-		let id = cmds.id();
-		cmds.commands().entity(chunk_entity).add_child(id);
+			info!("{:?}", &transform.translation);
+
+			let mut cmds = cmds.spawn((
+				Mesh3d(handles.mesh.clone()),
+				MeshMaterial3d(handles.material.clone()),
+				transform,
+				Collider::ball(8.0),
+				Sensor,
+				KinematicPositionBased,
+			));
+			if rng.gen::<bool>() {
+				cmds.set_enum(pickup::Health(points));
+			} else {
+				cmds.set_enum(pickup::Shield(points));
+			};
+			let id = cmds.id();
+			cmds.commands().entity(chunk_entity).add_child(id);
+		}
 	}
 }
 

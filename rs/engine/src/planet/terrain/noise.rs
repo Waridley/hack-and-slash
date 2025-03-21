@@ -44,7 +44,7 @@ impl<const N: usize> ChooseAndSmooth<N> {
 		let mut ret = Vec::with_capacity(rows * columns);
 
 		// map range to eliminate seams.
-		// e.g. `[0, 128) => [-64.0, 64.0]`
+		// e.g. `0..128 => -64.0..=64.0`
 		let stretch = PlanetVec2::new(
 			(columns as f64) / ((columns - 1) as f64),
 			(rows as f64) / ((rows - 1) as f64),
