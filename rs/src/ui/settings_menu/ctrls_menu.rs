@@ -30,7 +30,7 @@ use engine::{
 		},
 		Fade, GlobalUi, MenuStack, UiAction, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
 	},
-	util::MeshOutline,
+	util::{LerpSmoothing, MeshOutline, SlerpSmoothing},
 };
 use leafwing_input_manager::{prelude::InputMap, Actionlike};
 use serde::{Deserialize, Serialize};
@@ -318,7 +318,7 @@ pub fn setup(
 				..default()
 			})),
 			transform,
-			MenuStack::pop_on_back(GLOBAL_UI_RENDER_LAYERS, 0.7),
+			MenuStack::pop_on_back(GLOBAL_UI_RENDER_LAYERS, 0.5),
 			all_first_control.clone(),
 			ExpandToFitChildren {
 				margin: Vec3::new(1.0, 0.0, 1.0),
@@ -421,13 +421,16 @@ pub fn anchor_follow_focus(
 		}
 	};
 	if (target.translation.z - focus.translation.z).abs() > 6.0 {
-		target.translation.z = target
-			.translation
-			.z
-			.lerp(focus.translation.z, t.delta_secs() * 10.0);
+		target.translation.z =
+			target
+				.translation
+				.z
+				.exp_decay(focus.translation.z, 24.0, t.delta_secs());
 	}
 	if target.rotation.angle_between(focus.rotation) > 0.001 {
-		target.rotation = target.rotation.slerp(focus.rotation, t.delta_secs() * 10.0);
+		target.rotation = target
+			.rotation
+			.sph_exp_decay(&focus.rotation, 24.0, t.delta_secs());
 	}
 }
 

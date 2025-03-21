@@ -107,7 +107,7 @@ pub fn setup(
 			translation: Vec3::new(0.0, -32.0, -24.0),
 			..default()
 		},
-		MenuStack::pop_on_back(GLOBAL_UI_RENDER_LAYERS, 0.7),
+		MenuStack::pop_on_back(GLOBAL_UI_RENDER_LAYERS, 0.5),
 		Fade::ZERO;
 		#children: [
 			(
@@ -273,7 +273,7 @@ pub fn setup(
 									let menu = world.resource::<SettingsSubMenus>().controls;
 									let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
 									q.single_mut(world).push(menu);
-									world.entity_mut(menu.root).fade_in_secs(1.5);
+									world.entity_mut(menu.root).fade_in_secs(0.5);
 								});
 								Break(())
 							})]),

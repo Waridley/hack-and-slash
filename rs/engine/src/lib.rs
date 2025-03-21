@@ -19,6 +19,13 @@ pub mod testing;
 pub mod ui;
 pub mod util;
 
+/// Fixed delta time
+#[cfg(target_arch = "wasm32")]
+pub const DT: f32 = 1.0 / 32.0;
+/// Fixed delta time
+#[cfg(not(target_arch = "wasm32"))]
+pub const DT: f32 = 1.0 / 128.0;
+
 #[derive(Debug)]
 pub struct EnginePlugin;
 

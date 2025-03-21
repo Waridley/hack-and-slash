@@ -14,7 +14,7 @@
 			),
 			phys: (
 				max_speed: 48.0,
-				accel: 3.0,
+				accel: 4.0,
 				gravity: 48.0,
 				slide_angle: Deg(44.0),
 				hover_height: 2.0,
@@ -24,8 +24,11 @@
 				antigrav_collider: (
 					radius: 1.0,
 				),
-				antigrav_stiffness: 256.0,
-				antigrav_spring_damping: 0.02,
+				antigrav_stiffness: 128.0,
+				antigrav_spring_damping: 5.6,
+			),
+			anim: (
+				turn_lambda: 5.0,
 			),
 		),
 		"sond_has::player::PlayerAssets": (
@@ -42,6 +45,7 @@
 				reflectance: 0.0,
 			),
 			glow_color: Srgba(( red: 0.3, green: 1.0, blue: 0.9, alpha: 1.0 )),
+			glow_intensity: 4000000.0,
 			arm_particle_radius: 0.1,
 			arm_mesh: (
 				radius: 0.3,

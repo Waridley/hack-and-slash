@@ -27,7 +27,7 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, fonts: Res<UiF
 			translation: Vec3::new(0.0, -32.0, 24.0),
 			..default()
 		},
-		MenuStack::pop_on_back(GLOBAL_UI_RENDER_LAYERS, 0.7),
+		MenuStack::pop_on_back(GLOBAL_UI_RENDER_LAYERS, 0.5),
 		ExpandToFitChildren {
 			offset: Vec3::Y * 0.51,
 			..default()

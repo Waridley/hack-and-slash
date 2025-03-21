@@ -8,13 +8,19 @@ rust-version = "1.83" # f32 const operations
 
 [workspace]
 resolver = "2"
-members = ["tools/*", "game-dylib", "engine", "engine-dylib", "engine/macros"]
+members = [
+#    "tools/*",
+    "game-dylib",
+    "engine",
+    "engine-dylib",
+    "engine/macros",
+]
 
 [features]
 dylib = ["bevy_dylib", "engine/bevy_dylib", "sond-has-engine-dylib"]
 debugging = ["engine/debugging", "bevy-inspector-egui", "egui_plot", "leafwing-input-manager/egui"]
 vis_test = ["testing", "render", "engine/vis_test"]
-testing = ["engine/testing"]
+testing = ["engine/testing", "debugging"]
 render = ["engine/render", "bevy/bevy_core_pipeline", "bevy/bevy_sprite"]
 import_assets = ["bevy/asset_processor"]
 default = [

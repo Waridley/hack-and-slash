@@ -15,6 +15,7 @@ use crate::{
 pub struct PlayerParams {
 	pub abil: AbilityParams,
 	pub phys: PlayerPhysicsParams,
+	pub anim: PlayerAnimParams,
 }
 
 #[derive(Default, Serialize, Deserialize, Clone, Copy, Debug, Reflect)]
@@ -40,6 +41,11 @@ pub struct PlayerPhysicsParams {
 	pub antigrav_collider: PlayerCollider,
 	pub antigrav_stiffness: f32,
 	pub antigrav_spring_damping: f32,
+}
+
+#[derive(Default, Serialize, Deserialize, Clone, Copy, Debug, Reflect)]
+pub struct PlayerAnimParams {
+	pub turn_lambda: f32,
 }
 
 /// Reflect Proxy for Rapier collider.

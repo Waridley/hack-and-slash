@@ -1,7 +1,7 @@
 use crate::{
 	player::{
 		abilities::BoosterCharge,
-		player_entity::{Controller, Root, ShipCenter},
+		player_entity::{CamPivot, Controller, Root, ShipCenter},
 		tune::PlayerParams,
 		BelongsToPlayer, G1,
 	},
@@ -16,10 +16,14 @@ use bevy_rapier3d::{
 	},
 	prelude::*,
 };
-use engine::{planet::terrain::physics::OneWayHeightFieldFilter, util::LerpSmoothing};
+use engine::{
+	planet::terrain::physics::OneWayHeightFieldFilter,
+	util::{LerpSmoothing, SlerpSmoothing},
+};
 use enum_components::WithVariant;
 use rapier3d::{
 	math::Isometry,
+	na::UnitQuaternion,
 	parry::query::ContactManifold,
 	prelude::{ContactData, ContactManifoldData},
 };
@@ -45,16 +49,14 @@ pub struct CtrlVel {
 
 pub fn antigrav(
 	mut ctx: Mut<RapierContext>,
-	body_id: &Parent,
-	global: &GlobalTransform,
+	body_id: Entity,
+	global: &Transform,
 	col: &Collider,
 	mut ctrl_vel: Mut<CtrlVel>,
 	mut ctrl_state: Mut<CtrlState>,
 	params: &PlayerParams,
 ) {
-	use crate::DT;
-
-	let global = global.compute_transform();
+	use engine::DT;
 
 	let max_toi = params.phys.hover_height;
 	let result = ctx.cast_shape(
@@ -68,7 +70,7 @@ pub fn antigrav(
 		},
 		QueryFilter::new()
 			.exclude_sensors()
-			.exclude_rigid_body(**body_id)
+			.exclude_rigid_body(body_id)
 			.groups(CollisionGroups::new(G1, !G1)),
 	);
 
@@ -187,15 +189,10 @@ pub fn gravity(mut q: Query<(&mut CtrlVel, &CtrlState)>, params: Res<PlayerParam
 pub fn move_player(
 	mut ctx: Single<&mut RapierContext>,
 	heightfield_filter: OneWayHeightFieldFilter,
-	mut body_q: Query<
-		(Entity, &mut Transform, &GlobalTransform, &BelongsToPlayer),
-		WithVariant<Root>,
-	>,
+	mut body_q: Query<(Entity, &mut Transform, &BelongsToPlayer), WithVariant<Root>>,
 	mut ctrl_q: Query<
 		(
 			Entity,
-			&Parent,
-			&GlobalTransform,
 			&mut CtrlVel,
 			&Collider,
 			&BelongsToPlayer,
@@ -211,47 +208,38 @@ pub fn move_player(
 		),
 		WithVariant<ShipCenter>,
 	>,
+	mut pivot_q: Query<(Ref<Transform>, &BelongsToPlayer), WithVariant<CamPivot>>,
 	params: Res<PlayerParams>,
 	sim_to_render: Single<&SimulationToRenderTime>,
 	t: Res<Time>,
+	mut manifolds: Local<Vec<ContactManifold<ContactManifoldData, ContactData>>>,
+	mut contacts: Local<Vec<(Vec3, f32)>>,
 ) {
-	use crate::DT;
+	use engine::DT;
+	// Rapier adds t.delta_secs() at the beginning of the simulation step, but we need to know what
+	// it is before that happens, while still matching the behavior of other interpolated bodies.
 	let mut diff = sim_to_render.diff + t.delta_secs();
 	let mut iters = 4;
 	while diff > 0.0 && iters > 0 {
 		diff -= DT;
 		iters -= 1;
 
-		for (col_id, body_id, global, mut ctrl_vel, col, ctrl_owner, mut ctrl_state) in &mut ctrl_q
-		{
-			let Some(&body_handle) = ctx.entity2body().get(body_id) else {
-				continue;
-			};
-			antigrav(
-				ctx.reborrow(),
-				body_id,
-				global,
-				col,
-				ctrl_vel.reborrow(),
-				ctrl_state.reborrow(),
-				&params,
-			);
-
-			let Some((body_id, mut body_xform, body_global)) =
-				body_q.iter_mut().find_map(|(id, xform, global, owner)|
+		for (col_id, mut ctrl_vel, col, ctrl_owner, mut ctrl_state) in &mut ctrl_q {
+			let Some((body_id, mut body_xform)) =
+				body_q.iter_mut().find_map(|(id, xform, owner)|
 					// Todo: cache owner->entity map
-					(owner == ctrl_owner).then_some((id, xform, global.compute_transform())))
+					(owner == ctrl_owner).then_some((id, xform)))
 			else {
 				return;
 			};
-			let (mut vis_xform, mut vis_interp) = vis_q
+			let Some(pivot_xform) = pivot_q
 				.iter_mut()
-				.find_map(|(xform, interp, owner)| (owner == ctrl_owner).then_some((xform, interp)))
-				.unwrap();
-
-			let rot = ctrl_vel.angvel * DT;
-			let rot = Quat::from_euler(EulerRot::ZXY, rot.z, rot.x, rot.y);
-			body_xform.rotate_local(rot);
+				.find_map(|(xform, owner)| (owner == ctrl_owner).then_some(xform))
+			else {
+				return;
+			};
+			let (pivot_yaw, _, _) = pivot_xform.rotation.to_euler(EulerRot::ZXY);
+			let prev_rot = body_xform.rotation;
 
 			let vel = body_xform.rotation * ctrl_vel.linvel;
 
@@ -268,18 +256,36 @@ pub fn move_player(
 			let mut rem = DT;
 			let mut result = Vec3::ZERO;
 			let mut dir = vel;
-			let mut manifolds: Vec<ContactManifold<ContactManifoldData, ContactData>> = vec![];
-			let mut contacts = vec![];
 			let mut attempts = 8;
 			while rem > DT * BUFFER {
 				if attempts <= 0 {
 					break;
 				}
 				attempts -= 1;
+
+				let (_yaw, pitch, roll) = body_xform.rotation.to_euler(EulerRot::ZXY);
+				let target = Quat::from_euler(EulerRot::ZXY, pivot_yaw, pitch, roll);
+				let new = body_xform
+					.rotation
+					.sph_exp_decay(&target, params.anim.turn_lambda, DT);
+				if body_xform.rotation != new {
+					body_xform.rotation = new;
+				}
+
+				antigrav(
+					ctx.reborrow(),
+					body_id,
+					&body_xform,
+					col,
+					ctrl_vel.reborrow(),
+					ctrl_state.reborrow(),
+					&params,
+				);
+
 				// Using custom shape casting because of too many bugs/design choices I dislike in rapier's character controller.
 				match ctx.cast_shape(
-					body_global.translation + result,
-					body_global.rotation,
+					body_xform.translation + result,
+					body_xform.rotation,
 					dir,
 					col,
 					ShapeCastOptions {
@@ -363,7 +369,7 @@ pub fn move_player(
 					)) => {
 						let q = DefaultQueryDispatcher;
 						contacts.clear();
-						let pos = body_global.translation + result;
+						let pos = body_xform.translation + result;
 						let iso = Isometry::new(pos.into(), UP.into());
 						let ball = col.as_ball().unwrap();
 						let aabb = BoundingSphere::new(pos, ball.raw.radius + (vel * DT).length())
@@ -442,25 +448,25 @@ pub fn move_player(
 					}
 				}
 			}
-			let body = ctx.bodies.get_mut(body_handle).unwrap();
-			body.set_rotation(body_xform.rotation.into(), true);
 			if result.length() > 0.0 {
-				vis_xform.translation -= result;
+				let mut vis_interp = vis_q
+					.iter_mut()
+					.find_map(|(_, interp, owner)| (owner == ctrl_owner).then_some(interp))
+					.unwrap();
+				let inv_rot = body_xform.rotation.inverse();
 				let end = vis_interp.end.unwrap();
-				vis_interp.start = Some(Isometry::new(
-					end.translation.vector - Vector3::from(body_xform.rotation.inverse() * result),
-					(Quat::from(end.rotation).inverse() * rot.inverse())
-						.to_scaled_axis()
-						.into(),
-				));
+				// vis_interp.end is always the same, resting transform.
+				vis_interp.start = Some(Isometry {
+					translation: (end.translation.vector - Vector3::from(inv_rot * result)).into(),
+					rotation: end.rotation * UnitQuaternion::from(inv_rot * prev_rot),
+				});
 				body_xform.translation += result;
-				body.set_translation(body_xform.translation.into(), true);
 			}
 		}
 	}
 	for (mut xform, interp, _) in &mut vis_q {
 		let new = interp
-			.lerp_slerp(1.0 + diff / DT)
+			.lerp_slerp((DT + diff) / DT)
 			.unwrap_or_else(|| interp.end.unwrap());
 		xform.translation = new.translation.into();
 		xform.rotation = new.rotation.into();

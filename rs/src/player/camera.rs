@@ -1,7 +1,7 @@
 use std::f32::consts::FRAC_PI_2;
 
 use super::{
-	player_entity::{Cam, CamPivot, Root, ShipCenter},
+	player_entity::{Cam, CamPivot, ShipCenter},
 	player_ui_layer, BelongsToPlayer, G1,
 };
 use crate::{
@@ -15,6 +15,7 @@ use crate::{
 use bevy::{
 	core_pipeline::{bloom::Bloom, fxaa::Fxaa, tonemapping::Tonemapping, Skybox},
 	ecs::system::EntityCommands,
+	math::Vec3A,
 	prelude::*,
 	render::{
 		camera::Viewport,
@@ -32,8 +33,8 @@ use bevy_rapier3d::{
 	plugin::RapierContext,
 	prelude::ShapeCastOptions,
 };
-use engine::{ui::spawn_ui_camera, util::decay_factor};
-use enum_components::{EntityEnumCommands, WithVariant};
+use engine::ui::spawn_ui_camera;
+use enum_components::{ERef, EntityEnumCommands, WithVariant};
 
 const MAX_CAM_DIST: f32 = 32.0;
 const MIN_CAM_DIST: f32 = 9.6;
@@ -118,12 +119,19 @@ pub fn spawn_cameras(
 		// Start the camera above the player in the fog, then zoom down
 		Transform::from_translation(Vec3::Z * 4096.0),
 		Visibility::default(),
-		Collider::ball(2.0),
+		// TODO: Calculate this from frustum, incorporating Fov?
+		Collider::round_cone(0.5, 2.0, 1.0),
 		CollisionGroups::new(Group::empty(), Group::empty()),
 		CamTarget::default(),
 		NeverDespawn,
 	));
-	cmds.set_enum(Cam).with_children(|cmds| {
+	cmds.set_enum(Cam {
+		collider_iso: Isometry3d {
+			translation: Vec3A::NEG_Z,
+			rotation: Quat::from_rotation_arc(Vec3::NEG_Y, Vec3::Z),
+		},
+	})
+	.with_children(|cmds| {
 		// Adjusting transform of Camera entity causes weird visual glitches,
 		// but parenting handles it properly
 		cmds.spawn((
@@ -188,7 +196,11 @@ pub fn spawn_pivot<'a>(
 		))
 		.with_enum(CamPivot);
 	cmds.with_children(|builder| {
-		builder.spawn((owner, crosshair));
+		builder.spawn((
+			Name::new(format!("Player{}.Crosshair", owner.0)),
+			owner,
+			crosshair,
+		));
 	});
 	cmds
 }
@@ -199,9 +211,9 @@ pub struct CamTarget(pub Transform);
 pub fn position_target(
 	ctx: Single<&RapierContext>,
 	cam_pivot_q: Query<(&GlobalTransform, &BelongsToPlayer), WithVariant<CamPivot>>,
-	mut cam_q: Query<(&mut CamTarget, &Collider, &BelongsToPlayer), WithVariant<Cam>>,
+	mut cam_q: Query<(&mut CamTarget, &Collider, &BelongsToPlayer, ERef<Cam>)>,
 ) {
-	for (mut target, col, cam_owner) in &mut cam_q {
+	for (mut target, col, cam_owner, cam) in &mut cam_q {
 		let Some(pivot_xform) = cam_pivot_q
 			.iter()
 			.find_map(|(xform, owner)| (owner == cam_owner).then_some(xform))
@@ -210,12 +222,14 @@ pub fn position_target(
 		};
 
 		let filter = QueryFilter::from(CollisionGroups::new(G1, !G1)).exclude_sensors();
-		let (_, rot, tr) = pivot_xform.to_scale_rotation_translation();
-		let dir = rot * Vect::NEG_Y;
-		let pos = tr + (dir * MIN_CAM_DIST); // start at minimum distance, not player origin
+		let (_, pivot_rot, pivot_center) = pivot_xform.to_scale_rotation_translation();
+		let dir = pivot_rot * Vect::NEG_Y;
+		let pos = pivot_center + Vec3::from(cam.collider_iso.translation);
+		let pos = pos + (dir * MIN_CAM_DIST); // start at minimum distance, not player origin
+		let rot = pivot_rot * cam.collider_iso.rotation;
 		let result = ctx.cast_shape(
 			pos,
-			-rot,
+			rot,
 			dir,
 			col,
 			ShapeCastOptions {
@@ -229,8 +243,8 @@ pub fn position_target(
 			if toi == 0.0 {
 				if ctx
 					.cast_shape(
-						tr + dir * MAX_CAM_DIST,
-						-rot,
+						pivot_center + dir * MAX_CAM_DIST,
+						-pivot_rot,
 						-dir,
 						col,
 						ShapeCastOptions {
@@ -255,8 +269,8 @@ pub fn position_target(
 		} else {
 			MAX_CAM_DIST
 		};
-		target.translation = tr + dir * (toi + MIN_CAM_DIST);
-		target.rotation = -rot;
+		target.translation = pivot_center + dir * (toi + MIN_CAM_DIST);
+		target.rotation = -pivot_rot;
 	}
 }
 
@@ -274,35 +288,21 @@ pub fn follow_target(
 		else {
 			continue;
 		};
-		let new = cam_xform.sph_exp_decay(**target_xform, *smoothing, dt);
+		let new = cam_xform.sl_decay(**target_xform, *smoothing, dt);
 		sender.send(ComponentDelta::<Transform>::default_diffable(id, new));
 	}
 }
 
-pub fn pivot_follow_avatar(
-	player_q: Query<(&GlobalTransform, &BelongsToPlayer), WithVariant<ShipCenter>>,
-	mut cam_q: Query<(&mut Transform, &BelongsToPlayer), WithVariant<CamPivot>>,
+pub fn pivot_follow_ship(
+	ship_q: Query<(&GlobalTransform, &BelongsToPlayer), WithVariant<ShipCenter>>,
+	mut pivot_q: Query<(&mut Transform, &BelongsToPlayer), WithVariant<CamPivot>>,
 ) {
-	for (mut xform, owner) in &mut cam_q {
-		if let Some((player_xform, _)) = player_q.iter().find(|(_, player)| **player == *owner) {
-			xform.translation = player_xform.translation() + (Vec3::Z * (MIN_CAM_DIST + 0.64));
+	for (mut xform, owner) in &mut pivot_q {
+		if let Some((ship_xform, _)) = ship_q.iter().find(|(_, player)| **player == *owner) {
+			let new = ship_xform.translation() + (Vec3::Z * (MIN_CAM_DIST + 0.64));
+			if xform.translation != new {
+				xform.translation = new;
+			}
 		};
-	}
-}
-
-pub fn avatar_rotation_follow_pivot(
-	mut player_q: Query<(&mut Transform, &BelongsToPlayer), WithVariant<Root>>,
-	cam_q: Query<(&Transform, &BelongsToPlayer), WithVariant<CamPivot>>,
-	t: Res<Time>,
-) {
-	for (mut xform, player) in &mut player_q {
-		if let Some((cam_xform, _)) = cam_q.iter().find(|(_, owner)| **owner == *player) {
-			let (_yaw, pitch, roll) = xform.rotation.to_euler(EulerRot::ZXY);
-			let cam_yaw = cam_xform.rotation.to_euler(EulerRot::ZXY).0;
-			let target = Quat::from_euler(EulerRot::ZXY, cam_yaw, pitch, roll);
-			let t = decay_factor(0.05, t.delta_secs());
-			// Either need 1.0 - decay_factor or just slerp the other way.
-			xform.rotation = target.slerp(xform.rotation, t);
-		}
 	}
 }

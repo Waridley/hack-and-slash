@@ -183,7 +183,7 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 								cmds.commands().queue(|world: &mut World| {
 									let mut q = world.query_filtered::<Entity, With<PrefsMenu>>();
 									let panel_id = q.single(world);
-									world.entity_mut(panel_id).fade_in_secs(1.5);
+									world.entity_mut(panel_id).fade_in_secs(0.5);
 
 									let top_menu = MenuRef::new(panel_id);
 									let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
@@ -233,7 +233,7 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 								cmds.commands().queue(|world: &mut World| {
 									let mut q = world.query_filtered::<Entity, With<SettingsMenu>>();
 									let panel_id = q.single(world);
-									world.entity_mut(panel_id).fade_in_secs(1.5);
+									world.entity_mut(panel_id).fade_in_secs(0.5);
 
 									let top_menu = world.resource::<SettingsSubMenus>().top;
 									let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
