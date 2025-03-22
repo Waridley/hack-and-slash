@@ -1710,7 +1710,7 @@ impl MeshOutline {
 		};
 
 		let mut edge_share_counts = HashMap::<(usize, usize), usize>::new();
-		for [a, b, c] in indices.iter().arr_chunks::<3>().into_iter() {
+		for [a, b, c] in indices.iter().arr_chunks::<3>() {
 			// Sort for deterministic keys since order doesn't matter
 			let ab = if a > b { (b, a) } else { (a, b) };
 			let bc = if b > c { (c, b) } else { (b, c) };
