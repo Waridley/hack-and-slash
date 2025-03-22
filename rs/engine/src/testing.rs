@@ -65,7 +65,7 @@ pub fn new_test_app() -> App {
 
 #[cfg(feature = "vis_test")]
 pub fn vis_setup(mut cmds: Commands) {
-	cmds.spawn(Camera2d::default());
+	cmds.spawn(Camera2d);
 	cmds.spawn(Text::new("Running tests..."));
 }
 
