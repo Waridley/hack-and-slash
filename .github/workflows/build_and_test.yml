@@ -17,7 +17,7 @@ jobs:
 
     steps:
       - name: Checkout repo and submodules
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
           lfs: false
@@ -28,7 +28,7 @@ jobs:
 
       - name: Build
         working-directory: ./rs
-        run: cargo build --no-default-features --features "testing,import_assets"
+        run: cargo build --profile test --no-default-features --features "testing,import_assets"
 
         # `cargo test --workspace` "unifies" features and I can't figure out how to disable render
       - name: Test Engine
