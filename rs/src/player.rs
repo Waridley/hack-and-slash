@@ -1,9 +1,8 @@
 use crate::{
 	anim::ComponentDelta,
-	pickups::MissSfx,
 	planet::{chunks::ChunkFinder, frame::Frame, PlanetVec2},
 	player::{
-		abilities::{BoosterCharge, HurtboxFilter, Sfx, WeaponCharge},
+		abilities::{BoosterCharge, HurtboxFilter, WeaponCharge},
 		tune::{AbilityParams, PlayerParams, PlayerPhysicsParams},
 	},
 	settings::Settings,
@@ -22,7 +21,6 @@ use bevy::{
 	},
 	utils::{HashMap, HashSet},
 };
-use bevy_kira_audio::{Audio, AudioControl};
 use bevy_pkv::PkvStore;
 use bevy_rapier3d::{
 	dynamics::CoefficientCombineRule::Min,
@@ -51,6 +49,11 @@ use std::{
 	num::NonZeroU8,
 	ops::{Add, RangeInclusive},
 	time::Duration,
+};
+#[cfg(feature = "bevy_kira_audio")]
+use {
+	crate::pickups::MissSfx,
+	bevy_kira_audio::{Audio, AudioControl},
 };
 
 pub mod abilities;
@@ -166,6 +169,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 			reset_oob.before(crate::despawn_oob),
 			kill_on_key,
 			countdown_respawn,
+			#[cfg(feature = "bevy_kira_audio")]
 			play_death_sound.after(kill_on_key).after(reset_oob),
 			spawn_players
 				.after(countdown_respawn)
@@ -190,7 +194,8 @@ pub fn setup(
 		),
 	});
 
-	cmds.insert_resource(Sfx {
+	#[cfg(feature = "bevy_kira_audio")]
+	cmds.insert_resource(abilities::Sfx {
 		aoe: asset_server.load("sfx/SFX_-_magic_spell_03.ogg"),
 		fire_a: asset_server.load("sfx/Kenney/Audio/laserSmall_004.ogg"),
 		dash: asset_server.load("sfx/Kenney/Audio/forceField_000.ogg"),
@@ -1173,6 +1178,7 @@ pub fn kill_on_key(
 	}
 }
 
+#[cfg(feature = "bevy_kira_audio")]
 pub fn play_death_sound(
 	sound: Res<MissSfx>,
 	audio: Res<Audio>,

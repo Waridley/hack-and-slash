@@ -1,0 +1,42 @@
+name: CI environment setup
+description: Setup Rust CI environment
+
+inputs:
+  targets:
+    description: Comma-separated list of rust targets to install
+    required: false
+  extra_cache_key:
+    description: An optional extra string to include in the cache key
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/install-linux-deps
+      with:
+        wayland: true
+
+    - name: Prepare crate for beta toolchain
+      id: toolchain
+      shell: bash
+      continue-on-error: true
+      run: |
+        rm ./rs/rust-toolchain.toml || true
+        rm ./rs/.cargo/config.toml || true
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@beta
+      with:
+        targets: ${{ inputs.targets }}
+        components: rustfmt, clippy
+
+    - name: Cache Cargo artifacts
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          ./rs/target/
+        key: ${{ runner.os }}_cargo-ci_${{ inputs.extra_cache_key }}_${{ steps.toolchain.outputs.cachekey }}_${{ hashFiles('**/Cargo.lock') }}

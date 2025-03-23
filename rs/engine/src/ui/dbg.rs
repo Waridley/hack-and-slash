@@ -23,7 +23,6 @@ pub struct DebugUiPlugin;
 
 impl Plugin for DebugUiPlugin {
 	fn build(&self, app: &mut App) {
-		#[cfg(feature = "render")]
 		app.add_plugins(bevy_rapier3d::prelude::RapierDebugRenderPlugin::default())
 			.add_systems(Update, toggle_physics_wireframes);
 

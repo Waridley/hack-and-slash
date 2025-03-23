@@ -18,13 +18,17 @@ members = [
 
 [features]
 dylib = ["bevy_dylib", "engine/bevy_dylib", "sond-has-engine-dylib"]
-debugging = ["engine/debugging", "bevy-inspector-egui", "egui_plot", "leafwing-input-manager/egui"]
-vis_test = ["testing", "render", "engine/vis_test"]
+# TODO: This might be able to be replaced by debug_assertions now that the feature "dev_ui" exists
+debugging = ["engine/debugging"]
+# TODO: Should dev_ui actually force debugging?
+dev_ui = ["debugging", "engine/dev_ui", "bevy-inspector-egui", "egui_plot"]
+vis_test = ["testing", "render", "engine/vis_test", "dev_ui"]
 testing = ["engine/testing", "debugging"]
-render = ["engine/render", "bevy/bevy_core_pipeline", "bevy/bevy_sprite"]
+render = ["engine/render"]
 import_assets = ["bevy/asset_processor"]
 default = [
     "render",
+    "bevy_kira_audio",
 ]
 
 [workspace.dependencies.bevy]
@@ -43,18 +47,18 @@ features = [
     "bevy_gltf",
 #    "bevy_render", # not in CI
 #    "bevy_sprite",
-    "bevy_text",
+#    "bevy_text",
 #    "bevy_ui", # Will be making my own game UI
     "multi_threaded",
     "png",
     "hdr",
     "ktx2",
     "zstd",
-    "vorbis",
+#    "vorbis", # using kira
     "x11",
 #    "file_watcher", # only for development
     "bevy_gizmos",
-    "android_shared_stdcxx",
+#    "android_shared_stdcxx", # currently not building for android, and this breaks macOS cross-check
     "tonemapping_luts",
 #    "default_font", # For editor, but probably not in-game
     "webgl2", # Needed so it doesn't default to WebGPU
@@ -74,7 +78,8 @@ macros = { package = "sond-has-macros", path = "engine/macros" }
 
 # Engine
 accesskit = "0.17.1"
-bevy_dylib = "0.15.0"
+bevy_dylib = "0.15.3"
+bevy_mesh = "0.15.3"
 bevy_rapier3d = { version = "0.28.0", default-features = false, features = ["dim3"] }
 rapier3d = { version = "0.22.0", features = ["wasm-bindgen", "serde-serialize"] }
 bevy_kira_audio = "0.21.0"
@@ -130,7 +135,7 @@ particles = { workspace = true }
 bevy = { workspace = true }
 bevy_rapier3d = { workspace = true }
 rapier3d = { workspace = true }
-bevy_kira_audio = { workspace = true }
+bevy_kira_audio = { workspace = true, optional = true } # Not for CI cross-compile
 leafwing-input-manager = { workspace = true }
 
 # Util

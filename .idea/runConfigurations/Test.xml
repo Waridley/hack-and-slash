@@ -1,18 +1,7 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Test" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="buildProfileId" value="test" />
-    <option name="command" value="test --workspace --no-default-features --features=testing" />
-    <option name="workingDirectory" value="file://$PROJECT_DIR$/rs" />
-    <envs />
-    <option name="emulateTerminal" value="false" />
-    <option name="channel" value="DEFAULT" />
-    <option name="requiredFeatures" value="true" />
-    <option name="allFeatures" value="false" />
-    <option name="withSudo" value="false" />
-    <option name="buildTarget" value="REMOTE" />
-    <option name="backtrace" value="SHORT" />
-    <option name="isRedirectInput" value="false" />
-    <option name="redirectInputPath" value="" />
+  <configuration default="false" name="Test" type="CompoundRunConfigurationType">
+    <toRun name="Test engine" type="CargoCommandRunConfiguration" />
+    <toRun name="Test game" type="CargoCommandRunConfiguration" />
     <method v="2" />
   </configuration>
 </component>

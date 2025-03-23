@@ -728,7 +728,7 @@ pub fn draw_widget_shape_gizmos<const LAYER: Layer>(
 			continue;
 		}
 		let (scale, rot, pos) = xform.to_scale_rotation_translation();
-		#[cfg(feature = "debugging")]
+		#[cfg(debug_assertions)]
 		if (scale.x - scale.y).abs() > 0.000001 || (scale.x - scale.z).abs() > 0.000001 {
 			warn!(
 				?_id,
@@ -1123,7 +1123,7 @@ impl InteractHandlers {
 					source: InteractionSource::Action(action),
 					kind: InteractionKind::Begin,
 				};
-				propagate_interaction(&mut cmds, focus, ev, &q, &parents);
+				let _ = propagate_interaction(&mut cmds, focus, ev, &q, &parents);
 			}
 			for action in state.get_pressed() {
 				let data = state
@@ -1135,7 +1135,7 @@ impl InteractHandlers {
 							source: InteractionSource::Action(action),
 							kind: InteractionKind::Hold(data.timing.current_duration),
 						};
-						propagate_interaction(&mut cmds, focus, ev, &q, &parents);
+						let _ = propagate_interaction(&mut cmds, focus, ev, &q, &parents);
 					}
 					data => warn!(?data, "Only Button timing is supported"),
 				}
@@ -1145,20 +1145,20 @@ impl InteractHandlers {
 					source: InteractionSource::Action(action),
 					kind: InteractionKind::Release,
 				};
-				propagate_interaction(&mut cmds, focus, ev, &q, &parents);
+				let _ = propagate_interaction(&mut cmds, focus, ev, &q, &parents);
 			}
 			if focus != **prev_focus {
 				let release = Interaction {
 					source: InteractionSource::Focus,
 					kind: InteractionKind::Release,
 				};
-				propagate_interaction(&mut cmds, **prev_focus, release, &q, &parents);
+				let _ = propagate_interaction(&mut cmds, **prev_focus, release, &q, &parents);
 
 				let begin = Interaction {
 					source: InteractionSource::Focus,
 					kind: InteractionKind::Begin,
 				};
-				propagate_interaction(&mut cmds, focus, begin, &q, &parents);
+				let _ = propagate_interaction(&mut cmds, focus, begin, &q, &parents);
 				**prev_focus = focus;
 			}
 		}
@@ -1175,6 +1175,7 @@ impl Default for PrevFocus {
 	}
 }
 
+// TODO: Replace with bevy_picking and/or triggers
 fn propagate_interaction(
 	cmds: &mut Commands,
 	entity: Entity,

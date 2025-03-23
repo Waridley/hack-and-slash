@@ -6,6 +6,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_FEATURE_PURE: 1
 
 jobs:
   build:
@@ -14,40 +15,21 @@ jobs:
 
     steps:
       - name: Checkout repo and submodules
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
+          lfs: false
 
-      - name: Install alsa and udev
-        run: sudo apt-get update; sudo apt-get install -y --no-install-recommends libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
-
-      - uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            ./rs/target/
-          key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.lock') }}
-
-      - uses: dtolnay/rust-toolchain@beta
+      - uses: ./.github/actions/setup
         with:
           targets:
             wasm32-unknown-unknown,
             x86_64-pc-windows-gnu,
             x86_64-apple-darwin,
-            aarch64-linux-android,
-            aarch64-apple-ios,
-
-      - name: Prepare crate for beta toolchain
-        run: |
-          rm ./rs/.cargo/config.toml
-          rm ./rs/rust-toolchain.toml
 
       - name: Linux Build
         working-directory: ./rs
-        run: cargo build --features="debugging,vis_test"
+        run: cargo build --profile=desktop --features="vis_test"
 
       - name: WASM Check
         working-directory: ./rs
@@ -55,8 +37,8 @@ jobs:
 
       - name: Windows Check
         working-directory: ./rs
-        run: cargo check --target x86_64-pc-windows-gnu --all-features
+        run: cargo check --profile=desktop --target=x86_64-pc-windows-gnu --all-features
 
-#      - name: MacOS Check
-#        working-directory: ./rs
-#        run: cargo check --target x86_64-apple-darwin
+      - name: macOS Check
+        working-directory: ./rs
+        run: cargo check --profile=desktop --target x86_64-apple-darwin --no-default-features --features="vis_test,import_assets"

@@ -9,21 +9,22 @@ use bevy_rapier3d::{
 	plugin::{RapierConfiguration, RapierPhysicsPlugin, TimestepMode},
 };
 use colored::Colorize;
-pub use linkme::distributed_slice as __static_register_test;
 use std::{
 	error::Error,
 	fmt::{Display, Formatter},
 	num::NonZero,
 };
 
-#[__static_register_test]
-pub static TESTS: [fn(&mut App) -> &'static str] = [..];
-
 pub fn new_test_app() -> App {
 	let mut app = App::new();
 
-	#[cfg(feature = "vis_test")]
+	#[cfg(all(feature = "render", not(target_arch = "wasm32")))]
 	{
+		// Feature is enabled by "testing" but is only needed without "vis_test"
+		// This silences "unused_crate_dependencies"
+		#[allow(unused_imports, clippy::single_component_path_imports)]
+		use bevy_mesh;
+
 		app.add_plugins(DefaultPlugins.set(WindowPlugin {
 			exit_condition: bevy::window::ExitCondition::DontExit,
 			close_when_requested: false,
@@ -39,9 +40,28 @@ pub fn new_test_app() -> App {
 		.add_systems(Update, pass_fail_keys);
 	}
 
-	#[cfg(not(feature = "vis_test"))]
-	app.add_plugins(MinimalPlugins)
-		.add_plugins(bevy::log::LogPlugin::default());
+	#[cfg(any(not(feature = "render"), target_arch = "wasm32"))]
+	{
+		app.add_plugins(
+			DefaultPlugins
+				.set(bevy::asset::AssetPlugin {
+					mode: AssetMode::Processed,
+					..default()
+				})
+				.disable::<bevy::render::RenderPlugin>()
+				.disable::<bevy::core_pipeline::CorePipelinePlugin>()
+				.disable::<bevy::sprite::SpritePlugin>()
+				.disable::<bevy::ui::UiPlugin>()
+				.disable::<bevy::pbr::PbrPlugin>()
+				.disable::<bevy::gizmos::GizmoPlugin>()
+				.disable::<bevy::winit::WinitPlugin>()
+				.disable::<bevy::picking::PickingPlugin>()
+				.disable::<bevy::picking::input::PointerInputPlugin>()
+				.disable::<bevy::picking::InteractionPlugin>()
+				.disable::<bevy::text::TextPlugin>(),
+		)
+		.init_asset::<bevy_mesh::Mesh>();
+	}
 
 	app.add_event::<TestEvent>()
 		.init_resource::<RunningTests>()
@@ -61,12 +81,6 @@ pub fn new_test_app() -> App {
 	app.add_systems(Startup, setup);
 
 	app
-}
-
-#[cfg(feature = "vis_test")]
-pub fn vis_setup(mut cmds: Commands) {
-	cmds.spawn(Camera2d);
-	cmds.spawn(Text::new("Running tests..."));
 }
 
 #[derive(Resource, Deref, DerefMut)]
@@ -244,19 +258,21 @@ impl<F: IntoSystem<(), TestStatus, M>, M> TestSystem<M> for F {
 macro_rules! bevy_test {
 	(fn $name:ident ( $app:ident $(: &mut App)? , $test_id:ident $(: &'static str)? ) $body:block) => {
 		// TODO: `linkme` does not work on wasm. Find a usable WASM testing method.
-		#[cfg(all(feature = "render", feature = "testing", not(target_arch = "wasm32")))]
+		#[cfg(all(feature = "render", not(target_arch = "wasm32")))]
 		#[allow(unused)]
 		#[$crate::testing::__static_register_test($crate::testing::TESTS)]
 		fn $name($app: &mut ::bevy::prelude::App) -> &'static str {
+			#[allow(unused_imports)]
 			use $crate::testing::TestSystem as _;
 			let $test_id = stringify!($name);
 			$body
 			$test_id
 		}
 
-		#[cfg(all(not(feature = "render"), feature = "testing"))]
+		#[cfg(any(not(feature = "render"), target_arch = "wasm32"))]
 		#[test]
 		fn $name() -> ::bevy::prelude::AppExit {
+			#[allow(unused_imports)]
 			use $crate::testing::TestSystem as _;
 			let mut $app = $crate::testing::new_test_app();
 			let $test_id = stringify!($name);
@@ -274,38 +290,57 @@ bevy_test!(fn app_started(app, test_id) {
 	app.add_systems(bevy::prelude::Startup, check_app_started.test(test_id));
 });
 
-#[cfg(feature = "vis_test")]
-pub fn pass_fail_keys(
-	mut commands: Commands,
-	focused_windows: Query<(Entity, &Window, &TestWindow)>,
-	input: Res<ButtonInput<KeyCode>>,
-	mut events: EventWriter<TestEvent>,
-) {
-	for (entity, window, test_window) in focused_windows.iter() {
-		if !window.focused {
-			continue;
-		}
+#[cfg(all(feature = "render", not(target_arch = "wasm32")))]
+pub mod vis {
+	use crate::testing::{TestEvent, TestStatus};
+	use bevy::app::App;
+	use bevy::input::ButtonInput;
+	use bevy::prelude::*;
 
-		if input.just_pressed(KeyCode::KeyF) {
-			commands.entity(entity).despawn();
-			events.send(TestStatus::Failed("user pressed F".into()).event(test_window.test_id));
-		} else if input.just_pressed(KeyCode::KeyP) {
-			commands.entity(entity).despawn();
-			events.send(TestStatus::Passed.event(test_window.test_id));
-		} else {
-			events.send(TestStatus::Running.event(test_window.test_id));
+	pub use linkme::distributed_slice as __static_register_test;
+
+	#[__static_register_test]
+	pub static TESTS: [fn(&mut App) -> &'static str] = [..];
+
+	#[derive(Component, Debug)]
+	#[require(Window)]
+	pub struct TestWindow {
+		pub test_id: &'static str,
+	}
+
+	impl TestWindow {
+		pub fn new(test_id: &'static str) -> Self {
+			Self { test_id }
+		}
+	}
+
+	pub fn vis_setup(mut cmds: Commands) {
+		cmds.spawn(Camera2d);
+		cmds.spawn(Text::new("Running tests..."));
+	}
+
+	pub fn pass_fail_keys(
+		mut commands: Commands,
+		focused_windows: Query<(Entity, &Window, &TestWindow)>,
+		input: Res<ButtonInput<KeyCode>>,
+		mut events: EventWriter<TestEvent>,
+	) {
+		for (entity, window, test_window) in focused_windows.iter() {
+			if !window.focused {
+				continue;
+			}
+
+			if input.just_pressed(KeyCode::KeyF) {
+				commands.entity(entity).despawn();
+				events.send(TestStatus::Failed("user pressed F".into()).event(test_window.test_id));
+			} else if input.just_pressed(KeyCode::KeyP) {
+				commands.entity(entity).despawn();
+				events.send(TestStatus::Passed.event(test_window.test_id));
+			} else {
+				events.send(TestStatus::Running.event(test_window.test_id));
+			}
 		}
 	}
 }
-
-#[derive(Component, Debug)]
-#[require(Window)]
-pub struct TestWindow {
-	pub test_id: &'static str,
-}
-
-impl TestWindow {
-	pub fn new(test_id: &'static str) -> Self {
-		Self { test_id }
-	}
-}
+#[cfg(all(feature = "render", not(target_arch = "wasm32")))]
+pub use vis::*;

@@ -5,7 +5,6 @@ use bevy::{
 	ecs::system::{EntityCommands, SystemParamItem},
 	prelude::*,
 };
-use bevy_kira_audio::{Audio, AudioControl};
 use bevy_rapier3d::{
 	dynamics::LockedAxes,
 	math::Vect,
@@ -15,6 +14,11 @@ use bevy_rapier3d::{
 };
 use enum_components::{EntityEnumCommands, WithVariant};
 use rand::{prelude::IteratorRandom, Rng};
+#[cfg(feature = "bevy_kira_audio")]
+use {
+	crate::player::abilities::Sfx,
+	bevy_kira_audio::{Audio, AudioControl},
+};
 
 use crate::{
 	anim::{ComponentDelta, StartAnimation},
@@ -22,10 +26,7 @@ use crate::{
 		chunks::{ChunkFinder, CHUNK_SCALE},
 		frame::Frame,
 	},
-	player::{
-		abilities::{Hurt, Sfx},
-		player_entity::Root,
-	},
+	player::{abilities::Hurt, player_entity::Root},
 	util::{consume_spawn_events, Spawnable},
 	Alive,
 };
@@ -152,8 +153,8 @@ pub struct DummySpawnTimer(Timer);
 pub fn handle_hits(
 	mut ctx: Single<&mut RapierContext>,
 	mut cmds: Commands,
-	audio: Res<Audio>,
-	sfx: Res<Sfx>,
+	#[cfg(feature = "bevy_kira_audio")] audio: Res<Audio>,
+	#[cfg(feature = "bevy_kira_audio")] sfx: Res<Sfx>,
 	dummies: Query<(Entity, &GlobalTransform), (WithVariant<Dummy>, With<Alive>)>,
 	mut events: EventReader<Hurt>,
 ) {
@@ -168,6 +169,7 @@ pub fn handle_hits(
 				.copied()
 				.and_then(|body| ctx.bodies.get_mut(body))
 			{
+				#[cfg(feature = "bevy_kira_audio")]
 				audio.play(sfx.impacts[0].clone());
 				body.set_locked_axes(rapier3d::prelude::LockedAxes::empty(), true);
 				body.apply_impulse_at_point(

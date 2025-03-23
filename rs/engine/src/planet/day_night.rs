@@ -1,5 +1,5 @@
 use bevy::{prelude::*, render::extract_resource::ExtractResource};
-#[cfg(feature = "debugging")]
+#[cfg(feature = "dev_ui")]
 use bevy_inspector_egui::prelude::*;
 use web_time::Duration;
 
@@ -12,17 +12,17 @@ pub fn plugin(app: &mut App) -> &mut App {
 #[derive(Resource, ExtractResource, Clone, Debug, Reflect)]
 #[reflect(Resource)]
 #[cfg_attr(
-	feature = "debugging",
+	feature = "dev_ui",
 	derive(InspectorOptions),
 	reflect(InspectorOptions)
 )]
 pub struct DayNightCycle {
 	pub mode: DayNightMode,
-	#[cfg_attr(feature = "debugging", inspector(min = 1.0, speed = 5.0))] // min 1s, 5s increments
+	#[cfg_attr(feature = "dev_ui", inspector(min = 1.0, speed = 5.0))] // min 1s, 5s increments
 	day_length: f64,
-	#[cfg_attr(feature = "debugging", inspector(min = 0.0, max = 1.0, speed = 0.001))]
+	#[cfg_attr(feature = "dev_ui", inspector(min = 0.0, max = 1.0, speed = 0.001))]
 	pub time_of_day: f64,
-	#[cfg_attr(feature = "debugging", inspector(min = 0.0, max = 1.0, speed = 0.0001))]
+	#[cfg_attr(feature = "dev_ui", inspector(min = 0.0, max = 1.0, speed = 0.0001))]
 	pub daylight: f64,
 	pub sun_direction: Vec3,
 	pub moon_direction: Vec3,
