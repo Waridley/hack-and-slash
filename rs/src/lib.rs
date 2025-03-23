@@ -2,14 +2,11 @@
 
 use std::{f32::consts::*, fmt::Debug, time::Duration};
 
-use bevy::{
-	diagnostic::FrameTimeDiagnosticsPlugin,
-	prelude::*,
-	window::PrimaryWindow,
-};
+use bevy::{diagnostic::FrameTimeDiagnosticsPlugin, prelude::*, window::PrimaryWindow};
 #[allow(unused_imports, clippy::single_component_path_imports)]
 #[cfg(all(feature = "dylib", not(target_arch = "wasm32")))]
 use bevy_dylib;
+#[cfg(feature = "bevy_kira_audio")]
 use bevy_kira_audio::AudioPlugin;
 use bevy_pkv::PkvStore;
 use bevy_rapier3d::{plugin::PhysicsSet::StepSimulation, prelude::*};
@@ -45,53 +42,6 @@ pub const R_EPS: f32 = TAU / 360.0; // 1 degree
 /// Up vector
 pub const UP: Vect = Vect::Z;
 
-// #[derive(DynamicPlugin)]
-// #[repr(C)]
-// struct GameDynPlugin;
-//
-// impl Plugin for GameDynPlugin {
-// 	fn build(&self, app: &mut App) {
-// 		app.add_plugins((
-// 			(
-// 				bevy::core::TaskPoolPlugin::default(),
-// 				bevy::core::TypeRegistrationPlugin,
-// 				bevy::core::FrameCountPlugin,
-// 				bevy::time::TimePlugin,
-// 				bevy::transform::TransformPlugin,
-// 				bevy::hierarchy::HierarchyPlugin,
-// 				bevy::diagnostic::DiagnosticsPlugin,
-// 				bevy::input::InputPlugin,
-// 				// bevy::window::WindowPlugin::default(), // Need to give it the window from the editor
-// 				bevy::a11y::AccessibilityPlugin,
-// 				bevy::scene::ScenePlugin,
-// 			),
-// 			// bevy::winit::WinitPlugin::default(), // can't init EventLoop more than once
-// 			(
-// 				RenderPlugin::default(),
-// 				ImagePlugin::default(),
-// 				#[cfg(not(target_arch = "wasm32"))]
-// 				bevy::render::pipelined_rendering::PipelinedRenderingPlugin,
-// 				bevy::core_pipeline::CorePipelinePlugin,
-// 				bevy::sprite::SpritePlugin,
-// 				bevy::text::TextPlugin,
-// 				bevy::ui::UiPlugin,
-// 				bevy::pbr::PbrPlugin::default(),
-// 				bevy::gltf::GltfPlugin::default(),
-// 				bevy::audio::AudioPlugin::default(),
-// 				bevy::gilrs::GilrsPlugin,
-// 				bevy::animation::AnimationPlugin,
-// 				bevy::gizmos::GizmoPlugin,
-// 			),
-// 		));
-// 		#[cfg(feature = "debugging")]
-// 		app.configure_schedules(bevy::ecs::schedule::ScheduleBuildSettings {
-// 			ambiguity_detection: bevy::ecs::schedule::LogLevel::Warn,
-// 			..default()
-// 		});
-// 		game_plugin(app);
-// 	}
-// }
-
 pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
@@ -101,6 +51,7 @@ impl Plugin for GamePlugin {
 			.add_plugins((
 				RapierPhysicsPlugin::<OneWayHeightFieldFilter>::default(),
 				FrameTimeDiagnosticsPlugin,
+				#[cfg(feature = "bevy_kira_audio")]
 				AudioPlugin,
 			))
 			.add_plugins((

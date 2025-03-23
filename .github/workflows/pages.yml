@@ -16,7 +16,7 @@ jobs:
 
     environment:
       name: github-pages
-      url: #{{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url }}
 
     runs-on: ubuntu-latest
 
@@ -27,36 +27,14 @@ jobs:
           submodules: recursive
           lfs: true
 
-      - name: Install alsa and udev
-        run: sudo apt-get update; sudo apt-get install -y --no-install-recommends libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
-
-      - uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            ./rs/target/
-          key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.lock') }}
-
-      - uses: dtolnay/rust-toolchain@beta
+      - uses: ./.github/actions/setup
         with:
           targets: wasm32-unknown-unknown
-
-      - name: Prepare crate for beta toolchain
-        run: |
-          rm ./rs/.cargo/config.toml
-          rm ./rs/rust-toolchain.toml
-
-      - name: Run tests
-        working-directory: ./rs
-        run: cargo test --package sond-has-engine --no-default-features --features=testing\
-          && cargo test --package sond-has --no-default-features --features=testing,import_assets
+          extra_cache_key: wasm32-unknown-unknown
 
       - name: Import assets
         working-directory: ./rs
-        run: cargo run --profile test --no-default-features --features=testing,import_assets -- --just-import-assets
+        run: cargo run --profile desktop --no-default-features --features=testing,import_assets -- --just-import-assets
 
       - name: Install Trunk
         uses: jetli/trunk-action@v0.1.0

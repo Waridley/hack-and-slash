@@ -1,0 +1,40 @@
+name: Build and Test
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  pr_checks:
+    name: ${{ format('pr_{0}', matrix.os ) }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout repo and submodules
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+          lfs: false
+
+      - uses: ./.github/actions/setup
+        with:
+          extra_cache_key: build_and_test
+
+      - name: Build
+        working-directory: ./rs
+        run: cargo build --no-default-features --features "testing,import_assets"
+
+        # `cargo test --workspace` "unifies" features and I can't figure out how to disable render
+      - name: Test Engine
+        working-directory: ./rs
+        run: cargo test --package sond-has-engine --no-default-features --features "testing"
+
+      - name: Test Game
+        working-directory: ./rs
+        run: cargo test --package sond-has --no-default-features --features "testing,import_assets"

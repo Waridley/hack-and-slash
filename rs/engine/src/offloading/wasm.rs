@@ -106,11 +106,15 @@ pub fn tick_offloaded_tasks(
 					let result = Microtask(&mut *f).await;
 					match result {
 						Poll::Pending => {
-							out.upgrade().map(|out| out.store(Poll::Pending));
+							if let Some(out) = out.upgrade() {
+								out.store(Poll::Pending)
+							}
 							Pending { f, out }
 						}
 						Poll::Ready(result) => {
-							out.upgrade().map(|out| out.store(Poll::Ready(result)));
+							if let Some(out) = out.upgrade() {
+								out.store(Poll::Ready(result))
+							}
 							Finished(out)
 						}
 					}

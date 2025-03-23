@@ -5,12 +5,19 @@ edition = "2021"
 description = "Things that will rarely change during development."
 
 [features]
-debugging = ["bevy-inspector-egui", "egui_plot"]
-vis_test = ["testing", "render"]
-testing = ["colored", "linkme"]
+# TODO: This might be able to be replaced by debug_assertions now that the feature "dev_ui" exists
+debugging = []
+# TODO: Should dev_ui actually force debugging?
+dev_ui = ["debugging", "render", "bevy-inspector-egui", "egui_plot", "leafwing-input-manager/egui"]
+vis_test = ["testing", "render", "linkme", "dev_ui"]
+testing = ["colored", "bevy_mesh"]
 render = [
     "bevy/bevy_render",
+    "bevy/bevy_window",
     "bevy/bevy_winit",
+    "bevy/bevy_core_pipeline",
+    "bevy/bevy_sprite",
+    "bevy/bevy_picking",
     "bevy_rapier3d/debug-render",
     "bevy_rapier3d/async-collider",
     "bevy-inspector-egui?/bevy_render",
@@ -59,11 +66,12 @@ bevy-inspector-egui = { workspace = true, optional = true }
 egui_plot = { workspace = true, optional = true }
 
 # Testing
+bevy_mesh = { workspace = true, optional = true }
 colored = { version = "2", optional = true }
-linkme = { workspace = true, optional = true }
 
 [target.'cfg(not(target_arch="wasm32"))'.dependencies]
 bevy_dylib = { workspace = true, optional = true }
+linkme = { workspace = true, optional = true }
 
 [target.'cfg(target_arch="wasm32")'.dependencies]
 web-sys = "0.3"

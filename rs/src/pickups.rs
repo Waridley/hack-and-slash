@@ -5,6 +5,7 @@ use std::{
 };
 
 use bevy::prelude::*;
+#[cfg(feature = "bevy_kira_audio")]
 use bevy_kira_audio::{Audio, AudioControl, AudioSource};
 use bevy_rapier3d::{
 	geometry::Collider,
@@ -18,11 +19,7 @@ use enum_components::{EntityEnumCommands, EnumComponent};
 use pickup::WithPickup;
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 
-use crate::{
-	mats::BubbleMaterial,
-	pickups::pickup::PickupItem,
-	player::abilities::Hurt,
-};
+use crate::{mats::BubbleMaterial, pickups::pickup::PickupItem, player::abilities::Hurt};
 
 pub const RADIUS: f32 = 8.0;
 
@@ -35,6 +32,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 		.add_systems(Update, (collect, spawn_pickups, movement, miss))
 }
 
+#[cfg(feature = "bevy_kira_audio")]
 #[derive(Resource, Default, Debug, Clone, Deref, DerefMut)]
 pub struct PopSfx(pub Handle<AudioSource>);
 
@@ -44,7 +42,9 @@ pub fn setup(mut cmds: Commands, mut meshes: ResMut<Assets<Mesh>>, asset_server:
 	timer.set_elapsed(Duration::from_secs(SPAWN_INTERVAL - 1));
 	cmds.insert_resource(SpawnTimer(timer));
 
+	#[cfg(feature = "bevy_kira_audio")]
 	cmds.insert_resource(MissSfx(asset_server.load("sfx/SFX_-_negative_09.ogg")));
+	#[cfg(feature = "bevy_kira_audio")]
 	cmds.insert_resource(PopSfx(asset_server.load("sfx/SFX_-_hit_big_02.ogg")));
 
 	let mesh = meshes.add(Sphere { radius: RADIUS }.mesh().ico(0).unwrap());
@@ -128,12 +128,13 @@ pub fn spawn_pickups(
 pub fn collect(
 	mut cmds: Commands,
 	pickups: Query<(Entity, Pickup)>,
-	sfx: Res<PopSfx>,
-	audio: Res<Audio>,
+	#[cfg(feature = "bevy_kira_audio")] sfx: Res<PopSfx>,
+	#[cfg(feature = "bevy_kira_audio")] audio: Res<Audio>,
 	mut hits: EventReader<Hurt>,
 ) {
 	for hit in hits.read() {
 		if let Ok((id, pickup)) = pickups.get(hit.victim) {
+			#[cfg(feature = "bevy_kira_audio")]
 			audio.play(sfx.0.clone()).with_volume(0.3);
 			match pickup {
 				PickupItem::Health(val) => {
@@ -176,14 +177,15 @@ pub fn movement(mut q: Query<&mut Transform, WithPickup>, t: Res<Time>) {
 	}
 }
 
+#[cfg(feature = "bevy_kira_audio")]
 #[derive(Resource, Debug, Clone, Deref, DerefMut)]
 pub struct MissSfx(pub Handle<AudioSource>);
 
 pub fn miss(
 	mut cmds: Commands,
 	q: Query<(Entity, &GlobalTransform, Pickup)>,
-	_miss_sfx: Res<MissSfx>,
-	_audio: Res<Audio>,
+	#[cfg(feature = "bevy_kira_audio")] _miss_sfx: Res<MissSfx>,
+	#[cfg(feature = "bevy_kira_audio")] _audio: Res<Audio>,
 ) {
 	for (id, xform, pickup) in &q {
 		// Todo maybe a timer or check the terrain height

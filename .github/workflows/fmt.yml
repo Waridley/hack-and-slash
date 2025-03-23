@@ -1,0 +1,19 @@
+name: Check Formatting
+
+on:
+  pull_request:
+    types: [ opened, synchronize, reopened, edited ]
+
+jobs:
+  check_formatting:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/setup
+
+      - name: Check engine formatting
+        working-directory: ./rs
+        run: cargo fmt --package sond-has-engine -- --check
+
+      - name: Check game formatting
+        working-directory: ./rs
+        run: cargo fmt --package sond-has -- --check

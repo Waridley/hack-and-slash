@@ -1,6 +1,7 @@
 use web_time::Duration;
 
 use bevy::{prelude::*, transform::TransformSystem::TransformPropagate};
+#[cfg(feature = "bevy_kira_audio")]
 use bevy_kira_audio::{Audio, AudioControl, AudioSource};
 use bevy_rapier3d::{
 	geometry::CollisionGroups,
@@ -85,8 +86,8 @@ pub fn trigger_player_abilities(
 	chunk_q: Query<&GlobalTransform, With<ChunkIndex>>,
 	cam_pivot_q: Query<(&GlobalTransform, &BelongsToPlayer), WithVariant<CamPivot>>,
 	antigrav_q: Query<(Entity, &BelongsToPlayer), WithVariant<AntigravParticles>>,
-	sfx: Res<Sfx>,
-	audio: Res<Audio>,
+	#[cfg(feature = "bevy_kira_audio")] sfx: Res<Sfx>,
+	#[cfg(feature = "bevy_kira_audio")] audio: Res<Audio>,
 	params: Res<PlayerParams>,
 	frame: Res<Frame>,
 	loaded_chunks: Res<LoadedChunks>,
@@ -109,7 +110,9 @@ pub fn trigger_player_abilities(
 				&mut cmds,
 				&mut vel.linvel,
 				jump_vel,
+				#[cfg(feature = "bevy_kira_audio")]
 				&audio,
+				#[cfg(feature = "bevy_kira_audio")]
 				&sfx,
 				&antigrav_q,
 				player,
@@ -122,7 +125,9 @@ pub fn trigger_player_abilities(
 				state.clamped_axis_pair(&Move),
 				dash_vel,
 				&mut vel.linvel,
+				#[cfg(feature = "bevy_kira_audio")]
 				&audio,
+				#[cfg(feature = "bevy_kira_audio")]
 				&sfx,
 			);
 		}
@@ -134,7 +139,9 @@ pub fn trigger_player_abilities(
 				.unwrap_or_else(|| panic!("Can't find CamPivot for player {player}"));
 			fire_a(
 				&mut cmds,
+				#[cfg(feature = "bevy_kira_audio")]
 				&audio,
+				#[cfg(feature = "bevy_kira_audio")]
 				&sfx,
 				cam_pivot,
 				&arm_q,
@@ -148,7 +155,17 @@ pub fn trigger_player_abilities(
 
 		if state.just_pressed(&AoE) && *weap_charge >= aoe_cost {
 			**weap_charge -= *aoe_cost;
-			aoe(&mut cmds, &audio, &sfx, &arms_q, &arm_q, &orb_q, player)
+			aoe(
+				&mut cmds,
+				#[cfg(feature = "bevy_kira_audio")]
+				&audio,
+				#[cfg(feature = "bevy_kira_audio")]
+				&sfx,
+				&arms_q,
+				&arm_q,
+				&orb_q,
+				player,
+			)
 		}
 	}
 }
@@ -157,11 +174,12 @@ pub fn jump(
 	cmds: &mut Commands,
 	linvel: &mut Vec3,
 	jump_vel: f32,
-	audio: &Audio,
-	sfx: &Sfx,
+	#[cfg(feature = "bevy_kira_audio")] audio: &Audio,
+	#[cfg(feature = "bevy_kira_audio")] sfx: &Sfx,
 	antigrav_q: &Query<(Entity, &BelongsToPlayer), WithVariant<AntigravParticles>>,
 	player: PlayerId,
 ) {
+	#[cfg(feature = "bevy_kira_audio")]
 	audio.play(sfx.jump.clone()).with_volume(0.1);
 	linvel.z = jump_vel;
 	for (id, owner) in antigrav_q {
@@ -191,7 +209,14 @@ pub fn jump(
 	}
 }
 
-pub fn dash(input_dir: Vec2, dash_vel: f32, linvel: &mut Vec3, audio: &Audio, sfx: &Sfx) {
+pub fn dash(
+	input_dir: Vec2,
+	dash_vel: f32,
+	linvel: &mut Vec3,
+	#[cfg(feature = "bevy_kira_audio")] audio: &Audio,
+	#[cfg(feature = "bevy_kira_audio")] sfx: &Sfx,
+) {
+	#[cfg(feature = "bevy_kira_audio")]
 	audio.play(sfx.dash.clone()).with_volume(0.2);
 	// Use the most-recently-input direction, not current velocity, to dash in the direction the player expects.
 	let dir = input_dir.normalize_or(Vec2::Y) * dash_vel;
@@ -201,8 +226,8 @@ pub fn dash(input_dir: Vec2, dash_vel: f32, linvel: &mut Vec3, audio: &Audio, sf
 
 pub fn aoe(
 	cmds: &mut Commands,
-	audio: &Audio,
-	sfx: &Sfx,
+	#[cfg(feature = "bevy_kira_audio")] audio: &Audio,
+	#[cfg(feature = "bevy_kira_audio")] sfx: &Sfx,
 	arms_q: &Query<(Entity, &RotVel, &BelongsToPlayer), WithVariant<Arms>>,
 	arm_q: &Query<(
 		Entity,
@@ -221,6 +246,7 @@ pub fn aoe(
 	)>,
 	player: PlayerId,
 ) {
+	#[cfg(feature = "bevy_kira_audio")]
 	audio.play(sfx.aoe.clone()).with_volume(0.5);
 	let extend_dur = Duration::from_millis(64);
 	let retract_dur = Duration::from_secs_f32(1.0);
@@ -337,8 +363,8 @@ pub fn aoe(
 
 pub fn fire_a(
 	cmds: &mut Commands,
-	audio: &Audio,
-	sfx: &Sfx,
+	#[cfg(feature = "bevy_kira_audio")] audio: &Audio,
+	#[cfg(feature = "bevy_kira_audio")] sfx: &Sfx,
 	cam_pivot: GlobalTransform,
 	arm_q: &Query<(
 		Entity,
@@ -360,6 +386,7 @@ pub fn fire_a(
 	frame: &Frame,
 	loaded_chunks: &LoadedChunks,
 ) {
+	#[cfg(feature = "bevy_kira_audio")]
 	audio.play(sfx.fire_a.clone());
 	for (id, xform, _, _, owner, which) in orb_q {
 		if **owner != player || which.0 != PlayerArm::A {
@@ -461,6 +488,7 @@ pub fn fill_weapons(mut q: Query<&mut WeaponCharge>, params: Res<PlayerParams>, 
 	}
 }
 
+#[cfg(feature = "bevy_kira_audio")]
 #[derive(Debug, Resource)]
 pub struct Sfx {
 	pub fire_a: Handle<AudioSource>,

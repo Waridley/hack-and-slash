@@ -1,0 +1,101 @@
+name: Clippy Feature Matrix
+
+# This workflow validates that there are no warnings with any combination of features and targets.
+# E.g. if an import is only used with a feature flag enabled, but is still imported when that feature is disabled.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_FEATURE_PURE: 1 # Fixes blake3 cross-compilation
+
+jobs:
+  clippy_feature_combos:
+    name: Clippy [${{matrix.debugging}}${{matrix.dev_ui}}${{matrix.testing}}${{matrix.vis_test}}${{matrix.render}}]
+    runs-on: [ ubuntu-latest ]
+
+    strategy:
+      matrix:
+        debugging: [ "", "debugging," ]
+        dev_ui: [ "", "dev_ui," ]
+        testing: [ "", "testing,", "vis_test," ]
+        render: [ "", "render," ]
+        # import_assets is not really important to test, and it would double the number of jobs.
+        exclude:
+          - testing: "testing,"
+            debugging: "debugging," # testing enables debugging
+
+            # render tests require vis_test feature, would need target-specific features to fix these
+            # See https://github.com/rust-lang/cargo/issues/1197
+            # Or an ugly workaround is to add a target-specific dependency that enables the feature
+          - testing: "testing,"
+            render: "render,"
+          - testing: "testing,"
+            dev_ui: "dev_ui," # dev_ui also enables render
+
+          - testing: "vis_test,"
+            debugging: "debugging," # vis_test enables testing which enables debugging
+
+          - testing: "vis_test,"
+            render: "render," # vis_test enables render
+
+          - testing: "vis_test,"
+            dev_ui: "dev_ui," # vis_test enables dev_ui
+
+          - dev_ui: "dev_ui,"
+            render: "render," # dev_ui enables render
+    steps:
+      - name: Checkout repo and submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: false
+
+      - uses: ./.github/actions/setup
+        with:
+          targets:
+            wasm32-unknown-unknown,
+            x86_64-pc-windows-gnu,
+            x86_64-apple-darwin,
+
+      # Making these matrix configurations ended up causing most of the time to be spent on setup. Once dependencies
+      # and rust toolchain are installed, they can be re-used for all platform checks.
+
+      - name: Run Clippy Linux
+        working-directory: ./rs
+        run: cargo clippy
+          --no-default-features
+          --features "${{matrix.debugging}}${{matrix.dev_ui}}${{matrix.testing}}${{matrix.vis_test}}${{matrix.render}}" 
+          --
+          -Dwarnings
+
+      - name: Run Clippy Windows
+        working-directory: ./rs
+        run: cargo clippy
+          --target x86_64-pc-windows-gnu
+          --no-default-features
+          --features "${{matrix.debugging}}${{matrix.dev_ui}}${{matrix.testing}}${{matrix.vis_test}}${{matrix.render}}"
+          --
+          -Dwarnings
+
+      - name: Run Clippy Mac
+        working-directory: ./rs
+        run: cargo clippy
+          --target x86_64-apple-darwin
+          --no-default-features
+          --features "${{matrix.debugging}}${{matrix.dev_ui}}${{matrix.testing}}${{matrix.vis_test}}${{matrix.render}}"
+          --
+          -Dwarnings
+
+      - name: Run Clippy WASM
+        working-directory: ./rs
+        if: matrix.testing != 'vis_test,'
+        run: cargo clippy
+          --target wasm32-unknown-unknown
+          --no-default-features
+          --features "${{matrix.debugging}}${{matrix.dev_ui}}${{matrix.testing}}${{matrix.vis_test}}${{matrix.render}}"
+          --
+          -Dwarnings

@@ -31,7 +31,7 @@ use std::{
 };
 
 pub mod a11y;
-#[cfg(feature = "debugging")]
+#[cfg(feature = "dev_ui")]
 pub mod dbg;
 pub mod focus;
 pub mod layout;
@@ -48,7 +48,7 @@ pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
 	fn build(&self, app: &mut App) {
-		#[cfg(feature = "debugging")]
+		#[cfg(feature = "dev_ui")]
 		app.add_plugins(dbg::DebugUiPlugin)
 			.register_asset_reflect::<UiMat>()
 			.add_systems(PreUpdate, spawn_test_menu)
@@ -689,7 +689,7 @@ use crate::{
 	},
 	util::{downcast_material, RegisterUntypedAssetDowncaster},
 };
-#[cfg(feature = "debugging")]
+#[cfg(feature = "dev_ui")]
 use bevy_inspector_egui::{
 	inspector_options::std_options::NumberDisplay::Slider,
 	prelude::{InspectorOptions, ReflectInspectorOptions},
@@ -707,13 +707,13 @@ use web_time::Duration;
 /// generally not be used for any fade-able entities.
 #[derive(Component, Debug, Copy, Clone, PartialEq, PartialOrd, Reflect, Deref, DerefMut)]
 #[cfg_attr(
-	feature = "debugging",
+	feature = "dev_ui",
 	derive(InspectorOptions),
 	reflect(InspectorOptions)
 )]
 #[reflect(Component)]
 pub struct Fade(
-	#[cfg_attr(feature = "debugging", inspector(
+	#[cfg_attr(feature = "dev_ui", inspector(
 		min = 0.0,
 		max = 1.0,
 		speed = 0.00389, // 1.0 / 257.0
@@ -982,7 +982,7 @@ impl<T: Into<StandardMaterial>> From<T> for UiMatBuilder {
 	}
 }
 
-#[cfg(feature = "debugging")]
+#[cfg(feature = "dev_ui")]
 fn spawn_test_menu(
 	mut cmds: Commands,
 	mut meshes: ResMut<Assets<Mesh>>,
@@ -1136,13 +1136,13 @@ fn spawn_test_menu(
 	*spawned = true;
 }
 
-#[cfg(feature = "debugging")]
+#[cfg(feature = "dev_ui")]
 #[derive(Component)]
 struct TestMenu {
 	faces: [Entity; 6],
 }
 
-#[cfg(feature = "debugging")]
+#[cfg(feature = "dev_ui")]
 fn toggle_test_menu(
 	mut cmds: Commands,
 	mut q: Query<(Entity, &TestMenu)>,
