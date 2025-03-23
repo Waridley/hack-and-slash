@@ -8,6 +8,12 @@ jobs:
   check_formatting:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repo and submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: false
+
       - uses: ./.github/actions/setup
 
       - name: Check engine formatting
