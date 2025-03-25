@@ -1695,7 +1695,17 @@ impl MeshOutline {
 	}
 
 	pub fn generate_for(&self, mesh: &Mesh) -> Mesh {
-		let mut mesh = mesh.clone();
+		let mut mesh = {
+			// Only need to clone positions, normals, and indices. Outline won't use any other attributes.
+			let mut new = Mesh::new(mesh.primitive_topology(), mesh.asset_usage)
+				.with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, mesh.attribute(Mesh::ATTRIBUTE_POSITION).unwrap().clone())
+				.with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, mesh.attribute(Mesh::ATTRIBUTE_NORMAL).unwrap().clone());
+			if let Some(indices) = mesh.indices() {
+				new.insert_indices(indices.clone());
+			}
+			new
+		};
+
 		deduplicate_vertices(&mut mesh, f32::EPSILON);
 
 		let positions = mesh
