@@ -5,7 +5,7 @@ use crate::{
 		fog::{DistanceDither, Matter},
 		ExtMat,
 	},
-	ui::widgets::{CuboidPanel, Text3d},
+	ui::widgets::{Node3d, CuboidPanel, Text3d},
 	util::{Diff, LerpSlerp},
 };
 use bevy::{
@@ -455,6 +455,7 @@ pub struct PopupsRoot;
 /// Thus they are added as children of the [PopupsRoot] which is always in
 /// front of the camera.
 #[derive(Component, Debug, Reflect)]
+#[require(Node3d)]
 #[reflect(Component)]
 pub struct Popup;
 

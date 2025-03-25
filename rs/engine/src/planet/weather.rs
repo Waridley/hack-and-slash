@@ -1,12 +1,11 @@
 use crate::{
 	planet::chunks::{CHUNK_SCALE, TERRAIN_CELL_SIZE},
-	ui::a11y::AKNode,
 };
 use bevy::{
 	prelude::{Reflect, Resource, *},
 	render::{
 		extract_resource::ExtractResource, primitives::Aabb,
-		view::VisibilitySystems::VisibilityPropagate,
+		view::{VisibilitySystems::VisibilityPropagate, RenderLayers},
 	},
 };
 
@@ -40,25 +39,33 @@ impl Default for Weather {
 }
 
 pub fn cull_fully_fogged(
-	cams: Query<&GlobalTransform, With<Camera>>,
-	mut visibilities: Query<(&mut Visibility, &GlobalTransform, &Aabb), Without<AKNode>>,
+	cams: Query<(&GlobalTransform, &RenderLayers), With<Camera>>,
+	mut visibilities: Query<(&mut Visibility, &GlobalTransform, &Aabb, &RenderLayers)>,
 	weather: Res<Weather>,
 ) {
 	// Can't use `ViewVisibility` because it only allows setting visibility to `true`, not culling.
 
 	let dist = weather.fog_end;
-	for (mut vis, global, aabb) in &mut visibilities {
+	for (mut vis, global, aabb, layers) in &mut visibilities {
+		if !layers.intersects(&RenderLayers::default()) {
+			continue;
+		}
 		// Get the closest possible point
 		let radius = aabb.half_extents.length();
 		let global = global.translation().xy();
+		let center = aabb.center.xy() + global;
 		if *vis == Visibility::Hidden
-			&& cams.iter().any(|cam| {
-				(global - cam.translation().xy()).length() - radius < dist + TERRAIN_CELL_SIZE
+			&& cams.iter()
+			.filter(|(_, cam_layers)| cam_layers.intersects(&RenderLayers::default()))
+			.any(|(cam, _)| {
+				(center - cam.translation().xy()).length() - radius < dist + TERRAIN_CELL_SIZE
 			}) {
 			*vis = Visibility::Inherited;
 		} else if *vis == Visibility::Inherited
-			&& !cams.iter().any(|cam| {
-				(global - cam.translation().xy()).length() - radius < dist + TERRAIN_CELL_SIZE * 4.0
+			&& !cams.iter()
+			.filter(|(_, cam_layers)| cam_layers.intersects(&RenderLayers::default()))
+			.any(|(cam, _)| {
+				(center - cam.translation().xy()).length() - radius < dist + TERRAIN_CELL_SIZE * 4.0
 			}) {
 			*vis = Visibility::Hidden;
 		}
