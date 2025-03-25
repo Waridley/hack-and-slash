@@ -1,5 +1,5 @@
 use super::PlanetSeed;
-use bevy::log::info;
+use tracing::info;
 use rand::{distributions::Standard, prelude::Distribution, Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
@@ -135,10 +135,9 @@ impl HSSeed {
 
 #[cfg(test)]
 mod tests {
-	use crate::planet::{
-		seeds::PlanetSeed,
-		terrain::seeds::{HSSeed, TerrainSeeds},
-	};
+	use crate::PlanetSeed;
+	use super::{HSSeed, TerrainSeeds};
+	use breaking_attr::breaking;
 
 	#[test]
 	fn seed_equivalence() {
@@ -150,36 +149,40 @@ mod tests {
 
 	#[test]
 	fn version_equivalence() {
-		// Note: If sources are added or removed, the sources from the previous version should remain equivalent,
-		// but it is fine to add the values for the new sources or remove old ones here.
-		let seed = PlanetSeed::from(
-			"This is a PlanetSeed for testing TerrainSeed equivalence across versions.",
-		);
+		#[breaking("G5tz99mmq0yIJhh4FrWvaL7WADXYbCyNcwvChZAwtbg=")]
+		const SEED: &str = "This is a PlanetSeed for testing TerrainSeed equivalence across versions.";
+		let seed = PlanetSeed::from(SEED);
+		#[breaking("UexE26eb5tYkAcQI0B8qYGJwRchfbKvM2byviFz52wg=")]
+		const CANON: &str = "dif3XzLPR0QkeiIeiDUZS_fAfVYwGsLv";
 		assert_eq!(
 			seed.clone().canonical().string(),
-			"dif3XzLPR0QkeiIeiDUZS_fAfVYwGsLv"
+			CANON,
 		);
+		// Note: If sources are added or removed, the sources shared between versions must remain
+		// equivalent, but it is fine to add the values for the new sources or remove old ones here.
+		#[breaking("JJMBtPGINwVPoEi8tw-Y_j5l3iIquDu9pfOcPFZvR7s=")]
+		const TERRAIN_SEEDS: TerrainSeeds = TerrainSeeds {
+			base: [3921923909, 2705971270],
+			perlin: HSSeed {
+				heights: 2112551709,
+				strength: 1762326461
+			},
+			worley: HSSeed {
+				heights: 2032743752,
+				strength: 3889465128
+			},
+			billow: HSSeed {
+				heights: 1264812115,
+				strength: 391812050
+			},
+			ridged: HSSeed {
+				heights: 2995831856,
+				strength: 2095380095
+			},
+		};
 		assert_eq!(
 			TerrainSeeds::from(&seed),
-			TerrainSeeds {
-				base: [3921923909, 2705971270],
-				perlin: HSSeed {
-					heights: 2112551709,
-					strength: 1762326461
-				},
-				worley: HSSeed {
-					heights: 2032743752,
-					strength: 3889465128
-				},
-				billow: HSSeed {
-					heights: 1264812115,
-					strength: 391812050
-				},
-				ridged: HSSeed {
-					heights: 2995831856,
-					strength: 2095380095
-				},
-			},
+			TERRAIN_SEEDS,
 		);
 	}
 }

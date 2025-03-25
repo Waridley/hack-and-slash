@@ -25,8 +25,9 @@ render = [
 
 [dependencies]
 # Mine
-particles = { workspace = true }
 macros = { workspace = true }
+particles = { workspace = true }
+rng = { package = "sond-has-rng", path = "../rng" }
 
 # Engine
 accesskit = { workspace = true }
@@ -38,11 +39,9 @@ rapier3d = { workspace = true }
 atomicow = { workspace = true }
 ab_glyph = { workspace = true }
 array-init = { workspace = true }
-base64 = { workspace = true }
 bevy_pkv = { workspace = true }
 bevy_svg = { workspace = true }
 bimap = { workspace = true }
-blake3 = { workspace = true }
 bytemuck = { workspace = true }
 dyn-clone = { workspace = true }
 futures-lite = { workspace = true }
@@ -53,7 +52,6 @@ noise = { workspace = true }
 num-traits = { workspace = true }
 ordered-float = { workspace = true }
 rand = { workspace = true }
-rand_chacha = { workspace = true }
 ron = { workspace = true }
 serde = { workspace = true }
 smallvec = { workspace = true }

@@ -31,19 +31,19 @@ use crate::{
 			TERRAIN_CELL_SIZE,
 		},
 		frame::Frame,
-		seeds::PlanetSeed,
-		terrain::{
-			noise::{ChooseAndSmooth, Source, SyncWorley},
-			seeds::TerrainSeeds,
-		},
 		PlanetVec2,
 	},
 	util::Diff,
 };
+use rng::{
+	PlanetSeed,
+	terrain::TerrainSeeds,
+};
 
 pub mod noise;
 pub mod physics;
-pub mod seeds;
+
+use noise::{ChooseAndSmooth, Source, SyncWorley};
 
 pub type Noise = ChooseAndSmooth<4>;
 
