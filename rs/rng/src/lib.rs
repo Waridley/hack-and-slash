@@ -1,15 +1,20 @@
 use base64::{engine::general_purpose::URL_SAFE, prelude::*};
-use bevy::{
-	log::trace,
-	prelude::{trace_span, Resource},
-};
+#[cfg(feature = "bevy_ecs")]
+use bevy_ecs::prelude::Resource;
 use rand::{distributions::Standard, prelude::Distribution, Rng};
+#[cfg(feature = "serde")]
+use serde::{Serialize, Deserialize};
+use tracing::{trace, trace_span};
 use std::{
 	borrow::{Borrow, Cow},
 	fmt::{Display, Formatter},
 };
 
-#[derive(Resource, Debug, Clone)]
+pub mod terrain;
+
+#[cfg_attr(feature = "bevy_ecs", derive(Resource))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone)]
 pub struct PlanetSeed {
 	string: Cow<'static, str>,
 	hash: [u8; 24],
@@ -129,6 +134,7 @@ impl PlanetSeed {
 #[cfg(test)]
 mod tests {
 	use super::PlanetSeed;
+	use breaking_attr::breaking;
 
 	#[test]
 	fn canonical_equivalence() {
@@ -153,7 +159,9 @@ mod tests {
 
 	#[test]
 	fn version_equivalence() {
+		#[breaking("HEjHu2AAsxhXa2SZhXY4OseeqIOY8JEuy7uMdkdXBy0=")]
 		const S: &str = "This is a test seed for seed consistency across game versions";
+		#[breaking("BIjidzm949n7bZFRtORKPEEIN3rS7_vfvNfoqTc_GsE=")]
 		const CANON: &str = "rpJXxdfel1AHU-BB7Zz8lZdZ1psLiBrU";
 		let seed = PlanetSeed::from(S);
 		let canon = PlanetSeed::from(CANON);

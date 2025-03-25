@@ -187,7 +187,7 @@ fn startup(
 	mut cmds: Commands,
 	mut scene_spawner: ResMut<SceneSpawner>,
 	assets: Res<AssetServer>,
-	#[cfg(all(feature = "debugging", feature = "render"))] mut dbg_render_ctx: ResMut<
+	#[cfg(all(feature = "dev_ui"))] mut dbg_render_ctx: ResMut<
 		DebugRenderContext,
 	>,
 ) {
@@ -195,7 +195,7 @@ fn startup(
 	cmds.insert_resource(GlobalsScene(globals_scene.clone()));
 	scene_spawner.spawn_dynamic(globals_scene);
 
-	#[cfg(all(feature = "debugging", feature = "render"))]
+	#[cfg(all(feature = "dev_ui"))]
 	{
 		dbg_render_ctx.enabled = false;
 	}

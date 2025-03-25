@@ -2,6 +2,7 @@
   <configuration default="false" name="Test" type="CompoundRunConfigurationType">
     <toRun name="Test engine" type="CargoCommandRunConfiguration" />
     <toRun name="Test game" type="CargoCommandRunConfiguration" />
+    <toRun name="Test rng" type="CargoCommandRunConfiguration" />
     <method v="2" />
   </configuration>
 </component>

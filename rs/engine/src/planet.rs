@@ -15,7 +15,6 @@ use std::ops::{Add, Deref, DerefMut, Sub};
 pub mod chunks;
 pub mod day_night;
 pub mod frame;
-pub mod seeds;
 pub mod sky;
 pub mod terrain;
 pub mod weather;
