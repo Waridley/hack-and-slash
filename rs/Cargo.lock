@@ -1553,9 +1553,9 @@ dependencies = [
 
 [[package]]
 name = "breaking-attr"
-version = "0.1.1"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed8995ca1777008344bda866e85d5ea0468073da81ce324090dfd512d0c7a8d4"
+checksum = "5c8f3311f95e3e731f45285c55bee95d79e28203a2f26c5a008763b3bbefc59b"
 dependencies = [
  "base64 0.21.7",
  "blake3",

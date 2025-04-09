@@ -159,7 +159,7 @@ mod tests {
 
 	#[test]
 	fn version_equivalence() {
-		#[breaking("HEjHu2AAsxhXa2SZhXY4OseeqIOY8JEuy7uMdkdXBy0=")]
+		#[breaking("_44gu-Xn8ah8fqspt60ykOGP8xiM98NlS1PfVSayG9Y=")]
 		const S: &str = "This is a test seed for seed consistency across game versions";
 		#[breaking("BIjidzm949n7bZFRtORKPEEIN3rS7_vfvNfoqTc_GsE=")]
 		const CANON: &str = "rpJXxdfel1AHU-BB7Zz8lZdZ1psLiBrU";

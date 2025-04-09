@@ -2045,6 +2045,8 @@ pub fn deduplicate_vertices(mesh: &mut Mesh, max_diff: f32) {
 
 /// Like `Mesh::compute_smooth_normals` but does not let multiple co-planar triangles influence
 /// the normal of a vertex disproportionately.
+///
+/// Can be replaced by https://github.com/bevyengine/bevy/pull/18552 when it lands, probably in 0.17
 pub fn compute_geometric_normals(mesh: &mut Mesh) {
 	let Some(positions) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else {
 		error!("Mesh is missing positions");
