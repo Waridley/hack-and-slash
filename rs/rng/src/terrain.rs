@@ -149,7 +149,7 @@ mod tests {
 
 	#[test]
 	fn version_equivalence() {
-		#[breaking("G5tz99mmq0yIJhh4FrWvaL7WADXYbCyNcwvChZAwtbg=")]
+		#[breaking("zpe80_qe7AbTsKIpMKkdVl4_wqfc0KsCUaBTLCWsxiI=")]
 		const SEED: &str = "This is a PlanetSeed for testing TerrainSeed equivalence across versions.";
 		let seed = PlanetSeed::from(SEED);
 		#[breaking("UexE26eb5tYkAcQI0B8qYGJwRchfbKvM2byviFz52wg=")]
@@ -160,7 +160,7 @@ mod tests {
 		);
 		// Note: If sources are added or removed, the sources shared between versions must remain
 		// equivalent, but it is fine to add the values for the new sources or remove old ones here.
-		#[breaking("JJMBtPGINwVPoEi8tw-Y_j5l3iIquDu9pfOcPFZvR7s=")]
+		#[breaking("R7grxG1H4lIOkIw-rtvEBwswSp98CxY6gby-EghXAiE=")]
 		const TERRAIN_SEEDS: TerrainSeeds = TerrainSeeds {
 			base: [3921923909, 2705971270],
 			perlin: HSSeed {

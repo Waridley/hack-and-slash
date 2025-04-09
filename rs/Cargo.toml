@@ -96,7 +96,7 @@ bevy_pkv = "0.12.0" # settings
 bevy_svg = { version = "0.13.0", path = "../vend/bevy_svg" }
 bimap = "0.6.3"
 blake3 = "1.6.1" # already in upstream deps, decent performance despite good security, only used at startup anyway
-breaking-attr = "0.1.1"
+breaking-attr = "0.2.0"
 bytemuck = "1.14.1" # mostly for seeds
 dyn-clone = "1.0.17"
 fixedbitset = "0.4.2" # navigation graph edge storage
