@@ -25,8 +25,8 @@ use engine::{
 		layout::{ExpandToFitChildren, LineUpChildren, RadialChildren},
 		text::UiFonts,
 		widgets::{
-			borders::Border, dbg_event, focus_toggle_border, new_unlit_material, CuboidContainer,
-			CuboidPanel, InteractHandlers, Node3d, Text3d,
+			borders::Border, new_unlit_material, CuboidContainer,
+			CuboidPanel, Node3d, Text3d,
 		},
 		Fade, GlobalUi, MenuStack, UiAction, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
 	},
@@ -36,6 +36,7 @@ use leafwing_input_manager::{prelude::InputMap, Actionlike};
 use serde::{Deserialize, Serialize};
 use smallvec::smallvec;
 use std::{borrow::Cow, ops::ControlFlow::Break};
+use engine::ui::interact::{dbg_event, focus_toggle_border, InteractHandlers};
 
 const GAME_BINDINGS_CONTAINER_NAME: &str = "GameBindingsContainer";
 const UI_BINDINGS_CONTAINER_NAME: &str = "UiBindingsContainer";

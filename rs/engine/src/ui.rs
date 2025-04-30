@@ -5,7 +5,7 @@ use crate::{
 		fog::{DistanceDither, Matter},
 		ExtMat,
 	},
-	ui::widgets::{Node3d, CuboidPanel, Text3d},
+	ui::widgets::{CuboidPanel, Node3d, Text3d},
 	util::{Diff, LerpSlerp},
 };
 use bevy::{
@@ -38,6 +38,7 @@ pub mod layout;
 pub mod mouse;
 pub mod text;
 pub mod widgets;
+pub mod interact;
 
 pub const GLOBAL_UI_LAYER: Layer = 31 as Layer;
 pub const GLOBAL_UI_RENDER_LAYERS: RenderLayers = RenderLayers::layer(GLOBAL_UI_LAYER);
@@ -685,7 +686,7 @@ use crate::{
 	ui::{
 		text::Tessellator,
 		widgets::{
-			new_unlit_material, CuboidContainer, CylinderPanel, InteractHandlers, PrevFocus,
+			new_unlit_material, CuboidContainer, CylinderPanel, PrevFocus,
 		},
 	},
 	util::{downcast_material, RegisterErasedAssetDowncaster},
@@ -698,6 +699,7 @@ use bevy_inspector_egui::{
 use layout::ExpandToFitChildren;
 use text::{TextMeshCache, UiFonts};
 use web_time::Duration;
+use interact::InteractHandlers;
 
 /// Component that starts a new branch of a tree of entities that can be
 /// faded in an out together.

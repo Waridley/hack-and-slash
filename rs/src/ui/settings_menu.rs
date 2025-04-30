@@ -12,8 +12,8 @@ use engine::{
 		layout::{ExpandToFitChildren, RadialArrangement, RadialChildren},
 		text::UiFonts,
 		widgets::{
-			borders::Border, dbg_event, focus_toggle_border, new_unlit_material, on_ok,
-			CuboidPanel, CylinderPanel, InteractHandlers, Node3d, Text3d, WidgetShape,
+			borders::Border, new_unlit_material,
+			CuboidPanel, CylinderPanel, Node3d, Text3d, WidgetShape,
 		},
 		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiAction, UiMat, UiMatBuilder,
 		GLOBAL_UI_RENDER_LAYERS,
@@ -27,6 +27,7 @@ use std::{
 	f32::consts::{FRAC_PI_3, FRAC_PI_6},
 	ops::ControlFlow::Break,
 };
+use engine::ui::interact::{dbg_event, focus_toggle_border, on_ok, InteractHandlers};
 
 pub mod ctrls_menu;
 
