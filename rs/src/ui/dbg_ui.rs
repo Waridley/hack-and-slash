@@ -23,8 +23,12 @@ use crate::{
 	util::History,
 };
 
-pub fn plugin(app: &mut App) -> &mut App {
-	app.add_debug_systems(height_under_player.show_with(KeyCode::KeyH))
+pub struct DbgUiPlugin;
+
+impl Plugin for DbgUiPlugin {
+	fn build(&self, app: &mut App) {
+		app.add_debug_systems(height_under_player.show_with(KeyCode::KeyH));
+	}
 }
 
 pub fn plot_res_history<T: Resource, const LINES: usize>(

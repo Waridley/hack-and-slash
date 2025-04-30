@@ -84,7 +84,7 @@ impl Plugin for UiPlugin {
 			AnimationPlugin::<Fade>::default(),
 			widgets::borders::WidgetBordersPlugin,
 		))
-		.register_untyped_asset_downcaster::<UiMat>(downcast_material::<UiMat>)
+		.register_erased_asset_downcaster::<UiMat>(downcast_material::<UiMat>)
 		.register_type::<MenuStack>()
 		.register_type::<UiCam>()
 		.register_type::<Fade>()
@@ -688,7 +688,7 @@ use crate::{
 			new_unlit_material, CuboidContainer, CylinderPanel, InteractHandlers, PrevFocus,
 		},
 	},
-	util::{downcast_material, RegisterUntypedAssetDowncaster},
+	util::{downcast_material, RegisterErasedAssetDowncaster},
 };
 #[cfg(feature = "dev_ui")]
 use bevy_inspector_egui::{

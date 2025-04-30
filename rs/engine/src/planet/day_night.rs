@@ -5,8 +5,12 @@ use web_time::Duration;
 
 const SECS_PER_MIN: f64 = 60.0;
 
-pub fn plugin(app: &mut App) -> &mut App {
-	app.add_systems(Update, update_day_night)
+pub struct DayNightPlugin;
+
+impl Plugin for DayNightPlugin {
+	fn build(&self, app: &mut App) {
+		app.add_systems(Update, update_day_night);
+	}
 }
 
 #[derive(Resource, ExtractResource, Clone, Debug, Reflect)]

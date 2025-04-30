@@ -3,11 +3,12 @@ use crate::{
 	planet::{chunks::ChunkFinder, frame::Frame, PlanetVec2},
 	player::{
 		abilities::{BoosterCharge, HurtboxFilter, WeaponCharge},
+		input::PlayerInputPlugin,
 		tune::{AbilityParams, PlayerParams, PlayerPhysicsParams},
 	},
 	settings::Settings,
 	terminal_velocity,
-	util::{Diff, IntoFnPlugin, Prev, TransformDelta},
+	util::{Diff, Prev, TransformDelta},
 	NeverDespawn, TerminalVelocity,
 };
 use bevy::{
@@ -71,7 +72,10 @@ pub const fn player_hud_layer(player: PlayerId) -> Layer {
 	GLOBAL_UI_LAYER - (player.get() as Layer * 2)
 }
 
-pub fn plugin(app: &mut App) -> &mut App {
+pub struct PlayerPlugin;
+
+impl Plugin for PlayerPlugin {
+	fn build(&self, app: &mut App) {
 	#[cfg(feature = "debugging")]
 	{
 		macro_rules! init_dbg_gizmos {
@@ -115,7 +119,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 
 	app.add_plugins((
 		prefs::PrefsPlugin,
-		input::plugin.plugfn(),
+		PlayerInputPlugin,
 		crate::anim::AnimationPlugin::<RotVel>::PLUGIN,
 	))
 	.register_type::<AssetPath>()
@@ -178,7 +182,7 @@ pub fn plugin(app: &mut App) -> &mut App {
 		),
 	)
 	.add_event::<PlayerSpawnEvent>();
-	app
+	}
 }
 
 pub fn setup(

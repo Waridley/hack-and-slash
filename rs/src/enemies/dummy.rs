@@ -33,15 +33,19 @@ use crate::{
 
 use super::enemy::Dummy;
 
-pub fn plugin(app: &mut App) -> &mut App {
-	app.add_systems(Startup, setup)
-		.add_event::<NewDummy>()
-		.insert_resource(DummySpawnTimer(Timer::new(
-			Duration::from_secs(15),
-			TimerMode::Repeating,
-		)))
-		.add_systems(Update, (consume_spawn_events::<Dummy>, handle_hits))
-		.add_systems(Last, spawn_new_dummies)
+pub struct DummyPlugin;
+
+impl Plugin for DummyPlugin {
+	fn build(&self, app: &mut App) {
+		app.add_systems(Startup, setup)
+			.add_event::<NewDummy>()
+			.insert_resource(DummySpawnTimer(Timer::new(
+				Duration::from_secs(15),
+				TimerMode::Repeating,
+			)))
+			.add_systems(Update, (consume_spawn_events::<Dummy>, handle_hits))
+			.add_systems(Last, spawn_new_dummies);
+	}
 }
 
 fn setup(

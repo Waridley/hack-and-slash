@@ -1,4 +1,4 @@
-use crate::{enemies::copter::QuadCopterPlugin, util::IntoFnPlugin};
+use crate::enemies::copter::QuadCopterPlugin;
 use bevy::prelude::*;
 use enum_components::EnumComponent;
 use mine::MinePlugin;
@@ -9,11 +9,14 @@ pub mod copter;
 pub mod dummy;
 pub mod mine;
 
-pub fn plugin(app: &mut App) -> &mut App {
-	#[cfg(feature = "debugging")]
-	app.add_plugins(dummy::plugin.plugfn());
-	app.add_plugins((aa::plugin.plugfn(), MinePlugin, QuadCopterPlugin));
-	app
+pub struct EnemiesPlugin;
+
+impl Plugin for EnemiesPlugin {
+	fn build(&self, app: &mut App) {
+		#[cfg(feature = "debugging")]
+		app.add_plugins(dummy::DummyPlugin);
+		app.add_plugins((aa::AaPlugin, MinePlugin, QuadCopterPlugin));
+	}
 }
 
 #[derive(EnumComponent, Reflect)]

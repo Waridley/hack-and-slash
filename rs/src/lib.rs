@@ -24,7 +24,6 @@ use player::{abilities::AbilitiesPlugin, ctrl::CtrlVel};
 #[cfg(all(feature = "dylib", not(target_arch = "wasm32")))]
 use sond_has_engine_dylib;
 use tiny_bail::prelude::rq;
-use util::IntoFnPlugin;
 
 use crate::{mats::MatsPlugin, player::player_entity::Root};
 
@@ -63,12 +62,12 @@ impl Plugin for GamePlugin {
 				MatsPlugin,
 				anim::BuiltinAnimations,
 				anim::AnimationPlugin::<Spewer>::PLUGIN,
-				enemies::plugin.plugfn(),
-				player::plugin.plugfn(),
-				pickups::plugin.plugfn(),
-				settings::plugin.plugfn(),
-				planet::plugin.plugfn(),
-				ui::plugin.plugfn(),
+				enemies::EnemiesPlugin,
+				player::PlayerPlugin,
+				pickups::PickupsPlugin,
+				settings::SettingsPlugin,
+				planet::PlanetPlugin,
+				ui::UiPlugin,
 			))
 			.insert_resource(PkvStore::new_with_qualifier("studio", "sonday", "has"))
 			.insert_resource(TimestepMode::Interpolated {

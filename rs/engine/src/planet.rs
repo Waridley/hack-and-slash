@@ -1,16 +1,15 @@
-use crate::{
-	planet::{
-		chunks::{ChunkIndex, LoadedChunks},
-		day_night::DayNightCycle,
-		frame::PlanetFramePlugin,
-		weather::WeatherPlugin,
-	},
-	util::{Diff, IntoFnPlugin},
+use crate::planet::{
+	chunks::{ChunkIndex, LoadedChunks},
+	day_night::{DayNightCycle, DayNightPlugin},
+	frame::PlanetFramePlugin,
+	weather::WeatherPlugin,
 };
+use crate::util::Diff;
 use bevy::prelude::*;
 use bevy_rapier3d::na::{Vector2, Vector3};
 use serde::{Deserialize, Serialize};
 use std::ops::{Add, Deref, DerefMut, Sub};
+use terrain::TerrainPlugin;
 
 pub mod chunks;
 pub mod day_night;
@@ -19,16 +18,20 @@ pub mod sky;
 pub mod terrain;
 pub mod weather;
 
-pub fn plugin(app: &mut App) -> &mut App {
-	app.add_plugins((
-		terrain::plugin.plugfn(),
-		day_night::plugin.plugfn(),
-		PlanetFramePlugin,
-		WeatherPlugin,
-	))
-	.init_resource::<DayNightCycle>()
-	.register_type::<DayNightCycle>()
-	.init_resource::<LoadedChunks>()
+pub struct PlanetPlugin;
+
+impl Plugin for PlanetPlugin {
+	fn build(&self, app: &mut App) {
+		app.add_plugins((
+			TerrainPlugin,
+			DayNightPlugin,
+			PlanetFramePlugin,
+			WeatherPlugin,
+		))
+		.init_resource::<DayNightCycle>()
+		.register_type::<DayNightCycle>()
+		.init_resource::<LoadedChunks>();
+	}
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Serialize, Deserialize, Reflect)]
