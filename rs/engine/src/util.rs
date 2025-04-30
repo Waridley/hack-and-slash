@@ -44,27 +44,6 @@ pub fn quantize<const BITS: u32>(value: f32) -> f32 {
 	d - t
 }
 
-pub struct FnPlugin<F: for<'a> Fn(&'a mut App) -> &'a mut App + Send + Sync + 'static>(F);
-
-impl<F> Plugin for FnPlugin<F>
-where
-	F: for<'a> Fn(&'a mut App) -> &'a mut App + Send + Sync + 'static,
-{
-	fn build(&self, app: &mut App) {
-		(self.0)(app);
-	}
-}
-
-pub trait IntoFnPlugin:
-	for<'a> Fn(&'a mut App) -> &'a mut App + Sized + Send + Sync + 'static
-{
-	fn plugfn(self) -> FnPlugin<Self> {
-		FnPlugin(self)
-	}
-}
-
-impl<F: for<'a> Fn(&'a mut App) -> &'a mut App + Send + Sync + 'static> IntoFnPlugin for F {}
-
 pub trait Spawnable {
 	type Params: SystemParam + 'static;
 	type InstanceData;
@@ -2122,34 +2101,34 @@ pub struct ErasedAssetDowncasters(HashMap<TypeId, ErasedAssetDowncaster>);
 impl ErasedAssetDowncasters {
 	pub fn register<A: Asset>(
 		&mut self,
-		replacer: impl FnMut(EntityCommands, UntypedHandle) + Send + Sync + 'static,
+		downcaster: impl FnMut(EntityCommands, UntypedHandle) + Send + Sync + 'static,
 	) {
 		if self
 			.0
-			.try_insert(TypeId::of::<A>(), Box::new(replacer))
+			.try_insert(TypeId::of::<A>(), Box::new(downcaster))
 			.is_err()
 		{
-			panic!("Replacer already registered for {}", A::type_path());
+			panic!("Downcaster already registered for {}", A::type_path());
 		}
 	}
 }
 
-pub trait RegisterUntypedAssetDowncaster {
-	fn register_untyped_asset_downcaster<A: Asset>(
+pub trait RegisterErasedAssetDowncaster {
+	fn register_erased_asset_downcaster<A: Asset>(
 		&mut self,
-		replacer: impl FnMut(EntityCommands, UntypedHandle) + Send + Sync + 'static,
+		downcaster: impl FnMut(EntityCommands, UntypedHandle) + Send + Sync + 'static,
 	) -> &mut Self;
 }
 
-impl RegisterUntypedAssetDowncaster for App {
-	fn register_untyped_asset_downcaster<A: Asset>(
+impl RegisterErasedAssetDowncaster for App {
+	fn register_erased_asset_downcaster<A: Asset>(
 		&mut self,
-		replacer: impl FnMut(EntityCommands, UntypedHandle) + Send + Sync + 'static,
+		downcaster: impl FnMut(EntityCommands, UntypedHandle) + Send + Sync + 'static,
 	) -> &mut Self {
-		let mut replacers = self
+		let mut downcasters = self
 			.world_mut()
 			.get_resource_or_init::<ErasedAssetDowncasters>();
-		replacers.register::<A>(replacer);
+		downcasters.register::<A>(downcaster);
 		self
 	}
 }

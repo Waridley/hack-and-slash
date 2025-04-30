@@ -26,10 +26,14 @@ pub const RADIUS: f32 = 8.0;
 pub static HEALTH: AtomicI64 = AtomicI64::new(0);
 pub static SHIELD: AtomicI64 = AtomicI64::new(0);
 
-pub fn plugin(app: &mut App) -> &mut App {
-	app.add_systems(Startup, setup)
-		.insert_resource(PickupRng(SmallRng::from_entropy()))
-		.add_systems(Update, (collect, spawn_pickups, movement, miss))
+pub struct PickupsPlugin;
+
+impl Plugin for PickupsPlugin {
+	fn build(&self, app: &mut App) {
+		app.add_systems(Startup, setup)
+			.insert_resource(PickupRng(SmallRng::from_entropy()))
+			.add_systems(Update, (collect, spawn_pickups, movement, miss));
+	}
 }
 
 #[cfg(feature = "bevy_kira_audio")]

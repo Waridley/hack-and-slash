@@ -2,8 +2,12 @@ use bevy::{core_pipeline::fxaa::Fxaa, prelude::*};
 use bevy_pkv::PkvStore;
 use serde::{Deserialize, Serialize};
 
-pub fn plugin(app: &mut App) -> &mut App {
-	app.init_resource::<Settings>().add_systems(First, load)
+pub struct SettingsPlugin;
+
+impl Plugin for SettingsPlugin {
+	fn build(&self, app: &mut App) {
+		app.init_resource::<Settings>().add_systems(First, load);
+	}
 }
 
 pub fn load(mut cmds: Commands, settings: Res<Settings>, cam_q: Query<Entity, With<Camera>>) {
