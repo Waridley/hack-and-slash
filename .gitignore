@@ -1,3 +1,4 @@
 **/target/
 **/*.tracy
 **rustc-ice-*.txt
+*~

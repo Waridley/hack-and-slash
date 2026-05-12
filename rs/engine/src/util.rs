@@ -4,7 +4,10 @@ use bevy::{
 	ecs::{
 		component::ComponentId,
 		query::QueryFilter,
-		system::{EntityCommands, StaticSystemParam, SystemParam, SystemParamItem},
+		system::{
+			CombinatorSystem, Combine, EntityCommands, StaticSystemParam, SystemParam,
+			SystemParamItem,
+		},
 		world::DeferredWorld,
 	},
 	math::Dir2,
@@ -44,27 +47,6 @@ pub fn quantize<const BITS: u32>(value: f32) -> f32 {
 	d - t
 }
 
-pub struct FnPlugin<F: for<'a> Fn(&'a mut App) -> &'a mut App + Send + Sync + 'static>(F);
-
-impl<F> Plugin for FnPlugin<F>
-where
-	F: for<'a> Fn(&'a mut App) -> &'a mut App + Send + Sync + 'static,
-{
-	fn build(&self, app: &mut App) {
-		(self.0)(app);
-	}
-}
-
-pub trait IntoFnPlugin:
-	for<'a> Fn(&'a mut App) -> &'a mut App + Sized + Send + Sync + 'static
-{
-	fn plugfn(self) -> FnPlugin<Self> {
-		FnPlugin(self)
-	}
-}
-
-impl<F: for<'a> Fn(&'a mut App) -> &'a mut App + Send + Sync + 'static> IntoFnPlugin for F {}
-
 pub trait Spawnable {
 	type Params: SystemParam + 'static;
 	type InstanceData;
@@ -82,7 +64,7 @@ pub struct Factory<'w, 's, P: Spawnable + 'static> {
 }
 
 impl<T: Spawnable> Factory<'_, '_, T> {
-	pub fn spawn(&mut self, data: T::InstanceData) -> EntityCommands {
+	pub fn spawn(&mut self, data: T::InstanceData) -> EntityCommands<'_> {
 		let Self { cmds, params } = self;
 		T::spawn(cmds, params, data)
 	}
@@ -1695,7 +1677,23 @@ impl MeshOutline {
 	}
 
 	pub fn generate_for(&self, mesh: &Mesh) -> Mesh {
-		let mut mesh = mesh.clone();
+		let mut mesh = {
+			// Only need to clone positions, normals, and indices. Outline won't use any other attributes.
+			let mut new = Mesh::new(mesh.primitive_topology(), mesh.asset_usage)
+				.with_inserted_attribute(
+					Mesh::ATTRIBUTE_POSITION,
+					mesh.attribute(Mesh::ATTRIBUTE_POSITION).unwrap().clone(),
+				)
+				.with_inserted_attribute(
+					Mesh::ATTRIBUTE_NORMAL,
+					mesh.attribute(Mesh::ATTRIBUTE_NORMAL).unwrap().clone(),
+				);
+			if let Some(indices) = mesh.indices() {
+				new.insert_indices(indices.clone());
+			}
+			new
+		};
+
 		deduplicate_vertices(&mut mesh, f32::EPSILON);
 
 		let positions = mesh
@@ -1881,7 +1879,7 @@ impl MeshOutline {
 		};
 		let len = positions.len();
 
-		for (pos, offset) in positions.iter_mut().zip(offsets.into_iter()) {
+		for (pos, offset) in positions.iter_mut().zip(offsets) {
 			*pos = (Vec3::from_array(*pos) + offset).to_array()
 		}
 
@@ -2035,6 +2033,8 @@ pub fn deduplicate_vertices(mesh: &mut Mesh, max_diff: f32) {
 
 /// Like `Mesh::compute_smooth_normals` but does not let multiple co-planar triangles influence
 /// the normal of a vertex disproportionately.
+///
+/// Can be replaced by https://github.com/bevyengine/bevy/pull/18552 when it lands, probably in 0.17
 pub fn compute_geometric_normals(mesh: &mut Mesh) {
 	let Some(positions) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else {
 		error!("Mesh is missing positions");
@@ -2110,34 +2110,34 @@ pub struct ErasedAssetDowncasters(HashMap<TypeId, ErasedAssetDowncaster>);
 impl ErasedAssetDowncasters {
 	pub fn register<A: Asset>(
 		&mut self,
-		replacer: impl FnMut(EntityCommands, UntypedHandle) + Send + Sync + 'static,
+		downcaster: impl FnMut(EntityCommands, UntypedHandle) + Send + Sync + 'static,
 	) {
 		if self
 			.0
-			.try_insert(TypeId::of::<A>(), Box::new(replacer))
+			.try_insert(TypeId::of::<A>(), Box::new(downcaster))
 			.is_err()
 		{
-			panic!("Replacer already registered for {}", A::type_path());
+			panic!("Downcaster already registered for {}", A::type_path());
 		}
 	}
 }
 
-pub trait RegisterUntypedAssetDowncaster {
-	fn register_untyped_asset_downcaster<A: Asset>(
+pub trait RegisterErasedAssetDowncaster {
+	fn register_erased_asset_downcaster<A: Asset>(
 		&mut self,
-		replacer: impl FnMut(EntityCommands, UntypedHandle) + Send + Sync + 'static,
+		downcaster: impl FnMut(EntityCommands, UntypedHandle) + Send + Sync + 'static,
 	) -> &mut Self;
 }
 
-impl RegisterUntypedAssetDowncaster for App {
-	fn register_untyped_asset_downcaster<A: Asset>(
+impl RegisterErasedAssetDowncaster for App {
+	fn register_erased_asset_downcaster<A: Asset>(
 		&mut self,
-		replacer: impl FnMut(EntityCommands, UntypedHandle) + Send + Sync + 'static,
+		downcaster: impl FnMut(EntityCommands, UntypedHandle) + Send + Sync + 'static,
 	) -> &mut Self {
-		let mut replacers = self
+		let mut downcasters = self
 			.world_mut()
 			.get_resource_or_init::<ErasedAssetDowncasters>();
-		replacers.register::<A>(replacer);
+		downcasters.register::<A>(downcaster);
 		self
 	}
 }
@@ -2174,5 +2174,28 @@ impl<T: Iterator, const N: usize> Iterator for ArrayChunksIter<T, N> {
 			None => Err(()),
 		})
 		.ok()
+	}
+}
+
+pub struct ThenMarker;
+
+pub type Then<A, B> = CombinatorSystem<ThenMarker, A, B>;
+
+impl<A, B, I, Transient, O> Combine<A, B> for ThenMarker
+where
+	A: System<In = I, Out = Option<Transient>>,
+	B: System<In = In<Transient>, Out = O>,
+	I: SystemInput,
+	Transient: 'static,
+{
+	type In = I;
+	type Out = Option<O>;
+
+	fn combine(
+		input: <Self::In as SystemInput>::Inner<'_>,
+		a: impl FnOnce(SystemIn<'_, A>) -> A::Out,
+		b: impl FnOnce(SystemIn<'_, B>) -> B::Out,
+	) -> Self::Out {
+		a(input).map(b)
 	}
 }

@@ -5,8 +5,12 @@ use web_time::Duration;
 
 const SECS_PER_MIN: f64 = 60.0;
 
-pub fn plugin(app: &mut App) -> &mut App {
-	app.add_systems(Update, update_day_night)
+pub struct DayNightPlugin;
+
+impl Plugin for DayNightPlugin {
+	fn build(&self, app: &mut App) {
+		app.add_systems(Update, update_day_night);
+	}
 }
 
 #[derive(Resource, ExtractResource, Clone, Debug, Reflect)]
@@ -18,11 +22,14 @@ pub fn plugin(app: &mut App) -> &mut App {
 )]
 pub struct DayNightCycle {
 	pub mode: DayNightMode,
-	#[cfg_attr(feature = "dev_ui", inspector(min = 1.0, speed = 5.0))] // min 1s, 5s increments
+	#[cfg_attr(feature = "dev_ui", inspector(min = 1.0, speed = 5.0_f32))] // min 1s, 5s increments
 	day_length: f64,
-	#[cfg_attr(feature = "dev_ui", inspector(min = 0.0, max = 1.0, speed = 0.001))]
+	#[cfg_attr(feature = "dev_ui", inspector(min = 0.0, max = 1.0, speed = 0.001_f32))]
 	pub time_of_day: f64,
-	#[cfg_attr(feature = "dev_ui", inspector(min = 0.0, max = 1.0, speed = 0.0001))]
+	#[cfg_attr(
+		feature = "dev_ui",
+		inspector(min = 0.0, max = 1.0, speed = 0.0001_f32)
+	)]
 	pub daylight: f64,
 	pub sun_direction: Vec3,
 	pub moon_direction: Vec3,

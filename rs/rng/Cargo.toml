@@ -1,0 +1,17 @@
+[package]
+name = "sond-has-rng"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["bevy_ecs", "serde"]
+
+[dependencies]
+bevy_ecs = { workspace = true, optional = true }
+base64.workspace = true
+blake3.workspace = true
+rand_chacha.workspace = true
+tracing.workspace = true
+rand.workspace = true
+serde = { workspace = true, features = ["derive"], optional = true }
+breaking-attr.workspace = true

@@ -325,7 +325,7 @@ impl AnimationController<'_> {
 		self.cmds.despawn();
 	}
 
-	pub fn commands(&mut self) -> Commands {
+	pub fn commands(&mut self) -> Commands<'_, '_> {
 		self.cmds.commands()
 	}
 }

@@ -3,11 +3,12 @@ use crate::{
 	planet::{chunks::ChunkFinder, frame::Frame, PlanetVec2},
 	player::{
 		abilities::{BoosterCharge, HurtboxFilter, WeaponCharge},
+		input::PlayerInputPlugin,
 		tune::{AbilityParams, PlayerParams, PlayerPhysicsParams},
 	},
 	settings::Settings,
 	terminal_velocity,
-	util::{Diff, IntoFnPlugin, Prev, TransformDelta},
+	util::{Diff, Prev, TransformDelta},
 	NeverDespawn, TerminalVelocity,
 };
 use bevy::{
@@ -71,114 +72,117 @@ pub const fn player_hud_layer(player: PlayerId) -> Layer {
 	GLOBAL_UI_LAYER - (player.get() as Layer * 2)
 }
 
-pub fn plugin(app: &mut App) -> &mut App {
-	#[cfg(feature = "debugging")]
-	{
-		macro_rules! init_dbg_gizmos {
-			($i:literal) => {
-				let layers = RenderLayers::layer(player_ui_layer(PlayerId::new($i).unwrap()));
-				app.add_systems(
-					PostUpdate,
-					(
-						engine::ui::widgets::draw_widget_shape_gizmos::<$i>,
-						engine::ui::focus::highlight_focus::<$i>,
-					)
-						.chain()
-						.run_if(bevy::input::common_conditions::input_toggle_active(
-							false,
-							KeyCode::KeyG,
-						))
-						.after(bevy::render::view::VisibilitySystems::CheckVisibility),
-				)
-				.insert_gizmo_config(
-					engine::ui::widgets::WidgetGizmos::<$i>,
-					GizmoConfig {
-						render_layers: layers.clone(),
-						..default()
-					},
-				)
-				.insert_gizmo_config(
-					engine::ui::focus::FocusGizmos::<$i>,
-					GizmoConfig {
-						line_width: 6.0,
-						render_layers: layers,
-						..default()
-					},
-				);
-			};
-		}
-		init_dbg_gizmos!(1);
-		init_dbg_gizmos!(2);
-		init_dbg_gizmos!(3);
-		init_dbg_gizmos!(4);
-	}
+pub struct PlayerPlugin;
 
-	app.add_plugins((
-		prefs::PrefsPlugin,
-		input::plugin.plugfn(),
-		crate::anim::AnimationPlugin::<RotVel>::PLUGIN,
-	))
-	.register_type::<AssetPath>()
-	.register_type::<TorusMeshBuilderReflectable>()
-	.register_type::<IcosphereMeshBuilderReflectable>()
-	.register_type::<(Color, Color, Color)>()
-	.register_type::<PlayerAssets>()
-	.register_type::<BoosterCharge>()
-	.register_type::<WeaponCharge>()
-	.register_type::<AbilityParams>()
-	.register_type::<tune::PlayerCollider>()
-	.register_type::<PlayerPhysicsParams>()
-	.register_type::<PlayerParams>()
-	.insert_resource(PlayerRespawnTimers::default())
-	.add_systems(Startup, setup)
-	.add_systems(
-		First,
-		update_player_spawn_data.run_if(resource_exists_and_changed::<PlayerAssets>),
-	)
-	.add_systems(PreUpdate, Prev::<CtrlState>::update_component)
-	.add_systems(
-		Update,
-		(
-			ctrl::gravity
-				.ambiguous_with(input::InputSystems) // Gravity only affects z, input only affects xy
-				.before(terminal_velocity)
-				.run_if(resource_exists::<PlayerParams>),
-			ctrl::reset_jump_on_ground
-				.before(input::InputSystems)
-				.run_if(resource_exists::<PlayerParams>),
+impl Plugin for PlayerPlugin {
+	fn build(&self, app: &mut App) {
+		#[cfg(feature = "debugging")]
+		{
+			macro_rules! init_dbg_gizmos {
+				($i:literal) => {
+					let layers = RenderLayers::layer(player_ui_layer(PlayerId::new($i).unwrap()));
+					app.add_systems(
+						PostUpdate,
+						(
+							engine::ui::widgets::draw_widget_shape_gizmos::<$i>,
+							engine::ui::focus::highlight_focus::<$i>,
+						)
+							.chain()
+							.run_if(bevy::input::common_conditions::input_toggle_active(
+								false,
+								KeyCode::KeyG,
+							))
+							.after(bevy::render::view::VisibilitySystems::CheckVisibility),
+					)
+					.insert_gizmo_config(
+						engine::ui::widgets::WidgetGizmos::<$i>,
+						GizmoConfig {
+							render_layers: layers.clone(),
+							..default()
+						},
+					)
+					.insert_gizmo_config(
+						engine::ui::focus::FocusGizmos::<$i>,
+						GizmoConfig {
+							line_width: 6.0,
+							render_layers: layers,
+							..default()
+						},
+					);
+				};
+			}
+			init_dbg_gizmos!(1);
+			init_dbg_gizmos!(2);
+			init_dbg_gizmos!(3);
+			init_dbg_gizmos!(4);
+		}
+
+		app.add_plugins((
+			prefs::PrefsPlugin,
+			PlayerInputPlugin,
+			crate::anim::AnimationPlugin::<RotVel>::PLUGIN,
+		))
+		.register_type::<AssetPath>()
+		.register_type::<TorusMeshBuilderReflectable>()
+		.register_type::<IcosphereMeshBuilderReflectable>()
+		.register_type::<(Color, Color, Color)>()
+		.register_type::<PlayerAssets>()
+		.register_type::<BoosterCharge>()
+		.register_type::<WeaponCharge>()
+		.register_type::<AbilityParams>()
+		.register_type::<tune::PlayerCollider>()
+		.register_type::<PlayerPhysicsParams>()
+		.register_type::<PlayerParams>()
+		.insert_resource(PlayerRespawnTimers::default())
+		.add_systems(Startup, setup)
+		.add_systems(
+			First,
+			update_player_spawn_data.run_if(resource_exists_and_changed::<PlayerAssets>),
+		)
+		.add_systems(PreUpdate, Prev::<CtrlState>::update_component)
+		.add_systems(
+			Update,
 			(
-				// camera::avatar_rotation_follow_pivot,
-				ctrl::move_player
-					.before(TransformSystem::TransformPropagate)
-					.before(StepSimulation)
-					.after(terminal_velocity)
+				ctrl::gravity
+					.ambiguous_with(input::InputSystems) // Gravity only affects z, input only affects xy
+					.before(terminal_velocity)
 					.run_if(resource_exists::<PlayerParams>),
-				camera::pivot_follow_ship,
-				camera::position_target,
-				camera::follow_target,
-			)
-				.chain()
-				.after(input::InputSystems),
-			idle,
-			orbs_follow_arms.after(idle),
-		),
-	)
-	.add_systems(
-		Last,
-		(
-			reset_oob.before(crate::despawn_oob),
-			kill_on_key,
-			countdown_respawn,
-			#[cfg(feature = "bevy_kira_audio")]
-			play_death_sound.after(kill_on_key).after(reset_oob),
-			spawn_players
-				.after(countdown_respawn)
-				.run_if(resource_exists::<PlayerParams>)
-				.run_if(resource_exists::<PlayerSpawnData>),
-		),
-	)
-	.add_event::<PlayerSpawnEvent>();
-	app
+				ctrl::reset_jump_on_ground
+					.before(input::InputSystems)
+					.run_if(resource_exists::<PlayerParams>),
+				(
+					// camera::avatar_rotation_follow_pivot,
+					ctrl::move_player
+						.before(TransformSystem::TransformPropagate)
+						.before(StepSimulation)
+						.after(terminal_velocity)
+						.run_if(resource_exists::<PlayerParams>),
+					camera::pivot_follow_ship,
+					camera::position_target,
+					camera::follow_target,
+				)
+					.chain()
+					.after(input::InputSystems),
+				idle,
+				orbs_follow_arms.after(idle),
+			),
+		)
+		.add_systems(
+			Last,
+			(
+				reset_oob.before(crate::despawn_oob),
+				kill_on_key,
+				countdown_respawn,
+				#[cfg(feature = "bevy_kira_audio")]
+				play_death_sound.after(kill_on_key).after(reset_oob),
+				spawn_players
+					.after(countdown_respawn)
+					.run_if(resource_exists::<PlayerParams>)
+					.run_if(resource_exists::<PlayerSpawnData>),
+			),
+		)
+		.add_event::<PlayerSpawnEvent>();
+	}
 }
 
 pub fn setup(

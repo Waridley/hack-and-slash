@@ -31,33 +31,33 @@ use crate::{
 			TERRAIN_CELL_SIZE,
 		},
 		frame::Frame,
-		seeds::PlanetSeed,
-		terrain::{
-			noise::{ChooseAndSmooth, Source, SyncWorley},
-			seeds::TerrainSeeds,
-		},
 		PlanetVec2,
 	},
 	util::Diff,
 };
+use rng::{terrain::TerrainSeeds, PlanetSeed};
 
 pub mod noise;
 pub mod physics;
-pub mod seeds;
+
+use noise::{ChooseAndSmooth, Source, SyncWorley};
 
 pub type Noise = ChooseAndSmooth<4>;
 
-pub fn plugin(app: &mut App) -> &mut App {
-	// WHY is there no length function on `Vector2`??
-	let diameter = (CHUNK_SCALE.x * CHUNK_SCALE.x + CHUNK_SCALE.y * CHUNK_SCALE.y).sqrt();
+pub struct TerrainPlugin;
 
-	app.add_systems(Startup, setup)
-		.init_resource::<ChunkLoadingTasks>()
-		.insert_resource(UnloadDistance(5.0 * diameter))
-		.add_systems(PreUpdate, spawn_loaded_chunks)
-		.add_systems(Last, (load_nearby_chunks, unload_distant_chunks))
+impl Plugin for TerrainPlugin {
+	fn build(&self, app: &mut App) {
+		// WHY is there no length function on `Vector2`??
+		let diameter = (CHUNK_SCALE.x * CHUNK_SCALE.x + CHUNK_SCALE.y * CHUNK_SCALE.y).sqrt();
+
+		app.add_systems(Startup, setup)
+			.init_resource::<ChunkLoadingTasks>()
+			.insert_resource(UnloadDistance(5.0 * diameter))
+			.add_systems(PreUpdate, spawn_loaded_chunks)
+			.add_systems(Last, (load_nearby_chunks, unload_distant_chunks));
+	}
 }
-
 pub fn setup(
 	mut cmds: Commands,
 	assets: Res<AssetServer>,

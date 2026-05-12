@@ -1,5 +1,9 @@
 use bevy::prelude::*;
 
-pub fn plugin(app: &mut App) -> &mut App {
-	app
+pub struct AaPlugin;
+
+impl Plugin for AaPlugin {
+	fn build(&self, _app: &mut App) {
+		// TODO
+	}
 }

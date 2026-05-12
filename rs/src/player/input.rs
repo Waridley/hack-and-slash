@@ -19,20 +19,24 @@ use std::{f32::consts::FRAC_PI_2, fmt::Formatter, time::Duration};
 #[derive(SystemSet, Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct InputSystems;
 
-pub fn plugin(app: &mut App) -> &mut App {
-	app.add_plugins((InputManagerPlugin::<PlayerAction>::default(),))
-		.add_event::<ActionDiffEvent<PlayerAction>>()
-		.add_systems(First, setup)
-		.add_systems(
-			Update,
-			(
-				look_input,
-				movement_input.run_if(resource_exists::<PlayerParams>),
+pub struct PlayerInputPlugin;
+
+impl Plugin for PlayerInputPlugin {
+	fn build(&self, app: &mut App) {
+		app.add_plugins((InputManagerPlugin::<PlayerAction>::default(),))
+			.add_event::<ActionDiffEvent<PlayerAction>>()
+			.add_systems(First, setup)
+			.add_systems(
+				Update,
+				(
+					look_input,
+					movement_input.run_if(resource_exists::<PlayerParams>),
+				)
+					.before(terminal_velocity)
+					.in_set(InputSystems),
 			)
-				.before(terminal_velocity)
-				.in_set(InputSystems),
-		)
-		.add_systems(PostUpdate, generate_action_diffs::<PlayerAction>)
+			.add_systems(PostUpdate, generate_action_diffs::<PlayerAction>);
+	}
 }
 
 fn setup(

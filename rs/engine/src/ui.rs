@@ -5,7 +5,7 @@ use crate::{
 		fog::{DistanceDither, Matter},
 		ExtMat,
 	},
-	ui::widgets::{CuboidPanel, Text3d},
+	ui::widgets::{CuboidPanel, Node3d, Text3d},
 	util::{Diff, LerpSlerp},
 };
 use bevy::{
@@ -34,6 +34,7 @@ pub mod a11y;
 #[cfg(feature = "dev_ui")]
 pub mod dbg;
 pub mod focus;
+pub mod interact;
 pub mod layout;
 pub mod mouse;
 pub mod text;
@@ -84,7 +85,7 @@ impl Plugin for UiPlugin {
 			AnimationPlugin::<Fade>::default(),
 			widgets::borders::WidgetBordersPlugin,
 		))
-		.register_untyped_asset_downcaster::<UiMat>(downcast_material::<UiMat>)
+		.register_erased_asset_downcaster::<UiMat>(downcast_material::<UiMat>)
 		.register_type::<MenuStack>()
 		.register_type::<UiCam>()
 		.register_type::<Fade>()
@@ -455,6 +456,7 @@ pub struct PopupsRoot;
 /// Thus they are added as children of the [PopupsRoot] which is always in
 /// front of the camera.
 #[derive(Component, Debug, Reflect)]
+#[require(Node3d)]
 #[reflect(Component)]
 pub struct Popup;
 
@@ -607,7 +609,7 @@ pub struct MenuStack(pub Vec<MenuRef>);
 
 impl MenuStack {
 	pub fn pop_on_back(layers: RenderLayers, fade_secs: f32) -> InteractHandlers {
-		InteractHandlers::on_back(move |cmds| {
+		InteractHandlers::on_back(move |cmds: &mut EntityCommands| {
 			cmds.fade_out_secs(fade_secs);
 			let layers = layers.clone();
 			cmds.commands().queue(move |world: &mut World| {
@@ -624,6 +626,38 @@ impl MenuStack {
 			Break(())
 		})
 	}
+
+	/// Uses a component (PopOnBackFade) + standalone observer function.
+	/// TODO: simplify once Bevy supports closures as IntoObserverSystem.
+	pub fn observe_pop_on_back(cmds: &mut EntityCommands, fade_secs: f32) {
+		cmds.insert(PopOnBackFade(fade_secs));
+		cmds.observe(pop_on_back_observer);
+	}
+}
+
+#[derive(Component, Debug, Reflect, Deref, DerefMut)]
+#[reflect(Component)]
+pub struct PopOnBackFade(pub f32);
+
+pub fn pop_on_back_observer(
+	trigger: Trigger<Interaction>,
+	fade: Query<&PopOnBackFade>,
+	mut cmds: Commands,
+	mut stack: Query<&mut MenuStack, With<GlobalUi>>,
+) {
+	if trigger.event().source != InteractionSource::Action(UiAction::Back)
+		|| trigger.event().kind != InteractionKind::Begin
+	{
+		return;
+	}
+	let entity = trigger.observer();
+	let Ok(fade) = fade.get(entity) else { return };
+	cmds.entity(entity).fade_out_secs(**fade);
+	let Ok(mut stack) = stack.get_single_mut() else {
+		error!("couldn't find `MenuStack`");
+		return;
+	};
+	stack.pop();
 }
 
 #[derive(Debug, Copy, Clone, Reflect)]
@@ -683,17 +717,16 @@ use crate::{
 	input::ActionExt,
 	ui::{
 		text::Tessellator,
-		widgets::{
-			new_unlit_material, CuboidContainer, CylinderPanel, InteractHandlers, PrevFocus,
-		},
+		widgets::{new_unlit_material, CuboidContainer, CylinderPanel, PrevFocus},
 	},
-	util::{downcast_material, RegisterUntypedAssetDowncaster},
+	util::{downcast_material, RegisterErasedAssetDowncaster},
 };
 #[cfg(feature = "dev_ui")]
 use bevy_inspector_egui::{
 	inspector_options::std_options::NumberDisplay::Slider,
 	prelude::{InspectorOptions, ReflectInspectorOptions},
 };
+use interact::{InteractHandlers, Interaction, InteractionKind, InteractionSource};
 use layout::ExpandToFitChildren;
 use text::{TextMeshCache, UiFonts};
 use web_time::Duration;
@@ -716,7 +749,7 @@ pub struct Fade(
 	#[cfg_attr(feature = "dev_ui", inspector(
 		min = 0.0,
 		max = 1.0,
-		speed = 0.00389, // 1.0 / 257.0
+		speed = 0.00389_f32, // 1.0 / 257.0
 		display = Slider,
 	))]
 	pub f32,
@@ -806,10 +839,7 @@ pub fn propagate_fade<M: Material + AsMut<DitherFade>>(
 			.filter(|&child| !roots.contains(child))
 			.collect::<VecDeque<_>>();
 
-		loop {
-			let Some(child) = queue.pop_front() else {
-				break;
-			};
+		while let Some(child) = queue.pop_front() {
 			if let Ok(mat) = q.get(child) {
 				defer(mat.id())
 			}

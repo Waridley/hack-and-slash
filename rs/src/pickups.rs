@@ -26,10 +26,14 @@ pub const RADIUS: f32 = 8.0;
 pub static HEALTH: AtomicI64 = AtomicI64::new(0);
 pub static SHIELD: AtomicI64 = AtomicI64::new(0);
 
-pub fn plugin(app: &mut App) -> &mut App {
-	app.add_systems(Startup, setup)
-		.insert_resource(PickupRng(SmallRng::from_entropy()))
-		.add_systems(Update, (collect, spawn_pickups, movement, miss))
+pub struct PickupsPlugin;
+
+impl Plugin for PickupsPlugin {
+	fn build(&self, app: &mut App) {
+		app.add_systems(Startup, setup)
+			.insert_resource(PickupRng(SmallRng::from_entropy()))
+			.add_systems(Update, (collect, spawn_pickups, movement, miss));
+	}
 }
 
 #[cfg(feature = "bevy_kira_audio")]
@@ -160,7 +164,7 @@ pub fn movement(mut q: Query<&mut Transform, WithPickup>, t: Res<Time>) {
 	let dt = t.delta_secs();
 	for mut xform in &mut q {
 		let rise_speed = s * (0.9 + ((s * 0.001 + xform.translation.y * 1000.0).sin() * 0.2));
-		xform.translation.z += dt * (8.0 * ((rise_speed + xform.translation.x).sin() + 0.36));
+		xform.translation.z += dt * (4.0 * ((rise_speed + xform.translation.x).sin() + 0.12));
 		// Todo maybe a timer or check the terrain height
 		if xform.translation.z > 4096.0 {
 			xform.translation.z *= 1.003;
