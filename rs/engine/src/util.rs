@@ -64,7 +64,7 @@ pub struct Factory<'w, 's, P: Spawnable + 'static> {
 }
 
 impl<T: Spawnable> Factory<'_, '_, T> {
-	pub fn spawn(&mut self, data: T::InstanceData) -> EntityCommands {
+	pub fn spawn(&mut self, data: T::InstanceData) -> EntityCommands<'_> {
 		let Self { cmds, params } = self;
 		T::spawn(cmds, params, data)
 	}
@@ -1879,7 +1879,7 @@ impl MeshOutline {
 		};
 		let len = positions.len();
 
-		for (pos, offset) in positions.iter_mut().zip(offsets.into_iter()) {
+		for (pos, offset) in positions.iter_mut().zip(offsets) {
 			*pos = (Vec3::from_array(*pos) + offset).to_array()
 		}
 
@@ -2196,10 +2196,6 @@ where
 		a: impl FnOnce(SystemIn<'_, A>) -> A::Out,
 		b: impl FnOnce(SystemIn<'_, B>) -> B::Out,
 	) -> Self::Out {
-		if let Some(input) = a(input) {
-			Some(b(input))
-		} else {
-			None
-		}
+		a(input).map(b)
 	}
 }

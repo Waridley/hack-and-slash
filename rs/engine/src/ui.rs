@@ -749,7 +749,7 @@ pub struct Fade(
 	#[cfg_attr(feature = "dev_ui", inspector(
 		min = 0.0,
 		max = 1.0,
-		speed = 0.00389, // 1.0 / 257.0
+		speed = 0.00389_f32, // 1.0 / 257.0
 		display = Slider,
 	))]
 	pub f32,
@@ -839,10 +839,7 @@ pub fn propagate_fade<M: Material + AsMut<DitherFade>>(
 			.filter(|&child| !roots.contains(child))
 			.collect::<VecDeque<_>>();
 
-		loop {
-			let Some(child) = queue.pop_front() else {
-				break;
-			};
+		while let Some(child) = queue.pop_front() {
 			if let Ok(mat) = q.get(child) {
 				defer(mat.id())
 			}

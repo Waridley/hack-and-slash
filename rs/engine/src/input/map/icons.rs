@@ -108,7 +108,7 @@ impl ButtonIcons {
 		})
 	}
 
-	pub fn iter(&self) -> ButtonIconsIter {
+	pub fn iter(&self) -> ButtonIconsIter<'_> {
 		self.into_iter()
 	}
 }
@@ -229,7 +229,7 @@ impl AxisIcons {
 		)
 	}
 
-	pub fn iter(&self) -> AxisIconsIter {
+	pub fn iter(&self) -> AxisIconsIter<'_> {
 		self.into_iter()
 	}
 }
@@ -377,7 +377,7 @@ impl DualAxisIcons {
 		)
 	}
 
-	pub fn iter(&self) -> DualAxisIconsIter {
+	pub fn iter(&self) -> DualAxisIconsIter<'_> {
 		self.into_iter()
 	}
 }
@@ -497,7 +497,7 @@ impl UserInputIcons {
 		}
 	}
 
-	pub fn iter(&self) -> UserInputIconsIter {
+	pub fn iter(&self) -> UserInputIconsIter<'_> {
 		self.into_iter()
 	}
 }

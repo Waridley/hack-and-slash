@@ -133,7 +133,6 @@ pub fn antigrav(
 				?details,
 				"Downward shape cast shouldn't hit downward-facing surfaces"
 			);
-			return;
 		} else {
 			ctrl_state.touching_ground = false;
 

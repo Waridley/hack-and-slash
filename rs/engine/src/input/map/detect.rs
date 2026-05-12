@@ -185,10 +185,10 @@ pub fn manage_detect_popup(
 	};
 	let root = anchor.single();
 	if *state.get() == DetectingBinding {
-		if parent.is_none() {
-			cmds.entity(id).set_parent(root);
+		if let Some(parent) = parent {
+			debug_assert_eq!(parent.get(), root)
 		} else {
-			debug_assert_eq!(parent.unwrap().get(), root)
+			cmds.entity(id).set_parent(root);
 		}
 	} else if parent.is_some() {
 		debug_assert_eq!(parent.unwrap().get(), root);
