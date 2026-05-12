@@ -34,6 +34,7 @@ use std::{
 	ops::{Add, Div, Index, IndexMut, Mul, Sub},
 	time::Duration,
 };
+use bevy::ecs::system::{CombinatorSystem, Combine};
 
 #[inline(always)]
 pub fn quantize<const BITS: u32>(value: f32) -> f32 {
@@ -2165,5 +2166,32 @@ impl<T: Iterator, const N: usize> Iterator for ArrayChunksIter<T, N> {
 			None => Err(()),
 		})
 		.ok()
+	}
+}
+
+pub struct ThenMarker;
+
+pub type Then<A, B> = CombinatorSystem<ThenMarker, A, B>;
+
+impl<A, B, I, Transient, O> Combine<A, B> for ThenMarker
+where
+	A: System<In = I, Out = Option<Transient>>,
+	B: System<In = In<Transient>, Out = O>,
+	I: SystemInput,
+	Transient: 'static,
+{
+	type In = I;
+	type Out = Option<O>;
+	
+	fn combine(
+		input: <Self::In as SystemInput>::Inner<'_>,
+		a: impl FnOnce(SystemIn<'_, A>) -> A::Out,
+		b: impl FnOnce(SystemIn<'_, B>) -> B::Out,
+	) -> Self::Out {
+		if let Some(input) = a(input) {
+			Some(b(input))
+		} else {
+			None
+		}
 	}
 }

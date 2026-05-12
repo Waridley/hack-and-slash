@@ -5,7 +5,7 @@ use engine::{
 		layout::ExpandToFitChildren,
 		text::UiFonts,
 		widgets::{new_unlit_material, CuboidPanel, Text3d},
-		Fade, MenuStack, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
+		Fade, MenuStack, UiMat, UiMatBuilder,
 	},
 };
 
@@ -27,13 +27,15 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, fonts: Res<UiF
 			translation: Vec3::new(0.0, -32.0, 24.0),
 			..default()
 		},
-		MenuStack::pop_on_back(GLOBAL_UI_RENDER_LAYERS, 0.5),
 		ExpandToFitChildren {
 			offset: Vec3::Y * 0.51,
 			..default()
 		},
 		Fade::ZERO,
 		;
+		=> |cmds| {
+			MenuStack::observe_pop_on_back(cmds, 0.5);
+		}
 		#children: [
 			(
 				Text3d {

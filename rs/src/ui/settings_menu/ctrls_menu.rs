@@ -34,9 +34,9 @@ use engine::{
 };
 use leafwing_input_manager::{prelude::InputMap, Actionlike};
 use serde::{Deserialize, Serialize};
-use smallvec::smallvec;
-use std::{borrow::Cow, ops::ControlFlow::Break};
-use engine::ui::interact::{dbg_event, focus_toggle_border, InteractHandlers};
+use std::borrow::Cow;
+use std::ops::ControlFlow;
+use engine::ui::interact::{focus_toggle_border_observer, InteractHandlers};
 
 const GAME_BINDINGS_CONTAINER_NAME: &str = "GameBindingsContainer";
 const UI_BINDINGS_CONTAINER_NAME: &str = "UiBindingsContainer";
@@ -71,23 +71,25 @@ pub fn setup(
 				entity_tree!(cmds; (
 					CuboidContainer::default(),
 					AdjacentWidgets::all(FocusTarget::ChildN(1)),
-					InteractHandlers::on_action(UiAction::Opt1, move |cmds| {
-						let action_key = action_key.clone();
-						cmds.commands().queue(move |world: &mut World| {
-							let mut q = world.query::<(&mut InputMap<A>, &BelongsToPlayer)>();
-							let Some(mut imap) = q.iter_mut(world)
-								.find(|(_, &imap_owner)| imap_owner == owner)
-								.map(|(imap, _)| imap)
-							else {
-								error!("failed to find imap for player {owner:?}");
-								return
-							};
-							action_key.reset_to_default(&mut *imap);
-						});
-						Break(())
-					}),
 					LineUpChildren::horizontal().with_spacing(0.3).with_alignment(Vec3::NEG_X),
 					ExpandToFitChildren::default();
+					=> |cmds| {
+						cmds.insert(InteractHandlers::on_action(UiAction::Opt1, move |cmds: &mut EntityCommands| {
+							let action_key = action_key.clone();
+							cmds.commands().queue(move |world: &mut World| {
+								let mut q = world.query::<(&mut InputMap<A>, &BelongsToPlayer)>();
+								let Some(mut imap) = q.iter_mut(world)
+									.find(|(_, &imap_owner)| imap_owner == owner)
+									.map(|(imap, _)| imap)
+								else {
+									error!("failed to find imap for player {owner:?}");
+									return
+								};
+								action_key.reset_to_default(&mut *imap);
+							});
+							ControlFlow::Break(())
+						}));
+					}
 					#children: [
 						(
 							Text3d {
@@ -106,10 +108,6 @@ pub fn setup(
 								..default()
 							},
 							MeshMaterial3d(entry_btn_mat.clone()),
-							InteractHandlers(smallvec![
-								dbg_event(),
-								focus_toggle_border(),
-							]),
 							AdjacentWidgets::vertical(
 								"../-1/#1".parse().unwrap(),
 								"../+1/#1".parse().unwrap(),
@@ -120,6 +118,10 @@ pub fn setup(
 								offset: Vec3::Y * 0.5,
 								..default()
 							},
+							;
+							=> |cmds| {
+								cmds.observe(focus_toggle_border_observer);
+							}
 							;
 							#children: [
 								(
@@ -319,15 +321,17 @@ pub fn setup(
 				..default()
 			})),
 			transform,
-			MenuStack::pop_on_back(GLOBAL_UI_RENDER_LAYERS, 0.5),
-			all_first_control.clone(),
-			ExpandToFitChildren {
-				margin: Vec3::new(1.0, 0.0, 1.0),
-				offset: Vec3::Y,
-				..default()
-			},
-			Fade::ZERO,
-			;
+		Fade::ZERO,
+		all_first_control.clone(),
+		ExpandToFitChildren {
+			margin: Vec3::new(1.0, 0.0, 1.0),
+			offset: Vec3::Y,
+			..default()
+		},
+		;
+		=> |cmds| {
+			MenuStack::observe_pop_on_back(cmds, 0.5);
+		}
 			#children: [
 				(
 					CuboidContainer::default(),

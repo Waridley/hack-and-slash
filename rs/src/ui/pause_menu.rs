@@ -11,7 +11,7 @@ use bevy::{
 		basic::{GRAY, TEAL},
 		css::{LIMEGREEN, ORANGE_RED},
 	},
-	ecs::system::{RunSystemOnce, SystemId},
+	ecs::system::SystemId,
 	prelude::*,
 	window::CursorGrabMode,
 };
@@ -33,10 +33,8 @@ use engine::{
 use enum_components::{EntityEnumCommands, EnumComponent, WithVariant};
 use leafwing_input_manager::action_state::ActionState;
 use rapier3d::geometry::SharedShape;
-use smallvec::smallvec;
 use std::ops::ControlFlow;
-use tiny_bail::prelude::r;
-use engine::ui::interact::{dbg_event, focus_state_colors, focus_state_emissive, on_ok, InteractHandlers};
+use engine::ui::interact::{focus_state_colors_observer_setup, focus_state_emissive_observer_setup, InteractHandlers};
 
 pub struct PauseMenuPlugin;
 
@@ -137,20 +135,16 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 							},
 							..default()
 						})),
-						InteractHandlers(smallvec![
-							dbg_event(),
-							on_ok(|cmds| {
-								cmds.commands().queue(|world: &mut World| {
-									r!(world.run_system_once(unpause));
-								});
-								ControlFlow::Break(())
-							}),
-							focus_state_colors(Color::BLACK, Color::from(LIMEGREEN)),
-						]),
 						AdjacentWidgets::vertical_siblings(),
 						expand.clone(),
 						;
 						=> |cmds| {
+							cmds
+								.insert(InteractHandlers::on_ok(|cmds: &mut EntityCommands| {
+									cmds.commands().run_system_cached(unpause);
+									ControlFlow::Break(())
+								}));
+							focus_state_colors_observer_setup(cmds, Color::BLACK, Color::from(LIMEGREEN));
 							cmds.set_enum(pause_menu_widget::ResumeButton);
 						}
 						#children: [(
@@ -178,27 +172,24 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 							},
 							..default()
 						})),
-						InteractHandlers(smallvec![
-							dbg_event(),
-							on_ok(|cmds| {
-								cmds.commands().queue(|world: &mut World| {
-									let mut q = world.query_filtered::<Entity, With<PrefsMenu>>();
-									let panel_id = q.single(world);
-									world.entity_mut(panel_id).fade_in_secs(0.5);
-
-									let top_menu = MenuRef::new(panel_id);
-									let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
-									let mut stack = q.single_mut(world);
-									stack.push(top_menu);
-								});
-								ControlFlow::Break(())
-							}),
-							focus_state_emissive(LinearRgba::from(TEAL) * 4.0, LinearRgba::from(TEAL) * 6.0),
-						]),
 						AdjacentWidgets::vertical_siblings(),
 						expand.clone(),
 						;
 						=> |cmds| {
+							cmds
+								.insert(InteractHandlers::on_ok(move |cmds: &mut EntityCommands| {
+									cmds.commands().queue(|world: &mut World| {
+										let mut q = world.query_filtered::<Entity, With<PrefsMenu>>();
+										let panel_id = q.single(world);
+										world.entity_mut(panel_id).fade_in_secs(0.5);
+										let top_menu = MenuRef::new(panel_id);
+										let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
+										let mut stack = q.single_mut(world);
+										stack.push(top_menu);
+									});
+									ControlFlow::Break(())
+								}));
+							focus_state_emissive_observer_setup(cmds, LinearRgba::from(TEAL) * 4.0, LinearRgba::from(TEAL) * 6.0);
 							cmds.set_enum(pause_menu_widget::PrefsButton);
 						}
 						#children: [
@@ -228,27 +219,24 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 							},
 							..default()
 						})),
-						InteractHandlers(smallvec![
-							dbg_event(),
-							on_ok(|cmds| {
-								cmds.commands().queue(|world: &mut World| {
-									let mut q = world.query_filtered::<Entity, With<SettingsMenu>>();
-									let panel_id = q.single(world);
-									world.entity_mut(panel_id).fade_in_secs(0.5);
-
-									let top_menu = world.resource::<SettingsSubMenus>().top;
-									let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
-									let mut stack = q.single_mut(world);
-									stack.push(top_menu);
-								});
-								ControlFlow::Break(())
-							}),
-							focus_state_colors(Color::BLACK, Color::from(GRAY)),
-						]),
 						AdjacentWidgets::vertical_siblings(),
 						expand.clone(),
 						;
 						=> |cmds| {
+							cmds
+								.insert(InteractHandlers::on_ok(move |cmds: &mut EntityCommands| {
+									cmds.commands().queue(|world: &mut World| {
+										let mut q = world.query_filtered::<Entity, With<SettingsMenu>>();
+										let panel_id = q.single(world);
+										world.entity_mut(panel_id).fade_in_secs(0.5);
+										let top_menu = world.resource::<SettingsSubMenus>().top;
+										let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
+										let mut stack = q.single_mut(world);
+										stack.push(top_menu);
+									});
+									ControlFlow::Break(())
+								}));
+							focus_state_colors_observer_setup(cmds, Color::BLACK, Color::from(GRAY));
 							cmds.set_enum(pause_menu_widget::SettingsButton);
 						}
 						#children: [
@@ -278,21 +266,19 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 							},
 							..default()
 						})),
-						InteractHandlers(smallvec![
-							dbg_event(),
-							on_ok(|cmds| {
-								cmds.commands().queue(|world: &mut World| {
-									world.resource_mut::<Events<AppExit>>()
-										.send(AppExit::Success);
-								});
-								ControlFlow::Break(())
-							}),
-							focus_state_colors(Color::BLACK, Color::from(ORANGE_RED)),
-						]),
 						AdjacentWidgets::vertical_siblings(),
 						expand.clone(),
 						;
 						=> |cmds| {
+							cmds
+								.insert(InteractHandlers::on_ok(|cmds: &mut EntityCommands| {
+									cmds.commands().queue(|world: &mut World| {
+										world.resource_mut::<Events<AppExit>>()
+											.send(AppExit::Success);
+									});
+									ControlFlow::Break(())
+								}));
+							focus_state_colors_observer_setup(cmds, Color::BLACK, Color::from(ORANGE_RED));
 							cmds.set_enum(pause_menu_widget::QuitButton);
 						}
 						#children: [

@@ -1,4 +1,4 @@
-use bevy::prelude::{Commands, Component, Deref, DerefMut, Entity, EntityCommands, EntityWorldMut, Query, Ref, Res, Visibility, With};
+use bevy::prelude::*;
 use std::ops::ControlFlow;
 use atomicow::CowArc;
 use std::sync::Arc;
@@ -6,7 +6,7 @@ use smallvec::{smallvec, SmallVec};
 use bevy::asset::{Asset, AssetId, Assets};
 use bevy::log::{error, trace, warn};
 use std::time::Duration;
-use bevy::hierarchy::{Children, HierarchyQueryExt, Parent};
+use bevy::hierarchy::{Children, Parent};
 use leafwing_input_manager::action_state::{ActionKindData, ActionState};
 use bevy::render::view::RenderLayers;
 use bevy::color::{Color, LinearRgba};
@@ -39,6 +39,10 @@ pub fn dbg_event() -> CowArc<'static, InteractHandler> {
 		trace!(?id, ?ev);
 		ControlFlow::Continue(())
 	})
+}
+
+pub fn dbg_event_observer(trigger: Trigger<Interaction>) {
+	trace!(event=?trigger.event(), entity=?trigger.observer());
 }
 
 pub fn on_ok(
@@ -187,6 +191,114 @@ pub fn focus_toggle_border() -> CowArc<'static, InteractHandler> {
 	})
 }
 
+pub fn focus_toggle_border_observer(
+	trigger: Trigger<Interaction>,
+	children_q: Query<&Children>,
+	mut vis_q: Query<&mut Visibility, With<Border>>,
+) {
+	if trigger.event().source != InteractionSource::Focus {
+		return;
+	}
+	let new_vis = match trigger.event().kind {
+		InteractionKind::Begin => Visibility::Inherited,
+		InteractionKind::Release => Visibility::Hidden,
+		InteractionKind::Hold(_) => return,
+	};
+	let entity = trigger.observer();
+	let Ok(children) = children_q.get(entity) else {
+		warn!("no border to show focus: no children");
+		return;
+	};
+	let mut found = false;
+	for &child in children.into_iter() {
+		if let Ok(mut vis) = vis_q.get_mut(child) {
+			found = true;
+			*vis = new_vis;
+		}
+	}
+	if !found {
+		warn!("no border to show focus: no child matches `Query<&mut Visibility, With<Border>>`");
+	}
+}
+
+#[derive(Component, Debug, Reflect, Clone)]
+#[reflect(Component)]
+pub struct FocusStateColors {
+	pub unfocused: Color,
+	pub focused: Color,
+}
+
+// TODO: migrate to pure observer pattern once Bevy supports closures as IntoObserverSystem
+// (see https://github.com/bevyengine/bevy/issues — closures don't implement System trait)
+// Currently this uses a component (FocusStateColors) + standalone observer function as a workaround.
+pub fn focus_state_colors_observer_setup(
+	cmds: &mut EntityCommands,
+	unfocused: Color,
+	focused: Color,
+) {
+	cmds.insert(FocusStateColors { unfocused, focused });
+	cmds.observe(focus_state_colors_observer);
+}
+
+pub fn focus_state_colors_observer(
+	trigger: Trigger<Interaction>,
+	focus_colors: Query<&FocusStateColors>,
+	mut mats: ResMut<Assets<UiMat>>,
+	mat_q: Query<&MeshMaterial3d<UiMat>>,
+) {
+	if trigger.event().source != InteractionSource::Focus {
+		return;
+	}
+	let entity = trigger.observer();
+	let Ok(focus) = focus_colors.get(entity) else { return };
+	let color = match trigger.event().kind {
+		InteractionKind::Begin => focus.focused,
+		InteractionKind::Release => focus.unfocused,
+		InteractionKind::Hold(_) => return,
+	};
+	let Ok(handle) = mat_q.get(entity) else { return };
+	let Some(mat) = mats.get_mut(handle.id()) else { return };
+	mat.base.base.base_color = color;
+}
+
+#[derive(Component, Debug, Reflect, Clone)]
+#[reflect(Component)]
+pub struct FocusStateEmissive {
+	pub unfocused: LinearRgba,
+	pub focused: LinearRgba,
+}
+
+// TODO: migrate to pure observer pattern once Bevy supports closures as IntoObserverSystem
+pub fn focus_state_emissive_observer_setup(
+	cmds: &mut EntityCommands,
+	unfocused: LinearRgba,
+	focused: LinearRgba,
+) {
+	cmds.insert(FocusStateEmissive { unfocused, focused });
+	cmds.observe(focus_state_emissive_observer);
+}
+
+pub fn focus_state_emissive_observer(
+	trigger: Trigger<Interaction>,
+	focus_emissive: Query<&FocusStateEmissive>,
+	mut mats: ResMut<Assets<UiMat>>,
+	mat_q: Query<&MeshMaterial3d<UiMat>>,
+) {
+	if trigger.event().source != InteractionSource::Focus {
+		return;
+	}
+	let entity = trigger.observer();
+	let Ok(focus) = focus_emissive.get(entity) else { return };
+	let emissive = match trigger.event().kind {
+		InteractionKind::Begin => focus.focused,
+		InteractionKind::Release => focus.unfocused,
+		InteractionKind::Hold(_) => return,
+	};
+	let Ok(handle) = mat_q.get(entity) else { return };
+	let Some(mat) = mats.get_mut(handle.id()) else { return };
+	mat.base.base.emissive = emissive;
+}
+
 impl InteractHandlers {
 	pub fn on_ok(
 		handler: impl Fn(&mut EntityCommands) -> ControlFlow<()> + Send + Sync + 'static,
@@ -225,8 +337,6 @@ impl InteractHandlers {
 
 	pub fn system(
 		mut cmds: Commands,
-		q: Query<&InteractHandlers>,
-		parents: Query<&Parent>,
 		global_state: Res<ActionState<UiAction>>,
 		states: Query<(&ActionState<UiAction>, &RenderLayers)>,
 		mut stacks: Query<(Ref<MenuStack>, &mut PrevFocus, &RenderLayers)>,
@@ -245,11 +355,13 @@ impl InteractHandlers {
 				continue;
 			};
 			for action in state.get_just_pressed() {
-				let ev = Interaction {
-					source: InteractionSource::Action(action),
-					kind: InteractionKind::Begin,
-				};
-				let _ = propagate_interaction(&mut cmds, focus, ev, &q, &parents);
+				cmds.trigger_targets(
+					Interaction {
+						source: InteractionSource::Action(action),
+						kind: InteractionKind::Begin,
+					},
+					focus,
+				);
 			}
 			for action in state.get_pressed() {
 				let data = state
@@ -257,57 +369,45 @@ impl InteractHandlers {
 					.expect("action is pressed ∴ ActionData exists");
 				match &data.kind_data {
 					ActionKindData::Button(data) => {
-						let ev = Interaction {
-							source: InteractionSource::Action(action),
-							kind: InteractionKind::Hold(data.timing.current_duration),
-						};
-						let _ = propagate_interaction(&mut cmds, focus, ev, &q, &parents);
+						cmds.trigger_targets(
+							Interaction {
+								source: InteractionSource::Action(action),
+								kind: InteractionKind::Hold(data.timing.current_duration),
+							},
+							focus,
+						);
 					}
 					data => warn!(?data, "Only Button timing is supported"),
 				}
 			}
 			for action in state.get_just_released() {
-				let ev = Interaction {
-					source: InteractionSource::Action(action),
-					kind: InteractionKind::Release,
-				};
-				let _ = propagate_interaction(&mut cmds, focus, ev, &q, &parents);
+				cmds.trigger_targets(
+					Interaction {
+						source: InteractionSource::Action(action),
+						kind: InteractionKind::Release,
+					},
+					focus,
+				);
 			}
 			if focus != **prev_focus {
-				let release = Interaction {
-					source: InteractionSource::Focus,
-					kind: InteractionKind::Release,
-				};
-				let _ = propagate_interaction(&mut cmds, **prev_focus, release, &q, &parents);
-
-				let begin = Interaction {
-					source: InteractionSource::Focus,
-					kind: InteractionKind::Begin,
-				};
-				let _ = propagate_interaction(&mut cmds, focus, begin, &q, &parents);
+				cmds.trigger_targets(
+					Interaction {
+						source: InteractionSource::Focus,
+						kind: InteractionKind::Release,
+					},
+					**prev_focus,
+				);
+				cmds.trigger_targets(
+					Interaction {
+						source: InteractionSource::Focus,
+						kind: InteractionKind::Begin,
+					},
+					focus,
+				);
 				**prev_focus = focus;
 			}
 		}
 	}
-}
-
-// TODO: Replace with bevy_picking and/or triggers
-fn propagate_interaction(
-	cmds: &mut Commands,
-	entity: Entity,
-	event: Interaction,
-	q: &Query<&InteractHandlers>,
-	parents: &Query<&Parent>,
-) -> ControlFlow<()> {
-	q.get(entity)
-		.map(|handlers| handlers.handle(event, &mut cmds.entity(entity)))
-		.unwrap_or(ControlFlow::Continue(()))?;
-	for entity in parents.iter_ancestors(entity) {
-		q.get(entity)
-			.map(|handlers| handlers.handle(event, &mut cmds.entity(entity)))
-			.unwrap_or(ControlFlow::Continue(()))?;
-	}
-	ControlFlow::Continue(())
 }
 
 impl FromIterator<CowArc<'static, InteractHandler>> for InteractHandlers {
@@ -319,22 +419,23 @@ impl FromIterator<CowArc<'static, InteractHandler>> for InteractHandlers {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum InteractionSource {
 	Action(UiAction),
-	/// Focus status changed.
 	Focus,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum InteractionKind {
-	/// Pressed button or gained focus.
 	Begin,
-	/// Still holding button or maintaining focus.
 	Hold(Duration),
-	/// Released button or lost focus.
 	Release,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Component, Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Interaction {
 	pub source: InteractionSource,
 	pub kind: InteractionKind,
+}
+
+impl Event for Interaction {
+	type Traversal = &'static Parent;
+	const AUTO_PROPAGATE: bool = true;
 }

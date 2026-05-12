@@ -609,7 +609,7 @@ pub struct MenuStack(pub Vec<MenuRef>);
 
 impl MenuStack {
 	pub fn pop_on_back(layers: RenderLayers, fade_secs: f32) -> InteractHandlers {
-		InteractHandlers::on_back(move |cmds| {
+		InteractHandlers::on_back(move |cmds: &mut EntityCommands| {
 			cmds.fade_out_secs(fade_secs);
 			let layers = layers.clone();
 			cmds.commands().queue(move |world: &mut World| {
@@ -626,6 +626,38 @@ impl MenuStack {
 			Break(())
 		})
 	}
+
+	/// Uses a component (PopOnBackFade) + standalone observer function.
+	/// TODO: simplify once Bevy supports closures as IntoObserverSystem.
+ 	pub fn observe_pop_on_back(cmds: &mut EntityCommands, fade_secs: f32) {
+		cmds.insert(PopOnBackFade(fade_secs));
+		cmds.observe(pop_on_back_observer);
+	}
+}
+
+#[derive(Component, Debug, Reflect, Deref, DerefMut)]
+#[reflect(Component)]
+pub struct PopOnBackFade(pub f32);
+
+pub fn pop_on_back_observer(
+	trigger: Trigger<Interaction>,
+	fade: Query<&PopOnBackFade>,
+	mut cmds: Commands,
+	mut stack: Query<&mut MenuStack, With<GlobalUi>>,
+) {
+	if trigger.event().source != InteractionSource::Action(UiAction::Back)
+		|| trigger.event().kind != InteractionKind::Begin
+	{
+		return;
+	}
+	let entity = trigger.observer();
+	let Ok(fade) = fade.get(entity) else { return };
+	cmds.entity(entity).fade_out_secs(**fade);
+	let Ok(mut stack) = stack.get_single_mut() else {
+		error!("couldn't find `MenuStack`");
+		return;
+	};
+	stack.pop();
 }
 
 #[derive(Debug, Copy, Clone, Reflect)]
@@ -699,7 +731,7 @@ use bevy_inspector_egui::{
 use layout::ExpandToFitChildren;
 use text::{TextMeshCache, UiFonts};
 use web_time::Duration;
-use interact::InteractHandlers;
+use interact::{InteractHandlers, InteractionSource, InteractionKind, Interaction};
 
 /// Component that starts a new branch of a tree of entities that can be
 /// faded in an out together.

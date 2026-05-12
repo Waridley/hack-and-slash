@@ -16,18 +16,15 @@ use engine::{
 			CuboidPanel, CylinderPanel, Node3d, Text3d, WidgetShape,
 		},
 		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiAction, UiMat, UiMatBuilder,
-		GLOBAL_UI_RENDER_LAYERS,
 	},
 	util::{Angle, Flat},
 };
 use enum_components::{EntityEnumCommands, EnumComponent};
 use rapier3d::prelude::SharedShape;
 use smallvec::smallvec;
-use std::{
-	f32::consts::{FRAC_PI_3, FRAC_PI_6},
-	ops::ControlFlow::Break,
-};
-use engine::ui::interact::{dbg_event, focus_toggle_border, on_ok, InteractHandlers};
+use std::f32::consts::{FRAC_PI_3, FRAC_PI_6};
+use std::ops::ControlFlow;
+use engine::ui::interact::{focus_toggle_border_observer, InteractHandlers};
 
 pub mod ctrls_menu;
 
@@ -88,7 +85,6 @@ pub fn setup(
 		},
 		blue_green_mat.clone(),
 	);
-	let focus_toggle_border = InteractHandlers(smallvec![dbg_event(), focus_toggle_border(),]);
 	entity_tree!(cmds; (
 		Name::new("SettingsMenu"),
 		SettingsMenu,
@@ -108,8 +104,10 @@ pub fn setup(
 			translation: Vec3::new(0.0, -32.0, -24.0),
 			..default()
 		},
-		MenuStack::pop_on_back(GLOBAL_UI_RENDER_LAYERS, 0.5),
 		Fade::ZERO;
+		=> |cmds| {
+			MenuStack::observe_pop_on_back(cmds, 0.5);
+		}
 		#children: [
 			(
 				Text3d {
@@ -165,12 +163,14 @@ pub fn setup(
 						},
 						MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(AQUA.with_alpha(0.4))))),
 						adjacent.clone(),
-						focus_toggle_border.clone(),
 						ExpandToFitChildren {
 							margin: Vec3::splat(0.25),
 							offset: Vec3::Y * 0.5,
 							..default()
 						};
+						=> |cmds| {
+							cmds.observe(focus_toggle_border_observer);
+						}
 						#children: [
 							(
 								Text3d {
@@ -191,12 +191,14 @@ pub fn setup(
 						},
 						MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(YELLOW.with_alpha(0.4))))),
 						adjacent.clone(),
-						focus_toggle_border.clone(),
 						ExpandToFitChildren {
 							margin: Vec3::splat(0.25),
 							offset: Vec3::Y * 0.5,
 							..default()
 						};
+						=> |cmds| {
+							cmds.observe(focus_toggle_border_observer);
+						}
 						#children: [
 							(
 								Text3d {
@@ -217,12 +219,14 @@ pub fn setup(
 						},
 						MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(FUCHSIA.with_alpha(0.40))))),
 						adjacent.clone(),
-						focus_toggle_border.clone(),
 						ExpandToFitChildren {
 							margin: Vec3::splat(0.25),
 							offset: Vec3::Y * 0.5,
 							..default()
 						};
+						=> |cmds| {
+							cmds.observe(focus_toggle_border_observer);
+						}
 						#children: [
 							(
 								Text3d {
@@ -243,12 +247,14 @@ pub fn setup(
 						},
 						MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(RED.with_alpha(0.4))))),
 						adjacent.clone(),
-						focus_toggle_border.clone(),
 						ExpandToFitChildren {
 							margin: Vec3::splat(0.25),
 							offset: Vec3::Y * 0.5,
 							..default()
 						};
+						=> |cmds| {
+							cmds.observe(focus_toggle_border_observer);
+						}
 						#children: [
 							(
 								Text3d {
@@ -268,22 +274,25 @@ pub fn setup(
 							..default()
 						},
 						MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(GREEN.with_alpha(0.4))))),
-						focus_toggle_border.clone()
-							.and([on_ok(|cmds| {
-								cmds.commands().queue(|world: &mut World| {
-									let menu = world.resource::<SettingsSubMenus>().controls;
-									let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
-									q.single_mut(world).push(menu);
-									world.entity_mut(menu.root).fade_in_secs(0.5);
-								});
-								Break(())
-							})]),
 						adjacent.clone(),
 						ExpandToFitChildren {
 							margin: Vec3::splat(0.25),
 							offset: Vec3::Y * 0.5,
 							..default()
 						};
+						=> |cmds| {
+							cmds
+								.observe(focus_toggle_border_observer)
+								.insert(InteractHandlers::on_ok(|cmds: &mut EntityCommands| {
+									cmds.commands().queue(|world: &mut World| {
+										let menu = world.resource::<SettingsSubMenus>().controls;
+										let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
+										q.single_mut(world).push(menu);
+										world.entity_mut(menu.root).fade_in_secs(0.5);
+									});
+									ControlFlow::Break(())
+								}));
+						}
 						#children: [
 							(
 								Text3d {
@@ -304,12 +313,14 @@ pub fn setup(
 						},
 						MeshMaterial3d(mats.add(UiMatBuilder::from(Color::from(BLUE.with_alpha(0.4))))),
 						adjacent.clone(),
-						focus_toggle_border.clone(),
 						ExpandToFitChildren {
 							margin: Vec3::splat(0.25),
 							offset: Vec3::Y * 0.5,
 							..default()
 						};
+						=> |cmds| {
+							cmds.observe(focus_toggle_border_observer);
+						}
 						#children: [
 							(
 								Text3d {
