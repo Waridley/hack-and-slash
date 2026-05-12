@@ -3,12 +3,12 @@ use base64::{engine::general_purpose::URL_SAFE, prelude::*};
 use bevy_ecs::prelude::Resource;
 use rand::{distributions::Standard, prelude::Distribution, Rng};
 #[cfg(feature = "serde")]
-use serde::{Serialize, Deserialize};
-use tracing::{trace, trace_span};
+use serde::{Deserialize, Serialize};
 use std::{
 	borrow::{Borrow, Cow},
 	fmt::{Display, Formatter},
 };
+use tracing::{trace, trace_span};
 
 pub mod terrain;
 

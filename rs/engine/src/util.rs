@@ -4,7 +4,10 @@ use bevy::{
 	ecs::{
 		component::ComponentId,
 		query::QueryFilter,
-		system::{EntityCommands, StaticSystemParam, SystemParam, SystemParamItem},
+		system::{
+			CombinatorSystem, Combine, EntityCommands, StaticSystemParam, SystemParam,
+			SystemParamItem,
+		},
 		world::DeferredWorld,
 	},
 	math::Dir2,
@@ -34,7 +37,6 @@ use std::{
 	ops::{Add, Div, Index, IndexMut, Mul, Sub},
 	time::Duration,
 };
-use bevy::ecs::system::{CombinatorSystem, Combine};
 
 #[inline(always)]
 pub fn quantize<const BITS: u32>(value: f32) -> f32 {
@@ -1678,8 +1680,14 @@ impl MeshOutline {
 		let mut mesh = {
 			// Only need to clone positions, normals, and indices. Outline won't use any other attributes.
 			let mut new = Mesh::new(mesh.primitive_topology(), mesh.asset_usage)
-				.with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, mesh.attribute(Mesh::ATTRIBUTE_POSITION).unwrap().clone())
-				.with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, mesh.attribute(Mesh::ATTRIBUTE_NORMAL).unwrap().clone());
+				.with_inserted_attribute(
+					Mesh::ATTRIBUTE_POSITION,
+					mesh.attribute(Mesh::ATTRIBUTE_POSITION).unwrap().clone(),
+				)
+				.with_inserted_attribute(
+					Mesh::ATTRIBUTE_NORMAL,
+					mesh.attribute(Mesh::ATTRIBUTE_NORMAL).unwrap().clone(),
+				);
 			if let Some(indices) = mesh.indices() {
 				new.insert_indices(indices.clone());
 			}
@@ -2182,7 +2190,7 @@ where
 {
 	type In = I;
 	type Out = Option<O>;
-	
+
 	fn combine(
 		input: <Self::In as SystemInput>::Inner<'_>,
 		a: impl FnOnce(SystemIn<'_, A>) -> A::Out,

@@ -186,9 +186,7 @@ fn startup(
 	mut cmds: Commands,
 	mut scene_spawner: ResMut<SceneSpawner>,
 	assets: Res<AssetServer>,
-	#[cfg(all(feature = "dev_ui"))] mut dbg_render_ctx: ResMut<
-		DebugRenderContext,
-	>,
+	#[cfg(all(feature = "dev_ui"))] mut dbg_render_ctx: ResMut<DebugRenderContext>,
 ) {
 	let globals_scene = assets.load("globals.scn.ron");
 	cmds.insert_resource(GlobalsScene(globals_scene.clone()));

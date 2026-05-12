@@ -1,7 +1,7 @@
 use super::PlanetSeed;
-use tracing::info;
 use rand::{distributions::Standard, prelude::Distribution, Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
+use tracing::info;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[repr(C)]
@@ -135,8 +135,8 @@ impl HSSeed {
 
 #[cfg(test)]
 mod tests {
-	use crate::PlanetSeed;
 	use super::{HSSeed, TerrainSeeds};
+	use crate::PlanetSeed;
 	use breaking_attr::breaking;
 
 	#[test]
@@ -150,14 +150,12 @@ mod tests {
 	#[test]
 	fn version_equivalence() {
 		#[breaking("zpe80_qe7AbTsKIpMKkdVl4_wqfc0KsCUaBTLCWsxiI=")]
-		const SEED: &str = "This is a PlanetSeed for testing TerrainSeed equivalence across versions.";
+		const SEED: &str =
+			"This is a PlanetSeed for testing TerrainSeed equivalence across versions.";
 		let seed = PlanetSeed::from(SEED);
 		#[breaking("UexE26eb5tYkAcQI0B8qYGJwRchfbKvM2byviFz52wg=")]
 		const CANON: &str = "dif3XzLPR0QkeiIeiDUZS_fAfVYwGsLv";
-		assert_eq!(
-			seed.clone().canonical().string(),
-			CANON,
-		);
+		assert_eq!(seed.clone().canonical().string(), CANON,);
 		// Note: If sources are added or removed, the sources shared between versions must remain
 		// equivalent, but it is fine to add the values for the new sources or remove old ones here.
 		#[breaking("R7grxG1H4lIOkIw-rtvEBwswSp98CxY6gby-EghXAiE=")]
@@ -165,24 +163,21 @@ mod tests {
 			base: [3921923909, 2705971270],
 			perlin: HSSeed {
 				heights: 2112551709,
-				strength: 1762326461
+				strength: 1762326461,
 			},
 			worley: HSSeed {
 				heights: 2032743752,
-				strength: 3889465128
+				strength: 3889465128,
 			},
 			billow: HSSeed {
 				heights: 1264812115,
-				strength: 391812050
+				strength: 391812050,
 			},
 			ridged: HSSeed {
 				heights: 2995831856,
-				strength: 2095380095
+				strength: 2095380095,
 			},
 		};
-		assert_eq!(
-			TerrainSeeds::from(&seed),
-			TERRAIN_SEEDS,
-		);
+		assert_eq!(TerrainSeeds::from(&seed), TERRAIN_SEEDS,);
 	}
 }

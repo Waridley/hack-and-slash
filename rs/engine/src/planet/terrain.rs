@@ -35,10 +35,7 @@ use crate::{
 	},
 	util::Diff,
 };
-use rng::{
-	PlanetSeed,
-	terrain::TerrainSeeds,
-};
+use rng::{terrain::TerrainSeeds, PlanetSeed};
 
 pub mod noise;
 pub mod physics;
@@ -53,7 +50,7 @@ impl Plugin for TerrainPlugin {
 	fn build(&self, app: &mut App) {
 		// WHY is there no length function on `Vector2`??
 		let diameter = (CHUNK_SCALE.x * CHUNK_SCALE.x + CHUNK_SCALE.y * CHUNK_SCALE.y).sqrt();
-		
+
 		app.add_systems(Startup, setup)
 			.init_resource::<ChunkLoadingTasks>()
 			.insert_resource(UnloadDistance(5.0 * diameter))

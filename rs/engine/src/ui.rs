@@ -34,11 +34,11 @@ pub mod a11y;
 #[cfg(feature = "dev_ui")]
 pub mod dbg;
 pub mod focus;
+pub mod interact;
 pub mod layout;
 pub mod mouse;
 pub mod text;
 pub mod widgets;
-pub mod interact;
 
 pub const GLOBAL_UI_LAYER: Layer = 31 as Layer;
 pub const GLOBAL_UI_RENDER_LAYERS: RenderLayers = RenderLayers::layer(GLOBAL_UI_LAYER);
@@ -629,7 +629,7 @@ impl MenuStack {
 
 	/// Uses a component (PopOnBackFade) + standalone observer function.
 	/// TODO: simplify once Bevy supports closures as IntoObserverSystem.
- 	pub fn observe_pop_on_back(cmds: &mut EntityCommands, fade_secs: f32) {
+	pub fn observe_pop_on_back(cmds: &mut EntityCommands, fade_secs: f32) {
 		cmds.insert(PopOnBackFade(fade_secs));
 		cmds.observe(pop_on_back_observer);
 	}
@@ -717,9 +717,7 @@ use crate::{
 	input::ActionExt,
 	ui::{
 		text::Tessellator,
-		widgets::{
-			new_unlit_material, CuboidContainer, CylinderPanel, PrevFocus,
-		},
+		widgets::{new_unlit_material, CuboidContainer, CylinderPanel, PrevFocus},
 	},
 	util::{downcast_material, RegisterErasedAssetDowncaster},
 };
@@ -728,10 +726,10 @@ use bevy_inspector_egui::{
 	inspector_options::std_options::NumberDisplay::Slider,
 	prelude::{InspectorOptions, ReflectInspectorOptions},
 };
+use interact::{InteractHandlers, Interaction, InteractionKind, InteractionSource};
 use layout::ExpandToFitChildren;
 use text::{TextMeshCache, UiFonts};
 use web_time::Duration;
-use interact::{InteractHandlers, InteractionSource, InteractionKind, Interaction};
 
 /// Component that starts a new branch of a tree of entities that can be
 /// faded in an out together.

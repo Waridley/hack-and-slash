@@ -22,11 +22,11 @@ use engine::{
 	},
 	ui::{
 		focus::{AdjacentWidgets, FocusTarget},
+		interact::{focus_toggle_border_observer, InteractHandlers},
 		layout::{ExpandToFitChildren, LineUpChildren, RadialChildren},
 		text::UiFonts,
 		widgets::{
-			borders::Border, new_unlit_material, CuboidContainer,
-			CuboidPanel, Node3d, Text3d,
+			borders::Border, new_unlit_material, CuboidContainer, CuboidPanel, Node3d, Text3d,
 		},
 		Fade, GlobalUi, MenuStack, UiAction, UiMat, UiMatBuilder, GLOBAL_UI_RENDER_LAYERS,
 	},
@@ -34,9 +34,7 @@ use engine::{
 };
 use leafwing_input_manager::{prelude::InputMap, Actionlike};
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
-use std::ops::ControlFlow;
-use engine::ui::interact::{focus_toggle_border_observer, InteractHandlers};
+use std::{borrow::Cow, ops::ControlFlow};
 
 const GAME_BINDINGS_CONTAINER_NAME: &str = "GameBindingsContainer";
 const UI_BINDINGS_CONTAINER_NAME: &str = "UiBindingsContainer";

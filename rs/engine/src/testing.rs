@@ -293,9 +293,7 @@ bevy_test!(fn app_started(app, test_id) {
 #[cfg(all(feature = "render", not(target_arch = "wasm32")))]
 pub mod vis {
 	use crate::testing::{TestEvent, TestStatus};
-	use bevy::app::App;
-	use bevy::input::ButtonInput;
-	use bevy::prelude::*;
+	use bevy::{app::App, input::ButtonInput, prelude::*};
 
 	pub use linkme::distributed_slice as __static_register_test;
 

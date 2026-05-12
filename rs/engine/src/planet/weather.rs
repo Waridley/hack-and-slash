@@ -1,11 +1,10 @@
-use crate::{
-	planet::chunks::{CHUNK_SCALE, TERRAIN_CELL_SIZE},
-};
+use crate::planet::chunks::{CHUNK_SCALE, TERRAIN_CELL_SIZE};
 use bevy::{
 	prelude::{Reflect, Resource, *},
 	render::{
-		extract_resource::ExtractResource, primitives::Aabb,
-		view::{VisibilitySystems::VisibilityPropagate, RenderLayers},
+		extract_resource::ExtractResource,
+		primitives::Aabb,
+		view::{RenderLayers, VisibilitySystems::VisibilityPropagate},
 	},
 };
 
@@ -55,18 +54,21 @@ pub fn cull_fully_fogged(
 		let global = global.translation().xy();
 		let center = aabb.center.xy() + global;
 		if *vis == Visibility::Hidden
-			&& cams.iter()
-			.filter(|(_, cam_layers)| cam_layers.intersects(&RenderLayers::default()))
-			.any(|(cam, _)| {
-				(center - cam.translation().xy()).length() - radius < dist + TERRAIN_CELL_SIZE
-			}) {
+			&& cams
+				.iter()
+				.filter(|(_, cam_layers)| cam_layers.intersects(&RenderLayers::default()))
+				.any(|(cam, _)| {
+					(center - cam.translation().xy()).length() - radius < dist + TERRAIN_CELL_SIZE
+				}) {
 			*vis = Visibility::Inherited;
 		} else if *vis == Visibility::Inherited
-			&& !cams.iter()
-			.filter(|(_, cam_layers)| cam_layers.intersects(&RenderLayers::default()))
-			.any(|(cam, _)| {
-				(center - cam.translation().xy()).length() - radius < dist + TERRAIN_CELL_SIZE * 4.0
-			}) {
+			&& !cams
+				.iter()
+				.filter(|(_, cam_layers)| cam_layers.intersects(&RenderLayers::default()))
+				.any(|(cam, _)| {
+					(center - cam.translation().xy()).length() - radius
+						< dist + TERRAIN_CELL_SIZE * 4.0
+				}) {
 			*vis = Visibility::Hidden;
 		}
 	}

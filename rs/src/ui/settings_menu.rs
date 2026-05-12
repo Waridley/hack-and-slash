@@ -9,11 +9,12 @@ use engine::{
 	input::map::icons::InputIconFileMap,
 	ui::{
 		focus::{AdjacentWidgets, FocusTarget, Wedge2d},
+		interact::{focus_toggle_border_observer, InteractHandlers},
 		layout::{ExpandToFitChildren, RadialArrangement, RadialChildren},
 		text::UiFonts,
 		widgets::{
-			borders::Border, new_unlit_material,
-			CuboidPanel, CylinderPanel, Node3d, Text3d, WidgetShape,
+			borders::Border, new_unlit_material, CuboidPanel, CylinderPanel, Node3d, Text3d,
+			WidgetShape,
 		},
 		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiAction, UiMat, UiMatBuilder,
 	},
@@ -22,9 +23,10 @@ use engine::{
 use enum_components::{EntityEnumCommands, EnumComponent};
 use rapier3d::prelude::SharedShape;
 use smallvec::smallvec;
-use std::f32::consts::{FRAC_PI_3, FRAC_PI_6};
-use std::ops::ControlFlow;
-use engine::ui::interact::{focus_toggle_border_observer, InteractHandlers};
+use std::{
+	f32::consts::{FRAC_PI_3, FRAC_PI_6},
+	ops::ControlFlow,
+};
 
 pub mod ctrls_menu;
 

@@ -1,10 +1,12 @@
-use crate::planet::{
-	chunks::{ChunkIndex, LoadedChunks},
-	day_night::{DayNightCycle, DayNightPlugin},
-	frame::PlanetFramePlugin,
-	weather::WeatherPlugin,
+use crate::{
+	planet::{
+		chunks::{ChunkIndex, LoadedChunks},
+		day_night::{DayNightCycle, DayNightPlugin},
+		frame::PlanetFramePlugin,
+		weather::WeatherPlugin,
+	},
+	util::Diff,
 };
-use crate::util::Diff;
 use bevy::prelude::*;
 use bevy_rapier3d::na::{Vector2, Vector3};
 use serde::{Deserialize, Serialize};

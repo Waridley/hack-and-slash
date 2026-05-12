@@ -20,12 +20,13 @@ use engine::{
 	input::InputState,
 	ui::{
 		focus::{AdjacentWidgets, FocusTarget},
+		interact::{
+			focus_state_colors_observer_setup, focus_state_emissive_observer_setup,
+			InteractHandlers,
+		},
 		layout::{ExpandToFitChildren, LineUpChildren},
 		text::UiFonts,
-		widgets::{
-			borders::Border,
-			CuboidPanel, Node3d, Text3d, WidgetShape,
-		},
+		widgets::{borders::Border, CuboidPanel, Node3d, Text3d, WidgetShape},
 		Fade, FadeCommands, GlobalUi, MenuRef, MenuStack, UiMat, UiMatBuilder,
 	},
 	util::StateStack,
@@ -34,7 +35,6 @@ use enum_components::{EntityEnumCommands, EnumComponent, WithVariant};
 use leafwing_input_manager::action_state::ActionState;
 use rapier3d::geometry::SharedShape;
 use std::ops::ControlFlow;
-use engine::ui::interact::{focus_state_colors_observer_setup, focus_state_emissive_observer_setup, InteractHandlers};
 
 pub struct PauseMenuPlugin;
 

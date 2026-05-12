@@ -1,19 +1,20 @@
-use bevy::prelude::*;
-use std::ops::ControlFlow;
+use crate::ui::{
+	widgets::{borders::Border, PrevFocus},
+	MenuStack, UiAction, UiMat, GLOBAL_UI_RENDER_LAYERS,
+};
 use atomicow::CowArc;
-use std::sync::Arc;
-use smallvec::{smallvec, SmallVec};
-use bevy::asset::{Asset, AssetId, Assets};
-use bevy::log::{error, trace, warn};
-use std::time::Duration;
-use bevy::hierarchy::{Children, Parent};
+use bevy::{
+	asset::{Asset, AssetId, Assets},
+	color::{Color, LinearRgba},
+	hierarchy::{Children, Parent},
+	log::{error, trace, warn},
+	pbr::MeshMaterial3d,
+	prelude::*,
+	render::view::RenderLayers,
+};
 use leafwing_input_manager::action_state::{ActionKindData, ActionState};
-use bevy::render::view::RenderLayers;
-use bevy::color::{Color, LinearRgba};
-use bevy::pbr::MeshMaterial3d;
-use crate::ui::{MenuStack, UiAction, UiMat, GLOBAL_UI_RENDER_LAYERS};
-use crate::ui::widgets::borders::Border;
-use crate::ui::widgets::PrevFocus;
+use smallvec::{smallvec, SmallVec};
+use std::{ops::ControlFlow, sync::Arc, time::Duration};
 
 pub type InteractHandler =
 	dyn Fn(Interaction, &mut EntityCommands) -> ControlFlow<()> + Send + Sync + 'static;
@@ -250,14 +251,20 @@ pub fn focus_state_colors_observer(
 		return;
 	}
 	let entity = trigger.observer();
-	let Ok(focus) = focus_colors.get(entity) else { return };
+	let Ok(focus) = focus_colors.get(entity) else {
+		return;
+	};
 	let color = match trigger.event().kind {
 		InteractionKind::Begin => focus.focused,
 		InteractionKind::Release => focus.unfocused,
 		InteractionKind::Hold(_) => return,
 	};
-	let Ok(handle) = mat_q.get(entity) else { return };
-	let Some(mat) = mats.get_mut(handle.id()) else { return };
+	let Ok(handle) = mat_q.get(entity) else {
+		return;
+	};
+	let Some(mat) = mats.get_mut(handle.id()) else {
+		return;
+	};
 	mat.base.base.base_color = color;
 }
 
@@ -288,14 +295,20 @@ pub fn focus_state_emissive_observer(
 		return;
 	}
 	let entity = trigger.observer();
-	let Ok(focus) = focus_emissive.get(entity) else { return };
+	let Ok(focus) = focus_emissive.get(entity) else {
+		return;
+	};
 	let emissive = match trigger.event().kind {
 		InteractionKind::Begin => focus.focused,
 		InteractionKind::Release => focus.unfocused,
 		InteractionKind::Hold(_) => return,
 	};
-	let Ok(handle) = mat_q.get(entity) else { return };
-	let Some(mat) = mats.get_mut(handle.id()) else { return };
+	let Ok(handle) = mat_q.get(entity) else {
+		return;
+	};
+	let Some(mat) = mats.get_mut(handle.id()) else {
+		return;
+	};
 	mat.base.base.emissive = emissive;
 }
 
