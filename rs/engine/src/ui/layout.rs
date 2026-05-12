@@ -1,6 +1,6 @@
 use super::widgets::{CuboidContainer, CuboidPanel, CylinderPanel, WidgetShape};
 use crate::util::Angle;
-use bevy::prelude::*;
+use bevy::{ecs::component::Mutable, prelude::*};
 use bevy_rapier3d::{
 	parry::{
 		bounding_volume::{Aabb, BoundingVolume},
@@ -101,7 +101,7 @@ impl Default for SiblingConstraint {
 pub fn apply_constraints(
 	child_constraints: Query<(Entity, &LineUpChildren, &Children)>,
 	sibling_constraints: Query<&SiblingConstraint>,
-	mut shapes: Query<(Entity, &mut Transform, Option<&Parent>, &WidgetShape)>,
+	mut shapes: Query<(Entity, &mut Transform, Option<&ChildOf>, &WidgetShape)>,
 ) {
 	for (container, constraint, children) in &child_constraints {
 		match children.len() {
@@ -122,7 +122,6 @@ pub fn apply_constraints(
 		let mut separations = Vec::with_capacity(children.len());
 		for pair in children
 			.iter()
-			.copied()
 			.filter(|child| {
 				shapes
 					.get(*child)
@@ -241,7 +240,7 @@ impl Default for RadialChildren {
 impl RadialChildren {
 	pub fn apply(
 		q: Query<(Entity, &Self, &Children), Changed<Self>>,
-		mut xforms: Query<(&mut Transform, &Parent)>,
+		mut xforms: Query<(&mut Transform, &ChildOf)>,
 	) {
 		for (id, this, children) in &q {
 			let first = this.arrangement.first();
@@ -259,7 +258,7 @@ impl RadialChildren {
 						continue;
 					}
 				};
-				debug_assert_eq!(id, _parent.get());
+				debug_assert_eq!(id, _parent.parent());
 				let new_pos = dir * this.radius;
 				if xform.translation != new_pos {
 					xform.translation = new_pos;
@@ -307,20 +306,20 @@ pub struct ExpandToFitChildren {
 }
 
 impl ExpandToFitChildren {
-	pub fn apply<Container: Component + SetSize>(
+	pub fn apply<Container: Component<Mutability = Mutable> + SetSize>(
 		mut q: Query<(&Self, &mut Container, &Children)>,
 		children: Query<(Ref<WidgetShape>, Ref<Transform>)>,
 	) {
 		for (this, desc, kids) in &mut q {
 			let mut aabb = Aabb::new_invalid();
-			if !kids.iter().copied().any(|child| {
+			if !kids.iter().any(|child| {
 				children
 					.get(child)
 					.is_ok_and(|(shape, xform)| shape.is_changed() || xform.is_changed())
 			}) {
 				continue;
 			}
-			for child in kids.iter().copied() {
+			for child in kids.iter() {
 				let (shape, xform) = match children.get(child) {
 					Ok(child) => child,
 					Err(e) => {

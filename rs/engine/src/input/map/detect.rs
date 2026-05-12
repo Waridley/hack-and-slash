@@ -31,10 +31,10 @@ use bevy::{
 		mouse::{MouseButtonInput, MouseMotion, MouseWheel},
 	},
 	prelude::*,
-	utils::HashMap,
 };
 use leafwing_input_manager::prelude::{MouseMoveDirection, MouseScrollDirection, UserInputWrapper};
 use smallvec::{smallvec, SmallVec};
+use std::collections::HashMap;
 
 pub struct DetectBindingPopupPlugin;
 
@@ -176,23 +176,25 @@ pub struct DetectBindingPopup;
 pub fn manage_detect_popup(
 	mut cmds: Commands,
 	state: Res<State<InputState>>,
-	q: Query<(Entity, Option<&Parent>), With<DetectBindingPopup>>,
+	q: Query<(Entity, Option<&ChildOf>), With<DetectBindingPopup>>,
 	// Popups always show right in front of camera
 	anchor: Query<Entity, (With<GlobalUi>, With<PopupsRoot>)>,
 ) {
-	let Ok((id, parent)) = q.get_single() else {
+	let Ok((id, parent)) = q.single() else {
 		return;
 	};
-	let root = anchor.single();
+	let Ok(root) = anchor.single() else {
+		return;
+	};
 	if *state.get() == DetectingBinding {
 		if let Some(parent) = parent {
-			debug_assert_eq!(parent.get(), root)
+			debug_assert_eq!(parent.parent(), root)
 		} else {
-			cmds.entity(id).set_parent(root);
+			cmds.entity(id).insert(ChildOf(root));
 		}
 	} else if parent.is_some() {
-		debug_assert_eq!(parent.unwrap().get(), root);
-		cmds.entity(id).remove_parent();
+		debug_assert_eq!(parent.unwrap().parent(), root);
+		cmds.entity(id).remove::<ChildOf>();
 	}
 }
 
@@ -211,7 +213,7 @@ pub fn display_curr_chord(
 ) {
 	let icon_mat = icon_mat.get_or_insert_with(|| mats.add(UiMatBuilder::default()));
 	let outline_mat = mats.add(MeshOutline::default_material());
-	let Ok((id, mut icons)) = q.get_single_mut() else {
+	let Ok((id, mut icons)) = q.single_mut() else {
 		return;
 	};
 
@@ -219,7 +221,7 @@ pub fn display_curr_chord(
 		let keep = curr_chord.contains_key(entry);
 		if !keep {
 			for id in ids.iter() {
-				cmds.entity(*id).despawn_recursive()
+				cmds.entity(*id).despawn()
 			}
 		}
 		keep
@@ -292,7 +294,7 @@ pub fn detect_bindings(
 		*w = Vec2::ZERO;
 		let binding = ToBind(std::mem::take(chord));
 		info!("{binding:?}");
-		tx.send(binding);
+		tx.write(binding);
 	};
 
 	// Only finalize binding when the user *releases* at least one button.

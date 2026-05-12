@@ -1,5 +1,5 @@
 use bevy::{
-	ecs::{query::QueryFilter, schedule::SystemConfigs},
+	ecs::{query::QueryFilter, schedule::IntoScheduleConfigs, system::ScheduleSystem},
 	prelude::*,
 	window::PrimaryWindow,
 };
@@ -33,11 +33,13 @@ impl Plugin for DbgUiPlugin {
 
 pub fn plot_res_history<T: Resource, const LINES: usize>(
 	map_fn: impl FnMut((usize, &T)) -> (f64, [f64; LINES]) + Clone + Send + Sync + 'static,
-) -> SystemConfigs {
+) -> impl IntoScheduleConfigs<ScheduleSystem, ()> {
 	(move |mut egui_contexts: Query<&mut EguiContext, With<PrimaryWindow>>,
 	       mut ui_hovered: ResMut<UiHovered>,
 	       history: Res<History<T>>| {
-		let mut ctx = egui_contexts.single_mut();
+		let Ok(mut ctx) = egui_contexts.single_mut() else {
+			return;
+		};
 		let ctx = ctx.get_mut();
 		let map_fn = map_fn.clone();
 		egui::Window::new(std::any::type_name::<T>().split("::").last().unwrap())
@@ -55,12 +57,14 @@ pub fn plot_res_history<T: Resource, const LINES: usize>(
 
 pub fn plot_component_history<T: Component, Filter: QueryFilter + 'static, const LINES: usize>(
 	map_fn: impl FnMut((usize, &T)) -> (f64, [f64; LINES]) + Clone + Send + Sync + 'static,
-) -> SystemConfigs {
+) -> impl IntoScheduleConfigs<ScheduleSystem, ()> {
 	(move |mut egui_contexts: Query<&mut EguiContext, With<PrimaryWindow>>,
 	       mut ui_hovered: ResMut<UiHovered>,
 	       q: Query<(Entity, &History<T>), Filter>| {
 		let mut hovered = false;
-		let mut ctx = egui_contexts.single_mut();
+		let Ok(mut ctx) = egui_contexts.single_mut() else {
+			return;
+		};
 		let ctx = ctx.get_mut();
 		for (id, history) in &q {
 			let map_fn = map_fn.clone();
@@ -111,7 +115,9 @@ pub fn height_under_player(
 	frame: Res<Frame>,
 	loaded_chunks: Res<LoadedChunks>,
 ) {
-	let mut ctx = egui_contexts.single_mut();
+	let Ok(mut ctx) = egui_contexts.single_mut() else {
+		return;
+	};
 	let ctx = ctx.get_mut();
 	ctx.style_mut(|style| {
 		style.visuals.window_fill = Color32::from_black_alpha(128);

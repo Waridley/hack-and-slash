@@ -1,6 +1,7 @@
 use crate::ui::{MenuRef, MenuStack, UiAction, GLOBAL_UI_RENDER_LAYERS};
 use bevy::{
-	a11y::Focus, ecs::identifier::error::IdentifierError, prelude::*, render::view::RenderLayers,
+	ecs::identifier::error::IdentifierError, input_focus::InputFocus, prelude::*,
+	render::view::RenderLayers,
 };
 use leafwing_input_manager::prelude::ActionState;
 use serde::{Deserialize, Serialize};
@@ -155,7 +156,7 @@ impl FocusTarget {
 	pub fn resolve(
 		&self,
 		from: Entity,
-		parent_query: &Query<&Parent>,
+		parent_query: &Query<&ChildOf>,
 		children_query: &Query<&Children>,
 		names: &Query<&Name>,
 		menu: &MenuRef,
@@ -164,27 +165,27 @@ impl FocusTarget {
 			Self::Sibling(relative) => parent_query
 				.get(from)
 				.ok()
-				.map(Parent::get)
+				.map(ChildOf::parent)
 				.and_then(|parent| children_query.get(parent).ok())
 				.and_then(|children| {
 					let len = children.len();
 					let i = (children
 						.iter()
-						.position(|child| *child == from)
+						.position(|child| child == from)
 						.unwrap()
 						.checked_add_signed(*relative)
 						.unwrap_or(len - 1))
 						% len;
 					children.get(i).copied()
 				}),
-			Self::ToParent => parent_query.get(from).ok().map(Parent::get),
+			Self::ToParent => parent_query.get(from).ok().map(ChildOf::parent),
 			Self::MenuRoot => Some(menu.root),
 			Self::ChildN(i) => children_query
 				.get(from)
 				.ok()
 				.and_then(|children| children.get(*i).copied()),
 			Self::FindChild(name) => children_query.get(from).ok().and_then(|children| {
-				children.iter().copied().find(|child| {
+				children.iter().find(|child| {
 					let Some(child_name) = names.get(*child).ok() else {
 						return false;
 					};
@@ -328,14 +329,14 @@ impl AdjacentWidgets {
 }
 
 pub fn handle_focus_actions(
-	q: Query<(&AdjacentWidgets, Option<&Parent>, &RenderLayers)>,
-	parents_q: Query<&Parent>,
+	q: Query<(&AdjacentWidgets, Option<&ChildOf>, &RenderLayers)>,
+	parents_q: Query<&ChildOf>,
 	children_q: Query<&Children>,
 	names: Query<&Name>,
 	mut stacks: Query<(&mut MenuStack, &RenderLayers)>,
 	actions: Query<(&ActionState<UiAction>, &RenderLayers)>,
 	glob_actions: Res<ActionState<UiAction>>,
-	mut focus: ResMut<Focus>,
+	mut focus: ResMut<InputFocus>,
 	mut prev_cursor: Local<Option<Wedge2d>>,
 ) {
 	for (state, layers) in

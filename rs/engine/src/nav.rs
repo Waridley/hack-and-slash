@@ -3,9 +3,12 @@ use crate::{
 	planet::chunks::ChunkIndex,
 	util::Todo,
 };
-use bevy::{prelude::*, utils::HashMap};
+use bevy::prelude::*;
 use rapier3d::prelude::*;
-use std::{collections::HashSet, sync::Weak};
+use std::{
+	collections::{HashMap, HashSet},
+	sync::Weak,
+};
 
 pub mod alg;
 pub mod heightmap;

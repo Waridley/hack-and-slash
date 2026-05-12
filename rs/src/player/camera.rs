@@ -30,8 +30,7 @@ use bevy_rapier3d::{
 	geometry::{Collider, CollisionGroups, Group},
 	math::Vect,
 	pipeline::QueryFilter,
-	plugin::RapierContext,
-	prelude::ShapeCastOptions,
+	prelude::{ReadRapierContext, ShapeCastOptions},
 };
 use engine::ui::spawn_ui_camera;
 use enum_components::{ERef, EntityEnumCommands, WithVariant};
@@ -97,12 +96,14 @@ pub fn spawn_cameras(
 		diffuse.resize(size);
 
 		#[cfg(feature = "debugging")]
-		for chunk in tex.data.chunks_mut(16) {
-			// Displays fuchsia if shader/custom pipeline aren't working
-			chunk.copy_from_slice(unsafe {
-				&*(&bevy::color::palettes::basic::FUCHSIA.to_f32_array() as *const [f32; 4]
-					as *const [u8; 16])
-			});
+		if let Some(data) = tex.data.as_mut() {
+			for chunk in data.chunks_mut(16) {
+				// Displays fuchsia if shader/custom pipeline aren't working
+				chunk.copy_from_slice(unsafe {
+					&*(&bevy::color::palettes::basic::FUCHSIA.to_f32_array() as *const [f32; 4]
+						as *const [u8; 16])
+				});
+			}
 		}
 
 		tex.reinterpret_stacked_2d_as_array(6);
@@ -157,6 +158,7 @@ pub fn spawn_cameras(
 				specular_map: sky_texture.clone(),
 				intensity: 1_000.0,
 				rotation: Quat::from_rotation_x(FRAC_PI_2),
+				affects_lightmapped_mesh_diffuse: true,
 			},
 			Bloom {
 				intensity: 0.2,
@@ -209,10 +211,13 @@ pub fn spawn_pivot<'a>(
 pub struct CamTarget(pub Transform);
 
 pub fn position_target(
-	ctx: Single<&RapierContext>,
+	ctx: ReadRapierContext,
 	cam_pivot_q: Query<(&GlobalTransform, &BelongsToPlayer), WithVariant<CamPivot>>,
 	mut cam_q: Query<(&mut CamTarget, &Collider, &BelongsToPlayer, ERef<Cam>)>,
 ) {
+	let Ok(ctx) = ctx.single() else {
+		return;
+	};
 	for (mut target, col, cam_owner, cam) in &mut cam_q {
 		let Some(pivot_xform) = cam_pivot_q
 			.iter()
@@ -289,7 +294,7 @@ pub fn follow_target(
 			continue;
 		};
 		let new = cam_xform.sl_decay(**target_xform, *smoothing, dt);
-		sender.send(ComponentDelta::<Transform>::default_diffable(id, new));
+		sender.write(ComponentDelta::<Transform>::default_diffable(id, new));
 	}
 }
 

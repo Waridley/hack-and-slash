@@ -78,8 +78,8 @@ impl InputIcon {
 				outline,
 				ref outline_material,
 			} = *this;
-			if let Some(text_entity) = cmds.get_entity(text_entity) {
-				text_entity.despawn_recursive();
+			if let Ok(mut text_entity) = cmds.get_entity(text_entity) {
+				text_entity.despawn();
 			}
 			let mut cmds = cmds.entity(id);
 			let svg = asset_server.load::<Svg>(image);

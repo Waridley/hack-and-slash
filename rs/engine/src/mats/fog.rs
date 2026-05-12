@@ -1,5 +1,5 @@
 use bevy::{
-	asset::{Asset, ReflectAsset},
+	asset::{weak_handle, Asset, ReflectAsset},
 	image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor, ImageType},
 	pbr::{ExtendedMaterial, MaterialExtension},
 	prelude::*,
@@ -18,8 +18,7 @@ use crate::{
 };
 
 pub type Matter = ExtendedMaterial<StandardMaterial, DistanceDither>;
-pub const BAYER_HANDLE: Handle<Image> =
-	Handle::weak_from_u128(92299220200241619468604683494190943784);
+pub const BAYER_HANDLE: Handle<Image> = weak_handle!("45702ee6-5faa-a602-c3eb-8155497b0e28");
 
 /// Function instead of a constant because it uses floating-point math.
 #[inline(always)]

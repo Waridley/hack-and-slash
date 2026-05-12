@@ -41,7 +41,7 @@ pub fn sync_cuboid_panel_borders(
 	mut meshes: ResMut<Assets<Mesh>>,
 ) {
 	for (children, panel) in &panels {
-		for (id, border) in children.iter().filter_map(|child| borders.get(*child).ok()) {
+		for (id, border) in children.iter().filter_map(|child| borders.get(child).ok()) {
 			cmds.entity(id).insert(Mesh3d(
 				meshes.add(
 					PlanarPolyLine {
@@ -68,7 +68,7 @@ pub fn sync_cuboid_container_borders(
 	mut meshes: ResMut<Assets<Mesh>>,
 ) {
 	for (children, container) in &panels {
-		for (id, border) in children.iter().filter_map(|child| borders.get(*child).ok()) {
+		for (id, border) in children.iter().filter_map(|child| borders.get(child).ok()) {
 			cmds.entity(id).insert(Mesh3d(
 				meshes.add(
 					PlanarPolyLine {

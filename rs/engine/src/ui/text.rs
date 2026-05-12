@@ -1,13 +1,13 @@
 use crate::ui::widgets::WidgetShape;
 use ab_glyph::{Font as _, OutlineCurve::*};
-use bevy::{prelude::*, utils::HashMap};
+use bevy::prelude::*;
 use lyon_tessellation::{
 	geometry_builder::Positions,
 	math::{Point, Vector},
 	path::builder::{NoAttributes, PathBuilder},
 	BuffersBuilder, FillOptions, FillRule, FillTessellator, VertexBuffers,
 };
-use std::borrow::Cow;
+use std::{borrow::Cow, collections::HashMap};
 
 pub const DIGIT_STRS: [&str; 10] = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
 

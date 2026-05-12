@@ -178,15 +178,21 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 						=> |cmds| {
 							cmds
 								.insert(InteractHandlers::on_ok(move |cmds: &mut EntityCommands| {
-									cmds.commands().queue(|world: &mut World| {
-										let mut q = world.query_filtered::<Entity, With<PrefsMenu>>();
-										let panel_id = q.single(world);
-										world.entity_mut(panel_id).fade_in_secs(0.5);
-										let top_menu = MenuRef::new(panel_id);
-										let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
-										let mut stack = q.single_mut(world);
-										stack.push(top_menu);
-									});
+								cmds.commands().queue(|world: &mut World| {
+									let mut q = world.query_filtered::<Entity, With<PrefsMenu>>();
+									let Ok(panel_id) = q.single(world) else {
+										error!("failed to find prefs panel");
+										return;
+									};
+									world.entity_mut(panel_id).fade_in_secs(0.5);
+									let top_menu = MenuRef::new(panel_id);
+									let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
+									let Ok(mut stack) = q.single_mut(world) else {
+										error!("failed to find global menu stack");
+										return;
+									};
+									stack.push(top_menu);
+								});
 									ControlFlow::Break(())
 								}));
 							focus_state_emissive_observer_setup(cmds, LinearRgba::from(TEAL) * 4.0, LinearRgba::from(TEAL) * 6.0);
@@ -225,15 +231,21 @@ pub fn setup(mut cmds: Commands, mut mats: ResMut<Assets<UiMat>>, ui_fonts: Res<
 						=> |cmds| {
 							cmds
 								.insert(InteractHandlers::on_ok(move |cmds: &mut EntityCommands| {
-									cmds.commands().queue(|world: &mut World| {
-										let mut q = world.query_filtered::<Entity, With<SettingsMenu>>();
-										let panel_id = q.single(world);
-										world.entity_mut(panel_id).fade_in_secs(0.5);
-										let top_menu = world.resource::<SettingsSubMenus>().top;
-										let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
-										let mut stack = q.single_mut(world);
-										stack.push(top_menu);
-									});
+								cmds.commands().queue(|world: &mut World| {
+									let mut q = world.query_filtered::<Entity, With<SettingsMenu>>();
+									let Ok(panel_id) = q.single(world) else {
+										error!("failed to find settings panel");
+										return;
+									};
+									world.entity_mut(panel_id).fade_in_secs(0.5);
+									let top_menu = world.resource::<SettingsSubMenus>().top;
+									let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
+									let Ok(mut stack) = q.single_mut(world) else {
+										error!("failed to find global menu stack");
+										return;
+									};
+									stack.push(top_menu);
+								});
 									ControlFlow::Break(())
 								}));
 							focus_state_colors_observer_setup(cmds, Color::BLACK, Color::from(GRAY));
@@ -341,18 +353,28 @@ pub fn pause(
 	mut states: ResMut<StateStack<InputState>>,
 	mut windows: Query<&mut Window>,
 ) {
-	let Ok(mut window) = windows.get_single_mut() else {
+	let Ok(mut window) = windows.single_mut() else {
 		// probably exiting if window is missing
 		return;
 	};
 
-	let id = panel.single();
-	let mut stack = stack.single_mut();
+	let Ok(id) = panel.single() else {
+		error!("missing pause menu panel");
+		return;
+	};
+	let Ok(focus) = resume_btn.single() else {
+		error!("missing resume button");
+		return;
+	};
+	let Ok(mut stack) = stack.single_mut() else {
+		error!("missing global menu stack");
+		return;
+	};
 	if states.last() == Some(&InputState::InGame) {
 		cmds.entity(id).fade_in_secs(0.5);
 		states.push(InputState::InMenu);
 		stack.push(MenuRef {
-			focus: resume_btn.single(),
+			focus,
 			..MenuRef::new(id)
 		});
 		window.cursor_options.visible = true;
@@ -369,12 +391,18 @@ pub fn unpause(
 	mut states: ResMut<StateStack<InputState>>,
 	mut windows: Query<&mut Window>,
 ) {
-	let Ok(mut window) = windows.get_single_mut() else {
+	let Ok(mut window) = windows.single_mut() else {
 		// probably exiting if window is missing
 		return;
 	};
-	let id = panel.single();
-	let mut stack = stack.single_mut();
+	let Ok(id) = panel.single() else {
+		error!("missing pause menu panel");
+		return;
+	};
+	let Ok(mut stack) = stack.single_mut() else {
+		error!("missing global menu stack");
+		return;
+	};
 	if stack.last().map(|menu| menu.root) == Some(id) {
 		debug_assert_eq!(states.last(), Some(&InputState::InMenu));
 		cmds.entity(id).fade_out_secs(0.5);

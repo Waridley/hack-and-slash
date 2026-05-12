@@ -8,7 +8,7 @@ description = "Things that will rarely change during development."
 # TODO: This might be able to be replaced by debug_assertions now that the feature "dev_ui" exists
 debugging = []
 # TODO: Should dev_ui actually force debugging?
-dev_ui = ["debugging", "render", "bevy-inspector-egui", "egui_plot", "leafwing-input-manager/egui"]
+dev_ui = ["debugging", "render", "bevy-inspector-egui", "egui_plot", "leafwing-input-manager/ui"]
 vis_test = ["testing", "render", "linkme", "dev_ui"]
 testing = ["colored", "bevy_mesh"]
 render = [

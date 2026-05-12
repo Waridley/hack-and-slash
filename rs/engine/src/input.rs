@@ -7,11 +7,11 @@ use bevy::{
 	prelude::*,
 	reflect::{FromType, TypeRegistration},
 	state::state::States,
-	utils::HashMap,
 };
 use leafwing_input_manager::prelude::*;
 use map::detect;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use tiny_bail::prelude::r;
 
 pub mod map;

@@ -66,7 +66,7 @@ pub fn main() -> AppExit {
 			// TODO: Is there a way to just check if all assets are imported?
 			// Or is it guaranteed to happen before exit?
 			if timer.0.just_finished() {
-				exit_events.send(AppExit::Success);
+				exit_events.write(AppExit::Success);
 			} else {
 				timer.0.tick(t.delta());
 			}

@@ -6,7 +6,6 @@ use atomicow::CowArc;
 use bevy::{
 	asset::{Asset, AssetId, Assets},
 	color::{Color, LinearRgba},
-	hierarchy::{Children, Parent},
 	log::{error, trace, warn},
 	pbr::MeshMaterial3d,
 	prelude::*,
@@ -449,6 +448,6 @@ pub struct Interaction {
 }
 
 impl Event for Interaction {
-	type Traversal = &'static Parent;
+	type Traversal = &'static ChildOf;
 	const AUTO_PROPAGATE: bool = true;
 }

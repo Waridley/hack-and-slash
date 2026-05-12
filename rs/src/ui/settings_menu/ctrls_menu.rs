@@ -400,7 +400,10 @@ pub fn anchor_follow_focus(
 	mut stack: Query<&mut MenuStack, With<GlobalUi>>,
 	t: Res<Time>,
 ) {
-	let mut stack = stack.single_mut();
+	let Ok(mut stack) = stack.single_mut() else {
+		error!("missing global menu stack");
+		return;
+	};
 	let Some(menu) = stack.last_mut() else {
 		return;
 	};
@@ -440,6 +443,7 @@ pub fn anchor_follow_focus(
 pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 	mut cmds: Commands,
 	q: Query<(Entity, &BindingListContainer<A>, Option<&BelongsToPlayer>)>,
+	children_q: Query<&Children>,
 	imaps: Query<(Ref<InputMap<A>>, &BelongsToPlayer)>,
 	gamepads: Query<(Option<&Name>, &Gamepad)>,
 	mut global_imap: Option<ResMut<InputMap<A>>>,
@@ -472,10 +476,13 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 				.map(Name::as_str)
 				.and_then(Platform::guess_gamepad);
 			let action = &container.0;
-			let mut cmds = cmds.entity(id);
 			debug!(?id, "clearing icons for {action:?}");
-			cmds.despawn_descendants();
-			cmds.with_children(|cmds| {
+			if let Ok(children) = children_q.get(id) {
+				for &child in children {
+					cmds.entity(child).despawn();
+				}
+			}
+			cmds.entity(id).with_children(|cmds| {
 				let outline_mat = text_mat.clone();
 
 				const OUTLINE: MeshOutline = MeshOutline::front_facing(0.1, 0.01);
@@ -503,7 +510,7 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 					}
 
 					fn separator(
-						cmds: &mut ChildBuilder,
+						cmds: &mut bevy::ecs::hierarchy::ChildSpawnerCommands<'_>,
 						text: impl Into<Cow<'static, str>>,
 						scale: f32,
 						font: Handle<Font>,
@@ -527,7 +534,7 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 					}
 
 					fn basic_icons(
-						cmds: &mut ChildBuilder,
+						cmds: &mut bevy::ecs::hierarchy::ChildSpawnerCommands<'_>,
 						icons: ButtonIcons,
 						scale: f32,
 						font: &Handle<Font>,
@@ -609,7 +616,7 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 					}
 
 					fn axis_icons(
-						cmds: &mut ChildBuilder,
+						cmds: &mut bevy::ecs::hierarchy::ChildSpawnerCommands<'_>,
 						icons: AxisIcons,
 						scale: f32,
 						font: &Handle<Font>,
@@ -678,7 +685,7 @@ pub fn update_binding_list_widgets<A: Actionlike + std::fmt::Debug + Serialize>(
 					}
 
 					fn dual_axis_icons(
-						cmds: &mut ChildBuilder,
+						cmds: &mut bevy::ecs::hierarchy::ChildSpawnerCommands<'_>,
 						icons: DualAxisIcons,
 						scale: f32,
 						font: &Handle<Font>,

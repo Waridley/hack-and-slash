@@ -2,7 +2,7 @@ use crate::ui::{UiMat, UiMatBuilder};
 use bevy::{
 	asset::{io::Reader, AssetLoader, LoadContext},
 	ecs::{
-		component::ComponentId,
+		component::HookContext,
 		query::QueryFilter,
 		system::{
 			CombinatorSystem, Combine, EntityCommands, StaticSystemParam, SystemParam,
@@ -20,7 +20,6 @@ use bevy::{
 	},
 	scene::{SceneLoaderError, SceneLoaderError::RonSpannedError},
 	state::state::FreelyMutableState,
-	utils::{HashMap, HashSet},
 };
 use itertools::Itertools;
 use num_traits::NumCast;
@@ -29,7 +28,7 @@ use serde::{de::DeserializeSeed, Deserialize, Serialize};
 use std::{
 	any::TypeId,
 	cmp::Ordering,
-	collections::VecDeque,
+	collections::{HashMap, HashSet, VecDeque},
 	f32::consts::{PI, TAU},
 	hash::Hash,
 	iter::Sum,
@@ -1368,27 +1367,24 @@ macro_rules! state_matches {
 /// # fn test_entity_tree_macro(mut commands: Commands) {
 /// let root = entity_tree!(commands; (
 ///     // The bundles to spawn on the root entity
-///     TransformBundle::default(),
-///     VisibilityBundle::default();
+///     Transform::default(),
+///     Visibility::default();
 ///     #children: [
 ///         ( // First child
 ///             => |cmds| {
 ///                 // Do stuff with ChildBuilder before spawning this child
-///                 dbg!(cmds.parent_entity());
+///                 dbg!(cmds.target_entity());
 ///             };
 ///             // The bundles to spawn on the first child
-///             TransformBundle {
-///                 local: Transform::from_translation(Vec3::splat(3.0)),
-///                 ..default()
-///             },
-///             VisibilityBundle::default();
+///             Transform::from_translation(Vec3::splat(3.0)),
+///             Visibility::default();
 ///             => |cmds| {
 ///                 // Do stuff after spawning entity but before adding children
 ///                 dbg!(cmds.id());
 ///             }
 ///             #children: [(// grandchildren
-///                 TransformBundle::default(),
-///                 VisibilityBundle::default(),
+///                 Transform::default(),
+///                 Visibility::default(),
 ///             )];
 ///             // You can repeat pairs of `=> |_| {}` and `#children: []`...
 ///             => |cmds| {
@@ -1401,7 +1397,7 @@ macro_rules! state_matches {
 ///             // After each semicolon, both the closure and `#children` sections are optional.
 ///         ),
 ///         ( // Second child
-///             PbrBundle::default(),
+///             Transform::default(),
 ///         ),
 ///         // ...etc.
 ///     ]
@@ -1641,7 +1637,7 @@ impl MeshOutline {
 	pub fn sync(
 		mut cmds: Commands,
 		parents: Query<Ref<Mesh3d>>,
-		outlines: Query<(Entity, Ref<Self>, &Parent, Has<Mesh3d>)>,
+		outlines: Query<(Entity, Ref<Self>, &ChildOf, Has<Mesh3d>)>,
 		mut meshes: ResMut<Assets<Mesh>>,
 		mut events: EventReader<AssetEvent<Mesh>>,
 	) {
@@ -1654,7 +1650,7 @@ impl MeshOutline {
 			.collect::<HashSet<_>>();
 
 		for (id, this, parent, has_mesh) in &outlines {
-			let parent_mesh = match parents.get(parent.get()) {
+			let parent_mesh = match parents.get(parent.parent()) {
 				Ok(parent_mesh) => parent_mesh,
 				Err(e) => {
 					error!(?id, "couldn't get parent: {e}");
@@ -2083,8 +2079,8 @@ fn geometric_normals_impl(positions: &[[f32; 3]], indices: &Indices) -> Vec<Vec3
 pub struct PendingErasedAsset(pub UntypedHandle);
 
 impl PendingErasedAsset {
-	pub fn on_insert(mut world: DeferredWorld, entity: Entity, _id: ComponentId) {
-		let this = world.get::<Self>(entity).unwrap();
+	pub fn on_insert(mut world: DeferredWorld, ctx: HookContext) {
+		let this = world.get::<Self>(ctx.entity).unwrap();
 		let handle = this.0.clone();
 		let mut downcasters = world.resource_mut::<ErasedAssetDowncasters>();
 		let ty = handle.type_id();
@@ -2095,7 +2091,7 @@ impl PendingErasedAsset {
 			return;
 		};
 		let mut cmds = world.commands();
-		let cmds = cmds.entity(entity);
+		let cmds = cmds.entity(ctx.entity);
 		downcaster(cmds, handle);
 		let mut downcasters = world.resource_mut::<ErasedAssetDowncasters>();
 		downcasters.0.insert(ty, downcaster);
@@ -2112,13 +2108,11 @@ impl ErasedAssetDowncasters {
 		&mut self,
 		downcaster: impl FnMut(EntityCommands, UntypedHandle) + Send + Sync + 'static,
 	) {
-		if self
-			.0
-			.try_insert(TypeId::of::<A>(), Box::new(downcaster))
-			.is_err()
-		{
+		let type_id = TypeId::of::<A>();
+		if self.0.contains_key(&type_id) {
 			panic!("Downcaster already registered for {}", A::type_path());
 		}
+		self.0.insert(type_id, Box::new(downcaster));
 	}
 }
 
