@@ -126,6 +126,7 @@ impl Plugin for UiPlugin {
 				ExpandToFitChildren::apply::<CuboidPanel>,
 				ExpandToFitChildren::apply::<CylinderPanel>,
 				ExpandToFitChildren::apply::<CuboidContainer>,
+				interact::observe_interact_handlers,
 				InteractHandlers::system,
 			),
 		)
@@ -661,7 +662,7 @@ pub fn pop_on_back_observer(
 	{
 		return;
 	}
-	let entity = trigger.observer();
+	let entity = trigger.target();
 	let Ok(fade) = fade.get(entity) else { return };
 	cmds.entity(entity).fade_out_secs(**fade);
 	let Ok(mut stack) = stack.single_mut() else {

@@ -45,6 +45,25 @@ pub fn dbg_event_observer(trigger: Trigger<Interaction>) {
 	trace!(event=?trigger.event(), entity=?trigger.observer());
 }
 
+pub fn bridge_to_handlers_observer(
+	trigger: Trigger<Interaction>,
+	handlers_q: Query<&InteractHandlers>,
+	mut cmds: Commands,
+) {
+	let entity = trigger.target();
+	let Ok(handlers) = handlers_q.get(entity) else {
+		return;
+	};
+	let mut entity_cmds = cmds.entity(entity);
+	let _ = handlers.handle(*trigger.event(), &mut entity_cmds);
+}
+
+pub fn observe_interact_handlers(mut cmds: Commands, q: Query<Entity, Added<InteractHandlers>>) {
+	for id in &q {
+		cmds.entity(id).observe(bridge_to_handlers_observer);
+	}
+}
+
 pub fn on_ok(
 	handler: impl Fn(&mut EntityCommands) -> ControlFlow<()> + Send + Sync + 'static,
 ) -> CowArc<'static, InteractHandler> {
@@ -204,7 +223,7 @@ pub fn focus_toggle_border_observer(
 		InteractionKind::Release => Visibility::Hidden,
 		InteractionKind::Hold(_) => return,
 	};
-	let entity = trigger.observer();
+	let entity = trigger.target();
 	let Ok(children) = children_q.get(entity) else {
 		warn!("no border to show focus: no children");
 		return;
@@ -249,7 +268,7 @@ pub fn focus_state_colors_observer(
 	if trigger.event().source != InteractionSource::Focus {
 		return;
 	}
-	let entity = trigger.observer();
+	let entity = trigger.target();
 	let Ok(focus) = focus_colors.get(entity) else {
 		return;
 	};
@@ -293,7 +312,7 @@ pub fn focus_state_emissive_observer(
 	if trigger.event().source != InteractionSource::Focus {
 		return;
 	}
-	let entity = trigger.observer();
+	let entity = trigger.target();
 	let Ok(focus) = focus_emissive.get(entity) else {
 		return;
 	};
