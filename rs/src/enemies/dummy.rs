@@ -9,8 +9,7 @@ use bevy_rapier3d::{
 	dynamics::LockedAxes,
 	math::Vect,
 	na::Vector3,
-	plugin::RapierContext,
-	prelude::{Collider, RigidBody},
+	prelude::{Collider, RigidBody, WriteRapierContext},
 };
 use enum_components::{EntityEnumCommands, WithVariant};
 use rand::{prelude::IteratorRandom, Rng};
@@ -141,7 +140,7 @@ pub fn spawn_new_dummies(
 			return;
 		};
 
-		events.send(NewDummy {
+		events.write(NewDummy {
 			transform: Transform {
 				translation: Vec3::new(x, y, z + 8.0),
 				rotation: Quat::from_rotation_x(FRAC_PI_2),
@@ -155,13 +154,16 @@ pub fn spawn_new_dummies(
 pub struct DummySpawnTimer(Timer);
 
 pub fn handle_hits(
-	mut ctx: Single<&mut RapierContext>,
+	mut ctx: WriteRapierContext,
 	mut cmds: Commands,
 	#[cfg(feature = "bevy_kira_audio")] audio: Res<Audio>,
 	#[cfg(feature = "bevy_kira_audio")] sfx: Res<Sfx>,
 	dummies: Query<(Entity, &GlobalTransform), (WithVariant<Dummy>, With<Alive>)>,
 	mut events: EventReader<Hurt>,
 ) {
+	let Ok(mut ctx) = ctx.single_mut() else {
+		return;
+	};
 	for event in events.read() {
 		if let Ok((id, global)) = dummies.get(event.victim) {
 			let Some(toi) = event.hit.details else {
@@ -171,7 +173,7 @@ pub fn handle_hits(
 				.entity2body()
 				.get(&id)
 				.copied()
-				.and_then(|body| ctx.bodies.get_mut(body))
+				.and_then(|body| ctx.rigidbody_set.bodies.get_mut(body))
 			{
 				#[cfg(feature = "bevy_kira_audio")]
 				audio.play(sfx.impacts[0].clone());

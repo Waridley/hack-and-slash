@@ -1,7 +1,6 @@
 use crate::{
 	todo_warn,
 	ui::{
-		a11y::AKNode,
 		text::{Tessellator, TextMeshCache},
 		UiMat, UiMatBuilder,
 	},
@@ -15,7 +14,6 @@ use bevy::{
 		render_asset::RenderAssetUsages,
 		view::{Layer, RenderLayers},
 	},
-	utils::HashSet,
 };
 use bevy_rapier3d::parry::{
 	math::{Isometry, Vector},
@@ -26,6 +24,7 @@ use rapier3d::parry::shape::SharedShape;
 use serde::{Deserialize, Serialize};
 use std::{
 	borrow::Cow,
+	collections::HashSet,
 	f32::consts::PI,
 	fmt::{Debug, Formatter},
 };
@@ -76,9 +75,9 @@ pub fn offset_mesh_positions(mesh: &mut Mesh, translation: Vec3, rotation: Quat)
 	Visibility,
 	InheritedVisibility,
 	ViewVisibility,
-	RenderLayers(|| crate::ui::GLOBAL_UI_RENDER_LAYERS),
+	RenderLayers = crate::ui::GLOBAL_UI_RENDER_LAYERS,
 	crate::ui::focus::AdjacentWidgets,
-	AKNode(|| AccessibilityNode(accesskit::Node::new(::accesskit::Role::Unknown))),
+	AccessibilityNode = AccessibilityNode(accesskit::Node::new(accesskit::Role::Unknown))
 )]
 pub struct Node3d;
 
@@ -299,7 +298,7 @@ impl Default for Text3d {
 impl Text3d {
 	pub fn sync_mesh(
 		mut cmds: Commands,
-		mut q: Query<(&Text3d, &mut AKNode)>,
+		mut q: Query<(&Text3d, &mut AccessibilityNode)>,
 		changed_text: Query<Entity, Changed<Text3d>>,
 		mut meshes: ResMut<Assets<Mesh>>,
 		mut cache: ResMut<TextMeshCache>,
@@ -840,6 +839,7 @@ impl WidgetShape {
 			TypedShape::RoundConvexPolyhedron(_) => {
 				todo_warn!("Gizmo for WidgetShape(RoundConvexPolyhedron)")
 			}
+			TypedShape::Voxels(_) => todo_warn!("Gizmo for WidgetShape(Voxels)"),
 			TypedShape::Custom(_) => todo_warn!("Gizmo for WidgetShape(Custom)"),
 		}
 	}

@@ -49,7 +49,7 @@ impl Plugin for GamePlugin {
 			.register_type::<Angle>()
 			.add_plugins((
 				RapierPhysicsPlugin::<OneWayHeightFieldFilter>::default(),
-				FrameTimeDiagnosticsPlugin,
+				FrameTimeDiagnosticsPlugin::default(),
 				#[cfg(feature = "bevy_kira_audio")]
 				AudioPlugin,
 			))
@@ -92,7 +92,7 @@ impl Plugin for GamePlugin {
 }
 
 pub fn setup_physics(mut q: Query<&mut RapierConfiguration, Added<RapierConfiguration>>) {
-	let mut cfg = rq!(q.get_single_mut());
+	let mut cfg = rq!(q.single_mut());
 	*cfg = RapierConfiguration {
 		gravity: Vect::new(0.0, 0.0, -9.80665),
 		..RapierConfiguration::new(1.0)
@@ -237,7 +237,7 @@ fn fullscreen(kb: Res<ButtonInput<KeyCode>>, mut windows: Query<&mut Window, Wit
 	use bevy::window::WindowMode::*;
 
 	if kb.just_pressed(KeyCode::F11) {
-		let mut window = windows.single_mut();
+		let mut window = rq!(windows.single_mut());
 		window.mode = match window.mode {
 			Windowed => BorderlessFullscreen(MonitorSelection::Current),
 			_ => Windowed,

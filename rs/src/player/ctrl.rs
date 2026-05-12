@@ -48,7 +48,7 @@ pub struct CtrlVel {
 }
 
 pub fn antigrav(
-	mut ctx: Mut<RapierContext>,
+	ctx: &mut RapierContextMut,
 	body_id: Entity,
 	global: &Transform,
 	col: &Collider,
@@ -97,11 +97,15 @@ pub fn antigrav(
 			error!(?id, "body hit by antigrav missing from ctx.entity2body");
 			return;
 		};
-		ctx.bodies.get_mut(body).unwrap().apply_impulse_at_point(
-			Vector3::from(global.rotation * details.normal2) * x0 * 100.0,
-			details.witness1.into(),
-			true,
-		);
+		ctx.rigidbody_set
+			.bodies
+			.get_mut(body)
+			.unwrap()
+			.apply_impulse_at_point(
+				Vector3::from(global.rotation * details.normal2) * x0 * 100.0,
+				details.witness1.into(),
+				true,
+			);
 		if angle < params.phys.slide_angle.rad() {
 			ctrl_state.touching_ground = true;
 
@@ -186,7 +190,7 @@ pub fn gravity(mut q: Query<(&mut CtrlVel, &CtrlState)>, params: Res<PlayerParam
 }
 
 pub fn move_player(
-	mut ctx: Single<&mut RapierContext>,
+	mut ctx: WriteRapierContext,
 	heightfield_filter: OneWayHeightFieldFilter,
 	mut body_q: Query<(Entity, &mut Transform, &BelongsToPlayer), WithVariant<Root>>,
 	mut ctrl_q: Query<
@@ -215,6 +219,9 @@ pub fn move_player(
 	mut contacts: Local<Vec<(Vec3, f32)>>,
 ) {
 	use engine::DT;
+	let Ok(mut ctx) = ctx.single_mut() else {
+		return;
+	};
 	// Rapier adds t.delta_secs() at the beginning of the simulation step, but we need to know what
 	// it is before that happens, while still matching the behavior of other interpolated bodies.
 	let mut diff = sim_to_render.diff + t.delta_secs();
@@ -272,7 +279,7 @@ pub fn move_player(
 				}
 
 				antigrav(
-					ctx.reborrow(),
+					&mut ctx,
 					body_id,
 					&body_xform,
 					col,
@@ -382,10 +389,10 @@ pub fn move_player(
 							if handle == col_id {
 								return true;
 							}
-							let Some(handle) = ctx.entity2collider().get(&handle) else {
+							let Some(handle) = ctx.colliders.entity2collider().get(&handle) else {
 								return true;
 							};
-							if let Some(other_col) = ctx.colliders.get(*handle) {
+							if let Some(other_col) = ctx.colliders.colliders.get(*handle) {
 								manifolds.clear();
 								let rel = iso.inv_mul(other_col.position());
 								if q.contact_manifolds(

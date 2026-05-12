@@ -1,5 +1,6 @@
 use std::{
 	cmp::Ordering,
+	collections::HashMap,
 	fmt::{Debug, Formatter},
 	hash::{Hash, Hasher},
 	marker::PhantomData,
@@ -8,10 +9,9 @@ use std::{
 };
 
 use bevy::{
-	ecs::{query::QueryEntityError, system::EntityCommands},
+	ecs::{component::Mutable, query::QueryEntityError, system::EntityCommands},
 	prelude::*,
 	transform::TransformSystem::TransformPropagate,
-	utils::HashMap,
 };
 
 use crate::util::{Diff, Target};
@@ -25,7 +25,6 @@ impl Plugin for BuiltinAnimations {
 			AnimationPlugin::<Transform>::PLUGIN,
 			AnimationPlugin::<GlobalTransform>::PLUGIN,
 			AnimationPlugin::<Visibility>::PLUGIN,
-			AnimationPlugin::<ViewVisibility>::PLUGIN,
 		))
 		.add_systems(
 			PostUpdate,
@@ -46,11 +45,11 @@ impl Plugin for BuiltinAnimations {
 #[derive(Default, Debug)]
 pub struct AnimationPlugin<T: Component>(PhantomData<T>);
 
-impl<T: Component> AnimationPlugin<T> {
+impl<T: Component<Mutability = Mutable>> AnimationPlugin<T> {
 	pub const PLUGIN: Self = Self(PhantomData::<T>);
 }
 
-impl<T: Component> Plugin for AnimationPlugin<T> {
+impl<T: Component<Mutability = Mutable>> Plugin for AnimationPlugin<T> {
 	fn build(&self, app: &mut App) {
 		app.add_event::<ComponentDelta<T>>().add_systems(
 			PostUpdate,
@@ -121,7 +120,7 @@ impl<T> Hash for AnimationSet<T> {
 	}
 }
 
-pub fn apply_animations<T: Component>(
+pub fn apply_animations<T: Component<Mutability = Mutable>>(
 	mut q: Query<&mut T>,
 	mut ticks: ResMut<Events<ComponentDelta<T>>>,
 ) {
@@ -353,7 +352,7 @@ impl<T: Resource> DynResAnimation<T> {
 		mut sender: EventWriter<Delta<T>>,
 	) {
 		for (id, mut this) in &mut animations {
-			sender.send(this(
+			sender.write(this(
 				Res::clone(&target),
 				Res::clone(&t),
 				AnimationController {
@@ -375,7 +374,7 @@ impl<T: Component> DynAnimation<T> {
 		for (id, mut this) in &mut animations {
 			let Self(target, ref mut apply) = *this;
 			let mut ctrl = AnimationController {
-				cmds: if let Some(cmds) = cmds.get_entity(id) {
+				cmds: if let Ok(cmds) = cmds.get_entity(id) {
 					cmds
 				} else {
 					continue;
@@ -383,7 +382,7 @@ impl<T: Component> DynAnimation<T> {
 			};
 			match targets.get(target) {
 				Ok((id, val)) => {
-					sender.send(apply(id, val, Res::clone(&t), ctrl));
+					sender.write(apply(id, val, Res::clone(&t), ctrl));
 				}
 				Err(e) => {
 					error!("{e}");
@@ -527,7 +526,7 @@ impl BlendTargets {
 	pub fn animate(
 		mut cmds: Commands,
 		mut global_xforms: Query<&GlobalTransform>,
-		parents: Query<&Parent>,
+		parents: Query<&ChildOf>,
 		mut animations: Query<(Entity, &mut Self)>,
 		mut sender: EventWriter<ComponentDelta<Transform>>,
 		t: Res<Time>,
@@ -586,7 +585,7 @@ impl BlendTargets {
 			};
 			let new_global = from_global + (to_global.delta_from(&from_global) * progress);
 			let new = if let Ok(parent) = parents.get(state.animated) {
-				match global_xforms.get(parent.get()) {
+				match global_xforms.get(parent.parent()) {
 					Ok(parent_global) => {
 						GlobalTransform::from(new_global).reparented_to(parent_global)
 					}
@@ -599,7 +598,7 @@ impl BlendTargets {
 			} else {
 				new_global
 			};
-			sender.send(ComponentDelta::<Transform>::diffable(
+			sender.write(ComponentDelta::<Transform>::diffable(
 				state.animated,
 				progress,
 				new,
@@ -632,7 +631,7 @@ mod tests {
 				for Slide(target, vel) in animations.iter().copied() {
 					match q.get(target) {
 						Ok(_) => {
-							sender.send(ComponentDelta::<Transform>::indefinite(
+							sender.write(ComponentDelta::<Transform>::indefinite(
 								target,
 								move |mut xform| xform.translation += vel * dt,
 							));

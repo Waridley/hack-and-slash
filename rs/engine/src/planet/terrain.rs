@@ -10,7 +10,6 @@ use bevy::{
 		mesh::{PrimitiveTopology, VertexAttributeValues::Float32x3},
 		render_asset::RenderAssetUsages,
 	},
-	utils::HashMap,
 };
 use bevy_rapier3d::{
 	geometry::shape_views::HeightFieldCellStatus,
@@ -19,6 +18,7 @@ use bevy_rapier3d::{
 	prelude::*,
 };
 use rapier3d::{geometry::HeightField, na::DMatrix};
+use std::collections::HashMap;
 use web_time::{Duration, Instant};
 
 use crate::{

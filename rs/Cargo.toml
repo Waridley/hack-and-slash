@@ -33,9 +33,13 @@ default = [
 ]
 
 [workspace.dependencies.bevy]
-version = "0.15.3"
+version = "0.16.0"
 default-features = false
 features = [
+    "std",
+    "async_executor",
+    "bevy_log",
+    "bevy_input_focus",
 #    "asset_processor", # only on desktop
     "animation",
     "bevy_asset",
@@ -78,21 +82,21 @@ particles = { package = "sond-bevy-particles", path = "../sond-bevy-particles" }
 macros = { package = "sond-has-macros", path = "engine/macros" }
 
 # Engine
-accesskit = "0.17.1"
-bevy_ecs = "0.15.3"
-bevy_dylib = "0.15.3"
-bevy_mesh = "0.15.3"
-bevy_rapier3d = { version = "0.28.0", default-features = false, features = ["dim3"] }
-rapier3d = { version = "0.22.0", features = ["wasm-bindgen", "serde-serialize"] }
-bevy_kira_audio = "0.21.0"
-leafwing-input-manager = { git = "https://github.com/Leafwing-Studios/leafwing-input-manager.git", version = "0.16.0", features = ["timing"] }
+accesskit = "0.18.0"
+bevy_ecs = "0.16.0"
+bevy_dylib = "0.16.0"
+bevy_mesh = "0.16.0"
+bevy_rapier3d = { version = "0.30.0", default-features = false, features = ["dim3"] }
+rapier3d = { version = "0.25.0", features = ["serde-serialize"] }
+bevy_kira_audio = "0.23.0"
+leafwing-input-manager = { version = "0.17.0", features = ["timing"] }
 
 # Util
 ab_glyph = "0.2.26"
 array-init = "2.1.0"
 atomicow = "1.0.0"
 base64 = "0.21.7"
-bevy_pkv = "0.12.0" # settings
+bevy_pkv = "0.13.0" # settings
 bevy_svg = { version = "0.13.0", path = "../vend/bevy_svg" }
 bimap = "0.6.3"
 blake3 = "1.6.1" # already in upstream deps, decent performance despite good security, only used at startup anyway
@@ -119,8 +123,8 @@ tracing = "0.1.40"
 web-time = "1.0.0"
 
 # Debugging/Editor
-bevy-inspector-egui = {  version = "0.29.1", default-features = false }
-egui_plot = "0.30.0"
+bevy-inspector-egui = {  version = "0.31.0", default-features = false }
+egui_plot = "0.31.0"
 
 # Testing
 linkme = "0.3.22"

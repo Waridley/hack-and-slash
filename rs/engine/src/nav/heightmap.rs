@@ -1,8 +1,8 @@
 use super::{EdgeVendor, NavEdge, NavEdgeFilter, NavGraph, NavIdx, PlanetTri};
 use crate::planet::chunks::{ChunkIndex, CHUNK_COLS, CHUNK_ROWS};
-use bevy::{prelude::*, utils::HashMap};
+use bevy::prelude::*;
 use rapier3d::geometry::HeightField;
-use std::{f32::consts::SQRT_2, sync::Weak};
+use std::{collections::HashMap, f32::consts::SQRT_2, sync::Weak};
 
 pub trait FnsThatShouldBePub {
 	fn num_triangles(&self) -> usize;

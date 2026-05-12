@@ -3,7 +3,7 @@ use crate::{
 	planet::{chunks::ChunkFinder, frame::Frame, PlanetVec2},
 	player::{
 		abilities::{BoosterCharge, HurtboxFilter, WeaponCharge},
-		input::PlayerInputPlugin,
+		input::{PlayerAction, PlayerInputPlugin},
 		tune::{AbilityParams, PlayerParams, PlayerPhysicsParams},
 	},
 	settings::Settings,
@@ -20,7 +20,6 @@ use bevy::{
 		primitives::Sphere,
 		view::{Layer, RenderLayers},
 	},
-	utils::{HashMap, HashSet},
 };
 use bevy_pkv::PkvStore;
 use bevy_rapier3d::{
@@ -31,7 +30,10 @@ use bevy_rapier3d::{
 };
 use camera::spawn_cameras;
 use ctrl::{CtrlState, CtrlVel};
-use engine::{planet::terrain::NeedsTerrain, ui::GLOBAL_UI_LAYER};
+use engine::{
+	planet::terrain::NeedsTerrain,
+	ui::{UiAction, GLOBAL_UI_LAYER},
+};
 use enum_components::{ERef, EntityEnumCommands, EnumComponent, WithVariant};
 use leafwing_input_manager::prelude::*;
 use nanorand::Rng;
@@ -45,6 +47,7 @@ use prefs::PlayerPrefs;
 use rapier3d::{math::Point, prelude::Aabb};
 use serde::{Deserialize, Serialize};
 use std::{
+	collections::{HashMap, HashSet},
 	f32::consts::*,
 	fmt::Formatter,
 	num::NonZeroU8,
@@ -104,7 +107,10 @@ impl Plugin for PlayerPlugin {
 					.insert_gizmo_config(
 						engine::ui::focus::FocusGizmos::<$i>,
 						GizmoConfig {
-							line_width: 6.0,
+							line: GizmoLineConfig {
+								width: 6.0,
+								..default()
+							},
 							render_layers: layers,
 							..default()
 						},
@@ -320,7 +326,7 @@ pub fn update_player_spawn_data(
 	});
 
 	if player_assets.is_added() {
-		spawn_events.send(PlayerSpawnEvent {
+		spawn_events.write(PlayerSpawnEvent {
 			id,
 			died_at: PlanetVec2::default(),
 		});
@@ -749,10 +755,8 @@ fn player_controller(
 				Transform::default(),
 				CtrlVel::default(),
 				CollisionGroups::new(Group::GROUP_1, !Group::GROUP_1),
-				InputManagerBundle {
-					input_map,
-					..default()
-				},
+				input_map,
+				ActionState::<PlayerAction>::default(),
 				CtrlState::default(),
 				BoosterCharge::default(),
 				WeaponCharge::default(),
@@ -762,10 +766,8 @@ fn player_controller(
 		builder.spawn((
 			Name::new(format!("{}.UiController", owner)),
 			owner,
-			InputManagerBundle {
-				input_map: ui_input_map,
-				..default()
-			},
+			ui_input_map,
+			ActionState::<UiAction>::default(),
 			RenderLayers::layer(player_ui_layer(*owner)),
 		));
 	});
@@ -1040,7 +1042,7 @@ pub fn reset_oob(
 	mut cmds: Commands,
 	q: Query<(&GlobalTransform, &BelongsToPlayer)>,
 	roots: Query<(&GlobalTransform, &BelongsToPlayer), WithVariant<Root>>,
-	player_nodes: Query<(Entity, &BelongsToPlayer), (Without<NeverDespawn>, Without<Parent>)>,
+	player_nodes: Query<(Entity, &BelongsToPlayer), (Without<NeverDespawn>, Without<ChildOf>)>,
 	bounds: Res<PlayerBounds>,
 	mut respawn_timers: ResMut<PlayerRespawnTimers>,
 	frame: Res<Frame>,
@@ -1058,7 +1060,7 @@ pub fn reset_oob(
 	let mut started_timers = HashSet::new();
 	for (id, owner) in &player_nodes {
 		if to_respawn.contains(owner) {
-			cmds.entity(id).despawn_recursive();
+			cmds.entity(id).despawn();
 			if !started_timers.contains(owner) {
 				started_timers.insert(*owner);
 				roots.iter().find_map(|(global, id)| {
@@ -1121,7 +1123,7 @@ pub fn orbs_follow_arms(
 		};
 		let arm_global = arm_global.compute_transform();
 		// Always 0 progress to act as default only when no other animations are running
-		sender.send(ComponentDelta::<Transform>::new(
+		sender.write(ComponentDelta::<Transform>::new(
 			id,
 			0.0,
 			move |mut val, coef| {
@@ -1148,7 +1150,7 @@ pub fn countdown_respawn(
 	for (&id, (died_at, timer)) in timers.iter_mut() {
 		timer.tick(t.delta());
 		if timer.just_finished() {
-			spawn_events.send(PlayerSpawnEvent {
+			spawn_events.write(PlayerSpawnEvent {
 				id,
 				died_at: *died_at,
 			});
@@ -1158,7 +1160,7 @@ pub fn countdown_respawn(
 
 pub fn kill_on_key(
 	mut cmds: Commands,
-	q: Query<(Entity, &BelongsToPlayer), (Without<NeverDespawn>, Without<Parent>)>,
+	q: Query<(Entity, &BelongsToPlayer), (Without<NeverDespawn>, Without<ChildOf>)>,
 	roots: Query<(&GlobalTransform, &BelongsToPlayer), WithVariant<Root>>,
 	input: Res<ButtonInput<KeyCode>>,
 	mut respawn_timers: ResMut<PlayerRespawnTimers>,
@@ -1166,7 +1168,7 @@ pub fn kill_on_key(
 ) {
 	if input.just_pressed(KeyCode::KeyK) {
 		for (id, owner) in &q {
-			cmds.entity(id).despawn_recursive();
+			cmds.entity(id).despawn();
 			roots.iter().find_map(|(global, id)| {
 				(*id == *owner).then(|| {
 					respawn_timers

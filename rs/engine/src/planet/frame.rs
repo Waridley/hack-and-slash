@@ -7,8 +7,9 @@ use crate::{
 };
 use bevy::{prelude::*, render::view::RenderLayers};
 use bevy_rapier3d::{
-	dynamics::RapierRigidBodyHandle, na::Vector, plugin::RapierContext,
-	prelude::TransformInterpolation,
+	dynamics::RapierRigidBodyHandle,
+	na::Vector,
+	prelude::{TransformInterpolation, WriteRapierContext},
 };
 use particles::{
 	InitialGlobalTransform, InitialTransform, PreviousGlobalTransform, PreviousTransform,
@@ -56,26 +57,26 @@ impl Default for Frame {
 }
 
 pub fn reframe_all_entities(
-	mut ctx: Single<&mut RapierContext>,
+	mut ctx: WriteRapierContext,
 	mut q: Query<(
 		&mut Transform,
 		&mut GlobalTransform,
-		Has<Parent>,
+		Has<ChildOf>,
 		Option<&RenderLayers>,
 	)>,
 	bodies: Query<&RapierRigidBodyHandle>,
-	mut interpolations: Query<&mut TransformInterpolation, Without<Parent>>,
-	mut prev_xforms: Query<&mut Prev<Transform>, Without<Parent>>,
+	mut interpolations: Query<&mut TransformInterpolation, Without<ChildOf>>,
+	mut prev_xforms: Query<&mut Prev<Transform>, Without<ChildOf>>,
 	mut prev_globals: Query<&mut Prev<GlobalTransform>>,
 	mut prev_particles: Query<(
 		&mut PreviousTransform,
 		&mut PreviousGlobalTransform,
-		Has<Parent>,
+		Has<ChildOf>,
 	)>,
 	mut init_particles: Query<(
 		&mut InitialTransform,
 		&mut InitialGlobalTransform,
-		Has<Parent>,
+		Has<ChildOf>,
 	)>,
 	frame: Res<Frame>,
 	prev_frame: Res<Prev<Frame>>,
@@ -130,10 +131,13 @@ pub fn reframe_all_entities(
 		});
 
 	// Rapier transforms
+	let Ok(mut ctx) = ctx.single_mut() else {
+		return;
+	};
 	let offset = Vector::from(offset);
 	for body in &bodies {
 		// TODO: Parallelize this -- RigidBodySet does not have par_iter
-		if let Some(body) = ctx.bodies.get_mut(body.0) {
+		if let Some(body) = ctx.rigidbody_set.bodies.get_mut(body.0) {
 			let pos = body.translation();
 			body.set_translation(*pos + offset, false);
 		}

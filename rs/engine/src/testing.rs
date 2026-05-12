@@ -2,7 +2,6 @@ use bevy::{
 	app::AppExit,
 	log::{error, info},
 	prelude::*,
-	utils::HashMap,
 };
 use bevy_rapier3d::{
 	math::Vect,
@@ -10,6 +9,7 @@ use bevy_rapier3d::{
 };
 use colored::Colorize;
 use std::{
+	collections::HashMap,
 	error::Error,
 	fmt::{Display, Formatter},
 	num::NonZero,
@@ -30,7 +30,9 @@ pub fn new_test_app() -> App {
 			close_when_requested: false,
 			..default()
 		}))
-		.add_plugins(bevy_inspector_egui::bevy_egui::EguiPlugin)
+		.add_plugins(bevy_inspector_egui::bevy_egui::EguiPlugin {
+			enable_multipass_for_primary_context: true,
+		})
 		.insert_resource(bevy::winit::WinitSettings { ..default() })
 		.add_plugins(bevy_rapier3d::render::RapierDebugRenderPlugin {
 			enabled: true,
@@ -93,7 +95,7 @@ pub fn timeout(mut timer: ResMut<Timeout>, t: Res<Time>) {
 }
 
 pub fn exit_app(mut events: EventWriter<AppExit>) {
-	events.send(AppExit::Success);
+	events.write(AppExit::Success);
 }
 
 #[derive(Event)]
@@ -188,11 +190,11 @@ fn check_test_results(
 		} else {
 			error!("1 test failed");
 		}
-		exits.send(AppExit::Error(
+		exits.write(AppExit::Error(
 			failed.try_into().unwrap_or(NonZero::<u8>::MAX),
 		));
 	} else {
-		exits.send(AppExit::Success);
+		exits.write(AppExit::Success);
 	}
 }
 
@@ -204,7 +206,7 @@ impl<F: IntoSystem<(), TestStatus, M>, M> TestSystem<M> for F {
 	fn test(self, test_name: &'static str) -> impl System<In = (), Out = ()> {
 		let status_to_event = move |In(status): In<TestStatus>,
 		                            mut events: EventWriter<TestEvent>| {
-			events.send(TestEvent {
+			events.write(TestEvent {
 				status,
 				name: test_name,
 			});
@@ -330,12 +332,13 @@ pub mod vis {
 
 			if input.just_pressed(KeyCode::KeyF) {
 				commands.entity(entity).despawn();
-				events.send(TestStatus::Failed("user pressed F".into()).event(test_window.test_id));
+				events
+					.write(TestStatus::Failed("user pressed F".into()).event(test_window.test_id));
 			} else if input.just_pressed(KeyCode::KeyP) {
 				commands.entity(entity).despawn();
-				events.send(TestStatus::Passed.event(test_window.test_id));
+				events.write(TestStatus::Passed.event(test_window.test_id));
 			} else {
-				events.send(TestStatus::Running.event(test_window.test_id));
+				events.write(TestStatus::Running.event(test_window.test_id));
 			}
 		}
 	}

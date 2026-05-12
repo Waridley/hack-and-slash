@@ -12,7 +12,7 @@ pub fn mouse_picks_focus(
 	q: Query<(&GlobalTransform, &WidgetShape)>,
 	mut menu_stacks: Query<(&mut MenuStack, &RenderLayers)>,
 	descendant_q: Query<&Children>,
-	ancestor_q: Query<&Parent>,
+	ancestor_q: Query<&ChildOf>,
 	mut events: EventReader<CursorMoved>,
 	mouse_layers: Res<MouseLayers>,
 	windows: Query<(&Window, Has<PrimaryWindow>)>,

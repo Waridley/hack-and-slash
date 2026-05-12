@@ -9,9 +9,14 @@ use crate::{
 	util::{Diff, LerpSlerp},
 };
 use bevy::{
+	asset::weak_handle,
 	color::palettes::basic::YELLOW,
 	diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
-	ecs::{query::QuerySingleError, schedule::SystemConfigs, system::EntityCommands},
+	ecs::{
+		query::QuerySingleError,
+		schedule::{IntoScheduleConfigs, ScheduleConfigs},
+		system::{EntityCommands, ScheduleSystem},
+	},
 	input::common_conditions::input_toggle_active,
 	prelude::*,
 	render::{
@@ -19,12 +24,11 @@ use bevy::{
 		view::{Layer, RenderLayers},
 	},
 	ui::FocusPolicy,
-	utils::HashMap,
 };
 use leafwing_input_manager::{prelude::*, Actionlike};
 use serde::{Deserialize, Serialize};
 use std::{
-	collections::VecDeque,
+	collections::{HashMap, VecDeque},
 	f64::consts::TAU,
 	fmt::Formatter,
 	ops::{Add, ControlFlow::Break, Mul},
@@ -74,7 +78,10 @@ impl Plugin for UiPlugin {
 			.insert_gizmo_config(
 				focus::FocusGizmos::<GLOBAL_UI_LAYER>,
 				GizmoConfig {
-					line_width: 6.0,
+					line: GizmoLineConfig {
+						width: 6.0,
+						..default()
+					},
 					render_layers: GLOBAL_UI_RENDER_LAYERS,
 					..default()
 				},
@@ -94,6 +101,8 @@ impl Plugin for UiPlugin {
 		.register_type::<DitherFade>()
 		.register_type::<Text3d>()
 		.init_resource::<ActionState<UiAction>>()
+		.init_resource::<bevy::input_focus::InputFocus>()
+		.init_resource::<bevy::input_focus::InputFocusVisible>()
 		.insert_resource(UiAction::default_mappings())
 		.init_resource::<UiHovered>()
 		.init_resource::<TextMeshCache>()
@@ -117,6 +126,7 @@ impl Plugin for UiPlugin {
 				ExpandToFitChildren::apply::<CuboidPanel>,
 				ExpandToFitChildren::apply::<CylinderPanel>,
 				ExpandToFitChildren::apply::<CuboidContainer>,
+				interact::observe_interact_handlers,
 				InteractHandlers::system,
 			),
 		)
@@ -139,7 +149,7 @@ impl Plugin for UiPlugin {
 		let mono = srv.load("ui/fonts/Noto_Sans_Mono/static/NotoSansMono-Bold.ttf");
 		app.insert_resource(UiFonts { mono });
 		app.world_mut().resource_mut::<Assets<_>>().insert(
-			Handle::weak_from_u128(widgets::UNLIT_MATERIAL_ID).id(),
+			weak_handle!("6b6be46f-1849-6085-002c-70718ef1e41b").id(),
 			new_unlit_material(),
 		);
 	}
@@ -461,12 +471,12 @@ pub struct PopupsRoot;
 pub struct Popup;
 
 pub fn hide_orphaned_popups(
-	mut q: Query<(Option<&Parent>, &mut Visibility), With<Popup>>,
+	mut q: Query<(Option<&ChildOf>, &mut Visibility), With<Popup>>,
 	// Popups are spawned on `CamAnchor`
 	roots: Query<(), With<PopupsRoot>>,
 ) {
 	for (parent, mut vis) in &mut q {
-		match (parent.map(Parent::get), *vis) {
+		match (parent.map(ChildOf::parent), *vis) {
 			(Some(parent), Visibility::Hidden) if roots.contains(parent) => {
 				*vis = Visibility::Inherited
 			}
@@ -516,7 +526,7 @@ pub fn show_fps(
 	ui_fonts: Res<UiFonts>,
 ) {
 	if keys.just_pressed(KeyCode::F10) {
-		match q.get_single() {
+		match q.single() {
 			Err(QuerySingleError::NoEntities(_)) => {
 				let val = diags
 					.get_measurement(&FrameTimeDiagnosticsPlugin::FPS)
@@ -562,36 +572,38 @@ pub struct ShowDebugWindows;
 pub trait AddDebugUi {
 	/// Like `App::add_systems`, but disables the systems when the `debugging` feature
 	/// is not enabled.
-	fn add_debug_systems<M>(&mut self, systems: impl IntoSystemConfigs<M>) -> &mut Self;
+	fn add_debug_systems<M>(
+		&mut self,
+		systems: impl IntoScheduleConfigs<ScheduleSystem, M>,
+	) -> &mut Self;
 }
 
 impl AddDebugUi for App {
 	#[inline(always)]
-	fn add_debug_systems<M>(&mut self, _systems: impl IntoSystemConfigs<M>) -> &mut Self {
+	fn add_debug_systems<M>(
+		&mut self,
+		_systems: impl IntoScheduleConfigs<ScheduleSystem, M>,
+	) -> &mut Self {
 		#[cfg(feature = "debugging")]
 		self.add_systems(Update, _systems.in_set(ShowDebugWindows));
 		self
 	}
 }
 
-pub trait ToggleDbgUi<M> {
+pub trait ToggleDbgUi<M>: IntoScheduleConfigs<ScheduleSystem, M> + Sized {
 	/// Debug UI window will be hidden by default, and can be shown by pressing the given
 	/// key while the debug interface is visible.
-	fn show_with(self, key: KeyCode) -> SystemConfigs;
-	/// Debug UI window will be visible by default, and can be hidden by pressing the given
-	/// key while the debug interface is visible.
-	fn hide_with(self, key: KeyCode) -> SystemConfigs;
-}
-
-impl<S: IntoSystemConfigs<M>, M> ToggleDbgUi<M> for S {
-	fn show_with(self, key: KeyCode) -> SystemConfigs {
+	fn show_with(self, key: KeyCode) -> ScheduleConfigs<ScheduleSystem> {
 		self.run_if(dbg_window_toggled(false, key))
 	}
-
-	fn hide_with(self, key: KeyCode) -> SystemConfigs {
+	/// Debug UI window will be visible by default, and can be hidden by pressing the given
+	/// key while the debug interface is visible.
+	fn hide_with(self, key: KeyCode) -> ScheduleConfigs<ScheduleSystem> {
 		self.run_if(dbg_window_toggled(true, key))
 	}
 }
+
+impl<S: IntoScheduleConfigs<ScheduleSystem, M>, M> ToggleDbgUi<M> for S {}
 
 pub fn dbg_window_toggled(default: bool, code: KeyCode) -> impl Condition<()> {
 	input_toggle_active(false, KeyCode::Backquote).and(input_toggle_active(default, code))
@@ -650,10 +662,10 @@ pub fn pop_on_back_observer(
 	{
 		return;
 	}
-	let entity = trigger.observer();
+	let entity = trigger.target();
 	let Ok(fade) = fade.get(entity) else { return };
 	cmds.entity(entity).fade_out_secs(**fade);
-	let Ok(mut stack) = stack.get_single_mut() else {
+	let Ok(mut stack) = stack.single_mut() else {
 		error!("couldn't find `MenuStack`");
 		return;
 	};
@@ -816,8 +828,8 @@ pub fn propagate_fade<M: Material + AsMut<DitherFade>>(
 		}
 
 		let mut defer = |id| {
-			if let Err(e) = to_set.try_insert(id, **fade) {
-				if cfg!(debug_assertions) && e.value != **fade {
+			if let Some(existing) = to_set.insert(id, **fade) {
+				if cfg!(debug_assertions) && existing != **fade {
 					error!("Separate `Fade` tree branches are sharing a material");
 				}
 			}
@@ -1178,11 +1190,11 @@ fn toggle_test_menu(
 	mut q: Query<(Entity, &TestMenu)>,
 	mut stack: Query<&mut MenuStack, With<GlobalUi>>,
 	input: Res<ButtonInput<KeyCode>>,
-	mut focus: ResMut<bevy::a11y::Focus>,
+	mut focus: ResMut<bevy::input_focus::InputFocus>,
 	mut state: ResMut<crate::util::StateStack<crate::input::InputState>>,
 	mut i: Local<usize>,
 ) {
-	let Ok((id, info)) = q.get_single_mut() else {
+	let Ok((id, info)) = q.single_mut() else {
 		return;
 	};
 	if input.just_pressed(KeyCode::Period) {
@@ -1191,8 +1203,8 @@ fn toggle_test_menu(
 		}
 		let child = info.faces[*i];
 
-		**focus = Some(child);
-		match stack.get_single_mut() {
+		focus.set(child);
+		match stack.single_mut() {
 			Ok(mut stack) => {
 				if *i == 0 {
 					cmds.entity(id).fade_in_secs(0.5);
@@ -1205,11 +1217,11 @@ fn toggle_test_menu(
 		};
 	}
 	if input.just_pressed(KeyCode::Comma) {
-		match stack.get_single_mut() {
+		match stack.single_mut() {
 			Ok(mut stack) => {
 				if *i == 1 {
 					cmds.entity(id).fade_out_secs(0.5);
-					**focus = None;
+					focus.clear();
 					stack.pop();
 					state.pop();
 				} else {

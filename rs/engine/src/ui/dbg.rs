@@ -9,8 +9,13 @@ use bevy::{
 	window::{CursorGrabMode, PrimaryWindow},
 };
 use bevy_inspector_egui::{
-	bevy_egui::EguiContext, egui, egui::Color32, inspector_options::std_options::NumberOptions,
-	prelude::*, quick::WorldInspectorPlugin, reflect_inspector::InspectorUi,
+	bevy_egui::{EguiContext, EguiPlugin},
+	egui,
+	egui::Color32,
+	inspector_options::std_options::NumberOptions,
+	prelude::*,
+	quick::WorldInspectorPlugin,
+	reflect_inspector::InspectorUi,
 };
 use bevy_rapier3d::plugin::{RapierConfiguration, TimestepMode};
 use egui_plot::{Legend, Line, Plot};
@@ -25,6 +30,12 @@ impl Plugin for DebugUiPlugin {
 	fn build(&self, app: &mut App) {
 		app.add_plugins(bevy_rapier3d::prelude::RapierDebugRenderPlugin::default())
 			.add_systems(Update, toggle_physics_wireframes);
+
+		if !app.is_plugin_added::<EguiPlugin>() {
+			app.add_plugins(EguiPlugin {
+				enable_multipass_for_primary_context: true,
+			});
+		}
 
 		app.add_plugins(
 			WorldInspectorPlugin::new().run_if(dbg_window_toggled(false, KeyCode::KeyI)),
@@ -62,11 +73,9 @@ pub fn keep_cursor_unlocked(mut windows: Query<&mut Window>) {
 }
 
 pub fn set_egui_style(mut egui_contexts: Query<&mut EguiContext, With<PrimaryWindow>>) {
-	r!(egui_contexts.get_single_mut())
-		.get_mut()
-		.style_mut(|style| {
-			style.visuals.window_fill = Color32::from_black_alpha(128);
-		});
+	r!(egui_contexts.single_mut()).get_mut().style_mut(|style| {
+		style.visuals.window_fill = Color32::from_black_alpha(128);
+	});
 }
 
 pub fn dbg_res<T: Resource + Reflect>(
@@ -75,7 +84,7 @@ pub fn dbg_res<T: Resource + Reflect>(
 	mut ui_hovered: ResMut<UiHovered>,
 	mut res: ResMut<T>,
 ) {
-	let egui_context = q.get_single_mut();
+	let egui_context = q.single_mut();
 
 	let Ok(egui_context) = egui_context else {
 		return;
@@ -103,7 +112,7 @@ pub fn dbg_proxy<T: Resource + From<Proxy>, Proxy: for<'a> From<&'a T> + Partial
 ) {
 	let mut proxy = Proxy::from(&*res);
 
-	let egui_context = q.get_single_mut();
+	let egui_context = q.single_mut();
 
 	let Ok(egui_context) = egui_context else {
 		return;
@@ -131,7 +140,7 @@ pub fn dbg_proxy<T: Resource + From<Proxy>, Proxy: for<'a> From<&'a T> + Partial
 }
 
 pub fn dbg_single_proxy<
-	T: Component + From<Proxy>,
+	T: Component<Mutability = bevy::ecs::component::Mutable> + From<Proxy>,
 	Proxy: for<'a> From<&'a T> + PartialEq<T> + Reflect,
 >(
 	mut q: Query<&mut EguiContext, With<PrimaryWindow>>,
@@ -139,11 +148,11 @@ pub fn dbg_single_proxy<
 	mut ui_hovered: ResMut<UiHovered>,
 	mut single: Query<&mut T>,
 ) {
-	let mut single = r!(single.get_single_mut());
+	let mut single = r!(single.single_mut());
 
 	let mut proxy = Proxy::from(&*single);
 
-	let egui_context = q.get_single_mut();
+	let egui_context = q.single_mut();
 
 	let Ok(egui_context) = egui_context else {
 		return;
@@ -203,7 +212,7 @@ pub fn dbg_fps(
 	mut ui_hovered: ResMut<UiHovered>,
 ) {
 	let mut hovered = false;
-	let Ok(mut ctx) = egui_contexts.get_single_mut() else {
+	let Ok(mut ctx) = egui_contexts.single_mut() else {
 		return;
 	};
 	let ctx = ctx.get_mut();

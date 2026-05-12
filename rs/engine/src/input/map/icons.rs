@@ -2,17 +2,19 @@ use crate::input::{
 	map::{icons::kenney::generic_base_dir, Platform},
 	SerializableUserInputWrapper,
 };
-use bevy::{
-	asset::AssetPath,
-	input::keyboard::Key,
-	prelude::*,
-	utils::{HashMap, HashSet},
-};
+use bevy::{asset::AssetPath, input::keyboard::Key, prelude::*};
 use dyn_clone::clone_box;
 use leafwing_input_manager::{clashing_inputs::BasicInputs, prelude::*};
 use serde::{Deserialize, Serialize};
 use smol_str::{SmolStr, ToSmolStr};
-use std::{any::Any, hash::Hash, ops::Index, path::PathBuf, sync::Arc};
+use std::{
+	any::Any,
+	collections::{HashMap, HashSet},
+	hash::Hash,
+	ops::Index,
+	path::PathBuf,
+	sync::Arc,
+};
 
 pub fn default_icon() -> AssetPath<'static> {
 	PathBuf::from("ui/Kenney/input-prompts/Flairs/Vector/flair_circle_red_8.svg").into()

@@ -286,12 +286,16 @@ pub fn setup(
 							cmds
 								.observe(focus_toggle_border_observer)
 								.insert(InteractHandlers::on_ok(|cmds: &mut EntityCommands| {
-									cmds.commands().queue(|world: &mut World| {
-										let menu = world.resource::<SettingsSubMenus>().controls;
-										let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
-										q.single_mut(world).push(menu);
-										world.entity_mut(menu.root).fade_in_secs(0.5);
-									});
+								cmds.commands().queue(|world: &mut World| {
+									let menu = world.resource::<SettingsSubMenus>().controls;
+									let mut q = world.query_filtered::<&mut MenuStack, With<GlobalUi>>();
+									let Ok(mut stack) = q.single_mut(world) else {
+										error!("failed to find global menu stack");
+										return;
+									};
+									stack.push(menu);
+									world.entity_mut(menu.root).fade_in_secs(0.5);
+								});
 									ControlFlow::Break(())
 								}));
 						}

@@ -6,8 +6,7 @@ use bevy_kira_audio::{Audio, AudioControl, AudioSource};
 use bevy_rapier3d::{
 	geometry::CollisionGroups,
 	pipeline::QueryFilter,
-	plugin::RapierContext,
-	prelude::{Collider, ShapeCastHit, ShapeCastOptions},
+	prelude::{Collider, ReadRapierContext, ShapeCastHit, ShapeCastOptions},
 };
 use enum_components::{ERef, WithVariant};
 use leafwing_input_manager::{action_state::ActionState, systems::update_action_state};
@@ -536,7 +535,7 @@ pub struct Hurt {
 }
 
 pub fn hit_stuff(
-	ctx: Single<&RapierContext>,
+	ctx: ReadRapierContext,
 	q: Query<
 		(
 			Entity,
@@ -549,6 +548,9 @@ pub fn hit_stuff(
 	>,
 	mut events: EventWriter<Hurt>,
 ) {
+	let Ok(ctx) = ctx.single() else {
+		return;
+	};
 	for (id, xform, prev, col, filter) in &q {
 		let xform = xform.compute_transform();
 		let prev = prev.compute_transform();
@@ -570,7 +572,7 @@ pub fn hit_stuff(
 		) else {
 			continue;
 		};
-		events.send(Hurt {
+		events.write(Hurt {
 			hurtbox: id,
 			hit: toi,
 			victim: other,

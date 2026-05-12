@@ -1,5 +1,6 @@
 #![warn(unused_crate_dependencies)]
 
+use accesskit as _;
 use bevy::app::{App, Plugin};
 #[allow(unused_imports, clippy::single_component_path_imports)]
 #[cfg(all(feature = "bevy_dylib", not(target_arch = "wasm32")))]

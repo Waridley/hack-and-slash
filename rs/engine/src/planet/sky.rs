@@ -95,7 +95,7 @@ pub struct SkyPipeline {
 impl FromWorld for SkyPipeline {
 	fn from_world(world: &mut World) -> Self {
 		let render_device = world.resource::<RenderDevice>();
-		let mut entries = SkyCubeUniforms::bind_group_layout_entries(render_device);
+		let mut entries = SkyCubeUniforms::bind_group_layout_entries(render_device, false);
 		entries.push(BindGroupLayoutEntry {
 			binding: 1,
 			visibility: ShaderStages::VERTEX_FRAGMENT,
@@ -313,7 +313,7 @@ fn prepare_sky_bind_groups(
 				let storage_buffers = Res::clone(&storage_buffers);
 				let uniforms = SkyCubeUniforms {
 					face_index: i as _,
-					face_width: skybox.size.x,
+					face_width: skybox.size.width,
 					face_rotation: FACE_ROTATIONS[i],
 					rotation: cube_rotation,
 					time_of_day: day_night.time_of_day as f32,
@@ -325,6 +325,7 @@ fn prepare_sky_bind_groups(
 					&SkyCubeUniforms::bind_group_layout(&render_device),
 					&render_device,
 					&mut (images, fallback_image, storage_buffers),
+					false,
 				)
 				.unwrap();
 				render_device.create_bind_group(

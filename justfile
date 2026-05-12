@@ -45,6 +45,11 @@ fix:
 
 # ── Test ──────────────────────────────────────────────────────────────────────
 
+# Compile-check the desktop debug run feature set used by `just run`
+check-run-debug:
+    cargo check --profile desktop --package sond-has --bin sond-has \
+        --features=bevy/file_watcher,bevy/asset_processor,debugging,dev_ui,dylib
+
 # Run engine tests
 test-engine:
     cargo test --package sond-has-engine --no-default-features --features=testing
@@ -58,7 +63,7 @@ test-rng:
     cargo test --package sond-has-rng
 
 # Run all unit tests
-test-all: test-engine test-game test-rng
+test-all: check-run-debug test-engine test-game test-rng
 
 # Run visual tests (opens a window)
 vis-test:
