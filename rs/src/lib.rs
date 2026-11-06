@@ -34,6 +34,9 @@ pub mod player;
 pub mod tests;
 pub mod ui;
 
+#[cfg(test)]
+mod behavior_tests;
+
 /// Epsilon
 pub const EPS: f32 = 1.0e-5;
 /// Rotational epsilon in radians

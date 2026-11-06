@@ -67,6 +67,7 @@ jobs:
       - name: Run Clippy Linux
         working-directory: ./rs
         run: cargo clippy
+          --tests
           --no-default-features
           --features "${{matrix.debugging}}${{matrix.dev_ui}}${{matrix.testing}}${{matrix.vis_test}}${{matrix.render}}" 
           --
@@ -75,6 +76,7 @@ jobs:
       - name: Run Clippy Windows
         working-directory: ./rs
         run: cargo clippy
+          --tests
           --target x86_64-pc-windows-gnu
           --no-default-features
           --features "${{matrix.debugging}}${{matrix.dev_ui}}${{matrix.testing}}${{matrix.vis_test}}${{matrix.render}}"
@@ -84,6 +86,7 @@ jobs:
       - name: Run Clippy Mac
         working-directory: ./rs
         run: cargo clippy
+          --tests
           --target x86_64-apple-darwin
           --no-default-features
           --features "${{matrix.debugging}}${{matrix.dev_ui}}${{matrix.testing}}${{matrix.vis_test}}${{matrix.render}}"
@@ -94,6 +97,7 @@ jobs:
         working-directory: ./rs
         if: matrix.testing != 'vis_test,'
         run: cargo clippy
+          --tests
           --target wasm32-unknown-unknown
           --no-default-features
           --features "${{matrix.debugging}}${{matrix.dev_ui}}${{matrix.testing}}${{matrix.vis_test}}${{matrix.render}}"

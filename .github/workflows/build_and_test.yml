@@ -26,15 +26,8 @@ jobs:
         with:
           extra_cache_key: build_and_test
 
-      - name: Build
-        working-directory: ./rs
-        run: cargo build --profile test --no-default-features --features "testing,import_assets"
+      - name: Build and test
+        run: just test-all
 
-        # `cargo test --workspace` "unifies" features and I can't figure out how to disable render
-      - name: Test Engine
-        working-directory: ./rs
-        run: cargo test --package sond-has-engine --no-default-features --features "testing"
-
-      - name: Test Game
-        working-directory: ./rs
-        run: cargo test --package sond-has --no-default-features --features "testing,import_assets"
+      - name: Lint tests
+        run: just clippy-tests

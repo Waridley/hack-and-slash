@@ -4,10 +4,7 @@ use crate::{
 	planet::{day_night::DayNightCycle, weather::Weather},
 	util::{Average, History},
 };
-use bevy::{
-	prelude::*,
-	window::{CursorGrabMode, PrimaryWindow},
-};
+use bevy::window::{CursorGrabMode, PrimaryWindow};
 use bevy_inspector_egui::{
 	bevy_egui::{EguiContext, EguiPlugin},
 	egui,

@@ -35,6 +35,11 @@ editor:
 clippy:
     cargo clippy --workspace --all-features
 
+# Lint test targets
+clippy-tests:
+    cargo clippy --package sond-has-engine --tests --no-default-features --features=testing -- -Dwarnings
+    cargo clippy --package sond-has --tests --no-default-features --features="testing,import_assets" -- -Dwarnings
+
 # Format code
 fmt:
     cargo fmt --all -- --config imports_granularity=Crate
