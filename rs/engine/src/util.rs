@@ -1659,7 +1659,8 @@ impl MeshOutline {
 			};
 			if parent_mesh.is_changed()
 				|| this.is_changed()
-				|| !has_mesh || changed_meshes.contains(&parent_mesh.id())
+				|| !has_mesh
+				|| changed_meshes.contains(&parent_mesh.id())
 			{
 				let Some(parent_mesh) = meshes.get(parent_mesh.id()) else {
 					error!(?parent_mesh, "couldn't get parent mesh");
@@ -1757,7 +1758,7 @@ impl MeshOutline {
 				.flat_map(|front| [front[0] + len, front[2] + len, front[1] + len])
 				.collect::<Vec<_>>();
 
-			for tri in indices.chunks_exact(3) {
+			for tri in indices.as_chunks::<3>().0 {
 				let [a, b, c] = [tri[0], tri[1], tri[2]];
 				// Sort for deterministic keys since order doesn't matter
 				let ab = if a > b { (b, a) } else { (a, b) };

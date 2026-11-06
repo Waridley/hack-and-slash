@@ -204,13 +204,13 @@ pub trait TestSystem<M>: IntoSystem<(), TestStatus, M> {
 
 impl<F: IntoSystem<(), TestStatus, M>, M> TestSystem<M> for F {
 	fn test(self, test_name: &'static str) -> impl System<In = (), Out = ()> {
-		let status_to_event = move |In(status): In<TestStatus>,
-		                            mut events: EventWriter<TestEvent>| {
-			events.write(TestEvent {
-				status,
-				name: test_name,
-			});
-		};
+		let status_to_event =
+			move |In(status): In<TestStatus>, mut events: EventWriter<TestEvent>| {
+				events.write(TestEvent {
+					status,
+					name: test_name,
+				});
+			};
 
 		IntoSystem::into_system(self.pipe(IntoSystem::into_system(status_to_event)))
 	}
