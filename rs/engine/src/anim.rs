@@ -610,6 +610,8 @@ impl BlendTargets {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use bevy::time::TimePlugin;
+	use std::sync::{Arc, Mutex};
 
 	#[test]
 	fn animation_api() {
@@ -641,5 +643,134 @@ mod tests {
 				}
 			}
 		}
+	}
+
+	/// A `ComponentDelta` that records the coefficient it was applied with and
+	/// shifts its target by `effect * coef` along the x axis.
+	fn probe(
+		target: Entity,
+		progress: f32,
+		coefs: &Arc<Mutex<Vec<f32>>>,
+		effect: f32,
+	) -> ComponentDelta<Transform> {
+		let recorder = Arc::clone(coefs);
+		ComponentDelta::<Transform>::new(target, progress, move |mut xform, coef| {
+			recorder.lock().unwrap().push(coef);
+			xform.translation.x += effect * coef;
+		})
+	}
+
+	fn animation_app() -> App {
+		let mut app = App::new();
+		app.add_plugins((TimePlugin, AnimationPlugin::<Transform>::PLUGIN));
+		app
+	}
+
+	#[test]
+	fn apply_animations_indefinite_applies_fully_and_drains() {
+		let mut app = animation_app();
+		let target = app.world_mut().spawn(Transform::default()).id();
+		app.world_mut()
+			.resource_mut::<Events<ComponentDelta<Transform>>>()
+			.send(ComponentDelta::<Transform>::indefinite(
+				target,
+				|mut xform| xform.translation.x += 4.0,
+			));
+		app.update();
+
+		assert_eq!(
+			app.world().get::<Transform>(target).unwrap().translation.x,
+			4.0
+		);
+		// All pending deltas were drained, so nothing re-applies next frame.
+		assert!(app
+			.world()
+			.resource::<Events<ComponentDelta<Transform>>>()
+			.is_empty());
+		app.update();
+		assert_eq!(
+			app.world().get::<Transform>(target).unwrap().translation.x,
+			4.0
+		);
+	}
+
+	#[test]
+	fn apply_animations_blends_by_relative_progress() {
+		let mut app = animation_app();
+		let blended = app.world_mut().spawn(Transform::default()).id();
+		let with_default = app.world_mut().spawn(Transform::default()).id();
+		let solo_default = app.world_mut().spawn(Transform::default()).id();
+
+		let blended_coefs = Arc::new(Mutex::new(Vec::new()));
+		let default_coefs = Arc::new(Mutex::new(Vec::new()));
+		let solo_coefs = Arc::new(Mutex::new(Vec::new()));
+
+		let mut events = app
+			.world_mut()
+			.resource_mut::<Events<ComponentDelta<Transform>>>();
+		// Two partial animations blend proportionally to their progress.
+		events.send(probe(blended, 0.25, &blended_coefs, 10.0));
+		events.send(probe(blended, 0.75, &blended_coefs, 10.0));
+		// A default animation yields to any animation with progress.
+		events.send(probe(with_default, 0.0, &default_coefs, 8.0));
+		events.send(probe(with_default, 0.5, &default_coefs, 8.0));
+		// A lone default animation applies at full strength.
+		events.send(probe(solo_default, 0.0, &solo_coefs, 6.0));
+
+		app.update();
+
+		assert_eq!(*blended_coefs.lock().unwrap(), vec![0.25, 0.75]);
+		assert_eq!(
+			app.world().get::<Transform>(blended).unwrap().translation.x,
+			10.0
+		);
+		assert_eq!(*default_coefs.lock().unwrap(), vec![0.0, 1.0]);
+		assert_eq!(
+			app.world()
+				.get::<Transform>(with_default)
+				.unwrap()
+				.translation
+				.x,
+			8.0
+		);
+		assert_eq!(*solo_coefs.lock().unwrap(), vec![1.0]);
+		assert_eq!(
+			app.world()
+				.get::<Transform>(solo_default)
+				.unwrap()
+				.translation
+				.x,
+			6.0
+		);
+		assert!(app
+			.world()
+			.resource::<Events<ComponentDelta<Transform>>>()
+			.is_empty());
+	}
+
+	#[test]
+	fn apply_animations_diffable_applies_single_animation_fully() {
+		let mut app = animation_app();
+		let target = app
+			.world_mut()
+			.spawn(Transform::from_xyz(1.0, 0.0, 0.0))
+			.id();
+		app.world_mut()
+			.resource_mut::<Events<ComponentDelta<Transform>>>()
+			.send(ComponentDelta::<Transform>::diffable(
+				target,
+				0.5,
+				Transform::from_xyz(3.0, 0.0, 0.0),
+			));
+		app.update();
+
+		// A lone animation applies at full strength (coefficient 1.0),
+		// regardless of its progress: callers bake their own progress into
+		// the target value (see `BlendTargets::animate`). The coefficient
+		// only weighs *concurrent* animations against each other.
+		assert_eq!(
+			app.world().get::<Transform>(target).unwrap().translation.x,
+			3.0
+		);
 	}
 }
