@@ -284,6 +284,48 @@ macro_rules! bevy_test {
 	};
 }
 
+/// A visual test that can run either offscreen (automated) or in a window
+/// (manual review).
+///
+/// The setup function receives a [`VisualTestContext`] whose `target` is either
+/// an image render target (automated mode) or a window render target (review
+/// mode). Returning the test name lets the runner register the test with the
+/// result-tracking system.
+///
+/// Automated tests are registered in `AUTOMATED_VISUAL_TESTS`, and manual tests
+/// in `MANUAL_VISUAL_TESTS`. The review runner runs both; the automated runner
+/// runs only automated tests.
+#[macro_export]
+macro_rules! bevy_visual_test {
+	(automated fn $name:ident ($app:ident, $ctx:ident) $body:block) => {
+		#[cfg(all(feature = "vis_test", not(target_arch = "wasm32")))]
+		#[allow(unused)]
+		#[$crate::testing::visual::__static_register_visual_test($crate::testing::visual::AUTOMATED_VISUAL_TESTS)]
+		fn $name(
+			$app: &mut ::bevy::prelude::App,
+			$ctx: $crate::testing::visual::VisualTestContext,
+		) -> &'static str {
+			let test_id = stringify!($name);
+			$body
+			test_id
+		}
+	};
+
+	(manual fn $name:ident ($app:ident, $ctx:ident) $body:block) => {
+		#[cfg(all(feature = "vis_test", not(target_arch = "wasm32")))]
+		#[allow(unused)]
+		#[$crate::testing::visual::__static_register_visual_test($crate::testing::visual::MANUAL_VISUAL_TESTS)]
+		fn $name(
+			$app: &mut ::bevy::prelude::App,
+			$ctx: $crate::testing::visual::VisualTestContext,
+		) -> &'static str {
+			let test_id = stringify!($name);
+			$body
+			test_id
+		}
+	};
+}
+
 bevy_test!(fn app_started(app, test_id) {
 	fn check_app_started() -> TestStatus {
 		TestStatus::Passed
@@ -343,5 +385,361 @@ pub mod vis {
 		}
 	}
 }
+#[cfg(all(feature = "vis_test", not(target_arch = "wasm32")))]
+pub mod visual {
+	use super::{RunningTests, TestEvent, TestStatus, Timeout};
+	use bevy::{
+		app::{AppExit, ScheduleRunnerPlugin},
+		ecs::observer::Trigger,
+		log::{error, info},
+		prelude::*,
+		render::{
+			camera::RenderTarget,
+			render_asset::RenderAssetUsages,
+			render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
+			view::screenshot::{save_to_disk, Screenshot, ScreenshotCaptured},
+		},
+		time::TimeUpdateStrategy,
+		window::{Window, WindowPlugin, WindowRef},
+		winit::WinitPlugin,
+	};
+	use std::{num::NonZero, path::PathBuf, time::Duration};
+
+	pub use linkme::distributed_slice as __static_register_visual_test;
+
+	#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+	pub enum VisualTestMode {
+		Automated,
+		Review,
+	}
+
+	#[derive(Clone, Debug)]
+	pub struct VisualTestContext {
+		pub mode: VisualTestMode,
+		pub target: RenderTarget,
+		pub image: Option<Handle<Image>>,
+		pub window: Option<Entity>,
+	}
+
+	#[__static_register_visual_test]
+	pub static AUTOMATED_VISUAL_TESTS: [fn(&mut App, VisualTestContext) -> &'static str] = [..];
+
+	#[__static_register_visual_test]
+	pub static MANUAL_VISUAL_TESTS: [fn(&mut App, VisualTestContext) -> &'static str] = [..];
+
+	const IMAGE_WIDTH: u32 = 640;
+	const IMAGE_HEIGHT: u32 = 480;
+	const CAPTURE_FRAME: u32 = 10;
+	const MAX_CAPTURE_FRAME: u32 = 60;
+
+	#[derive(Resource)]
+	struct AutoCapture {
+		target: Handle<Image>,
+		path: PathBuf,
+		test_name: &'static str,
+		frame: u32,
+		spawned: bool,
+	}
+
+	fn new_visual_auto_app() -> App {
+		let mut app = App::new();
+		app.add_plugins(
+			DefaultPlugins
+				.set(WindowPlugin {
+					primary_window: None,
+					exit_condition: bevy::window::ExitCondition::DontExit,
+					close_when_requested: false,
+					..default()
+				})
+				.disable::<WinitPlugin>(),
+		)
+		.add_plugins(ScheduleRunnerPlugin::run_loop(Duration::from_secs_f64(
+			1.0 / 60.0,
+		)))
+		.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f64(
+			1.0 / 60.0,
+		)));
+
+		app.add_event::<TestEvent>();
+		app
+	}
+
+	fn new_visual_review_app() -> App {
+		let mut app = App::new();
+		app.add_plugins(DefaultPlugins.set(WindowPlugin {
+			primary_window: Some(Window {
+				title: "Visual test review".into(),
+				..default()
+			}),
+			exit_condition: bevy::window::ExitCondition::DontExit,
+			close_when_requested: false,
+			..default()
+		}));
+
+		app.add_event::<TestEvent>()
+			.init_resource::<RunningTests>()
+			.insert_resource(Timeout(Timer::from_seconds(600.0, TimerMode::Once)))
+			.add_systems(Startup, super::vis::vis_setup)
+			.add_systems(Last, (super::timeout, super::check_test_results))
+			.add_systems(Update, super::vis::pass_fail_keys);
+
+		app
+	}
+
+	fn add_auto_target(app: &mut App) -> VisualTestContext {
+		let size = Extent3d {
+			width: IMAGE_WIDTH,
+			height: IMAGE_HEIGHT,
+			..default()
+		};
+		let mut image = Image::new_fill(
+			size,
+			TextureDimension::D2,
+			&[0, 0, 0, 255],
+			TextureFormat::Rgba8UnormSrgb,
+			RenderAssetUsages::default(),
+		);
+		image.texture_descriptor.usage |= TextureUsages::COPY_SRC
+			| TextureUsages::RENDER_ATTACHMENT
+			| TextureUsages::TEXTURE_BINDING;
+
+		let handle = app.world_mut().resource_mut::<Assets<Image>>().add(image);
+
+		VisualTestContext {
+			mode: VisualTestMode::Automated,
+			target: RenderTarget::Image(handle.clone().into()),
+			image: Some(handle),
+			window: None,
+		}
+	}
+
+	fn add_auto_capture(app: &mut App, ctx: &VisualTestContext, name: &'static str) {
+		let Some(target) = ctx.image.clone() else {
+			return;
+		};
+
+		let path = PathBuf::from(format!("visual-tests/{name}.png"));
+		if let Some(parent) = path.parent() {
+			let _ = std::fs::create_dir_all(parent);
+		}
+
+		app.insert_resource(AutoCapture {
+			target,
+			path,
+			test_name: name,
+			frame: 0,
+			spawned: false,
+		})
+		.add_systems(Update, spawn_auto_capture);
+	}
+
+	fn screenshot_status(image: &Image) -> TestStatus {
+		let Some(data) = image.data.as_ref() else {
+			return TestStatus::Failed("screenshot has no CPU pixel data".into());
+		};
+		if data.len() < 4 {
+			return TestStatus::Failed("screenshot is too small".into());
+		}
+
+		let pixel = &data[0..4];
+		if pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0 {
+			return TestStatus::Failed("screenshot is blank".into());
+		}
+
+		TestStatus::Passed
+	}
+
+	fn spawn_auto_capture(
+		mut commands: Commands,
+		mut capture: ResMut<AutoCapture>,
+		mut exits: EventWriter<AppExit>,
+	) {
+		capture.frame += 1;
+
+		if capture.spawned {
+			return;
+		}
+
+		if capture.frame > MAX_CAPTURE_FRAME {
+			capture.spawned = true;
+			exits.write(AppExit::Error(NonZero::<u8>::new(1).unwrap()));
+			return;
+		}
+
+		if capture.frame < CAPTURE_FRAME {
+			return;
+		}
+
+		capture.spawned = true;
+		let path = capture.path.clone();
+		let target = capture.target.clone();
+		let name = capture.test_name;
+
+		commands.spawn(Screenshot::image(target)).observe(
+			move |trigger: Trigger<ScreenshotCaptured>,
+			      mut events: EventWriter<TestEvent>,
+			      mut exits: EventWriter<AppExit>| {
+				let image = trigger.event().0.clone();
+				let status = screenshot_status(&image);
+				let passed = status.passed();
+				events.write(status.event(name));
+				save_to_disk(&path)(trigger);
+
+				if passed {
+					exits.write(AppExit::Success);
+				} else {
+					exits.write(AppExit::Error(NonZero::<u8>::new(1).unwrap()));
+				}
+			},
+		);
+	}
+
+	pub fn run_automated_visual_tests() -> AppExit {
+		let mut failures = 0u8;
+
+		for test in AUTOMATED_VISUAL_TESTS.iter().copied() {
+			let mut app = new_visual_auto_app();
+			let ctx = add_auto_target(&mut app);
+			let name = test(&mut app, ctx.clone());
+			add_auto_capture(&mut app, &ctx, name);
+
+			match app.run() {
+				AppExit::Success => info!("TEST {name}: Passed"),
+				AppExit::Error(_) => {
+					error!("TEST {name}: Failed");
+					failures = failures.saturating_add(1);
+				}
+			}
+		}
+
+		if failures == 0 {
+			AppExit::Success
+		} else {
+			AppExit::Error(NonZero::<u8>::new(failures).unwrap())
+		}
+	}
+
+	pub fn run_review_visual_tests() -> AppExit {
+		let mut app = new_visual_review_app();
+
+		for test in AUTOMATED_VISUAL_TESTS
+			.iter()
+			.copied()
+			.chain(MANUAL_VISUAL_TESTS.iter().copied())
+		{
+			let window = app
+				.world_mut()
+				.spawn(Window {
+					title: "Visual test".into(),
+					..default()
+				})
+				.id();
+
+			let ctx = VisualTestContext {
+				mode: VisualTestMode::Review,
+				target: RenderTarget::Window(WindowRef::Entity(window)),
+				image: None,
+				window: Some(window),
+			};
+
+			let name = test(&mut app, ctx);
+
+			let mut entity = app.world_mut().entity_mut(window);
+			entity.insert(super::vis::TestWindow::new(name));
+			if let Some(mut window) = entity.get_mut::<Window>() {
+				window.title = name.into();
+			}
+
+			app.world_mut()
+				.resource_mut::<RunningTests>()
+				.insert(name, TestStatus::Running);
+		}
+
+		app.run()
+	}
+
+	#[cfg(feature = "vis_test")]
+	crate::bevy_visual_test!(automated fn offscreen_clear_color(app, ctx) {
+		app.insert_resource(ClearColor(Color::srgb_u8(20, 80, 160)));
+		app.add_systems(Startup, move |mut commands: Commands| {
+			commands.spawn((
+				Camera2d,
+				Camera {
+					target: ctx.target.clone(),
+					..default()
+				},
+			));
+		});
+	});
+
+	#[cfg(feature = "vis_test")]
+	crate::bevy_visual_test!(automated fn offscreen_3d_cube(app, ctx) {
+		app.insert_resource(ClearColor(Color::srgb_u8(18, 24, 32)));
+		app.insert_resource(AmbientLight {
+			color: Color::WHITE,
+			brightness: 300.0,
+			..default()
+		});
+		app.add_systems(
+			Startup,
+			move |mut commands: Commands,
+				  mut meshes: ResMut<Assets<Mesh>>,
+				  mut materials: ResMut<Assets<StandardMaterial>>| {
+				let cube = meshes.add(Cuboid::new(1.6, 1.6, 1.6));
+				let material = materials.add(StandardMaterial {
+					base_color: Color::srgb(0.85, 0.25, 0.12),
+					metallic: 0.1,
+					perceptual_roughness: 0.45,
+					..default()
+				});
+
+				commands.spawn((
+					Mesh3d(cube),
+					MeshMaterial3d(material),
+					Transform::from_xyz(0.0, 0.0, 0.0),
+				));
+
+				commands.spawn((
+					DirectionalLight {
+						illuminance: 4000.0,
+						shadows_enabled: false,
+						..default()
+					},
+					Transform::from_rotation(
+						Quat::from_rotation_x(-0.6) * Quat::from_rotation_y(0.8),
+					),
+				));
+
+				let camera = commands
+					.spawn((
+						Camera3d::default(),
+						Transform::from_xyz(3.2, 2.4, 4.8).looking_at(Vec3::ZERO, Vec3::Y),
+					))
+					.id();
+				commands.entity(camera).insert(Camera {
+					target: ctx.target.clone(),
+					..default()
+				});
+			},
+		);
+	});
+
+	#[cfg(feature = "vis_test")]
+	crate::bevy_visual_test!(manual fn manual_review_color(app, ctx) {
+		app.insert_resource(ClearColor(Color::srgb_u8(160, 60, 20)));
+		app.add_systems(Startup, move |mut commands: Commands| {
+			commands.spawn((
+				Camera2d,
+				Camera {
+					target: ctx.target.clone(),
+					..default()
+				},
+			));
+		});
+	});
+}
+
 #[cfg(all(feature = "render", not(target_arch = "wasm32")))]
 pub use vis::*;
+#[cfg(all(feature = "vis_test", not(target_arch = "wasm32")))]
+pub use visual::*;
