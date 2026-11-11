@@ -390,20 +390,24 @@ pub mod visual {
 	use super::{RunningTests, TestEvent, TestStatus, Timeout};
 	use bevy::{
 		app::{AppExit, ScheduleRunnerPlugin},
+		core_pipeline::{tonemapping::Tonemapping, Skybox},
 		ecs::observer::Trigger,
 		log::{error, info},
 		prelude::*,
 		render::{
 			camera::RenderTarget,
 			render_asset::RenderAssetUsages,
-			render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
+			render_resource::{
+				Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
+				TextureViewDescriptor, TextureViewDimension,
+			},
 			view::screenshot::{save_to_disk, Screenshot, ScreenshotCaptured},
 		},
 		time::TimeUpdateStrategy,
 		window::{Window, WindowPlugin, WindowRef},
 		winit::WinitPlugin,
 	};
-	use std::{num::NonZero, path::PathBuf, time::Duration};
+	use std::{f32::consts::FRAC_PI_2, num::NonZero, path::PathBuf, time::Duration};
 
 	pub use linkme::distributed_slice as __static_register_visual_test;
 
@@ -445,6 +449,10 @@ pub mod visual {
 		let mut app = App::new();
 		app.add_plugins(
 			DefaultPlugins
+				.set(bevy::asset::AssetPlugin {
+					file_path: concat!(env!("CARGO_MANIFEST_DIR"), "/../assets").into(),
+					..default()
+				})
 				.set(WindowPlugin {
 					primary_window: None,
 					exit_condition: bevy::window::ExitCondition::DontExit,
@@ -466,15 +474,22 @@ pub mod visual {
 
 	fn new_visual_review_app() -> App {
 		let mut app = App::new();
-		app.add_plugins(DefaultPlugins.set(WindowPlugin {
-			primary_window: Some(Window {
-				title: "Visual test review".into(),
-				..default()
-			}),
-			exit_condition: bevy::window::ExitCondition::DontExit,
-			close_when_requested: false,
-			..default()
-		}));
+		app.add_plugins(
+			DefaultPlugins
+				.set(bevy::asset::AssetPlugin {
+					file_path: concat!(env!("CARGO_MANIFEST_DIR"), "/../assets").into(),
+					..default()
+				})
+				.set(WindowPlugin {
+					primary_window: Some(Window {
+						title: "Visual test review".into(),
+						..default()
+					}),
+					exit_condition: bevy::window::ExitCondition::DontExit,
+					close_when_requested: false,
+					..default()
+				}),
+		);
 
 		app.add_event::<TestEvent>()
 			.init_resource::<RunningTests>()
@@ -720,6 +735,69 @@ pub mod visual {
 					target: ctx.target.clone(),
 					..default()
 				});
+			},
+		);
+	});
+
+	#[cfg(feature = "vis_test")]
+	crate::bevy_visual_test!(automated fn offscreen_skybox(app, ctx) {
+		app.add_plugins(crate::planet::sky::SkyPlugin);
+		app.insert_resource(crate::planet::day_night::DayNightCycle::from_tod(0.5));
+		app.insert_resource(ClearColor(Color::BLACK));
+
+		app.add_systems(
+			Startup,
+			move |mut commands: Commands,
+				  mut images: ResMut<Assets<Image>>,
+				  asset_server: Res<AssetServer>| {
+				let size = Extent3d {
+					width: 16,
+					height: 96,
+					depth_or_array_layers: 1,
+				};
+				let mut tex = Image {
+					texture_descriptor: TextureDescriptor {
+						label: Some("skybox_texture"),
+						size,
+						dimension: TextureDimension::D2,
+						format: TextureFormat::Rgba32Float,
+						mip_level_count: 1,
+						sample_count: 1,
+						usage: TextureUsages::TEXTURE_BINDING
+							| TextureUsages::COPY_DST
+							| TextureUsages::RENDER_ATTACHMENT,
+						view_formats: &[],
+					},
+					texture_view_descriptor: Some(TextureViewDescriptor {
+						label: Some("skybox_view"),
+						dimension: Some(TextureViewDimension::Cube),
+						..default()
+					}),
+					asset_usage: RenderAssetUsages::RENDER_WORLD,
+					..default()
+				};
+				tex.resize(size);
+				tex.reinterpret_stacked_2d_as_array(6);
+
+				let sky_texture = images.add(tex);
+				let skybox_shader = asset_server.load::<Shader>("shaders/skybox.wgsl");
+
+				commands.spawn((
+					Camera3d::default(),
+					Camera {
+						hdr: true,
+						target: ctx.target.clone(),
+						..default()
+					},
+					Transform::from_rotation(Quat::from_rotation_x(FRAC_PI_2)),
+					Tonemapping::BlenderFilmic,
+					Skybox {
+						image: sky_texture,
+						brightness: 1_000.0,
+						rotation: Quat::from_rotation_x(FRAC_PI_2),
+					},
+					crate::planet::sky::SkyShader(skybox_shader),
+				));
 			},
 		);
 	});
