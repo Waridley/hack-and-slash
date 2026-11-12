@@ -741,8 +741,13 @@ pub mod visual {
 
 	#[cfg(feature = "vis_test")]
 	crate::bevy_visual_test!(automated fn offscreen_skybox(app, ctx) {
-		app.add_plugins(crate::planet::sky::SkyPlugin);
-		app.insert_resource(crate::planet::day_night::DayNightCycle::from_tod(0.5));
+		app.add_plugins((
+			crate::planet::day_night::DayNightPlugin,
+			crate::planet::sky::SkyPlugin,
+		));
+		app.insert_resource(
+			crate::planet::day_night::DayNightCycle::from_tod(0.5).with_day_length(20.0),
+		);
 		app.insert_resource(ClearColor(Color::BLACK));
 
 		app.add_systems(
