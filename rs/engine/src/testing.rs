@@ -407,7 +407,12 @@ pub mod visual {
 		window::{Window, WindowPlugin, WindowRef},
 		winit::WinitPlugin,
 	};
-	use std::{f32::consts::FRAC_PI_2, num::NonZero, path::PathBuf, time::Duration};
+	use std::{
+		f32::consts::FRAC_PI_2,
+		num::NonZero,
+		path::{Path, PathBuf},
+		time::Duration,
+	};
 
 	pub use linkme::distributed_slice as __static_register_visual_test;
 
@@ -436,13 +441,30 @@ pub mod visual {
 	const CAPTURE_FRAME: u32 = 10;
 	const MAX_CAPTURE_FRAME: u32 = 60;
 
+	#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+	enum CaptureCheck {
+		NonBlank,
+		NotClearColorAndChanging,
+	}
+
+	#[derive(Resource, Clone)]
+	struct CapturePlan {
+		frames: Vec<u32>,
+		check: CaptureCheck,
+	}
+
 	#[derive(Resource)]
 	struct AutoCapture {
 		target: Handle<Image>,
 		path: PathBuf,
 		test_name: &'static str,
-		frame: u32,
-		spawned: bool,
+		capture_frames: Vec<u32>,
+		next_capture: usize,
+		current_frame: u32,
+		pending: bool,
+		captured: Vec<Image>,
+		check: CaptureCheck,
+		finished: bool,
 	}
 
 	fn new_visual_auto_app() -> App {
@@ -538,12 +560,26 @@ pub mod visual {
 			let _ = std::fs::create_dir_all(parent);
 		}
 
+		let plan = app
+			.world()
+			.get_resource::<CapturePlan>()
+			.cloned()
+			.unwrap_or(CapturePlan {
+				frames: vec![CAPTURE_FRAME],
+				check: CaptureCheck::NonBlank,
+			});
+
 		app.insert_resource(AutoCapture {
 			target,
 			path,
 			test_name: name,
-			frame: 0,
-			spawned: false,
+			capture_frames: plan.frames,
+			next_capture: 0,
+			current_frame: 0,
+			pending: false,
+			captured: Vec::new(),
+			check: plan.check,
+			finished: false,
 		})
 		.add_systems(Update, spawn_auto_capture);
 	}
@@ -564,46 +600,140 @@ pub mod visual {
 		TestStatus::Passed
 	}
 
+	fn capture_path(base: &Path, index: usize, total: usize, frame: u32) -> PathBuf {
+		if index == 0 || total == 1 {
+			return base.to_path_buf();
+		}
+
+		let stem = base
+			.file_stem()
+			.and_then(|s| s.to_str())
+			.unwrap_or("screenshot");
+		base.with_file_name(format!("{stem}_frame{frame}.png"))
+	}
+
+	fn is_not_clear_color(image: &Image, clear_color: &ClearColor) -> bool {
+		let Some(data) = image.data.as_ref() else {
+			return false;
+		};
+		let clear = clear_color.0.to_srgba();
+		let clear_rgb = [
+			(clear.red.clamp(0.0, 1.0) * 255.0).round() as u8,
+			(clear.green.clamp(0.0, 1.0) * 255.0).round() as u8,
+			(clear.blue.clamp(0.0, 1.0) * 255.0).round() as u8,
+		];
+
+		data.chunks_exact(4).any(|pixel| {
+			pixel[0] != clear_rgb[0] || pixel[1] != clear_rgb[1] || pixel[2] != clear_rgb[2]
+		})
+	}
+
+	fn colors_changed(first: &Image, last: &Image) -> bool {
+		let (Some(first_data), Some(last_data)) = (&first.data, &last.data) else {
+			return false;
+		};
+		if first_data.len() != last_data.len() {
+			return false;
+		}
+
+		let pixel_count = first_data.len() / 4;
+		let mut changed = 0usize;
+		for (first_pixel, last_pixel) in first_data.chunks_exact(4).zip(last_data.chunks_exact(4)) {
+			let diff = (first_pixel[0] as i32 - last_pixel[0] as i32).abs()
+				+ (first_pixel[1] as i32 - last_pixel[1] as i32).abs()
+				+ (first_pixel[2] as i32 - last_pixel[2] as i32).abs();
+			if diff > 3 {
+				changed += 1;
+			}
+		}
+
+		changed >= pixel_count / 100
+	}
+
+	fn validate_captures(capture: &AutoCapture, clear_color: &ClearColor) -> TestStatus {
+		match capture.check {
+			CaptureCheck::NonBlank => {
+				let Some(image) = capture.captured.first() else {
+					return TestStatus::Failed("no screenshot captured".into());
+				};
+				screenshot_status(image)
+			}
+			CaptureCheck::NotClearColorAndChanging => {
+				let (Some(first), Some(last)) = (capture.captured.first(), capture.captured.last())
+				else {
+					return TestStatus::Failed("not enough screenshots captured".into());
+				};
+
+				if !is_not_clear_color(first, clear_color) {
+					return TestStatus::Failed("screenshot is still the clear color".into());
+				}
+				if !colors_changed(first, last) {
+					return TestStatus::Failed("screenshot colors did not change over time".into());
+				}
+
+				TestStatus::Passed
+			}
+		}
+	}
+
 	fn spawn_auto_capture(
 		mut commands: Commands,
 		mut capture: ResMut<AutoCapture>,
 		mut exits: EventWriter<AppExit>,
 	) {
-		capture.frame += 1;
-
-		if capture.spawned {
+		if capture.finished || capture.pending {
 			return;
 		}
 
-		if capture.frame > MAX_CAPTURE_FRAME {
-			capture.spawned = true;
+		capture.current_frame += 1;
+
+		let Some(&target_frame) = capture.capture_frames.get(capture.next_capture) else {
+			return;
+		};
+
+		if capture.current_frame > MAX_CAPTURE_FRAME {
+			capture.finished = true;
 			exits.write(AppExit::Error(NonZero::<u8>::new(1).unwrap()));
 			return;
 		}
 
-		if capture.frame < CAPTURE_FRAME {
+		if capture.current_frame < target_frame {
 			return;
 		}
 
-		capture.spawned = true;
-		let path = capture.path.clone();
+		capture.pending = true;
 		let target = capture.target.clone();
+		let path = capture.path.clone();
+		let total = capture.capture_frames.len();
+		let index = capture.next_capture;
+		let frame = capture.capture_frames[index];
 		let name = capture.test_name;
 
 		commands.spawn(Screenshot::image(target)).observe(
 			move |trigger: Trigger<ScreenshotCaptured>,
+			      mut capture: ResMut<AutoCapture>,
+			      clear_color: Res<ClearColor>,
 			      mut events: EventWriter<TestEvent>,
 			      mut exits: EventWriter<AppExit>| {
 				let image = trigger.event().0.clone();
-				let status = screenshot_status(&image);
-				let passed = status.passed();
-				events.write(status.event(name));
-				save_to_disk(&path)(trigger);
+				let save_path = capture_path(&path, index, total, frame);
+				save_to_disk(&save_path)(trigger);
 
-				if passed {
-					exits.write(AppExit::Success);
-				} else {
-					exits.write(AppExit::Error(NonZero::<u8>::new(1).unwrap()));
+				capture.captured.push(image);
+				capture.next_capture += 1;
+				capture.pending = false;
+
+				if capture.next_capture >= total {
+					let status = validate_captures(&capture, &clear_color);
+					let passed = status.passed();
+					events.write(status.event(name));
+					capture.finished = true;
+
+					if passed {
+						exits.write(AppExit::Success);
+					} else {
+						exits.write(AppExit::Error(NonZero::<u8>::new(1).unwrap()));
+					}
 				}
 			},
 		);
@@ -749,6 +879,10 @@ pub mod visual {
 			crate::planet::day_night::DayNightCycle::from_tod(0.5).with_day_length(20.0),
 		);
 		app.insert_resource(ClearColor(Color::BLACK));
+		app.insert_resource(CapturePlan {
+			frames: vec![CAPTURE_FRAME, 40],
+			check: CaptureCheck::NotClearColorAndChanging,
+		});
 
 		app.add_systems(
 			Startup,
