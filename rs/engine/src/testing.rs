@@ -392,6 +392,7 @@ pub mod visual {
 		app::{AppExit, ScheduleRunnerPlugin},
 		core_pipeline::{tonemapping::Tonemapping, Skybox},
 		ecs::observer::Trigger,
+		image::{CompressedImageFormats, ImageSampler, ImageType},
 		log::{error, info},
 		prelude::*,
 		render::{
@@ -441,16 +442,23 @@ pub mod visual {
 	const CAPTURE_FRAME: u32 = 10;
 	const MAX_CAPTURE_FRAME: u32 = 60;
 
-	#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+	#[derive(Clone, Debug, Eq, PartialEq)]
 	enum CaptureCheck {
 		NonBlank,
+		AllClearColor,
 		NotClearColorAndChanging,
+		Baseline {
+			path: PathBuf,
+			tolerance: u8,
+			max_mismatch_percent: u8,
+		},
 	}
 
 	#[derive(Resource, Clone)]
 	struct CapturePlan {
 		frames: Vec<u32>,
 		check: CaptureCheck,
+		save: bool,
 	}
 
 	#[derive(Resource)]
@@ -464,6 +472,7 @@ pub mod visual {
 		pending: bool,
 		captured: Vec<Image>,
 		check: CaptureCheck,
+		save: bool,
 		finished: bool,
 	}
 
@@ -567,6 +576,7 @@ pub mod visual {
 			.unwrap_or(CapturePlan {
 				frames: vec![CAPTURE_FRAME],
 				check: CaptureCheck::NonBlank,
+				save: false,
 			});
 
 		app.insert_resource(AutoCapture {
@@ -579,6 +589,7 @@ pub mod visual {
 			pending: false,
 			captured: Vec::new(),
 			check: plan.check,
+			save: plan.save,
 			finished: false,
 		})
 		.add_systems(Update, spawn_auto_capture);
@@ -612,19 +623,34 @@ pub mod visual {
 		base.with_file_name(format!("{stem}_frame{frame}.png"))
 	}
 
+	fn clear_color_rgb(clear_color: &ClearColor) -> [u8; 3] {
+		let clear = clear_color.0.to_srgba();
+		[
+			(clear.red.clamp(0.0, 1.0) * 255.0).round() as u8,
+			(clear.green.clamp(0.0, 1.0) * 255.0).round() as u8,
+			(clear.blue.clamp(0.0, 1.0) * 255.0).round() as u8,
+		]
+	}
+
 	fn is_not_clear_color(image: &Image, clear_color: &ClearColor) -> bool {
 		let Some(data) = image.data.as_ref() else {
 			return false;
 		};
-		let clear = clear_color.0.to_srgba();
-		let clear_rgb = [
-			(clear.red.clamp(0.0, 1.0) * 255.0).round() as u8,
-			(clear.green.clamp(0.0, 1.0) * 255.0).round() as u8,
-			(clear.blue.clamp(0.0, 1.0) * 255.0).round() as u8,
-		];
+		let clear_rgb = clear_color_rgb(clear_color);
 
 		data.chunks_exact(4).any(|pixel| {
 			pixel[0] != clear_rgb[0] || pixel[1] != clear_rgb[1] || pixel[2] != clear_rgb[2]
+		})
+	}
+
+	fn is_clear_color(image: &Image, clear_color: &ClearColor) -> bool {
+		let Some(data) = image.data.as_ref() else {
+			return false;
+		};
+		let clear_rgb = clear_color_rgb(clear_color);
+
+		data.chunks_exact(4).all(|pixel| {
+			pixel[0] == clear_rgb[0] && pixel[1] == clear_rgb[1] && pixel[2] == clear_rgb[2]
 		})
 	}
 
@@ -650,13 +676,84 @@ pub mod visual {
 		changed >= pixel_count / 100
 	}
 
+	fn load_baseline(path: &Path) -> Result<Image, Box<dyn std::error::Error + Send + Sync>> {
+		let bytes = std::fs::read(path)?;
+		let image = Image::from_buffer(
+			&bytes,
+			ImageType::Extension("png"),
+			CompressedImageFormats::NONE,
+			true,
+			ImageSampler::default(),
+			RenderAssetUsages::default(),
+		)?;
+		Ok(image)
+	}
+
+	fn matches_baseline(
+		image: &Image,
+		baseline: &Image,
+		tolerance: u8,
+		max_mismatch_percent: u8,
+	) -> Result<(), String> {
+		let (Some(image_data), Some(baseline_data)) = (&image.data, &baseline.data) else {
+			return Err("baseline comparison has no CPU pixel data".into());
+		};
+
+		if image.width() != baseline.width() || image.height() != baseline.height() {
+			return Err(format!(
+				"baseline size mismatch: {}x{} vs {}x{}",
+				image.width(),
+				image.height(),
+				baseline.width(),
+				baseline.height()
+			));
+		}
+
+		if image_data.len() != baseline_data.len() {
+			return Err("baseline data length mismatch".into());
+		}
+
+		let pixel_count = image_data.len() / 4;
+		let mut mismatched = 0usize;
+		for (image_pixel, baseline_pixel) in image_data
+			.chunks_exact(4)
+			.zip(baseline_data.chunks_exact(4))
+		{
+			let diff = (image_pixel[0] as i32 - baseline_pixel[0] as i32)
+				.abs()
+				.max((image_pixel[1] as i32 - baseline_pixel[1] as i32).abs())
+				.max((image_pixel[2] as i32 - baseline_pixel[2] as i32).abs());
+			if diff > tolerance as i32 {
+				mismatched += 1;
+			}
+		}
+
+		let allowed = pixel_count * max_mismatch_percent as usize / 100;
+		if mismatched > allowed {
+			return Err(format!(
+				"{mismatched} of {pixel_count} pixels differ from baseline by more than {tolerance}"
+			));
+		}
+
+		Ok(())
+	}
+
 	fn validate_captures(capture: &AutoCapture, clear_color: &ClearColor) -> TestStatus {
-		match capture.check {
+		match &capture.check {
 			CaptureCheck::NonBlank => {
 				let Some(image) = capture.captured.first() else {
 					return TestStatus::Failed("no screenshot captured".into());
 				};
 				screenshot_status(image)
+			}
+			CaptureCheck::AllClearColor => {
+				let Some(image) = capture.captured.first() else {
+					return TestStatus::Failed("no screenshot captured".into());
+				};
+				if !is_clear_color(image, clear_color) {
+					return TestStatus::Failed("screenshot is not entirely the clear color".into());
+				}
+				TestStatus::Passed
 			}
 			CaptureCheck::NotClearColorAndChanging => {
 				let (Some(first), Some(last)) = (capture.captured.first(), capture.captured.last())
@@ -672,6 +769,29 @@ pub mod visual {
 				}
 
 				TestStatus::Passed
+			}
+			CaptureCheck::Baseline {
+				path,
+				tolerance,
+				max_mismatch_percent,
+			} => {
+				let Some(image) = capture.captured.first() else {
+					return TestStatus::Failed("no screenshot captured".into());
+				};
+
+				let baseline = match load_baseline(path) {
+					Ok(baseline) => baseline,
+					Err(e) => {
+						return TestStatus::Failed(
+							format!("could not load baseline {}: {e}", path.display()).into(),
+						);
+					}
+				};
+
+				match matches_baseline(image, &baseline, *tolerance, *max_mismatch_percent) {
+					Ok(()) => TestStatus::Passed,
+					Err(message) => TestStatus::Failed(message.into()),
+				}
 			}
 		}
 	}
@@ -708,6 +828,7 @@ pub mod visual {
 		let index = capture.next_capture;
 		let frame = capture.capture_frames[index];
 		let name = capture.test_name;
+		let save = capture.save;
 
 		commands.spawn(Screenshot::image(target)).observe(
 			move |trigger: Trigger<ScreenshotCaptured>,
@@ -716,8 +837,10 @@ pub mod visual {
 			      mut events: EventWriter<TestEvent>,
 			      mut exits: EventWriter<AppExit>| {
 				let image = trigger.event().0.clone();
-				let save_path = capture_path(&path, index, total, frame);
-				save_to_disk(&save_path)(trigger);
+				if save {
+					let save_path = capture_path(&path, index, total, frame);
+					save_to_disk(&save_path)(trigger);
+				}
 
 				capture.captured.push(image);
 				capture.next_capture += 1;
@@ -806,6 +929,11 @@ pub mod visual {
 	#[cfg(feature = "vis_test")]
 	crate::bevy_visual_test!(automated fn offscreen_clear_color(app, ctx) {
 		app.insert_resource(ClearColor(Color::srgb_u8(20, 80, 160)));
+		app.insert_resource(CapturePlan {
+			frames: vec![CAPTURE_FRAME],
+			check: CaptureCheck::AllClearColor,
+			save: false,
+		});
 		app.add_systems(Startup, move |mut commands: Commands| {
 			commands.spawn((
 				Camera2d,
@@ -820,6 +948,16 @@ pub mod visual {
 	#[cfg(feature = "vis_test")]
 	crate::bevy_visual_test!(automated fn offscreen_3d_cube(app, ctx) {
 		app.insert_resource(ClearColor(Color::srgb_u8(18, 24, 32)));
+		app.insert_resource(CapturePlan {
+			frames: vec![CAPTURE_FRAME],
+			check: CaptureCheck::Baseline {
+				path: Path::new(env!("CARGO_MANIFEST_DIR"))
+					.join("tests/baselines/offscreen_3d_cube.png"),
+				tolerance: 8,
+				max_mismatch_percent: 1,
+			},
+			save: false,
+		});
 		app.insert_resource(AmbientLight {
 			color: Color::WHITE,
 			brightness: 300.0,
@@ -882,6 +1020,7 @@ pub mod visual {
 		app.insert_resource(CapturePlan {
 			frames: vec![CAPTURE_FRAME, 40],
 			check: CaptureCheck::NotClearColorAndChanging,
+			save: false,
 		});
 
 		app.add_systems(
