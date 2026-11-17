@@ -204,13 +204,13 @@ pub trait TestSystem<M>: IntoSystem<(), TestStatus, M> {
 
 impl<F: IntoSystem<(), TestStatus, M>, M> TestSystem<M> for F {
 	fn test(self, test_name: &'static str) -> impl System<In = (), Out = ()> {
-		let status_to_event = move |In(status): In<TestStatus>,
-		                            mut events: EventWriter<TestEvent>| {
-			events.write(TestEvent {
-				status,
-				name: test_name,
-			});
-		};
+		let status_to_event =
+			move |In(status): In<TestStatus>, mut events: EventWriter<TestEvent>| {
+				events.write(TestEvent {
+					status,
+					name: test_name,
+				});
+			};
 
 		IntoSystem::into_system(self.pipe(IntoSystem::into_system(status_to_event)))
 	}
@@ -636,9 +636,12 @@ pub mod visual {
 		let Some(data) = image.data.as_ref() else {
 			return false;
 		};
+		if data.len() % 4 != 0 {
+			return false;
+		}
 		let clear_rgb = clear_color_rgb(clear_color);
 
-		data.chunks_exact(4).any(|pixel| {
+		data.chunks(4).any(|pixel| {
 			pixel[0] != clear_rgb[0] || pixel[1] != clear_rgb[1] || pixel[2] != clear_rgb[2]
 		})
 	}
@@ -647,9 +650,12 @@ pub mod visual {
 		let Some(data) = image.data.as_ref() else {
 			return false;
 		};
+		if data.len() % 4 != 0 {
+			return false;
+		}
 		let clear_rgb = clear_color_rgb(clear_color);
 
-		data.chunks_exact(4).all(|pixel| {
+		data.chunks(4).all(|pixel| {
 			pixel[0] == clear_rgb[0] && pixel[1] == clear_rgb[1] && pixel[2] == clear_rgb[2]
 		})
 	}
@@ -658,13 +664,13 @@ pub mod visual {
 		let (Some(first_data), Some(last_data)) = (&first.data, &last.data) else {
 			return false;
 		};
-		if first_data.len() != last_data.len() {
+		if first_data.len() != last_data.len() || first_data.len() % 4 != 0 {
 			return false;
 		}
 
 		let pixel_count = first_data.len() / 4;
 		let mut changed = 0usize;
-		for (first_pixel, last_pixel) in first_data.chunks_exact(4).zip(last_data.chunks_exact(4)) {
+		for (first_pixel, last_pixel) in first_data.chunks(4).zip(last_data.chunks(4)) {
 			let diff = (first_pixel[0] as i32 - last_pixel[0] as i32).abs()
 				+ (first_pixel[1] as i32 - last_pixel[1] as i32).abs()
 				+ (first_pixel[2] as i32 - last_pixel[2] as i32).abs();
@@ -709,16 +715,13 @@ pub mod visual {
 			));
 		}
 
-		if image_data.len() != baseline_data.len() {
+		if image_data.len() != baseline_data.len() || image_data.len() % 4 != 0 {
 			return Err("baseline data length mismatch".into());
 		}
 
 		let pixel_count = image_data.len() / 4;
 		let mut mismatched = 0usize;
-		for (image_pixel, baseline_pixel) in image_data
-			.chunks_exact(4)
-			.zip(baseline_data.chunks_exact(4))
-		{
+		for (image_pixel, baseline_pixel) in image_data.chunks(4).zip(baseline_data.chunks(4)) {
 			let diff = (image_pixel[0] as i32 - baseline_pixel[0] as i32)
 				.abs()
 				.max((image_pixel[1] as i32 - baseline_pixel[1] as i32).abs())
