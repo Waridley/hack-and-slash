@@ -293,8 +293,11 @@ macro_rules! bevy_test {
 /// result-tracking system.
 ///
 /// Automated tests are registered in `AUTOMATED_VISUAL_TESTS`, and manual tests
-/// in `MANUAL_VISUAL_TESTS`. The review runner runs both; the automated runner
-/// runs only automated tests.
+/// in `MANUAL_VISUAL_TESTS`. The automated runner runs only automated tests.
+/// The review runner opens one window per test from both registries, so it can
+/// review automated and manual-only tests without duplicating any test. Before
+/// opening the windows, it runs the automated checks and reports whether each
+/// one would have passed, but the reviewer's P/F choice is the final result.
 #[macro_export]
 macro_rules! bevy_visual_test {
 	(automated fn $name:ident ($app:ident, $ctx:ident) $body:block) => {
@@ -865,21 +868,27 @@ pub mod visual {
 		);
 	}
 
+	fn run_automated_check(
+		test: fn(&mut App, VisualTestContext) -> &'static str,
+	) -> (&'static str, bool) {
+		let mut app = new_visual_auto_app();
+		let ctx = add_auto_target(&mut app);
+		let name = test(&mut app, ctx.clone());
+		add_auto_capture(&mut app, &ctx, name);
+
+		(name, matches!(app.run(), AppExit::Success))
+	}
+
 	pub fn run_automated_visual_tests() -> AppExit {
 		let mut failures = 0u8;
 
 		for test in AUTOMATED_VISUAL_TESTS.iter().copied() {
-			let mut app = new_visual_auto_app();
-			let ctx = add_auto_target(&mut app);
-			let name = test(&mut app, ctx.clone());
-			add_auto_capture(&mut app, &ctx, name);
-
-			match app.run() {
-				AppExit::Success => info!("TEST {name}: Passed"),
-				AppExit::Error(_) => {
-					error!("TEST {name}: Failed");
-					failures = failures.saturating_add(1);
-				}
+			let (name, passed) = run_automated_check(test);
+			if passed {
+				info!("TEST {name}: Passed");
+			} else {
+				error!("TEST {name}: Failed");
+				failures = failures.saturating_add(1);
 			}
 		}
 
@@ -890,9 +899,28 @@ pub mod visual {
 		}
 	}
 
+	fn review_name(name: &'static str) -> &'static str {
+		name.strip_prefix("offscreen_").unwrap_or(name)
+	}
+
 	pub fn run_review_visual_tests() -> AppExit {
+		// Run the automated checks first and report what they would decide, but
+		// do not let that result override the reviewer's P/F choice.
+		info!("Running automated visual checks (expected results):");
+		for test in AUTOMATED_VISUAL_TESTS.iter().copied() {
+			let (name, passed) = run_automated_check(test);
+			let name = review_name(name);
+			if passed {
+				info!("AUTOMATED CHECK {name}: would Pass");
+			} else {
+				error!("AUTOMATED CHECK {name}: would Fail");
+			}
+		}
+
 		let mut app = new_visual_review_app();
 
+		// Each test gets exactly one window, regardless of whether it is an
+		// automated test being reviewed manually or a manual-only test.
 		for test in AUTOMATED_VISUAL_TESTS
 			.iter()
 			.copied()
@@ -914,6 +942,7 @@ pub mod visual {
 			};
 
 			let name = test(&mut app, ctx);
+			let name = review_name(name);
 
 			let mut entity = app.world_mut().entity_mut(window);
 			entity.insert(super::vis::TestWindow::new(name));
