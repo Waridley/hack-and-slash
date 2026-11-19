@@ -83,3 +83,13 @@ type_complexity = "allow" # Queries seem complex to Clippy but are usually easil
 name = "visual"
 required-features = ["vis_test"]
 harness = false
+
+[[test]]
+name = "visual_auto"
+required-features = ["vis_test"]
+harness = false
+
+[[test]]
+name = "visual_review"
+required-features = ["vis_test"]
+harness = false

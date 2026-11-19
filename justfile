@@ -69,6 +69,14 @@ test-all: check-run-debug test-engine test-game test-rng
 vis-test:
     cargo test --workspace --features=vis_test
 
+# Run automated visual tests offscreen (no display server)
+vis-test-auto:
+    cargo test --package sond-has-engine --features=vis_test --test visual_auto
+
+# Run visual tests in manual review mode (opens windows)
+vis-test-review:
+    VIS_TEST_REVIEW=1 cargo test --package sond-has-engine --features=vis_test --test visual_review
+
 # ── Profiling ─────────────────────────────────────────────────────────────────
 
 # Build + run with Tracy profiling

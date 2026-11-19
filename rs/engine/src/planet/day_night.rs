@@ -64,6 +64,11 @@ impl DayNightCycle {
 			moon_direction: Vec3::splat(-1.0).normalize(),
 		}
 	}
+
+	pub fn with_day_length(mut self, day_length: f64) -> Self {
+		self.day_length = day_length;
+		self
+	}
 }
 
 #[derive(Default, Clone, Copy, Debug, Reflect)]

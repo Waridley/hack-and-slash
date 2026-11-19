@@ -14,12 +14,8 @@ impl OneWayHeightFieldFilter<'_, '_> {
 		local_norm: &Vector<f32>,
 		up: &Vector<f32>,
 	) -> bool {
-		if self.colliders.get(collider).map(|col| col.raw.shape_type()) == Ok(HeightField)
+		self.colliders.get(collider).map(|col| col.raw.shape_type()) == Ok(HeightField)
 			&& local_norm.dot(up) < 0.0
-		{
-			return true;
-		}
-		false
 	}
 
 	pub fn filter(
